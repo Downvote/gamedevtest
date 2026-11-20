@@ -16,6 +16,7 @@
 #             | pportraits | pthumbs[=<k>of<n> | =<id>,<id>] (pictures for the sprites: portraits.sh, thumbs.sh)
 #             | cthumbs[=<k>of<n> | =<id>,<id>] (the cosmetics' pictures: cosmetic_thumbs.sh)
 #             | picons[=<id>,<id>] (the game passes' and products' icons' subjects: product_icons.sh)
+#             | gthumbs[=<shot>,<shot> | =cast | =cast:<id>,<id>] (the game's thumbnails and icon: game_thumbs.sh)
 #             (preview.luau's SCEN; all = island village island3 sea build day)
 #   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off
@@ -40,7 +41,7 @@ case $scen in
 	hatches) scens="hatch=11 hatch=23 hatch=33 hatch=45 hatch=55 hatch=57 hatch=66 hatch=77" ;;
 	zooms) scens="zoom=1 zoom=4 zoom=8 zoom=10" ;;
 	weathers) scens="weather=sunny weather=breezy weather=rain weather=storm weather=fog weather=snow weather=blossom weather=haze weather=leaves" ;;
-	island|village|island2|island3|city|everdrift|gallery|catalog=*|theme=*|hatch=*|pals=*|palsw=*|looks=*|anim=*|weather=*|zoom=*|expandperf=*|day|dusk|night|dawn|tree|panel=*|alerts|showcase=*|sea|visit|build|buildui|inventory|expand|zoo|paths|water|work|motion|idle|pan|stress|stress=*|crowd|ambient|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*|cthumbs|cthumbs=*|picons|picons=*) scens=$scen ;;
+	island|village|island2|island3|city|everdrift|gallery|catalog=*|theme=*|hatch=*|pals=*|palsw=*|looks=*|anim=*|weather=*|zoom=*|expandperf=*|day|dusk|night|dawn|tree|panel=*|alerts|showcase=*|sea|visit|build|buildui|inventory|expand|zoo|paths|water|work|motion|idle|pan|stress|stress=*|crowd|ambient|late|loading|ploadingart|pportraits|pportraits_try|pthumbs|pthumbs=*|cthumbs|cthumbs=*|picons|picons=*|gthumbs|gthumbs=*) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

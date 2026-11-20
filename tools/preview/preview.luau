@@ -3007,6 +3007,22 @@ local function piconsScenario(arg: string?)
 	return require("./product_icons")(env)
 end
 SCEN.picons = piconsScenario
+-- "gthumbs" / "gthumbs=<shot>,<shot>" (tree crowd town work) / "gthumbs=cast" / "gthumbs=cast:<id>,<id>": the game's
+-- thumbnails' scenes and the driftlings drawn over them (tools/preview/game_thumbs.luau; sh tools/preview/game_thumbs.sh
+-- lays them out with the title and the captions)
+local function gthumbsScenario(arg: string?)
+	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile }
+	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn") then
+		env.mode = arg
+	elseif arg then
+		env.only = {}
+		for id in string.gmatch(arg, "[^,]+") do
+			env.only[id] = true
+		end
+	end
+	return require("./game_thumbs")(env)
+end
+SCEN.gthumbs = gthumbsScenario
 -- "showcase=<tier>": a well decorated town on an island of that tier (the request of 2026-11-19: "could you make an
 -- example of a well decorated town across all expansions?"), laid out by tools/preview/showcase.luau within the game's
 -- rules and limits, its huts full of driftlings. Frames: showcase<tier>_far_1 .. (the View slider all the way out,
@@ -4151,6 +4167,12 @@ for _, name in list do
 	if picons then
 		fn = function()
 			return piconsScenario(picons)
+		end
+	end
+	local gthumbs = string.match(name, "^gthumbs=([%w_,:@%.]+)$")
+	if gthumbs then
+		fn = function()
+			return gthumbsScenario(gthumbs)
 		end
 	end
 	local cthumbs = string.match(name, "^cthumbs=([%w_,]+)$")

@@ -23,7 +23,8 @@ aprons and eye colours, tints and the hand's turn, covering hats), `stress=<n>` 
 on its skeleton, eight frames a mood; a mood `act_<name>` plays one of DriftMotion's idle acts through in nine frames), `catalog=<group>` (a group of the build catalog: `ground fence
 nature theme theme2 fun`, a Build mode tab or ids), `theme=<beach|garden|frost|zen|volcano|fairy>` or `weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves>` (the village by its tree in that weather, two touched eggs, the HUD's season and weather lines). The loading card's
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows); so are the game passes' and
-products' icons to upload, `art/products/<key>.png`: `sh tools/preview/product_icons.sh`. The place file is
+products' icons to upload, `art/products/<key>.png`: `sh tools/preview/product_icons.sh`, and the game's thumbnails and
+icon, `art/thumbnails/`: `sh tools/preview/game_thumbs.sh` (after changing a model or a scene they show). The place file is
 `DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):

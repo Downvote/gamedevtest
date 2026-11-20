@@ -156,7 +156,10 @@ is `DriftlingIsle-<short hash>.rbxl`.)
   `Logic/Validate`, answered `{ ok = true, data }` or `{ ok = false, err = ErrCode }`.
 - Every number is in `Config/Tuning.luau`; every Roblox id is in `Config/Monetization.luau` (0 = not made yet). Each
   pass's and product's icon to upload is `art/products/<key>.png` (512 x 512 pixel art drawn from the game's models by
-  `tools/preview/product_icons.sh`: a round badge for a pass, a rounded square for a product).
+  `tools/preview/product_icons.sh`: a round badge for a pass, a rounded square for a product). The game's own
+  thumbnails (1920 x 1080) and icon (512 x 512) are `art/thumbnails/thumb_<n>_<name>.png` and `art/thumbnails/icon.png`
+  (`tools/preview/game_thumbs.sh`: frames of the game drawn by its pixel filter with the HUD off and no founder in them,
+  driftlings drawn through Pixel/Snapshot over them, the title and captions in the pixel font, all on one 4x grid).
 - One function stays under 200 locals and upvalues (luau-compile checks it).
 - Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
 - Some modules keep the names of the games before this one (the plots along a "street", the island's tiers an
