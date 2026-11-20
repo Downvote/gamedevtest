@@ -1,9 +1,12 @@
 --!strict
 -- The driftlings (GAME_DESIGN 6): the creatures that hatch from the Tree of Life's eggs, all our own. Pure. Each comes
 -- from one kind of land (Data/Islets: a kind's driftlings hatch from the tree's eggs once the island reaches that kind's
--- tier, and now and then before: Logic/Tree.pool), has a rarity (1 common .. 7 celestial, Data/Traits: the tree lays
+-- tier, and now and then before: Logic/Tree.pool), has a rarity (1 common .. 9 eternal, Data/Traits: the tree lays
 -- rarer eggs less often, and rarer ones work faster) and a passive of its own (Data/Traits effects). The mythic and
 -- celestial ones live on the kinds of land a tier 11 island and up opens (Moonwood, Cloudtop, Starfall: 2026-11-14).
+-- The ancient ones (2026-11-20: "make more higher tier eggs, about 2 more tiers") live on the cloudtops and the
+-- starfalls (tier 14 and up), the eternal ones on the starfalls alone (tier 17): a rarity's kinds never open before
+-- the commoner rarities' do, so an egg of it is never laid more often than a commoner one (Logic/Tree.odds).
 --   (Each had a knack, the kind of work building it helped at, till the request of 2026-11-19: "remove work building
 --   types. They all now fall in the same category of work ... Passives and mutations that have different work
 --   building types now are just one". A passive's farm, wood or shop share became work; a few became boost building,
@@ -117,8 +120,7 @@ local LIST: { CreatureDef } = {
 	C({ id = "smoulderbug", name = "Smoulderbug", islet = 3, rarity = 2, hp = 22, atk = 8, def = 8, spd = 4, shape = "beetle", body = "black", accent = "orange", blurb = "Carries a hot coal for warmth.", pn = "Coal Carrier", fx = { work = 0.25, cost = -0.1 } }),
 	C({ id = "obsidusk", name = "Obsidusk", islet = 3, rarity = 3, hp = 30, atk = 10, def = 10, spd = 3, shape = "elephant", body = "basalt", accent = "orange", blurb = "Careful with its glass tusks.", pn = "Glass Tusks", fx = { work = 0.3, charm = 1 } }),
 	C({ id = "blazemane", name = "Blazemane", islet = 3, rarity = 4, hp = 27, atk = 13, def = 7, spd = 9, shape = "cat", body = "orange", accent = "berry_red", blurb = "A mane of fire, safe to pet.", pn = "Warm Mane", fx = { work = 0.25, sell = 0.5 } }),
-	C({ id = "ashwing", name = "Ashwing", islet = 3, rarity = 5, hp = 32, atk = 15, def = 8, spd = 11, shape = "bird", body = "berry_red", accent = "gold", blurb = "Hatches again from its own ash.", pn = "Second Spring", fx = { work = 0.45, cost = -0.2, sell = 0.3 } }),
-	-- Grottoes (islet 7)
+	C({ id = "ashwing", name = "Ashwing", islet = 3, rarity = 5, hp = 32, atk = 15, def = 8, spd = 11, shape = "bird", body = "berry_red", accent = "gold", blurb = "Hatches again from its own ash.", pn = "Second Spring", fx = { work = 0.45, cost = -0.2, sell = 0.3 } }),	-- Grottoes (islet 7)
 	C({ id = "gemsnail", name = "Gemsnail", islet = 7, rarity = 1, hp = 20, atk = 7, def = 8, spd = 4, shape = "snail", body = "purple", accent = "screen_on", blurb = "Its shell is a geode.", pn = "Gem Shell", fx = { work = 0.18, charmPct = 0.03 } }),
 	C({ id = "glowbat", name = "Glowbat", islet = 7, rarity = 1, hp = 18, atk = 8, def = 5, spd = 9, shape = "bat", body = "night", accent = "screen_on", blurb = "Lights up dark caves.", pn = "Echo Glow", fx = { work = 0.1, luck = 0.05 } }),
 	C({ id = "quartzle", name = "Quartzle", islet = 7, rarity = 2, hp = 22, atk = 7, def = 9, spd = 4, shape = "hedgehog", body = "chalk", accent = "purple", blurb = "Hums when it's happy.", pn = "Crystal Hum", fx = { work = 0.08, charm = 1 } }),
@@ -173,8 +175,7 @@ local LIST: { CreatureDef } = {
 	C({ id = "reefray", name = "Reefray", islet = 5, rarity = 2, hp = 28, atk = 9, def = 9, spd = 6, shape = "ray", body = "blue", accent = "white", blurb = "Flaps slowly over the coral.", pn = "Slow Flap", fx = { work = 0.25, luck = 0.03 } }),
 	C({ id = "coralcurl", name = "Coralcurl", islet = 5, rarity = 3, hp = 25, atk = 11, def = 8, spd = 8, shape = "seahorse", body = "pink", accent = "orange", blurb = "Holds anything with its tail.", pn = "Curly Grip", fx = { work = 0.3, sell = 0.2 } }),
 	C({ id = "tidegrip", name = "Tidegrip", islet = 5, rarity = 4, hp = 32, atk = 12, def = 9, spd = 8, shape = "octo", body = "purple", accent = "pink", blurb = "Tidies with all eight arms.", pn = "Eight Hands", fx = { work = 0.1, boost = 0.16 } }),
-	C({ id = "elderreef", name = "Elderreef", islet = 5, rarity = 5, hp = 46, atk = 13, def = 15, spd = 4, shape = "turtle", body = "green", accent = "pink", blurb = "A whole reef lives on its shell.", pn = "Walking Reef", fx = { work = 0.5, charmPct = 0.14, cost = -0.25 } }),
-	-- Ruins (islet 9)
+	C({ id = "elderreef", name = "Elderreef", islet = 5, rarity = 5, hp = 46, atk = 13, def = 15, spd = 4, shape = "turtle", body = "green", accent = "pink", blurb = "A whole reef lives on its shell.", pn = "Walking Reef", fx = { work = 0.5, charmPct = 0.14, cost = -0.25 } }),	-- Ruins (islet 9)
 	C({ id = "relicrab", name = "Relicrab", islet = 9, rarity = 1, hp = 26, atk = 11, def = 9, spd = 6, shape = "crab", body = "sand_dark", accent = "gold", blurb = "Hoards old coins.", pn = "Coin Hoard", fx = { work = 0.25 } }),
 	C({ id = "rubblet", name = "Rubblet", islet = 9, rarity = 1, hp = 28, atk = 10, def = 10, spd = 4, shape = "crab", body = "rock", accent = "sand", blurb = "A stone from a fallen wall.", pn = "Old Mortar", fx = { work = 0.12, charm = 1 } }),
 	C({ id = "glyphowl", name = "Glyphowl", islet = 9, rarity = 2, hp = 25, atk = 11, def = 8, spd = 8, shape = "owl", body = "sand", accent = "gold", blurb = "Reads the old carvings aloud.", pn = "Ancient Lore", fx = { work = 0.15, luck = 0.15 } }),
@@ -187,8 +188,7 @@ local LIST: { CreatureDef } = {
 	C({ id = "vinegeck", name = "Vinegeck", islet = 9, rarity = 2, hp = 24, atk = 10, def = 8, spd = 8, shape = "lizard", body = "leaf", accent = "gold", blurb = "Matches whatever wall it sits on.", pn = "Wall Colour", fx = { work = 0.22, luck = 0.05 } }),
 	C({ id = "ruinape", name = "Ruinape", islet = 9, rarity = 3, hp = 28, atk = 12, def = 9, spd = 9, shape = "monkey", body = "rock", accent = "white", blurb = "Swings by and steals your hat.", pn = "Hat Thief", fx = { work = 0.3, sell = 0.2 } }),
 	C({ id = "gildmane", name = "Gildmane", islet = 9, rarity = 4, hp = 32, atk = 14, def = 10, spd = 8, shape = "cat", body = "gold", accent = "sand", blurb = "Purrs like a temple bell.", pn = "Bell Purr", fx = { work = 0.35, charmPct = 0.1, sell = 0.3 } }),
-	C({ id = "templeback", name = "Templeback", islet = 9, rarity = 5, hp = 48, atk = 14, def = 16, spd = 3, shape = "turtle", body = "sand_dark", accent = "gold", blurb = "Carries a temple and doesn't mind.", pn = "Holy Shell", fx = { boost = 0.22, charm = 1, cost = -0.25 } }),
-	-- Moonwoods (islet 10, tier 11: the first mythic one)
+	C({ id = "templeback", name = "Templeback", islet = 9, rarity = 5, hp = 48, atk = 14, def = 16, spd = 3, shape = "turtle", body = "sand_dark", accent = "gold", blurb = "Carries a temple and doesn't mind.", pn = "Holy Shell", fx = { boost = 0.22, charm = 1, cost = -0.25 } }),	-- Moonwoods (islet 10, tier 11: the first mythic one)
 	C({ id = "duskbun", name = "Duskbun", islet = 10, rarity = 1, hp = 30, atk = 11, def = 9, spd = 8, shape = "bun", body = "slate", accent = "crystal", blurb = "Gardens all night.", pn = "Night Shift", fx = { work = 0.28 } }),
 	C({ id = "hushpup", name = "Hushpup", islet = 10, rarity = 2, hp = 30, atk = 13, def = 8, spd = 12, shape = "pup", body = "black", accent = "crystal", blurb = "Never sets off the shop bell.", pn = "Soft Paws", fx = { work = 0.125, hatch = 0.06, sell = 0.25 } }),
 	C({ id = "lunowl", name = "Lunowl", islet = 10, rarity = 3, hp = 31, atk = 13, def = 10, spd = 10, shape = "owl", body = "white", accent = "crystal", blurb = "Counts stars and always loses count.", pn = "Night Watch", fx = { work = 0.15, hatch = 0.08, luck = 0.05 } }),
@@ -201,8 +201,7 @@ local LIST: { CreatureDef } = {
 	C({ id = "duskbear", name = "Duskbear", islet = 10, rarity = 3, hp = 38, atk = 13, def = 12, spd = 6, shape = "bear", body = "night", accent = "crystal", blurb = "Dreams of honey all winter.", pn = "Long Dream", fx = { work = 0.15, hatch = 0.08, cost = -0.15 } }),
 	C({ id = "moonshroom", name = "Moonshroom", islet = 10, rarity = 4, hp = 34, atk = 14, def = 11, spd = 7, shape = "shroom", body = "crystal", accent = "white", blurb = "Grows a new cap every full moon.", pn = "Full Moon Cap", fx = { work = 0.4, luck = 0.08 } }),
 	C({ id = "silverhoof", name = "Silverhoof", islet = 10, rarity = 5, hp = 44, atk = 16, def = 13, spd = 13, shape = "deer", body = "white", accent = "steel", blurb = "Flowers spring back up behind it.", pn = "Soft Hooves", fx = { work = 0.45, luck = 0.12, cost = -0.2 } }),
-	C({ id = "moonhowl", name = "Moonhowl", islet = 10, rarity = 6, hp = 42, atk = 19, def = 12, spd = 15, shape = "pup", body = "night", accent = "crystal", blurb = "Howls the wood quiet at moonrise.", pn = "Moon Howl", fx = { work = 0.475, hatch = 0.17, luck = 0.15 } }),
-	-- Cloudtops (islet 11, tier 14: the first celestial one)
+	C({ id = "moonhowl", name = "Moonhowl", islet = 10, rarity = 6, hp = 42, atk = 19, def = 12, spd = 15, shape = "pup", body = "night", accent = "crystal", blurb = "Howls the wood quiet at moonrise.", pn = "Moon Howl", fx = { work = 0.475, hatch = 0.17, luck = 0.15 } }),	-- Cloudtops (islet 11, tier 14: the first celestial one)
 	C({ id = "puffling", name = "Puffling", islet = 11, rarity = 1, hp = 34, atk = 12, def = 10, spd = 8, shape = "ram", body = "white", accent = "window", blurb = "A stray scrap of cloud.", pn = "Light Rain", fx = { work = 0.25, cost = -0.1 } }),
 	C({ id = "cirrup", name = "Cirrup", islet = 11, rarity = 2, hp = 32, atk = 13, def = 9, spd = 13, shape = "bird", body = "window", accent = "white", blurb = "Sings tomorrow's weather.", pn = "Fair Forecast", fx = { boost = 0.08, luck = 0.04 } }),
 	C({ id = "cloudjelly", name = "Cloudjelly", islet = 11, rarity = 3, hp = 34, atk = 14, def = 10, spd = 9, shape = "jelly", body = "white", accent = "pink", blurb = "Waters the fields as it drifts.", pn = "Drizzle Drift", fx = { work = 0.43 } }),
@@ -216,6 +215,10 @@ local LIST: { CreatureDef } = {
 	C({ id = "stormphant", name = "Stormphant", islet = 11, rarity = 4, hp = 48, atk = 16, def = 15, spd = 6, shape = "elephant", body = "slate", accent = "yellow", blurb = "Sprays rain from its trunk.", pn = "Rain Trunk", fx = { work = 0.4, luck = 0.05, cost = -0.15 } }),
 	C({ id = "cloudgriff", name = "Cloudgriff", islet = 11, rarity = 6, hp = 50, atk = 18, def = 15, spd = 14, shape = "griffin", body = "white", accent = "gold", blurb = "Nests on the highest cloud.", pn = "High Nest", fx = { work = 0.75, luck = 0.1 } }),
 	C({ id = "skyherald", name = "Skyherald", islet = 11, rarity = 7, hp = 48, atk = 20, def = 14, spd = 17, shape = "bird", body = "window", accent = "gold", blurb = "Never once missed a sunrise.", pn = "Dawn Song", fx = { work = 0.2, boost = 0.4, luck = 0.3 } }),
+	-- (three ancient ones, 2026-11-20: "make more higher tier eggs, about 2 more tiers")
+	C({ id = "skyelder", name = "Skyelder", islet = 11, rarity = 8, hp = 54, atk = 21, def = 16, spd = 13, shape = "owl", body = "slate", accent = "gold", blurb = "Has watched the clouds since the first rain.", pn = "Weather Eye", fx = { work = 0.5, luck = 0.3, hatch = 0.25 } }),
+	C({ id = "stormstag", name = "Stormstag", islet = 11, rarity = 8, hp = 56, atk = 22, def = 16, spd = 14, shape = "deer", body = "steel", accent = "slate", blurb = "Lightning has struck its antlers a thousand times.", pn = "Lightning Crown", fx = { work = 0.65, luck = 0.4, charmPct = 0.2 } }),
+	C({ id = "islebearer", name = "Islebearer", islet = 11, rarity = 8, hp = 68, atk = 19, def = 21, spd = 5, shape = "turtle", body = "teal", accent = "moss", blurb = "Carries a little island, hut and all.", pn = "Island Back", fx = { work = 0.55, hatch = 0.25, boost = 0.3, charm = 5 } }),
 	-- Starfalls (islet 12, tier 17)
 	C({ id = "glimmite", name = "Glimmite", islet = 12, rarity = 1, hp = 36, atk = 14, def = 12, spd = 7, shape = "crab", body = "slate", accent = "screen_on", blurb = "Picks star bits from the sand.", pn = "Star Picker", fx = { work = 0.25, sell = 0.2 } }),
 	C({ id = "cometail", name = "Cometail", islet = 12, rarity = 3, hp = 34, atk = 16, def = 10, spd = 15, shape = "lizard", body = "blue", accent = "yellow", blurb = "Runs faster than its own glow.", pn = "Bright Trail", fx = { work = 0.35, luck = 0.05 } }),
@@ -230,6 +233,13 @@ local LIST: { CreatureDef } = {
 	C({ id = "starshell", name = "Starshell", islet = 12, rarity = 5, hp = 52, atk = 17, def = 17, spd = 5, shape = "turtle", body = "night", accent = "yellow", blurb = "Its stars turn while it sleeps.", pn = "Sky Shell", fx = { work = 0.65, sell = 0.5 } }),
 	C({ id = "cosmofleece", name = "Cosmofleece", islet = 12, rarity = 6, hp = 46, atk = 19, def = 14, spd = 12, shape = "ram", body = "purple", accent = "screen_on", blurb = "Too starry to shear.", pn = "Star Fleece", fx = { work = 0.55, luck = 0.2, sell = 0.7 } }),
 	C({ id = "starhart", name = "Starhart", islet = 12, rarity = 7, hp = 50, atk = 21, def = 15, spd = 16, shape = "deer", body = "white", accent = "crystal", blurb = "Holds up the night sky, gently.", pn = "Sky Antlers", fx = { work = 0.6, luck = 0.22, cost = -0.4 } }),
+	-- (two ancient ones and the four eternal ones, 2026-11-20: "make more higher tier eggs, about 2 more tiers")
+	C({ id = "firstflame", name = "Firstflame", islet = 12, rarity = 8, hp = 58, atk = 24, def = 15, spd = 11, shape = "drake", body = "basalt", accent = "lava", blurb = "Fell with the first star and never cooled.", pn = "First Fire", fx = { work = 0.8, sell = 0.9, cost = -0.35 } }),
+	C({ id = "craterwarden", name = "Craterwarden", islet = 12, rarity = 8, hp = 66, atk = 21, def = 20, spd = 4, shape = "golem", body = "sand_dark", accent = "screen_on", blurb = "Has guarded the same crater since the first star fell.", pn = "Old Oath", fx = { work = 0.5, boost = 0.45, cost = -0.3 } }),
+	C({ id = "everwyrm", name = "Everwyrm", islet = 12, rarity = 9, hp = 70, atk = 26, def = 18, spd = 11, shape = "wyrm", body = "white", accent = "gold", blurb = "Was here before the stars, and will be after.", pn = "Endless Coil", fx = { work = 0.9, luck = 0.45, cost = -0.45 } }),
+	C({ id = "nightwhale", name = "Nightwhale", islet = 12, rarity = 9, hp = 74, atk = 23, def = 19, spd = 8, shape = "seal", body = "night", accent = "screen_on", blurb = "Hums the stars to sleep.", pn = "Lullaby", fx = { work = 0.85, hatch = 0.25, luck = 0.4 } }),
+	C({ id = "starmane", name = "Starmane", islet = 12, rarity = 9, hp = 62, atk = 25, def = 17, spd = 15, shape = "cat", body = "white", accent = "crystal", blurb = "Every star that ever fell is in its mane.", pn = "Every Star", fx = { work = 0.8, charmPct = 0.4, luck = 0.35 } }),
+	C({ id = "dawnwing", name = "Dawnwing", islet = 12, rarity = 9, hp = 56, atk = 26, def = 16, spd = 19, shape = "bird", body = "gold", accent = "cherry", blurb = "Carries the morning in on its tail.", pn = "Morning Call", fx = { work = 0.75, boost = 0.5, charmPct = 0.3 } }),
 }
 -- stylua: ignore end
 
@@ -349,6 +359,16 @@ local LOOKS: { [string]: { any } } = {
 	starshell = { "bead", "yellow", "scale", "shell" },
 	cosmofleece = { "bead", "screen_on", "fluff" },
 	starhart = { "bead", "crystal", "fur", "crystal" },
+	-- (the ancient and eternal ones, 2026-11-20)
+	firstflame = { "bead", "lava", "scale", "ember" },
+	craterwarden = { "bead", "screen_on", "stone" },
+	stormstag = { "bead", "yellow", "fur" },
+	starmane = { "bead", "crystal", "fur", "fluff" },
+	skyelder = { "bead", "gold", "feather" },
+	dawnwing = { "bead", "gold", "feather" },
+	islebearer = { "bead", "leaf", "scale", "shell" },
+	everwyrm = { "bead", "gold", "scale" },
+	nightwhale = { "bead", "screen_on", "skin" },
 }
 -- stylua: ignore end
 for _, d in LIST do

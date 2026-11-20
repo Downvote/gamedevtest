@@ -1,6 +1,17 @@
 # Driftling Isle: Game Design
 
-> The request (2026-11-19, the latest): "Look at the bakery game and see its menu. Make a similarly polished and themed
+> The request (2026-11-20, the latest): "make the max of each boosts building to be 2. also, add another tier of
+> mutations, which are the strongest and rarest. also, make more higher tier eggs, about 2 more tiers"
+
+So an island holds at most two of each boost building (`Tuning.BoostEach`, `Plot.boostLimit`): a third windmill is
+refused, Build mode greys its card with "Max" and counts each one's copies on its card ("1/2"), and a save with more
+keeps what it has (§4). Above the wondrous tier there is a sixth, the **fabled** mutations: six of them, each its own
+family, each twice what the wondrous one of its effect gives, rolled about once in 3,500 mutations on a common
+driftling (§6). Past Celestial come two rarities, **Ancient** (ember orange) and **Eternal** (orchid), far rarer
+than a celestial egg even on Everdrift; nine new driftlings hatch from them on the cloudtops and the starfalls, each
+egg has its own look and lights, and the hatch scene is grander for them (§6, §6.2).
+
+> The request before it (2026-11-19): "Look at the bakery game and see its menu. Make a similarly polished and themed
 > menu for different tabs. Also, add rewards for playtime, daily rewards, streak rewards, codes, and as many retention
 > features you can think of. Also, remove work building types. They all now fall in the same category of "work". In
 > hatchery, show the resultant mutation combination the pet will have. Always take the highest tier mutations to
@@ -846,6 +857,18 @@ open at Grand Isle), two from the capital, three from Driftling Haven, four from
 At the limit the Hatchery's card says "Max" and placing one more is refused ("This island has all the Hatcheries it can
 hold. Grow it for another."). A save with more keeps them.
 
+> The request (2026-11-20): "make the max of each boosts building to be 2"
+
+**The boost buildings' limit** (`BoostEach` 2, `Plot.boostLimit`, `Plot.boostFull`): two of each boost building on
+any island, whatever its tier (two Windmills and two Smokehouses, never three Windmills). Build mode counts each boost
+building's copies in its card's corner ("0/2", "1/2"); at two the card is greyed and says "Max", and a tap on it says
+"Two of each boost building is the most." Placing a third, putting one down from the inventory past two, or replacing
+another piece with one the island already has two of is refused (`boosts`, nothing paid); the replace list greys
+that one with "Max 2". The tip on a boost building's card says "A second adds 50% of it. Two at most." and a tap on a
+boost building standing on the island says "2 of 2 built" in place of what one more would add. A save from before
+with three or more of one keeps them (nothing is taken away, and the third still adds its quarter share), and builds
+no more of that one.
+
 > The request (2026-11-11): "paths should be able to be drawn or made in a box like the original interface in the
 > bakery game. also, fights should be shown in the same view as pokemon or beasty bay, in an angle like the image
 > shown, and the party will also walk forward in the view like the image shown. polish the battle experience and
@@ -906,10 +929,10 @@ Water keeps its own rules (§4.3).
   driftlings' boost shares (the Handy family, a few passives) then make the whole boost that much stronger (`IsleCap`
   boost: twice at most). They stack with less each time (the request of 2026-11-15: "make it such that
   boost buildings can stack, but with diminishing returns"; till then a second of a kind gave nothing): the first of a
-  kind gives its whole share, a second `BoostStack` (half) of it, a third half of that, and so on, so two Windmills
-  give farms +15%, three +17.5%, and a kind can never give more than twice its own share. Different kinds each give
-  their whole share (a Windmill and a Smokehouse, +20%). Build mode's card for a boost building says so ("Each extra
-  adds 50% of the last.").
+  kind gives its whole share, a second `BoostStack` (half) of it, so two Windmills give +9%. Since the request of
+  2026-11-20 ("make the max of each boosts building to be 2") two of a kind is the most (above): a third gave half of
+  the second's again, and a save that has one keeps it. Different kinds each give their whole share (a Windmill and a
+  Smokehouse, +12%). Build mode's card for a boost building says so ("A second adds 50% of it. Two at most.").
 - **The islands past Driftling Haven** (2026-11-14, the request at the top; §4.4 has which tier opens what). The
   workplaces make about twice the city's best on Lantern Cove and ten times it by Farshore (a turn with one common
   driftling: the Mushroom Cellar 3,300 shells, Pearl Beds 5,800, Honey Terraces 10,500, the Grand Vineyard 19,000; the
@@ -1244,7 +1267,8 @@ workers and the boosts at its knack, times the charm bonus and the passes, so th
 the top bar's rate). A boost building gets a card too (it takes no workers): the boost its
 knack gets from every boost building there together ("Farms +15% from 2 boost buildings"; an "all" one, the
 everything boosts together, "+16% to all from 2 boosts"), and under it what one more of its kind would add
-("One more adds +2.5%"), or "Max boost 70%" once they reach the cap.
+("One more adds +3%"), "2 of 2 built" once the island has two of it (the request of 2026-11-20, "make the max of
+each boosts building to be 2"), or "Max boost 70%" once they reach the cap.
 
 ## 5. Villagers (gone)
 
@@ -1356,12 +1380,14 @@ When the island grows into a new stage, the tree is built again at it.
   no epic kinds yet gets no help until it grows). Once one of that rarity has hatched the quest is met and the lots are
   left to the odds again.
 - **Rarity** (`Tree.odds`, rolled when the egg is laid): each rarity step's weight (`Traits.RARITY`: 100, 45, 16, 5,
-  1.2, and 0.02 for a mythic egg, 0.002 for a celestial one) times the island's luck to the power of the steps. The luck is 1 plus `EggLuck` by the island's tier (0, 0.25,
+  1.2, and 0.02 for a mythic egg, 0.002 for a celestial one, 0.00006 for an ancient one and 0.0000015 for an eternal
+  one) times the island's luck to the power of the steps. The luck is 1 plus `EggLuck` by the island's tier (0, 0.25,
   0.5, 0.75, 1, 1.3, 1.6, 1.9, 2.2, 2.6) plus the huts' luck shares (Lucky and its family: `IsleCap` luck, 0.5 at
   most) and a Lucky Hour while one runs (`TimedLuck` 0.5, §15). Since the request of 2026-11-19 ("Make all eggs
   obtainable regardless of expansion level, but at a very low chance if they are higher rarity") a rarity none of the
   kinds open at the island's tier has is still laid, at `EggEarly` (5%) of its weight: a legendary egg on Castaway Cay,
-  a mythic or celestial one short of tier 11. Such an egg hatches one of the kinds of its rarity not open yet. Any egg
+  a mythic one short of tier 11, a celestial or an ancient one short of 14, an eternal one short of 17. Such an egg
+  hatches one of the kinds of its rarity not open yet. Any egg
   hatches a kind not open yet now and then (`FarKind`, 3%). The Tree panel shows each rarity's odds ("<0.01%" for the
   rarest); no rarity says "not yet" any more. The table below is from before (in brackets, about how often an egg of
   that rarity is laid):
@@ -1385,10 +1411,29 @@ When the island grows into a new stage, the tree is built again at it.
   the huts) one egg in 45 is mythic; with a luck of 5 one in 35 is mythic and one in 70 celestial; with 6, one in 25
   and one in 41, against a legendary in every two or three (the luck past tier 10 is the bigger islands' own, §4.4).
 
+  The two rarities past Celestial (the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers"),
+  **Ancient** and **Eternal**, are much rarer again: their kinds live on the cloudtops (ancient, from tier 14) and the
+  starfalls (ancient and eternal, from tier 17), so a rarity never opens before a commoner one and its eggs are never
+  laid more often than a commoner one's at any tier (the Tree spec checks every tier). Measured with each island's own
+  luck and no huts' luck (one egg in so many):
+
+  | Island tier | Celestial | Ancient | Eternal |
+  |---|---|---|---|
+  | 6 | 25,800 | 375,000 | 6.5 million |
+  | 11 | 3,500 | 30,000 | 320,000 |
+  | 14 | 106 | 800 | 145,000 |
+  | 17 | 70 | 470 | 3,750 |
+  | 20 | 50 | 300 | 2,130 |
+
+  On Everdrift, with fourteen eggs a lot and a lot every six minutes, that is an ancient egg about every two hours
+  of play and an eternal one about every fifteen.
+
 - **A bigger island at once** (`Tree.fill`): growing the island tops the lot up to the new count straight away, the
   new eggs rolled at the new odds ("The tree laid 1 more egg."); the eggs already there stay.
-- **The price** (`Tree.cost`): `EggPrice` by rarity (8, 36, 160, 800, 4,000 shells, 24,000 a mythic egg and 160,000 a
-  celestial one) times `EggTier` by the island's tier (1, 2, 5, 12, 27, 54, 96, 160, 250, 380, then 460 up to 2,000 on
+- **The price** (`Tree.cost`): `EggPrice` by rarity (8, 36, 160, 800, 4,000 shells, 24,000 a mythic egg, 160,000 a
+  celestial one, and since 2026-11-20 1,000,000 an ancient one and 6,000,000 an eternal one, the same steps up as
+  mythic to celestial; on Everdrift an eternal egg costs 12 billion, about half an hour of a full island's shells)
+  times `EggTier` by the island's tier (1, 2, 5, 12, 27, 54, 96, 160, 250, 380, then 460 up to 2,000 on
   Everdrift; about a quarter of what they were since the request of 2026-11-14, "make eggs much cheaper"), less the huts' cost shares (Thrifty and its family: `IsleCap` cost, half
   off at most; a Greedy one takes some of that share back but never makes eggs dearer). A bigger island earns more and
   lays better eggs, so its eggs cost more:
@@ -1410,7 +1455,7 @@ When the island grows into a new stage, the tree is built again at it.
   the tree itself or on the HUD's Tree card opens the panel). You pay its price. The egg may turn rarer first
   (`Tree.rise`): one rarity up with `Tuning.EggUp` (a common 12%, an uncommon 8%, a rare 5%, an epic 2.5%, a
   legendary 1.2%, a mythic 0.6%: twice what they were since the request of 2026-11-14, "also, increase the chance of
-  eggs tiering up"), and on
+  eggs tiering up"; a celestial 0.3% and an ancient 0.15% since 2026-11-20), and on
   again from there while the rolls hold, never to a rarity none of the island's kinds has, and never for the tips'
   first two. The result says what it was laid as (`r`) and what it hatched as (`hr`). What hatches (`Tree.roll`) is
   one of that rarity's kinds among those
@@ -1419,7 +1464,7 @@ When the island grows into a new stage, the tree is built again at it.
   17), with mutations of its own (below), rolled as one
   rarity rarer every `EggMutTier` (2) tiers past the first (one step on a Grand Isle or Harbor Town, two on the city
   tiers, three on Moonlit Bay and Evergreen Isle, four on the last two, never past a legendary's roll; a mythic or
-  celestial one rolls as itself). It moves
+  rarer one rolls as itself). It moves
   into the comfiest hut with room and goes to work through the arrangement below (each workplace's places, its
   `jobs`: §4, the work cap), or rests in its hut until a place is free; the hatch scene plays (§6.2), then "Hatched a rare Wispwing." in its rarity's colour, and it goes in
   the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
@@ -1476,12 +1521,17 @@ When the island grows into a new stage, the tree is built again at it.
   | Legendary | gold | a glowing yellow zigzag band | a gold glow on the lawn, gold sparks and stars rising and twinkling round it (its band and beam of light went on 2026-11-14: "remove these rectangular effects everywhere, instead make it twinkles") |
   | Mythic | rose | a glowing white zigzag band, pink buds round its crown | a pink glow on the lawn, two motes (pink and white) circling, pink and white sparks rising, pink stars twinkling round it |
   | Celestial | night blue | glowing cyan spots like stars, white dust between them | a cyan glow on the lawn, a tilted ring of nine little lights orbiting it like a planet's, long white and cyan glints opening and closing, motes of every colour rising |
+  | Ancient | dark old stone | two cracks of glowing lava climbing its front, the longer one branching, a gold mark on its crown; a nest of ash and black stone with two coals by it | a lava glow on the lawn, three embers of the first fire circling it slowly, embers rising and flaring (`ember_1..3`) |
+  | Eternal | pearl | a belt of every rarity's colour round its middle in two glowing rows, a gold star on its crown, white glints; a nest of white and lilac wisps with a little crystal and three beads of light by it | a lilac glow on the lawn, two rings of lights orbiting it tilted against each other (one in every colour, one white and lilac), motes of every colour rising, glints with rainbow tips (`prism_1..3`) |
+
+  (The two last came with the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers". The rarer
+  eggs are a little bigger again: `EggModels.SIZE` 1.92 and 2.02, a celestial egg's 1.82.)
 
   The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
   whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
   several a second off a legendary one), only over eggs lying still and at most 140 at once; the motes and the beam go
-  out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_7`: the Tree panel, the store and
-  the Hatchery; the Tree card has its own small ones, `mini_egg_1` .. `mini_egg_7`, 9 by 11 so each sits in its row: "the
+  out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_9`: the Tree panel, the store and
+  the Hatchery; the Tree card has its own small ones, `mini_egg_1` .. `mini_egg_9`, 9 by 11 so each sits in its row: "the
   egg icons seem to overlap each other and the bottom one exceeds the border. could you make egg sprite icons smaller?",
   2026-11-14; the common egg's freckles are soft caramel with a paler edge since the same day: "the brown parts of the
   common egg is too noisy, make it anti aliased and less contrast"; a white crescent and band on the mythic one, a little constellation on the celestial one) are drawn to
@@ -1493,7 +1543,9 @@ When the island grows into a new stage, the tree is built again at it.
   the epic one's two pink stripes spiral up it with runes between them and a pink ring round its foot, and the
   celestial one is a night sky with the band of the galaxy slanting across it the way its hatch sky has one, stars
   in the band, a gold star on its crown and a four-pointed star (the band came after "you didnt apply the retheme for
-  epic and celestial eggs": the first celestial redraw looked too much like the old egg). The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
+  epic and celestial eggs": the first celestial redraw looked too much like the old egg). The ancient one (2026-11-20)
+  is dark ash stone with two cracks of orange lava, yellow where they meet; the eternal one a pearl with a rainbow
+  belt from red to violet and a gold star on its crown. The eggs lie on the tree's lawn on a ring round its stones, spaced evenly along the
   side the view looks at (its south and east, whichever way the tree is turned), so none hides behind the trunk. A new
   lot rises out of the lawn one egg after another and the old eggs left sink back into it; now and then an egg rocks a
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the
@@ -1550,7 +1602,7 @@ When the island grows into a new stage, the tree is built again at it.
   common hatched for 20 sells for 2. Over the career it comes to well under a thousandth of the shells earned (§10).
 
 **How much a driftling works:** each one at a building puts in `PalWork` (0.6) times `RarityWork` by rarity (1, 1.6,
-2.5, 4, 7, 11 for a mythic one and 17 for a celestial one: the request's "creatures work faster based on their rarity") times 1 plus its work share at that building
+2.5, 4, 7, 11 for a mythic one, 17 for a celestial one, 26 for an ancient one and 40 for an eternal one: the request's "creatures work faster based on their rarity") times 1 plus its work share at that building
 (its passive and mutations, `Island.palWork`) and its hut's comfort (`Island.palBoost`); the building makes its rate
 times the sum (`IdleOutput` with nobody), so a legendary woodsy driftling at a lumber camp is worth many commons
 there.
@@ -1756,7 +1808,7 @@ The twelve principles, and where each one shows:
 Up close (the hatch scene, the portraits) the parts' sizes squash with the body too; on the islands, where a
 driftling is a few pixels tall, only their places do, which keeps the frame cheap.
 
-A hundred and forty-five driftlings of our own, eleven to thirteen to each of the twelve kinds of island
+A hundred and fifty-four driftlings of our own, eleven to eighteen to each of the twelve kinds of island
 (`Data/Islets`: a kind's driftlings hatch once the island reaches that kind's tier, above). Seventy-two of them came
 with the request of 2026-11-15 ("add alot more extra ones with more variation to them"): six more to each kind, each
 at a rarity its kind already had, so the eggs, their odds and the economy are unchanged (a kind's tree never hatches
@@ -1774,8 +1826,28 @@ a rarity it could not before):
 | Reefs | Coralcrab, Lumajelly, Squidge, Stripefin, Pearlback, Reefray, Coralcurl, Novafox, Tidegrip, Tidewyrm, Abyssmaw, Elderreef |
 | Ruins | Relicrab, Rubblet, Scarabit, Tombcat, Glyphowl, Vinegeck, Ruinape, Sentinel, Gildmane, Runemoth, Solwyrm, Templeback |
 | Moonwoods (tier 11) | Dimwing, Duskbun, Hushpup, Moonfawn, Duskbear, Lunowl, Moonshroom, Wispkin, Silverbark, Silverhoof, Moonhowl (mythic), Moonveil (mythic) |
-| Cloudtops (tier 14) | Cloudpip, Puffling, Cirrup, Gustotter, Cloudjelly, Raindeer, Billowbear, Stormphant, Cloudgriff (mythic), Skyshell (mythic), Cloudwhale (celestial), Skyherald (celestial) |
-| Starfalls (tier 17) | Craterbug, Glimmite, Twinkbun, Cometail, Starfin, Cratermole, Starshell, Cosmofleece (mythic), Nebulynx (mythic), Novawyrm (celestial), Starhart (celestial), Starweaver (celestial) |
+| Cloudtops (tier 14) | Cloudpip, Puffling, Cirrup, Gustotter, Cloudjelly, Raindeer, Billowbear, Stormphant, Cloudgriff (mythic), Skyshell (mythic), Cloudwhale (celestial), Skyherald (celestial), Skyelder (ancient), Stormstag (ancient), Islebearer (ancient) |
+| Starfalls (tier 17) | Craterbug, Glimmite, Twinkbun, Cometail, Starfin, Cratermole, Starshell, Cosmofleece (mythic), Nebulynx (mythic), Novawyrm (celestial), Starhart (celestial), Starweaver (celestial), Firstflame (ancient), Craterwarden (ancient), Everwyrm (eternal), Nightwhale (eternal), Starmane (eternal), Dawnwing (eternal) |
+
+The nine ancient and eternal driftlings came with the request of 2026-11-20 ("make more higher tier eggs, about 2
+more tiers"), built from the body plans the others use with looks of their own:
+
+| Driftling | Rarity | Its look | Its passive |
+|---|---|---|---|
+| Skyelder | ancient | a tall grey owl with long white tufts, a white face ringed in gold, gold marks | Weather Eye: +50% work, +30% egg luck, Hatchery 25% faster |
+| Stormstag | ancient | a storm grey stag, white antlers of four tines tipped lightning yellow, yellow dots glowing down its back | Lightning Crown: +65% work, +20% charm, +40% egg luck |
+| Islebearer | ancient | a huge teal sea turtle whose shell is a green island with moss and a wooden hut, its lamp lit | Island Back: +55% work, Hatchery 25% faster, +30% boost buildings, +5 charm |
+| Firstflame | ancient | a big drake of black star stone with lava between its scales, a gold crown of horns, lava-red wings edged gold | First Fire: +80% work, eggs cost 35% less, +90% sell price |
+| Craterwarden | ancient | a guard of dark crater stone with gold trim, old moss and glowing marks | Old Oath: +50% work, +45% boost buildings, eggs cost 30% less |
+| Everwyrm | eternal | a long white dragon, gold antlers, mane and whiskers, a sun of gold rays behind its head, a pink pearl and gem | Endless Coil: +90% work, +45% egg luck, eggs cost 45% less |
+| Nightwhale | eternal | a whale the blue of the night sky with glowing flippers and marks | Lullaby: +85% work, Hatchery 25% faster, +40% egg luck |
+| Starmane | eternal | a big white lion with a full lilac crystal mane, glowing spots, a star at its tail and on its brow | Every Star: +80% work, +40% charm, +35% egg luck |
+| Dawnwing | eternal | a gold bird of the dawn with a flame of a crest, pink flight feathers tipped white and very long pink plumes | Morning Call: +75% work, +50% boost buildings, +30% charm |
+
+Their blurbs are short, as the others' are ("Fell with the first star and never cooled.", "Hums the stars to
+sleep."). The ancient ones open with the cloudtops and the eternal ones with the starfalls, so a rarer rarity's kinds
+never open before a commoner one's (an ancient one on the volcanoes would have made an ancient egg commoner than a
+celestial one from tier 3 to 13).
 
 The three kinds past the capital (the request at the top) are a silver forest that wakes at sundown, soft fields of
 cloud over the sea and a crater where stars fell and kept on glowing. Their eighteen driftlings are good at farms,
@@ -1791,8 +1863,13 @@ a passive's share at one kind of work became a share at all work. Each has a 3D 
 (thirty-seven body plans since 2026-11-15, below) and a 32x32 portrait drawn from that model. Its old fighting numbers stay only to rank the kinds for
 the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
 
-- **Rarity** (`Traits.RARITY`, `Traits.RMAX` 7): Common, Uncommon, Rare, Epic, Legendary, Mythic, Celestial (name
-  colours: grey, green, blue, purple, gold, rose, starlight blue), the eggs' odds and the work it does above.
+- **Rarity** (`Traits.RARITY`, `Traits.RMAX` 9): Common, Uncommon, Rare, Epic, Legendary, Mythic, Celestial, and
+  since the request of 2026-11-20 ("make more higher tier eggs, about 2 more tiers") Ancient and Eternal (name colours:
+  grey, green, blue, purple, gold, rose, starlight blue, ember orange, orchid; no two share one), the eggs' odds and
+  the work it does above. Every table by rarity has nine entries (`RarityWork`, `EggPrice`, `SellPrice` 24,000 and
+  100,000, `BreedShells` 380,000 and 1,600,000, `BreedTurns` 38 and 50, `ShopWeight` and `CosmeticPrice` though no
+  cosmetic is ancient or eternal yet); `EggUp` has eight. Two titles go with them (§14): Relic Keeper for an ancient
+  driftling and Timekeeper for an eternal one.
 - **A passive of its own** (`passive`: a name and its effects, every kind's different): a share at work, selling for
   more, charm, or for the whole island luckier eggs, cheaper eggs, Hatchery eggs sooner, stronger boost buildings or
   charm as a share ("Snappy Pincers: +15% work, +30% sell price"). Since the request of 2026-11-19 ("rework some
@@ -1821,14 +1898,26 @@ the Hatchery (`Creatures.power`: weighted, +12% a rarity step).
   four hundred (more on a rarer egg). For the whole island while the driftling lives in a hut: Goldtouched (+15% to
   every shell), Maestro (+10% to every driftling's work), Twinborn (one more egg in every lot), Prismatic (an egg
   hatches a rarity higher 6% more often), Dreamer (+50% offline earnings) and Heartsong (+30% charm and 8 charm).
-  Tier weights 46 / 25 / 10 / 3 / 0.25 (and 16 for a **flaw**: Greedy makes eggs cost 25% more, Dull sells for 20%
-  less, Grumpy takes a charm, Sluggish and Lazy work 8 and 15% less; never beside its own family's strength); a rarer
-  driftling rolls fewer flaws and more of the top tiers. Four at most. Their names show in tier colours on the
-  Driftlings panel, each followed by its tier in small star sprites (7x7, one a tier, white, green, teal, gold or rose:
-  the request of 2026-11-14, "the * in mutations should be replaced with small star sprites to show the rarity of
-  mutations").
+  The **fabled** tier (tier 6, orchid, six stars; the request of 2026-11-20: "add another tier of mutations, which
+  are the strongest and rarest"): six more mutations, each its own family of one tier, never from the weather, never
+  a flaw, each giving twice what the wondrous one of its effect gives, for the whole island while the driftling lives
+  in a hut: Crowned (+30% to every shell), Rallying (+20% to every driftling's work), Bountiful (two more eggs in every
+  lot), Fated (an egg hatches a rarity higher 12% more often), Timeless (+100% offline earnings) and Adored (+60% charm
+  and 16 charm). The island's caps (`IsleCap`) hold them as they hold the rest: two Crowned in huts reach the 60% cap
+  on every shell, a Bountiful and a Twinborn the three more eggs a lot, so no cap moved and the economy's bounds are
+  untouched. A roll lands on it about once in 3,500 mutations on a common driftling, once in 530 on a legendary one
+  and once in 310 on an eternal one (`TIER_W` 0.03, `FABLED_UP` 0.04 more a rarity step; a wondrous one is about once
+  in 380, 120 and 80). A Hatchery passes a fabled one on before anything else (§6.1), and on the hatch scene's plate it
+  blinks twice, a white starburst follows its own and its ring of dots comes in every rarity's colour (§6.2).
+  Tier weights 46 / 25 / 10 / 3 / 0.25 / 0.03 (and 16 for a **flaw**: Greedy makes eggs cost 25% more, Dull sells for
+  20% less, Grumpy takes a charm, Sluggish and Lazy work 8 and 15% less; never beside its own family's strength); a
+  rarer driftling rolls fewer flaws and more of the top tiers. Four at most. Their names show in tier colours on the
+  Driftlings panel, each followed by its tier in small star sprites (7x7, one a tier, white, green, teal, gold, rose or
+  orchid: the request of 2026-11-14, "the * in mutations should be replaced with small star sprites to show the rarity
+  of mutations"). A driftling sells for more the higher its mutations' tiers (`SellTier`), so a fabled one adds six
+  quarters.
 
-The **Index** lists all hundred and forty-five ("Seen 12 of 145 kinds"): a dark shape and its rarity until you have had one (a
+The **Index** lists all hundred and fifty-four ("Seen 12 of 154 kinds"): a dark shape and its rarity until you have had one (a
 save from the tide keeps the ones it saw float by, on a lighter plate), then its name and passive. A kind not open yet
 says the island tier it hatches from ("From island Lv 4."). Each card has room for the longest name and four
 lines of a passive's effects (they had two, and 37 kinds' ended in "...": the request of 2026-11-19, "it seems like
@@ -1872,19 +1961,21 @@ the text gets cut off for some alerts").
 - **Laying an egg**: tap each slot, pick a parent from your driftlings (not the other one); the
   panel shows what they would likely hatch (its portrait once met, else a dark shape and ???) with its rarity, and the
   price and how long it takes to hatch, in minutes or hours ("hatches in 4 min"); **Breed** pays it (`BreedShells` 20 / 80 / 300 / 1,200 / 5,000 / 22,000 /
-  90,000 shells by the child's rarity; food till 2026-11-13) and lays the
-  egg (`BreedTurns` 3 / 4 / 6 / 9 / 14 / 20 / 28 island turns, `TurnSeconds` each: 2 minutes for a common one, about 10
-  for a legendary one, 19 for a celestial one, counting while you are on the island). The parents carry on as before.
+  90,000 / 380,000 / 1,600,000 shells by the child's rarity; food till 2026-11-13) and lays the
+  egg (`BreedTurns` 3 / 4 / 6 / 9 / 14 / 20 / 28 / 38 / 50 island turns, `TurnSeconds` each: 2 minutes for a common one, about 10
+  for a legendary one, 19 for a celestial one, 25 for an ancient one and 33 for an eternal one, counting while you are
+  on the island). The parents carry on as before.
 - **What hatches** (`Breed.child`): a pair of one kind hatches its kind; any other pair the kind whose power is nearest
   their average (so two strong ones can make a kind the player never met); a legend only from two legends (or
-  rarer), a mythic one only from two mythic ones or rarer, a celestial one only from two celestial ones; and only a
+  rarer), a mythic one only from two mythic ones or rarer, and so on up (an eternal one only from two eternal ones,
+  2026-11-20); and only a
   kind of land open at the island's tier hatches (or one of the parents' own kinds), so the kinds past the capital
   never hatch early.
 - **What it inherits** (`Breed.inherit`, decided before the egg is laid): every family either parent carries, at the
-  better parent's tier; a family both carry one tier above the better of the two (at most tier 4; a wondrous one stays
-  itself; a flaw both carry turns into its family's first tier, a flaw only one carries is left behind); then the
-  highest tiers first, four at most. So breeding two that share a mutation again and again climbs it to the top tier,
-  and a wondrous parent always passes its wonder on. (Until 2026-11-19 a parent's own passed on half the time, a shared
+  better parent's tier; a family both carry one tier above the better of the two (at most tier 4; a wondrous or fabled
+  one stays itself; a flaw both carry turns into its family's first tier, a flaw only one carries is left behind); then
+  the highest tiers first, four at most. So breeding two that share a mutation again and again climbs it to the top
+  tier, and a fabled or wondrous parent always passes it on (a fabled one first: the request of 2026-11-20). (Until 2026-11-19 a parent's own passed on half the time, a shared
   one came out a tier up now and then, a new one came now and then and the island's work buildings secretly tipped its
   family: all gone with the kinds of work.)
 - **Its time**: `BreedTurns` times the huts' Hatchery shares (the Cozy family, the rain's, a few passives: each takes
@@ -1903,8 +1994,14 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
 
 - **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
-  under two moons with pink aurora (mythic), and a deep starry sky with a ringed planet, the band of the galaxy slanting
-  across it thick with stars and an aurora of teal and violet (celestial). Every sky has
+  under two moons with pink aurora (mythic), a deep starry sky with a ringed planet, the band of the galaxy slanting
+  across it thick with stars and an aurora of teal and violet (celestial), and since the request of 2026-11-20 ("make
+  more higher tier eggs, about 2 more tiers") a red dusk of the first days under an eclipse, tongues of fire round the
+  dark disc and its bright rim, curtains of ember light over dark red hills (ancient), and a dawn of every colour, a
+  white sun with a ring of light round it and long rays crossing through it, a rainbow arching over lilac hills, the
+  band of the galaxy fading into the morning and curtains of mint and pink light (eternal). Their pedestals are black
+  stone with a lava inlay and sparks in the stone (ancient), and pearl marble with an orchid inlay and flecks of
+  colour (eternal). Every sky has
   three ranges of hills going darker toward the front and a glow round the egg in dithered rings. Since 2026-11-19
   ("the landscape's grass across all rarities is too even. also, the landscape's anti aliasing dosent match the color
   much, and is banded") the hills are grassy and lit: each range has five tones of its own colour (the darker ones
@@ -1949,7 +2046,7 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
   band of gold set with red, blue and green gems, glints, a crown of points and a halo of light turning over it
   (legendary), rose with white polka dots, two strings of pearls round its middle with a pink band between them, a ring
   of pearls round its top, a halo of pink and white lights and three motes (mythic), the dark blue of a night sky with
-  three constellations of white stars joined by lilac dots, a few cyan stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes (celestial). When the scene opens it drops in from above onto the pedestal (the request of 2026-11-14: "Make the egg drop down and bounce a bit instead of appearing by going up"; it used to rise from below): it falls faster and faster for half a second, lands with a thud and a puff of dust and a little shake and a soft chime, bounces up and down again, then a smaller bounce; taps wait until it rests, about a second in all after its wait (below).
+  three constellations of white stars joined by lilac dots, a few cyan stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes (celestial), dark old stone cracked by glowing lava in four branching cracks, hot yellow where they meet, gold runes, a ring of embers round its foot, three embers circling it and three motes, its crust drawn as plates between bright cracks (ancient, `DynTex` "magma"), and a pearl with a rainbow belt from red at the top to violet at its foot, white and gold stars, pearls round its top, a gold star on its crown, a halo of every colour over it, two rings of lights orbiting it tilted against each other and three motes, a slanting sheen drawn over the pearl (eternal, `DynTex` "prism"; the 2026-11-20 request). When the scene opens it drops in from above onto the pedestal (the request of 2026-11-14: "Make the egg drop down and bounce a bit instead of appearing by going up"; it used to rise from below): it falls faster and faster for half a second, lands with a thud and a puff of dust and a little shake and a soft chime, bounces up and down again, then a smaller bounce; taps wait until it rests, about a second in all after its wait (below).
   From the first landing **rings of light** spread over the pedestal's top from under it, one every 0.85 s, each a
   clean 1 px ellipse that widens to the rim in 1.7 s and steps from bright to faint (the request: "add an expanding
   circle ring that constantly emits below each egg in the egg hatching screen"); they go on for the whole scene. Then
@@ -1999,14 +2096,19 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
 - **Grander by rarity** (`GLORY`, by the rarity it is at that moment): the light of dusk for the commoner ones, a blue,
   violet or deep gold night for the rarer, a rose one for a mythic egg and a starry blue one for a celestial egg, the
   egg's own lights pooling round it (the twinkles gold sparks for a legendary egg, pink stars for a mythic one, long
-  white and cyan glints for a celestial one); twinkles blinking in and out round the
+  white and cyan glints for a celestial one, embers for an ancient one and glints with rainbow tips for an eternal
+  one; the god rays for those two in the colours of fire and in every rarity's colour, going round the fan; embers
+  rising thick and, after the break, a shower of sparks for an ancient egg, motes of every colour for an eternal one);
+  the two past Celestial grander again in every number (`GLORY`: up to 1 s of waiting before it falls, a 1.8 s
+  build-up, 0.7 s of slow motion and six shockwave rings for an eternal egg); twinkles blinking in and out round the
   egg and then round what hatched (from rare up, more the rarer: they took the place of rays of light, thin bars
   turning behind it, after "remove these rectangular effects everywhere, instead make it twinkles", 2026-11-14); more sparks and shell; the picture jolts (rare up); confetti (epic up); a ring
   of stars (uncommon up); the sounds grow with it.
 - **Grander at every stage** (the request of 2026-11-15: "make the egg revealing much more grander with more
   animations and effects"; `GLORY` again sets how much, a common egg's kept quick: about a tenth of a second longer
   than before, a celestial one's about three seconds longer):
-  - *The way in*: before it falls (0.12 s for a common egg up to 0.7 s for a celestial one) its shadow grows on the
+  - *The way in*: before it falls (0.12 s for a common egg up to 0.7 s for a celestial one, 0.85 s for an ancient
+    one and 1 s for an eternal one) its shadow grows on the
     pedestal, a twinkle blinks there from rare up and motes rise off it from epic up. It lands squashing on its foot,
     a ring of dust spreads over the pedestal and the pedestal's rings pulse; from rare up the picture jolts and from
     legendary up twinkles skip out over the pedestal.
@@ -2021,7 +2123,8 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
     the new rarity's colour, god rays fanning out in it, two shockwaves, a jolt, stars flying out, a chime a step
     higher each time, and the title dropping in white and turning to the new rarity's colour. A mutation's plate
     slides in past its place and back, then a starburst in its tier's colour opens over its stars (sparkles run along
-    the plate from tier 3, and it blinks white at tier 4).
+    the plate from tier 3, and it blinks white at tier 4; a fabled one, tier 6, blinks twice, a white starburst follows
+    its own and its ring of dots comes in every rarity's colour).
   - *The build-up*: the tap that hatches it starts a build-up that grows with the rarity (0.6 s for a common egg, 1.4 s
     for a celestial one): it shakes harder and faster and swells in pulses, its cracks blaze between white and its
     light (uncommon up), more rays pour out of them, sparks spit, a crackle rises in pitch, the halo and the god rays
@@ -2358,7 +2461,9 @@ The save is version 15 (`Logic/Schema`). A version 14 save (or older: after the 
 wood) has its wood added to its shells, one for one, and the wood goes (the request of 2026-11-14 at the top: "remove
 wood as a currency"); a wood that isn't a number, or below nothing, adds nothing. An Angler mutation it holds loads as
 the Green Thumb of its tier (§6). The save holds the tree's eggs (`clutch`: each egg's id and rarity, and the seconds
-to the next lot), checked on every load: rarities 1 to 5, ids unique, no more eggs than the island lays, the clock
+to the next lot), checked on every load: rarities 1 to `Traits.RMAX` (9 since 2026-11-20: the two new rarities
+and the fabled mutations needed no new version, every older save already fits, and a rarity past the rarest comes
+back as the rarest), ids unique, no more eggs than the island lays, the clock
 between nothing and a lot's time (`EggSecs`). Its pieces are checked on every load too: each count against its own limit (the
 pieces, the path and water tiles together, the fence lengths, one Tree of Life), their places between -240 and 64 studs
 (the far islands reach that far north), a fence starting on an even corner and running east or south (any other is
@@ -2427,6 +2532,14 @@ bounds (in brackets what the three seeds measure):
   tier came at 21 to 29 minutes, the town at 48 to 75 and the city at 1 hour 34 to 2 hours 5);
 - shells are being made at every ten minutes of the three hours, they stay finite, and the save has no wood and no
   food.
+
+Measured again on 2026-11-20 with the two rarities past Celestial, the fabled mutations and two boost buildings of a
+kind at most: every bound holds with no retuning. The three seeds reach the second tier at 4:50 to 5:30, the third at
+29 to 32 minutes, the town at 65 to 74, the city at 1 hour 43 to 1 hour 56 and one the capital at 2 hours 57, as
+before (the new rarities weigh almost nothing on islands this small, the fabled tier rolls about once in 3,500
+mutations there, and the Career player never builds boost buildings). Their rolls shift a little with the new
+weights: the first legendary came at 17 to 39 minutes (no bound), sales stayed under a ten-thousandth of the shells
+(527 to 702 of 16.3 to 21.1 million).
 
 Harbor Town went from 130,000 to 150,000 wood with the conveyor tide, when one seed reached it in 91 minutes. With the
 eggs and the huts' limit it moved out of reach (one seed at 118 minutes, the other two not in three hours), and the
@@ -2817,7 +2930,8 @@ the player a new six till the shop turns over. A piece costs `CosmeticPrice` by 
 24,000) times `EggTier` by the island's tier, in shells.
 
 **Titles** (`Data/Titles`, `Store.earn`). 34 titles: Newcomer for everyone, then by the island's tier (Settler at tier
-2 up to Everdrifter at 20), eggs hatched (10, 100, 500, 2,000), the rarest driftling had (epic to celestial), kinds in
+2 up to Everdrifter at 20), eggs hatched (10, 100, 500, 2,000), the rarest driftling had (epic to eternal: Relic Keeper
+for an ancient one and Timekeeper for an eternal one since 2026-11-20), kinds in
 the Index (20, 50, every one), Hatchery eggs, shells made (a million, a billion, a trillion), days, cosmetics owned, and
 VIP, Early Bird and three from the pass track. They are checked every second; a new one is told. A founder wears one
 (`title.set`), shown under their name over their head to every player ("Title" attribute).

@@ -1805,6 +1805,9 @@ FORMS.tidewyrm = { horns = "fins", fin = "sail", arms = "fins", tailEnd = "fluke
 FORMS.abyssmaw = { horns = "drake", lure = "crystal", lureStalk = "purple", lights = "crystal", fangs = true, tailEnd = "glow", glow = "purple", arms = "none", spine = "purple", spineH = 0.24, mane = "purple", under = "slate", faceDetail = { marks = { freckles = "purple", glow = true } } }
 FORMS.solwyrm = { horns = "drake", hornC = "white", sun = "orange", sun2 = "yellow", sunC = "white", mane = "white", tailEnd = "flame", flame = "yellow", flame2 = "orange", gem = "berry_red", under = "white", claw = "white" }
 FORMS.novawyrm = { big = 1.1, horns = "antler", antler = 1.2, hornC = "gold", stars = "gold", pearl = "white", mane = "gold", whisker = 1.3, whiskerC = "gold", under = "gold", claw = "gold", faceDetail = { marks = { star = "gold", glow = true } } }
+-- Everwyrm (eternal, 2026-11-20): a long white dragon with gold antlers, a gold mane and whiskers, a sun of gold rays
+-- behind its head, gold stars along it, a pearl, a gem on its brow and a gold flame at its tail.
+FORMS.everwyrm = { big = 1.2, horns = "antler", antler = 1.35, hornC = "gold", stars = "gold", pearl = "cherry", sun = "gold", sun2 = "yellow", sunC = "cherry", mane = "gold", whisker = 1.4, whiskerC = "gold", gem = "cherry", under = "cream", claw = "gold", tailEnd = "flame", flame = "gold", flame2 = "yellow", faceDetail = { marks = { star = "gold", glow = true } } }
 
 local _v, _r, _j, _f, _u, _w = V, R, J, full, UP, FWD
 return { plans = PLANS, forms = FORMS }

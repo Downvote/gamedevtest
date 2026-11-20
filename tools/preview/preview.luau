@@ -1794,7 +1794,7 @@ local function panelScenario(name)
 			-- (Controllers/WorldView's pick); four mutations, a weather's among them
 			local prof = H.profile(p)
 			local x = prof.pals[1]
-			x.muts = { "fierce3", "busy2", "rainy2", "lazy" }
+			x.muts = { "crown6", "busy2", "rainy2", "lazy" }
 			H.push(p, 0.6)
 			local WV = modOr(p, "Controllers.WorldView")
 			local s = H.session(p)
@@ -1880,11 +1880,11 @@ local function panelScenario(name)
 end
 
 -- The Tree of Life and its eggs (GAME_DESIGN 6): a village's tree with its lot of eggs round its roots (a common, a
--- rare, an epic, a legendary, a mythic and a celestial one, so each rarity's shell and lights show), their prices over them, the founder in front of it (tree); a new lot rising out of the lawn,
+-- rare, an epic, a legendary, a mythic, a celestial, an ancient and an eternal one, so each rarity's shell and lights show), their prices over them, the founder in front of it (tree); a new lot rising out of the lawn,
 -- the old one sinking (tree_lay); one hatched by its price tag, cracking, its driftling stepping out (tree_hatch); the
 -- glowing eggs at night (tree_night).
 function SCEN.tree()
-	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7 } })
+	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7, 8, 9 } })
 	local p = join(21, "Grove")
 	settle(p)
 	local s = H.session(p)
@@ -3497,7 +3497,7 @@ local function themeScenario(name: string)
 end
 
 -- "hatch=<r><hr>": the hatch scene (UI/HatchScene; GAME_DESIGN 6.2) for an egg laid as rarity r that hatches as hr
--- (hr > r: it turns rarer on the way; 1 .. 7, mythic 6 and celestial 7), the first kind of that rarity with a set of
+-- (hr > r: it turns rarer on the way; 1 .. 9, mythic 6, celestial 7, ancient 8, eternal 9), the first kind of that rarity with a set of
 -- mutations by rarity. The
 -- request of 2026-11-14: "could you also remove the transition that happens when clicking to hatch an egg? you can
 -- simply render the floating egg in a 2d background. also, make the player click to hatch the egg, each click
@@ -3528,7 +3528,7 @@ local function hatchScenario(code)
 			sp = d.id
 		end
 	end
-	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "sturdy2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" }, { "busy4", "grower3", "bright2" }, { "bright4", "sturdy3", "trader3", "fierce2" } }
+	local MUTS = { {}, { "busy1" }, { "grower2", "bright1" }, { "fierce3", "sturdy2", "lazy" }, { "bright4", "busy3", "armor2", "trader1" }, { "busy4", "grower3", "bright2" }, { "bright4", "sturdy3", "trader3", "fierce2" }, { "golden5", "busy4", "bright3" }, { "crown6", "golden5", "bright4", "busy3" } }
 	local muts = MUTS[hr] or {}
 	H.inClient(p, function()
 		HS.play({ sp = sp or "mossbun", muts = muts, r = r, hr = hr, new = (sp or "mossbun") ~= "mossbun" }, nil)

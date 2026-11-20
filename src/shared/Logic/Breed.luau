@@ -6,13 +6,14 @@
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
 --   nearest the parents' average (the commoner, then the first by name, on a tie). A legend only hatches from two
---   legends, a mythic one from two mythic or rarer, a celestial one from two celestial ones. With the island's tier
---   given, only kinds of land open there (Data/Islets `tier`) hatch, besides the parents' own kinds.
+--   legends, a mythic one from two mythic or rarer, and so on up: an eternal one only from two eternal ones. With the
+--   island's tier given, only kinds of land open there (Data/Islets `tier`) hatch, besides the parents' own kinds.
 --   Its mutations (Data/Traits), decided and shown before the egg is laid (the request of 2026-11-19: "In hatchery,
 --   show the resultant mutation combination the pet will have. Always take the highest tier mutations to combine with
 --   each other if possible"): every family either parent carries, at the better parent's tier, one both carry a tier
---   above that (at most 4; a wondrous one stays itself; a flaw both carry turns into its family's first tier, a flaw
---   only one carries is left behind), the highest tiers first, at most four (`inherit`, `preview`). Before, a parent's
+--   above that (at most 4; a wondrous or fabled one stays itself; a flaw both carry turns into its family's first tier,
+--   a flaw only one carries is left behind), the highest tiers first (a fabled one before a wondrous one), at most four
+--   (`inherit`, `preview`). Before, a parent's
 --   own passed on half the time, a shared one came out a tier up now and then and a new one came now and then.
 --   An egg is laid at a Hatchery with no egg (one each), for `BreedShells` shells by the child's rarity (food
 --   till 2026-11-13), and takes `BreedTurns` turns (Island.turn's, while the player is here), times the huts'
@@ -106,11 +107,11 @@ function Breed.inherit(ma: { string }?, mb: { string }?): { string }
 	for _, e in order do
 		local ida, idb = e.a, e.b
 		if ida and idb then
-			-- both carry it: one tier above the better of the two (a wondrous one is already the top; a shared flaw
-			-- becomes its family's first tier)
+			-- both carry it: one tier above the better of the two (a wondrous or fabled one is a family of one tier, so
+			-- it stays itself; a shared flaw becomes its family's first tier)
 			local ta, tb = Traits.byId[ida].tier, Traits.byId[idb].tier
 			local tier = math.max(ta, tb)
-			table.insert(out, if tier >= Traits.TOP then (if ta >= tb then ida else idb) else Traits.at(e.family, tier + 1))
+			table.insert(out, if tier >= 5 then (if ta >= tb then ida else idb) else Traits.at(e.family, tier + 1))
 		else
 			local id = (ida or idb) :: string
 			if Traits.byId[id].tier > 0 then

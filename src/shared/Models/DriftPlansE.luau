@@ -346,6 +346,13 @@ FORMS.cloudwhale = { style = "whale",
 	under = "white",
 	finC = "white",
 }
+-- Nightwhale (eternal, 2026-11-20): a whale the blue of the night sky swimming between the stars, a grey chin, glowing
+-- flippers and glowing marks on its skin.
+FORMS.nightwhale = { style = "whale",
+	whale = true,
+	under = "slate",
+	finC = "screen_on",
+}
 
 ------------------------------------------------------------------ the fish
 -- A little fish swimming through the air: a big round head (the chibi part) with the body tapering out behind it to

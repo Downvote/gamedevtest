@@ -17,9 +17,14 @@
 --   while it lives in a hut: all (every shell the island makes), aura (every driftling at work), eggs (more eggs in
 --   each of the tree's lots), skip (an egg hatching a rarity higher more often) and away (offline earnings).
 --   Logic/Island.isle adds the island's up, each to its cap (Tuning.IsleCap).
+--   The fabled mutations (tier 6, the request of 2026-11-20: "add another tier of mutations, which are the strongest
+--   and rarest"): each its own family again, one tier, rolled far more seldom than a wondrous one, giving twice what
+--   the wondrous one of its effect gives, for the whole island while it lives in a hut.
 --   Each species has a passive of its own (Data/Creatures `passive`); each driftling may carry up to MAX mutations
---   (Pal.muts: ids "<family><tier>", tier 1 .. 4, a wondrous one's "<family>5", or a flaw's id), rolled when it hatches.
---   Rarity (Data/Creatures `rarity`): 1 common .. 7 celestial (RMAX): the tree lays rarer eggs less often, they cost
+--   (Pal.muts: ids "<family><tier>", tier 1 .. 4, a wondrous one's "<family>5", a fabled one's "<family>6", or a
+--   flaw's id), rolled when it hatches.
+--   Rarity (Data/Creatures `rarity`): 1 common .. 9 eternal (RMAX; Ancient and Eternal past Celestial since the request
+--   of 2026-11-20, "make more higher tier eggs, about 2 more tiers"): the tree lays rarer eggs less often, they cost
 --   more, and what hatches works faster (Tuning.RarityWork), sells for more and rolls better mutations.
 export type Fx = { [string]: number }
 
@@ -29,7 +34,7 @@ export type Rarity = { name: string, color: string, weight: number }
 local Traits = {}
 
 Traits.MAX = 4 -- mutations a driftling carries at most
-Traits.TOP = 5 -- the highest tier (the wondrous ones)
+Traits.TOP = 6 -- the highest tier (the fabled ones; the wondrous ones are 5)
 -- every effect, in the order the panels list them
 Traits.KEYS = { "work", "aura", "all", "hatch", "boost", "charmPct", "charm", "luck", "skip", "eggs", "away", "cost", "sell" }
 -- the effects a driftling gives the whole island while it lives in a hut (Logic/Island.isle)
@@ -44,12 +49,17 @@ Traits.RARITY = {
 	{ name = "Legendary", color = "accent", weight = 1.2 },
 	{ name = "Mythic", color = "mythic", weight = 0.02 },
 	{ name = "Celestial", color = "celestial", weight = 0.002 },
+	-- (the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers": an ember egg from the first days of
+	-- the sea, and a pearl one that shifts through every colour. Far rarer than a celestial one even with an island's
+	-- luck: on Everdrift about one egg in 300 is ancient and one in 2,000 eternal, against one in 50 celestial)
+	{ name = "Ancient", color = "ancient", weight = 0.00006 },
+	{ name = "Eternal", color = "eternal", weight = 0.0000015 },
 } :: { Rarity }
 Traits.RMAX = #Traits.RARITY -- the rarest (every table by rarity has this many entries)
 
 -- A mutation's tier: its name's colour (UIKit) and how often a roll lands on it (flaws are tier 0).
-Traits.TIER_COLOR = { [0] = "bad", [1] = "text", [2] = "good", [3] = "button", [4] = "accent", [5] = "mythic" } :: { [number]: string }
-Traits.TIER_NAME = { [0] = "Flaw", [1] = "Tier 1", [2] = "Tier 2", [3] = "Tier 3", [4] = "Tier 4", [5] = "Wondrous" } :: { [number]: string }
+Traits.TIER_COLOR = { [0] = "bad", [1] = "text", [2] = "good", [3] = "button", [4] = "accent", [5] = "mythic", [6] = "eternal" } :: { [number]: string }
+Traits.TIER_NAME = { [0] = "Flaw", [1] = "Tier 1", [2] = "Tier 2", [3] = "Tier 3", [4] = "Tier 4", [5] = "Wondrous", [6] = "Fabled" } :: { [number]: string }
 
 -- The families: what each tier is called and gives (rarer tiers give much more). The family ids are the saves' (they
 -- date from the fights, gone 2026-11-12: each family that gave a fighting stat gives something on the island now).
@@ -94,6 +104,18 @@ local WONDERS: { { family: string, name: string, fx: Fx } } = {
 	{ family = "dream", name = "Dreamer", fx = { away = 0.5 } },
 	{ family = "heart", name = "Heartsong", fx = { charmPct = 0.3, charm = 8 } },
 }
+-- The fabled mutations (tier 6, the request of 2026-11-20: "add another tier of mutations, which are the strongest and
+-- rarest"): rolled far more seldom than a wondrous one (TIER_W's last weight), never a flaw, never from the weather; a
+-- Hatchery passes one on before anything else. Each gives twice what the wondrous one of the same effect gives, and
+-- the island's caps (Tuning.IsleCap) still hold every one of them.
+local FABLED: { { family: string, name: string, fx: Fx } } = {
+	{ family = "crown", name = "Crowned", fx = { all = 0.3 } },
+	{ family = "rally", name = "Rallying", fx = { aura = 0.2 } },
+	{ family = "bounty", name = "Bountiful", fx = { eggs = 2 } },
+	{ family = "fate", name = "Fated", fx = { skip = 0.12 } },
+	{ family = "timeless", name = "Timeless", fx = { away = 1 } },
+	{ family = "adored", name = "Adored", fx = { charmPct = 0.6, charm = 16 } },
+}
 
 -- The flaws (tier 0): a driftling can be born a little worse at something. A flaw belongs to the family of the same
 -- effect (a driftling is Lazy or Diligent, never both; a Hatchery turns a flaw both parents carry into its family's
@@ -134,6 +156,11 @@ for _, f in WONDERS do
 	table.insert(LIST, m)
 	BY_ID[m.id] = m
 end
+for _, f in FABLED do
+	local m: Mutation = { id = f.family .. "6", family = f.family, tier = 6, name = f.name, blurb = "", fx = f.fx }
+	table.insert(LIST, m)
+	BY_ID[m.id] = m
+end
 for _, f in FLAWS do
 	local m: Mutation = { id = f.id, family = f.family, tier = 0, name = f.name, blurb = "", fx = { [f.key] = f.value } }
 	table.insert(LIST, m)
@@ -144,11 +171,12 @@ Traits.byId = BY_ID
 Traits.families = FAMILIES
 Traits.weather = WEATHER_FAMILIES -- (the weather's families: Data/Weather, Logic/Weather)
 Traits.wonders = WONDERS
+Traits.fabled = FABLED
 
 -- A family's mutation at a tier ("sturdy", 3 -> "sturdy3"), clamped to 1 .. 4 (a wondrous family's is always its own,
--- tier 5).
+-- tier 5, and a fabled family's its own, tier 6).
 function Traits.at(family: string, tier: number): string
-	local w = BY_ID[family .. "5"]
+	local w = BY_ID[family .. "5"] or BY_ID[family .. "6"]
 	if w then
 		return w.id
 	end
@@ -156,10 +184,13 @@ function Traits.at(family: string, tier: number): string
 end
 
 -- How many mutations a new driftling rolls and how good they are: weights by count (0 .. 3) and by tier (flaw, 1 .. 4,
--- wondrous); a rarer species rolls a little better (WONDER_UP more of the wondrous tier a rarity step).
+-- wondrous, fabled); a rarer species rolls a little better (WONDER_UP more of the wondrous tier a rarity step,
+-- FABLED_UP more of the fabled one: a common driftling's mutation is fabled about once in 3,500, a legend's once in
+-- 530, an eternal one's once in 310).
 local COUNT_W = { 34, 36, 22, 8 }
-local TIER_W = { 16, 46, 25, 10, 3, 0.25 }
+local TIER_W = { 16, 46, 25, 10, 3, 0.25, 0.03 }
 local WONDER_UP = 0.15
+local FABLED_UP = 0.04
 
 local FAMILY_IDS: { string } = {}
 for _, f in FAMILIES do
@@ -168,7 +199,7 @@ end
 
 -- (the island's lean on a new mutation's family, from its kinds of work building, went with the kinds on 2026-11-19)
 
--- Mutations for a new driftling of a rarity (1 .. 5; a bigger island may roll it as a rarer one), no family twice.
+-- Mutations for a new driftling of a rarity (1 .. RMAX; a bigger island may roll it as a rarer one), no family twice.
 function Traits.roll(rng: any, rarity: number): { string }
 	local r = math.clamp(rarity or 1, 1, Traits.RMAX)
 	local function pickW(ws: { number }): number
@@ -192,6 +223,7 @@ function Traits.roll(rng: any, rarity: number): { string }
 	tw[4] += (r - 1) * 2
 	tw[5] += (r - 1) * 1.2
 	tw[6] += (r - 1) * WONDER_UP
+	tw[7] += (r - 1) * FABLED_UP
 	local out: { string } = {}
 	local used: { [string]: boolean } = {}
 	for _ = 1, count do
@@ -201,6 +233,8 @@ function Traits.roll(rng: any, rarity: number): { string }
 			id = FLAWS[rng:int(1, #FLAWS)].id
 		elseif t == 5 then
 			id = WONDERS[rng:int(1, #WONDERS)].family .. "5"
+		elseif t == 6 then
+			id = FABLED[rng:int(1, #FABLED)].family .. "6"
 		else
 			id = FAMILY_IDS[rng:int(1, #FAMILY_IDS)] .. t
 		end

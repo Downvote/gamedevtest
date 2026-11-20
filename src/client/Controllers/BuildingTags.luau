@@ -11,7 +11,8 @@
 --   the view's charm bonus and income multiplier), and a boost building gets a card of its own: the boost every
 --   workplace gets from every boost building together, the driftlings' boost share in ("Everything +15% from 2 boost
 --   buildings", Island.boostInfo; each boosts everything since 2026-11-19) and what one more of its kind would add
---   (they stack, less each time: Tuning.BoostStack).
+--   (they stack, less each time: Tuning.BoostStack), or "2 of 2 built" once the island has the most of it
+--   (Plot.boostLimit, the request of 2026-11-20).
 --   No alerts over empty buildings any more: the request of 2026-11-17, "remove the empty alert that appears above
 --   huts and work places" (they said "Empty" over every workplace nobody worked at and every hut nobody lived in).
 -- Only the own island's: the card on the Popup root over the HUD (nothing while the camera has a stage). WorldView drives it: step every
@@ -24,6 +25,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
+local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local StateClient = require(script.Parent.StateClient)
 local CameraController = require(script.Parent.CameraController)
@@ -203,7 +205,8 @@ local function extrasOf(s: Spot): { string }
 		elseif s.kind == "boost" then
 			local b = Island.boostInfo(prof, s.id)
 			local first = string.format("+%s to all from %d boost%s", pct(b.total), b.count, if b.count == 1 then "" else "s")
-			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Max boost %s", pct(Tuning.BoostMax)) else string.format("One more adds +%s", pct(b.more))
+			-- (two of each at most since the request of 2026-11-20: "make the max of each boosts building to be 2")
+			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Max boost %s", pct(Tuning.BoostMax)) elseif b.more <= 0 then string.format("%d of %d built", b.same, Plot.boostLimit()) else string.format("One more adds +%s", pct(b.more))
 			out = { first, second }
 		end
 	end

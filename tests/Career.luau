@@ -68,7 +68,7 @@ local function build(p: any, id: string): boolean
 	end
 	-- (no room for one more of its count, or a hut past the huts' limit: no scan of the island for a spot)
 	local used, most = Plot.used(p, id)
-	if used >= most or (d.kind == "nest" and Plot.housing(p.plot.placed) + d.slots > Plot.housingLimit(p.tier)) or (d.jobs > 0 and Plot.work(p.plot.placed) + d.jobs > Plot.workLimit(p.tier)) or (d.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier)) then
+	if used >= most or (d.kind == "nest" and Plot.housing(p.plot.placed) + d.slots > Plot.housingLimit(p.tier)) or (d.jobs > 0 and Plot.work(p.plot.placed) + d.jobs > Plot.workLimit(p.tier)) or (d.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier)) or Plot.boostFull(p.plot.placed, id) then
 		return false
 	end
 	local x, z = spot(p, id)

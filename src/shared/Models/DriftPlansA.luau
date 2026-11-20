@@ -555,6 +555,9 @@ FORMS.frostlynx = { bulk = 1.18, paws = 1.45, legR = 1.2, tufts = "white", ruffs
 FORMS.tombcat = { bulk = 0.84, long = 1.06, legs = 1.2, head = 0.94, collar = "gold", earrings = "gold", tail = "long", ears = { len = 0.66, w = 0.44, at = 0.34, back = 2 }, faceDetail = { marks = { kohl = "black" } } }
 -- Gildmane: a regal lion, head held high in a full sand mane, a sand tail tuft.
 FORMS.gildmane = { style = "lion", k = 1.14, legs = 1.1, neck = 0.1, mane = "full", maneC = "sand", tail = "lion", tuft = "sand", mc = "cream", ears = { kind = "round", w = 0.26, at = 0.42 } }
+-- Starmane (eternal, 2026-11-20): a big white lion with a full crystal mane, glowing crystal spots, a star at its tail
+-- and a star on its brow.
+FORMS.starmane = { style = "lion", k = 1.2, legs = 1.12, neck = 0.1, mane = "full", maneC = "crystal", tail = "lion", tuft = "crystal", tailStar = "screen_on", galaxy = "crystal", mc = "white", ears = { kind = "round", w = 0.26, at = 0.42 }, faceDetail = { marks = { star = "crystal", glow = true } } }
 
 ------------------------------------------------------------------ the bear
 -- A bear cub: a heavy round body low to the ground with a hump over the shoulders, a big round head with a short

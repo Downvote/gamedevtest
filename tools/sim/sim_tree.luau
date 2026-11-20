@@ -1314,12 +1314,13 @@ H.expect(H.currentPanel(p) == "tree" and #prof.clutch.list == eggs0, "tap", "a t
 H.closePanel(p)
 checks("tap")
 
------------------------------------------------------------------- 12. the rarest eggs: mythic and celestial
--- (2026-11-14: "more egg rarities and creatures"): the kinds past the capital (moonwoods at tier 11, cloudtops at 14,
--- starfalls at 17) bring the mythic and celestial driftlings; where this island is not that far on, those kinds open at
--- its own tier for these checks, as they will at theirs. Seven rarities in the odds, mythic rarer than legendary and
--- celestial rarer still; a mythic egg and a celestial one under the tree (the profile, the attribute, the view, dearer
--- than a legendary one), each hatched (a hut's weakest swapped out when every hut is full) into one of its rarity.
+------------------------------------------------------------------ 12. the rarest eggs: mythic, celestial, ancient, eternal
+-- (2026-11-14: "more egg rarities and creatures"; 2026-11-20: "make more higher tier eggs, about 2 more tiers"): the
+-- kinds past the capital (moonwoods at tier 11, cloudtops at 14, starfalls at 17) bring the mythic, celestial, ancient
+-- and eternal driftlings; where this island is not that far on, those kinds open at its own tier for these checks, as
+-- they will at theirs. Nine rarities in the odds, each rarer than the one before from legendary on; a mythic, a
+-- celestial, an ancient and an eternal egg under the tree (the profile, the attribute, the view, each dearer than the
+-- one before), each hatched (a hut's weakest swapped out when every hut is full) into one of its rarity.
 E.phase = "rarest"
 do
 	local Islets = H.sharedServer("Data.Islets")
@@ -1332,24 +1333,24 @@ do
 	end
 	Tree.resetPools()
 	local pool = Tree.pool(prof.tier)
-	H.expect(#pool[6] >= 3 and #pool[7] >= 3, "rarest", "the kinds past the capital bring mythic and celestial driftlings", string.format("%d mythic, %d celestial", #pool[6], #pool[7]))
+	H.expect(#pool[6] >= 3 and #pool[7] >= 3 and #pool[8] >= 4 and #pool[9] >= 4, "rarest", "the kinds past the capital bring mythic, celestial, ancient and eternal driftlings", string.format("%d mythic, %d celestial, %d ancient, %d eternal", #pool[6], #pool[7], #pool[8], #pool[9]))
 	local odds = Tree.odds(prof)
 	local sum = 0
 	for _, o in odds do
 		sum += o
 	end
-	H.expect(#odds == Traits.RMAX and Traits.RMAX == 7 and math.abs(sum - 1) < 1e-9 and odds[6] > 0 and odds[7] > 0 and odds[7] < odds[6] and odds[6] < odds[5], "rarest", "the odds: seven rarities, mythic rarer than legendary, celestial rarer still", string.format("legendary %.4f, mythic %.4f, celestial %.4f, sum %.6f", odds[5], odds[6], odds[7], sum))
-	H.expect(Tree.cost(prof, 7) > Tree.cost(prof, 6) and Tree.cost(prof, 6) > Tree.cost(prof, 5), "rarest", "a celestial egg dearer than a mythic one, dearer than a legendary one", string.format("%d, %d, %d", Tree.cost(prof, 5), Tree.cost(prof, 6), Tree.cost(prof, 7)))
-	local em, ec = prof.clutch.list[1], prof.clutch.list[2]
-	H.expect(em ~= nil and ec ~= nil, "rarest", "two eggs under the tree to turn")
-	if em and ec then
-		em.r, ec.r = 6, 7
+	H.expect(#odds == Traits.RMAX and Traits.RMAX == 9 and math.abs(sum - 1) < 1e-9 and odds[9] > 0 and odds[9] < odds[8] and odds[8] < odds[7] and odds[7] < odds[6] and odds[6] < odds[5], "rarest", "the odds: nine rarities, mythic rarer than legendary, celestial, ancient and eternal each rarer still", string.format("legendary %.4f, mythic %.4f, celestial %.5f, ancient %.6f, eternal %.7f, sum %.6f", odds[5], odds[6], odds[7], odds[8], odds[9], sum))
+	H.expect(Tree.cost(prof, 9) > Tree.cost(prof, 8) and Tree.cost(prof, 8) > Tree.cost(prof, 7) and Tree.cost(prof, 7) > Tree.cost(prof, 6) and Tree.cost(prof, 6) > Tree.cost(prof, 5), "rarest", "each rarer egg dearer than the one before, from legendary to eternal", string.format("%d, %d, %d, %d, %d", Tree.cost(prof, 5), Tree.cost(prof, 6), Tree.cost(prof, 7), Tree.cost(prof, 8), Tree.cost(prof, 9)))
+	local em, ec, ea, ee = prof.clutch.list[1], prof.clutch.list[2], prof.clutch.list[3], prof.clutch.list[4]
+	H.expect(em ~= nil and ec ~= nil and ea ~= nil and ee ~= nil, "rarest", "four eggs under the tree to turn")
+	if em and ec and ea and ee then
+		em.r, ec.r, ea.r, ee.r = 6, 7, 8, 9
 		H.push(p, 0.3)
 		E.run(RISEN)
-		H.expect(plotModel(s.plot):GetAttribute("Eggs") == attrWant(prof), "rarest", "the attribute says a mythic egg and a celestial one", tostring(plotModel(s.plot):GetAttribute("Eggs")))
+		H.expect(plotModel(s.plot):GetAttribute("Eggs") == attrWant(prof), "rarest", "the attribute says a mythic, a celestial, an ancient and an eternal egg", tostring(plotModel(s.plot):GetAttribute("Eggs")))
 		eggMirror(p, "rarest")
-		H.expect(H.inClient(p, C.EV.where, s.plot, em.id) ~= nil and H.inClient(p, C.EV.where, s.plot, ec.id) ~= nil, "rarest", "both drawn under the tree")
-		for _, e in { em, ec } do
+		H.expect(H.inClient(p, C.EV.where, s.plot, em.id) ~= nil and H.inClient(p, C.EV.where, s.plot, ec.id) ~= nil and H.inClient(p, C.EV.where, s.plot, ea.id) ~= nil and H.inClient(p, C.EV.where, s.plot, ee.id) ~= nil, "rarest", "all four drawn under the tree")
+		for _, e in { em, ec, ea, ee } do
 			prof.shells = Tree.cost(prof, e.r) + 5000
 			H.push(p, 0.3)
 			local b = before(e)
@@ -1363,7 +1364,7 @@ do
 				H.expect(d ~= nil and d.rarity >= e.r and Islets.list[d.islet] ~= nil and (moved[Islets.list[d.islet]] or 0) >= 11, "rarest", Traits.RARITY[e.r].name .. ": one of the far kinds' driftlings", d and string.format("%s (%s, %s)", d.id, d.rarity, Islets.list[d.islet].name) or "none")
 			end
 		end
-		H.expect(prof.stats.best == 7, "rarest", "the rarest had: celestial", tostring(prof.stats.best))
+		H.expect(prof.stats.best == 9, "rarest", "the rarest had: eternal", tostring(prof.stats.best))
 	end
 	for k, t in moved do
 		k.tier = t

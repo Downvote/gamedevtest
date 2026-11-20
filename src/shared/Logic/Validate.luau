@@ -4,7 +4,7 @@
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
 --   "int"    a whole number in [0, 1e6] (a driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 32] (a look index)
---   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 7)
+--   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 9)
 --   "key"    a settings key ("pixel", "music", "sfx", "zoom")
 --   "coord"  a whole number in [-240, 64] (a plot-local stud: the biggest islands reach far north)
 --   "rot"    a quarter turn: 0, 90, 180 or 270

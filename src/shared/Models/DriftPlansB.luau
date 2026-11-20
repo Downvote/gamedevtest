@@ -479,6 +479,9 @@ FORMS.peakhorn = { style = "goat", horns = "goat", hornC = "steel", hornLen = 0.
 FORMS.prismhorn = { style = "horse", horns = "spike", hornC = "crystal", hornLen = 0.72, hornR = 0.09, mane = "crystal", forelock = "crystal", tail = "horse", tailC = "crystal", ears = "horse", hoof = "crystal", leg = 1.0, neck = 0.62, mlen = 0.4, rump = false }
 FORMS.craglet = { style = "goat", horns = "nubs", hornC = "rock", ears = "goat", sock = "rock", hoof = "rock_dark", leg = 0.72, len = 1.0, wide = 0.6, tall = 0.6, head = 1.06, tail = "flick", neck = 0.42, mlen = 0.28 }
 FORMS.moonfawn = { hoof = "steel_dark", spots = "crystal", glow = true, crescent = "crystal", earIn = "crystal", earLen = 0.54, earW = 0.32, neck = 0.5, faceDetail = { marks = { spots = "crystal", glow = true } } }
+-- Stormstag (ancient, 2026-11-20): a tall stag of storm grey, great white antlers of four tines with lightning yellow
+-- at their tips, a white ruff and glowing yellow dots down its back like the flashes in a storm cloud.
+FORMS.stormstag = { horns = "antler", hornC = "white", hornLen = 0.9, hornR = 0.075, tines = 4, fork = true, spread = 1.3, starTips = "yellow", glow = true, dots = "yellow", ruff = "white", tail = "tuft", tailC = "white", hoof = "slate", leg = 1.08, neck = 0.68, len = 1.26, h = 3.0, earLen = 0.46, faceDetail = { marks = { blaze = "yellow" } } }
 FORMS.silverhoof = { style = "horse", horns = "spike", hornC = "steel", hornLen = 0.36, hornR = 0.065, mane = "steel", forelock = "steel", tail = "tuft", tailC = "steel", earLen = 0.4, hoof = "steel_dark", feather = "steel", leg = 1.08, neck = 0.66, len = 1.2, mlen = 0.42, h = 2.6, slim = 0.9, rump = false, faceDetail = { marks = { blaze = "steel" } } }
 FORMS.raindeer = { horns = "antler", hornC = "white", hornLen = 0.62, tines = 2, cloud = "white", earLen = 0.42, faceDetail = { marks = { freckles = "blue" } } }
 FORMS.starhart = { horns = "antler", hornC = "crystal", hornLen = 0.84, hornR = 0.065, tines = 3, fork = true, spread = 1.3, starTips = "yellow", dots = "crystal", tail = "tuft", tailC = "crystal", hoof = "crystal", leg = 1.04, neck = 0.66, len = 1.22, h = 2.9, earLen = 0.44, faceDetail = { marks = { star = "white", glow = true } } }
@@ -1360,6 +1363,9 @@ FORMS.pyredrake = { horns = "swept", hornC = "cream", spines = "flame", spineC =
 FORMS.pyrelord = { horns = "crown", hornC = "berry_red", spines = "plate", spineC = "berry_red", tip = "spade", spade = 0.52, mem = "berry_red", belly = "cream", noseHorn = true, beard = "berry_red", span = 1.3, fingerTips = "cream", k = 1.1, h = 2.9, r = 1.5, wide = 0.88, spineK = 1.25, brow = false, fins = false, headK = 1.04 }
 FORMS.frostdrake = { horns = "icicle", hornC = "ice", spines = "shard", spineC = "ice", core = "white", tip = "crystal", mem = "ice", memEdge = "white", belly = "white", frill = "ice", claw = "white", faceDetail = { marks = { freckles = "white", glow = true } } }
 FORMS.thunderdrake = { horns = "zigzag", hornC = "yellow", spines = "bolt", spineC = "yellow", tip = "bolt", mem = "yellow", belly = "cream", claw = "yellow", finC = "yellow", lift = 1.15 }
+-- Firstflame (ancient, 2026-11-20): a big old drake of black star stone with lava between its scales, a gold crown of
+-- horns, a horn on its nose, flames down its back and at its tail, lava-red wings edged in gold.
+FORMS.firstflame = { horns = "crown", hornC = "gold", spines = "flame", spineC = "lava", core = "yellow", tip = "flame", mem = "lava", memEdge = "gold", belly = "black", claw = "gold", fingerTips = "gold", noseHorn = true, span = 1.4, k = 1.14, h = 3.0, r = 1.5, wide = 0.9, spineK = 1.3, headK = 1.05, faceDetail = { marks = { freckles = "lava", glow = true } } }
 
 local _v, _r, _j, _f, _u, _w = V, R, J, full, UP, FWD
 return { plans = PLANS, forms = FORMS }

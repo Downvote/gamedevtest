@@ -1132,7 +1132,7 @@ local function buildTree(body: Frame, arg: any?)
 		PixelSprites.image(f, "egg_" .. math.clamp(e.r, 1, Traits.RMAX), UDim2.fromOffset(6, 5), 4)
 		local tw = RW - 86
 		UIKit.text(f, rar.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 2), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-		local an = if e.r == 2 or e.r == 4 then "an" else "a"
+		local an = if string.match(string.lower(rar.name), "^[aeiou]") then "an" else "a"
 		if wdef and wm then
 			UIKit.text(f, wdef.laid, UDim2.fromOffset(tw, 10), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, name = "Laid" })
 			PixelSprites.image(f, "mini_" .. wdef.icon, UDim2.fromOffset(24, 23), 4).Name = "WeatherIcon"

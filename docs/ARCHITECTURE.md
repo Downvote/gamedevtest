@@ -180,7 +180,7 @@ tile's on even studs at rot 0; a fence length's an even grid corner and `rot` it
 made smaller: it waits for room, `Tree.settle`), work (a Piece uid, 0 resting; only one in a hut works), muts? (its
 mutations, Data/Traits ids), pin? (true: the player placed it by hand, so `Island.arrange` leaves it; kept in the save
 only while it lives in a hut; 2026-11-14) }`; no `held` since the pen went), `Laid` (an egg the Tree of Life laid: `{ id (its own id,
-not a Pal id), r (its rarity, 1 .. 7 (`Traits.RMAX`): its look, `EggView.LOOK`), cost? (only on the client's copy: `Tree.cost` on this
+not a Pal id), r (its rarity, 1 .. 9 (`Traits.RMAX`): its look, `EggView.LOOK`), cost? (only on the client's copy: `Tree.cost` on this
 island now), ss? (the season it was laid in, a Data/Weather season id), wx? (the weather that touched it, a
 Data/Weather kind id with a mutation family), wt? (that touch's tier, 1 .. 4) }`; what hatches is rolled when it is
 hatched; ss, wx and wt are kept by `Schema.reconcile` only when known, wt only with wx (GAME_DESIGN 13)), `Clutch` (the tree's eggs, saved: `{ left (seconds till the
@@ -216,7 +216,7 @@ this rotation), `trackLevel`, `trackInto`, `trackNeed` (`Store.level`), `trackLe
 `minuteShells` (`Store.perMinute`: what a minutes-of-shells reward pays a minute), `incomeMult` (`Island.passMult`: the passes and the group), `offline` (`OfflineReport = { away, secs, shells }` waiting to
 be collected, else false), `offlineHours`, `offlinePct` (`Store.offlineCap` / 3600, `Store.offlinePct`), `offlineDouble`
 (`Store.offlineDouble`: Collect x2 free), `group`, `groupOn` (`Monetization.Group.Id` set)); `clock` the sea's clock (`WorldClock.now`) when the view was made (the season and the weather: also
-patched by every tick); no `tide` or `tideSecs`), `ErrCode` (with `hatcheries`: the island has all the Hatcheries its tier allows, 2026-11-14; `no_hut`: no hut built to hatch into; `full`: no room in that
+patched by every tick); no `tide` or `tideSecs`), `ErrCode` (with `hatcheries`: the island has all the Hatcheries its tier allows, 2026-11-14; `boosts`: the island has two of that boost building already, 2026-11-20; `no_hut`: no hut built to hatch into; `full`: no room in that
 hut, every hut full for an `egg.hatch` with no swap, or the island's piece, tile or fence limit reached; `fixed`: the
 Tree of Life can't be cleared away; `huts`: the island's huts' limit reached; `work`: its work cap reached (a
 workplace whose places won't fit, 2026-11-18); `money`: not enough shells; no `food`, no
@@ -784,6 +784,63 @@ Also, remove work building types. ..." (GAME_DESIGN, the top). What changed in t
   **`src/server/Config/Codes`**: the codes (server only). `IslandService` runs `Rewards.sync` and `tick` every second
   (the tick's Fx carries `play`); `Session.view` adds `rewards` (`Rewards.view`) and `boosts`. `Logic/Store.offline`
   pays `1 + isle.away` times as much.
+
+### 6.y Two of each boost building, the fabled mutations, Ancient and Eternal (2026-11-20)
+
+The request: "make the max of each boosts building to be 2. also, add another tier of mutations, which are the
+strongest and rarest. also, make more higher tier eggs, about 2 more tiers" (GAME_DESIGN, the top). No save shape
+changed: `Schema.VERSION` stays, every older save loads as it is (a rarity past the rarest is clamped to `RMAX`). What
+changed in the contract:
+
+- **`Config/Tuning`**: `BoostEach` 2 (each boost building on an island at most). Every table by rarity has nine
+  entries: `RarityWork` (.. 17, 26, 40), `EggPrice` (.. 160,000, 1,000,000, 6,000,000), `SellPrice` (.. 5,500, 24,000,
+  100,000), `BreedShells` (.. 90,000, 380,000, 1,600,000), `BreedTurns` (.. 28, 38, 50), `ShopWeight` (.. 0.4, 0.15,
+  0.05) and `CosmeticPrice` (.. 150,000, 400,000, 1,000,000; no cosmetic has rarity 8 or 9 yet); `EggUp` eight (..
+  0.006, 0.003, 0.0015). `IsleCap` unchanged: the fabled effects fit under it.
+- **`Logic/Plot`**: `isBoost(id)` (kind "gen"), `boostLimit()` (`BoostEach`), `boosts(placed, id)` (how many of that
+  id stand), `boostFull(placed, id)` (one more would pass the limit; false for anything that isn't a boost building).
+  `place` refuses `boosts` before the price (also a piece out of the inventory); `replace` refuses `boosts` for a new
+  id the island already has two of. **`Types.ErrCode`** adds `boosts`; `UI/Words`: "Two of each boost building is the
+  most." `tests/Career.luau`'s `build` checks `boostFull` too.
+- **`Logic/Island`**: `boostInfo(p, id) -> { count, raw, total, mult, more, same }`: `same` the copies of its id,
+  `more` 0 once `same` reaches `Plot.boostLimit()` (`Controllers/BuildingTags` says "<same> of 2 built" then). An
+  older save's third still counts (`boostShare(id, 3)`).
+- **`UI/BuildUI`**: a boost building's card counts its copies in the corner ("1/2", `BoostCount`; the accent while
+  there is room, dim at two) and at two is greyed with "Max" (`noRoom`, `roomErr` "boosts"); the Inventory tab's card
+  likewise; the replace list greys an id the island has two of with "Max 2" and refuses it on a tap; the tip says "A
+  second adds 50% of it. Two at most."
+- **`Data/Traits`**: `TOP` 6; `RARITY` nine (`Ancient` colour "ancient", weight 0.00006; `Eternal` "eternal",
+  0.0000015), `RMAX` 9; `TIER_COLOR[6]` "eternal", `TIER_NAME[6]` "Fabled"; `fabled` (six, tier 6, ids `<family>6`:
+  crown all 0.3, rally aura 0.2, bounty eggs 2, fate skip 0.12, timeless away 1, adored charmPct 0.6 and charm 16);
+  `at(family, tier)` returns a wondrous or fabled family's own id; `roll` has a seventh tier weight (`TIER_W` 0.03,
+  `FABLED_UP` 0.04 more a rarity step). `Data/Palette.ui`: `ancient` 0xFF7B3A, `eternal` 0xE98CFF.
+- **`Logic/Breed`**: `inherit` keeps a wondrous or fabled one as itself when both parents carry it (tier 5 and up), the
+  highest tiers first (a fabled one before a wondrous one); `child` keeps "no rarer than the commoner parent" for every
+  rarity past legendary (an eternal one only from two eternal ones).
+- **`Data/Creatures`**: 154 kinds; Skyelder, Stormstag and Islebearer (ancient, Cloudtop, islet 11), Firstflame and
+  Craterwarden (ancient, Starfall, islet 12), Everwyrm, Nightwhale, Starmane and Dawnwing (eternal, Starfall), each
+  with its look in `LOOKS` and its form in `Models/DriftPlansA..F` (`FORMS.<id>`). So `Tree.pool(t)[8]` is empty below
+  tier 14 and `[9]` below 17, and `Tree.odds` keeps every rarity rarer than the one before at every tier (the Tree
+  spec checks it). Their portraits are in `scripts/portraits.txt` (`tools/preview/portraits.sh`).
+- **`Data/Titles`**: `relickeeper` ("Relic Keeper", best 8, "ancient"), `timekeeper` ("Timekeeper", best 9, "eternal").
+- **`Models/EggModels`**: `SIZE` and `LOOK` nine each (8 `basalt` with "veins" of `lava`, lawn `lava`; 9 `plate_white`
+  with a "rainbow" belt, lawn `crystal`); `TRIM` 8 (ash nest, "embers" by it) and 9 (white and lilac wisps, "prism");
+  `build` gives an ancient egg three "orbit" embers (k 3, 6, 9) and an eternal egg nine "orbit" and nine "orbit2"
+  beads; `hero` an ancient egg's lava cracks (lit spots), runes, foot embers, three "orbit" embers and three motes, an
+  eternal egg's rainbow belt, stars, pearls, a halo of 14, 21 "orbit" and 14 "orbit2" lights and three motes. The fx
+  kind **"orbit2"** is a second ring the other way round, tilted against the first: `Controllers/EggView` and
+  `UI/HatchScene` move it. **`Render/DynTex`**: `NAMES` adds "magma" (23) and "prism" (24); `EGG` nine.
+- **`Controllers/EggView`**: `EVERY` nine (0.07, 0.06); an ancient egg's sparks are embers (`ember_1..3`), an eternal
+  egg's motes of every rarity's colour and `prism_1..3` glints. The hatch notice says "an" before a rarity starting
+  with a vowel (also `UI/Hud`'s "An ancient egg waits at the tree.", `UI/StoreUI`, `UI/Menus`).
+- **`UI/HatchScene`**: `EGG_H`, `GLORY`, `GRADE`, `RAY`, `SHINE` and `TWINKLE` nine each; `fireflies` adds embers
+  (8) and motes of every colour (9); a tier 6 plate blinks twice, adds a white starburst and its dots in every
+  rarity's colour (`FABLED_DOTS`). **`UI/HatchBackdrop`**: `SKIES`, `BASES` and `INK` nine; `Sky.body` adds "eclipse"
+  (`bodyC`: fire, the dark disc, its rim) and "halosun" (its fill, its ring, its slanting rays' colour); `Sky.rainbow`
+  draws a rainbow over the hills; the pedestal's flecks show from rarity 7 up.
+- **`UI/TierStars`**: up to `Traits.TOP` stars. **`scripts/gen_art.py`**: ramps `V` (orchid), `L` (pearl), `J` (ash);
+  `star_t6`; `egg_8`, `egg_9`, `mini_egg_8`, `mini_egg_9` (`hand_egg` marks `o` and `h`: lava and its hot points;
+  `R O Y G B U`: the rainbow, light on the lit side); `ember_1..3`, `prism_1..3`.
 
 ## 7. Server
 

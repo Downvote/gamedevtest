@@ -1032,7 +1032,7 @@ local function onEggs(msg: { [string]: any })
 	local turned = tonumber(msg.turned)
 	if turned and Traits.RARITY[turned] then
 		local rar = Traits.RARITY[turned]
-		local a = if turned == 2 or turned == 4 then "An" else "A"
+		local a = if string.match(string.lower(rar.name), "^[aeiou]") then "An" else "A"
 		UIKit.notice(string.format("%s %s egg waits at the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
 		Audio.play("grow")
 		local tc = treeCard
@@ -1050,7 +1050,8 @@ local function onEggs(msg: { [string]: any })
 	local more = tonumber(msg.more) or 0
 	if best >= 4 then
 		local rar = Traits.RARITY[best] or Traits.RARITY[1]
-		local a = if best == 4 then "An" else "A"
+		-- ("An" before an epic, an ancient or an eternal egg)
+		local a = if string.match(string.lower(rar.name), "^[aeiou]") then "An" else "A"
 		UIKit.notice(string.format("%s %s egg waits at the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
 		Audio.play("grow")
 		local tc = treeCard

@@ -7,11 +7,13 @@ local Palette = require("../../build/luautest/shared/Data/Palette")
 local Util = require("../../build/luautest/shared/Logic/Util")
 
 return function()
-	T.it("seven rarities (2026-11-14: Mythic and Celestial past Legendary), each table by rarity as long, rarer is dearer and faster", function()
-		T.eq(Traits.RMAX, 7)
+	T.it("nine rarities (Mythic and Celestial past Legendary, 2026-11-14; Ancient and Eternal past them, 2026-11-20), each table by rarity as long, rarer is dearer and faster", function()
+		T.eq(Traits.RMAX, 9)
 		T.eq(#Traits.RARITY, Traits.RMAX)
 		T.eq(Traits.RARITY[6].name, "Mythic")
 		T.eq(Traits.RARITY[7].name, "Celestial")
+		T.eq(Traits.RARITY[8].name, "Ancient")
+		T.eq(Traits.RARITY[9].name, "Eternal")
 		for r, rd in Traits.RARITY do
 			T.truthy(Palette.ui[rd.color] ~= nil or Palette.colors[rd.color] ~= nil, rd.name .. ": a colour")
 			if r > 1 then
@@ -20,15 +22,27 @@ return function()
 		end
 		-- (much rarer than legendary: a mythic egg's weight a sixtieth of a legendary one's, a celestial one a tenth of that)
 		T.truthy(Traits.RARITY[6].weight * 20 <= Traits.RARITY[5].weight and Traits.RARITY[7].weight * 5 <= Traits.RARITY[6].weight, "far rarer")
-		for name, t in { RarityWork = Tuning.RarityWork, EggPrice = Tuning.EggPrice, SellPrice = Tuning.SellPrice, BreedShells = Tuning.BreedShells, BreedTurns = Tuning.BreedTurns } do
+		-- (an ancient egg's weight under a thirtieth of a celestial one's, an eternal one's a fortieth of that: "much rarer")
+		T.truthy(Traits.RARITY[8].weight * 30 <= Traits.RARITY[7].weight and Traits.RARITY[9].weight * 40 <= Traits.RARITY[8].weight, "much rarer still")
+		-- (the colours are their own: no two rarities share one)
+		local cols: { [string]: boolean } = {}
+		for _, rd in Traits.RARITY do
+			T.truthy(not cols[rd.color], rd.name .. ": a colour of its own")
+			cols[rd.color] = true
+		end
+		for name, t in { RarityWork = Tuning.RarityWork, EggPrice = Tuning.EggPrice, SellPrice = Tuning.SellPrice, BreedShells = Tuning.BreedShells, BreedTurns = Tuning.BreedTurns, ShopWeight = Tuning.ShopWeight, CosmeticPrice = Tuning.CosmeticPrice } do
 			T.eq(#t, Traits.RMAX, name .. ": one a rarity")
 			for r = 2, #t do
-				T.truthy(t[r] > t[r - 1], name .. " grows with the rarity at " .. r)
+				if name == "ShopWeight" then
+					T.truthy(t[r] < t[r - 1], name .. " shrinks with the rarity at " .. r)
+				else
+					T.truthy(t[r] > t[r - 1], name .. " grows with the rarity at " .. r)
+				end
 			end
 		end
 		T.eq(#Tuning.EggUp, Traits.RMAX - 1, "EggUp: a step from each rarity but the rarest")
 		local rng = Util.newRng(5)
-		for _, r in { 6, 7, 99 } do
+		for _, r in { 6, 7, 8, 9, 99 } do
 			for _ = 1, 50 do
 				local muts = Traits.roll(rng, r)
 				T.truthy(#muts <= Traits.MAX and #Traits.clean(muts) == #muts, "a clean roll at rarity " .. r)
@@ -137,7 +151,7 @@ return function()
 		end
 	end)
 	T.it("the wondrous mutations (tier 5): each its own family and effect, very seldom rolled, more for rarer kinds", function()
-		T.eq(Traits.TOP, 5)
+		T.eq(Traits.TOP, 6, "the fabled tier above it since 2026-11-20")
 		T.truthy(#Traits.wonders >= 5)
 		local keys: { [string]: boolean } = {}
 		for _, w in Traits.wonders do
@@ -172,6 +186,56 @@ return function()
 		T.truthy(common > 0 and common < 0.006, string.format("a common one's mutation is wondrous %.4f of the time", common))
 		T.truthy(legend > common * 2 and legend < 0.02, string.format("a legend's %.4f", legend))
 		T.deepEq(Traits.clean({ "golden5", "busy4", "golden5" }), { "golden5", "busy4" }, "a family once")
+	end)
+	T.it("the fabled mutations (tier 6, 2026-11-20): the strongest and rarest, each its own family, stronger than the wondrous ones", function()
+		-- (the request: "add another tier of mutations, which are the strongest and rarest")
+		T.truthy(#Traits.fabled >= 4)
+		T.truthy(Traits.TIER_COLOR[6] ~= nil and Traits.TIER_NAME[6] == "Fabled")
+		T.truthy(Palette.ui[Traits.TIER_COLOR[6]] ~= nil, "its colour")
+		-- the strongest wondrous effect of each key, to beat
+		local best5: { [string]: number } = {}
+		for _, w in Traits.wonders do
+			for k, v in w.fx do
+				best5[k] = math.max(best5[k] or 0, v)
+			end
+		end
+		local fams: { [string]: boolean } = {}
+		for _, f in Traits.fabled do
+			local m = Traits.byId[f.family .. "6"]
+			T.truthy(m ~= nil and m.tier == 6 and m.name == f.name, f.family .. "6")
+			T.truthy(not fams[f.family] and Traits.byId[f.family .. "5"] == nil and Traits.byId[f.family .. "1"] == nil, f.family .. ": a family of its own")
+			fams[f.family] = true
+			T.eq(Traits.at(f.family, 1), m.id, "one tier: its own")
+			T.eq(Traits.at(f.family, 9), m.id)
+			-- stronger: its main effect (one the wondrous tier gives) beats every wondrous one's, each within the caps
+			local beats = false
+			for k, v in m.fx do
+				T.truthy(v > 0, m.id .. " " .. k .. " helps")
+				if best5[k] and v > best5[k] + 1e-9 then
+					beats = true
+				end
+				local cap = Tuning.IsleCap[k]
+				T.truthy(cap == nil or v <= cap, m.id .. " " .. k .. " within the island's cap")
+			end
+			T.truthy(beats, m.id .. " beats every wondrous one at its effect")
+			T.truthy(m.blurb ~= "", m.id .. " says what it does")
+		end
+		local function share(r: number): number
+			local rng, n, all = Util.newRng(91), 0, 0
+			for _ = 1, 60000 do
+				for _, id in Traits.roll(rng, r) do
+					all += 1
+					if Traits.byId[id].tier == 6 then
+						n += 1
+					end
+				end
+			end
+			return n / math.max(1, all)
+		end
+		local common, eternal = share(1), share(Traits.RMAX)
+		T.truthy(common < 0.001, string.format("a common one's mutation is fabled %.5f of the time", common))
+		T.truthy(eternal > common * 3 and eternal < 0.006, string.format("an eternal one's %.5f", eternal))
+		T.deepEq(Traits.clean({ "crown6", "golden5", "crown6", "busy4" }), { "crown6", "golden5", "busy4" }, "a family once")
 	end)
 	T.it("cleaning a save's list: known ids, a family once, at most four", function()
 		-- (a saved Leafy one is Lucky of the same tier since 2026-11-14)

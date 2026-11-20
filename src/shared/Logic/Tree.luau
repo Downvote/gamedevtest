@@ -66,7 +66,8 @@ function Tree.count(tier: number): number
 	return Tuning.EggCount[math.clamp(tier, 1, #Tuning.EggCount)]
 end
 
--- The eggs a lot on this island: its tier's count and one more for each wondrous Twinborn in a hut (Island.isle).
+-- The eggs a lot on this island: its tier's count and the huts' extra eggs (one for each wondrous Twinborn, two for
+-- each fabled Bountiful in a hut, to Tuning.IsleCap's eggs: Island.isle).
 function Tree.lot(p: Profile): number
 	return Tree.count(p.tier) + Island.isle(p).eggs
 end
@@ -349,13 +350,13 @@ function Tree.roll(p: Profile, rng: Rng, rarity: number, season: string?, tier: 
 			end
 		end
 	end
-	-- (the tier's boost stops at legendary; a mythic or celestial one rolls as itself)
+	-- (the tier's boost stops at legendary; a mythic or rarer one rolls as itself)
 	local mutR = math.max(r, math.min(5, r + math.floor((p.tier - 1) / Tuning.EggMutTier)))
 	return sp, Traits.roll(rng, mutR)
 end
 
 -- The rarity an egg of rarity `r` hatches as: one up with Tuning.EggUp[r] plus the huts' skip share (a wondrous
--- Prismatic's: Island.isle), and on while the rolls hold (the hatch scene shows each step). Every rarity hatches on
+-- Prismatic's, a fabled Fated's: Island.isle), and on while the rolls hold (the hatch scene shows each step). Every rarity hatches on
 -- every island since 2026-11-19 (Tree.roll takes a far kind's when no open kind has it).
 function Tree.rise(p: Profile, rng: Rng, r: number, _tier: number?): number
 	local skip = Island.isle(p).skip

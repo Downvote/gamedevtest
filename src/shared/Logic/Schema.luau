@@ -769,7 +769,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 	local top = 0
 	if type(c.list) == "table" then
 		for _, e in c.list do
-			-- (a lot's size: the tier's, and one more for each wondrous Twinborn in a hut)
+			-- (a lot's size: the tier's, and the huts' extra eggs: a wondrous Twinborn's, a fabled Bountiful's)
 			if type(e) == "table" and #cl.list < Tree.lot(out) then
 				local id = int(e.id, 0, 0)
 				if id > 0 and not eggIds[id] then

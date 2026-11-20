@@ -216,6 +216,7 @@ export type ErrCode =
 	| "huts"
 	| "work"
 	| "hatcheries"
+	| "boosts"
 	| "fixed"
 	| "locked"
 	| "full"

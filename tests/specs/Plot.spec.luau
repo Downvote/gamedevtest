@@ -741,6 +741,73 @@ return function()
 		T.truthy((Plot.place(p, "hatchery", x, z, 0)), "a bigger island: a second one")
 		T.eq(Plot.hatcheries(p.plot.placed), 2)
 	end)
+	T.it("boost buildings: two of each at most, on every island; an older save's third stays", function()
+		-- (the request of 2026-11-20: "make the max of each boosts building to be 2")
+		T.eq(Plot.boostLimit(), 2)
+		T.eq(Tuning.BoostEach, 2)
+		local boosts = 0
+		for _, d in Buildings.list do
+			if d.kind == "gen" then
+				boosts += 1
+				T.truthy(Plot.isBoost(d.id), d.id)
+			end
+		end
+		T.truthy(boosts >= 8, "every boost building is one")
+		T.truthy(not Plot.isBoost("patch") and not Plot.isBoost("hatchery") and not Plot.isBoost("nest"), "nothing else")
+		local p = fresh()
+		p.tier = #Tuning.TierCost
+		for k = 1, 2 do
+			local x, z = spot(p, "windmill")
+			T.truthy((Plot.place(p, "windmill", x, z, 0)), "windmill " .. k)
+		end
+		T.eq(Plot.boosts(p.plot.placed, "windmill"), 2)
+		T.truthy(Plot.boostFull(p.plot.placed, "windmill"))
+		local n0, s0 = #p.plot.placed, p.shells
+		local x, z = spot(p, "windmill")
+		T.eq(select(2, Plot.place(p, "windmill", x, z, 0)), "boosts", "a third windmill is refused")
+		T.truthy(#p.plot.placed == n0 and p.shells == s0, "nothing placed, nothing paid")
+		-- another boost building still goes up, two of it
+		for k = 1, 2 do
+			x, z = spot(p, "smokehouse")
+			T.truthy((Plot.place(p, "smokehouse", x, z, 0)), "smokehouse " .. k)
+		end
+		x, z = spot(p, "smokehouse")
+		T.eq(select(2, Plot.place(p, "smokehouse", x, z, 0)), "boosts")
+		-- a smokehouse can't become a third windmill; a windmill put away comes back down only while there's room
+		local si = 0
+		for i, q in p.plot.placed do
+			if q.id == "smokehouse" then
+				si = i
+			end
+		end
+		T.eq(select(2, Plot.replace(p, si, "windmill")), "boosts", "no third windmill by replacing")
+		T.truthy((Plot.replace(p, si, "toolshed")), "a tool shed in its place is fine")
+		local wi = 0
+		for i, q in p.plot.placed do
+			if q.id == "windmill" then
+				wi = i
+			end
+		end
+		T.truthy((Plot.store(p, wi)), "a windmill into the inventory")
+		T.eq(Plot.held(p, "windmill"), 1)
+		x, z = spot(p, "windmill")
+		local ok, data = Plot.place(p, "windmill", x, z, 0)
+		T.truthy(ok and data.free, "back down from the inventory: room for a second again")
+		-- an older save with three keeps them (nothing is ever taken away), and builds no fourth
+		local raw = Schema.default(0, 1)
+		raw.tier = 6
+		raw.plot.placed = {}
+		for k = 1, 3 do
+			local q = { uid = 500 + k, id = "windmill", x = 0, z = 0, rot = 0, lvl = 1 }
+			q.x, q.z = spot(raw, "windmill")
+			table.insert(raw.plot.placed, q)
+		end
+		local old = Schema.reconcile(raw, 0, 1)
+		T.eq(Plot.boosts(old.plot.placed, "windmill"), 3, "an older save's three windmills stay")
+		old.shells = 1e9
+		x, z = spot(old, "windmill")
+		T.eq(select(2, Plot.place(old, "windmill", x, z, 0)), "boosts", "and it builds no fourth")
+	end)
 	T.it("the inventory: taken away into it, down again for nothing, Remove all, sold for a share", function()
 		-- (the request of 2026-11-14: "also, add an inventory system to build mode, players can remove buildings to put
 		-- them in their inventory. add a button to remove all buildings, remove all path/water etc, and a tool to quick

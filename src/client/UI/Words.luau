@@ -9,6 +9,7 @@ local ERRORS: { [string]: string } = {
 	huts = "No more hut room. Grow the island.",
 	work = "No more work spots. Grow the island.",
 	hatcheries = "No room for another Hatchery. Grow the island.",
+	boosts = "Two of each boost building is the most.",
 	busy = "Not right now.",
 	full = "Huts full. Swap one out or build a hut.",
 	max = "Already maxed.",
