@@ -1313,6 +1313,12 @@ when none is coming or the filter is off), `busy()` (a bake under way or due, or
 the classic style: Build mode's expansion holds the loading card up until it is false), `setHidden(on)` (while the
 loading card hides the game a bake may take `Tuning.PixelHiddenMs` (40) of each frame, and a re-cast as long with 8
 times the rays; kept on the module table),
+`casting(model) -> boolean` (whether the picture has still to catch up with
+`model` where it stands: a whole bake running or due, or a re-cast queued or under way over the rect of any of its
+parts with their shadows; false in the classic style; Build mode's landed stand-in waits on it), a moving model's
+"PixelLead" attribute (studs nearer than it stands when its picture is put down on the frame, `Dyn.lead`, read at
+`registerDynamic`: a model standing where a static one is being cast wins the ties, so the static pixels cast under it
+so far never show through),
 (the island growing into its next tier on the picture, `Pixel/Grow` with `growNext`, `growing`, `growFront`,
 `afterGrow` and `growStats`, went on 2026-11-19: "Expansion is very slow and laggy, especially at higher levels. Is it
 possible to optimize and speed it up? No need for the transition anymore". The land's chunks that an expansion swaps
@@ -2241,8 +2247,10 @@ the founder, and when it moves a picked piece's ghost goes again to the cell und
 not already taken, so never while typing in the search box): R (`rotatePicked`: a quarter turn, a fence length between
 0 and 90), E or Return (`confirm`), C (`copyPicked`: a new pick of the same piece, turned the same way), X or Delete
 (`storePicked` through `storeAt(i)`: `plot.store`, then `BuildFx.cleared` and "Snack Stall put away."),
-Esc (drops the pick, ends Quick remove, or with neither closes Build mode). `confirm()` sends `plot.place` (the piece
-stays picked for another copy, unless it was the tip's or the last one picked from the Inventory tab; a pick from the
+Esc (drops the pick, ends Quick remove, or with neither closes Build mode). `confirm()` calls `BuildFx.expect`, then
+sends `plot.place` (the piece stays picked for another copy, its ghost off the cell just filled until the mouse moves to
+another or a tap: `Pick.filled`, `moveGhostTo(pos, tapped?)`; unless it was the tip's or the last one picked from the
+Inventory tab; a pick from the
 Inventory tab with none left there is dropped, never bought: "None left.") or `plot.move`, then
 `BuildFx.drop`; `close()`; `isOpen()`; `Changed: Signal<boolean>`. The tray is laid out again on each view, on
 `UIKit.Resized` and when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 Work's Wood row and
@@ -2281,10 +2289,20 @@ tiles' cells or fences' corners, mode "line", "box" or "erase", with Quick remov
 the markers up without sending).
 
 (`Controllers/GrowFx`, the growth's spray and sounds, went with the growth on 2026-11-19.)
-`Controllers/BuildFx` (GAME_DESIGN 4.5): `drop(plot, uid, id, x, z, rot, lvl?)` (a piece put down: the server's model
-(found in the plot's `Decor` by its name's prefix `uid:id:x:z:rot:`) is held back, unparented, while a stand-in built
-by `DecorModels.build` (`DropIn`, registered with the renderer) falls `DROP_H` (1.6) studs in `DROP_T` (0.16 s),
-faster as it goes, and hops `BOUNCE_H` (0.25) in `BOUNCE_T` (0.14 s); then the real one goes back. At the landing
+`Controllers/BuildFx` (GAME_DESIGN 4.5): `expect(plot, id, x, z, rot) -> key` (BuildUI calls it before it asks
+`plot.place`, `plot.move` or `plot.replace`: a watch on the plot's `Decor` holds the server's model of that spot, matched
+by the `:id:x:z:rot:` part of its name, out of the island the moment it arrives, so the picture never draws it before
+its drop; let go after `EXPECT_SECS` (5) when no drop takes it; nothing with the pixel filter off), `release(key)` (the
+ask refused: the watch stops, anything held goes back), `drop(plot, uid, id, x, z, rot, lvl?)` (a piece put down: the
+server's model, held by `expect` or found in `Decor` then, stays out of the island while a stand-in built by
+`DecorModels.build` (`DropIn`, its `WorldPivot` set upright over its spot and moved by world height alone, its
+"PixelLead" `LEAD` (0.2), registered with the renderer) falls `DROP_H` (1.6) studs in `DROP_T` (0.16 s), faster as it
+goes, and hops `BOUNCE_H` (0.25) in `BOUNCE_T` (0.14 s); then the real one goes back and the stand-in rests on its spot
+until `PixelRenderer.casting(real)` has been false two frames running, at most `SETTLE_MAX` (3 s): the report of
+2026-11-20, "when a building is placed, it seems to shift right instead of shifting down. also, they seem to vanish for
+awhile before appearing, especially for bigger buildings"; the stand-in used to go at the landing while a big
+building's rect took several frames to cast, and was moved along its pivot's own up, which a new model does not set).
+At the landing
 (`land`): six `poof` clouds on a ring round the footprint, bursts of its feel's two particle kinds (`FEEL`: wood `wood
 dust`, stone `chips dust`, plant `leaf dust`, water `drop drop`, metal `glint dust`, magic `magic star`, sand `dust
 dust`, snow `snow snow`, cloth `confetti dust`, fire `ember dust`), two `twinkle`s over its top, its `place_<feel>`

@@ -114,7 +114,8 @@ local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on t
 local goalCard: Frame? = nil
 local goalTab: GuiButton? = nil
 -- (`inv`: picked from the Inventory tab, so only the ones waiting there go down)
-type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean, replace: boolean?, inv: boolean? }
+-- (filled: the cell a copy was just put down on; the ghost stays off it until the pointer moves to another, or a tap)
+type Pick = { id: string, rot: number, move: number?, x: number, z: number, set: boolean, replace: boolean?, inv: boolean?, filled: { number }? }
 
 local open = false
 local tray: Frame? = nil
@@ -820,6 +821,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 				Audio.play("deny")
 				return
 			end
+			local expected = BuildFx.expect(myPlot(), id, q.x, q.z, q.rot)
 			local res = ask("plot.replace", { i = cur.move, id = id })
 			if res.ok then
 				Audio.play("level_up")
@@ -828,6 +830,8 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 				pick = nil
 				clearGhost()
 				task.defer(rebuild)
+			else
+				BuildFx.release(expected)
 			end
 		end, { name = "SwapTo_" .. id, color = if maxed then UIKit.color("button_off") elseif afford then UIKit.color("button_ok") else nil })
 		price(b, 3, 2, cost.shells, v, 6)
@@ -1763,7 +1767,7 @@ local function pieceAt(pos: Vector2): number?
 	return nil
 end
 
-local function moveGhostTo(pos: Vector2): boolean
+local function moveGhostTo(pos: Vector2, tapped: boolean?): boolean
 	local p = pick
 	if p == nil then
 		return false
@@ -1772,6 +1776,12 @@ local function moveGhostTo(pos: Vector2): boolean
 	if x == nil or z == nil then
 		return false
 	end
+	-- (a copy just put down here: no ghost over it while the pointer stays on its cell; a tap shows it again)
+	local f = p.filled
+	if f and not tapped and f[1] == x and f[2] == z then
+		return false
+	end
+	p.filled = nil
 	local same = p.set and p.x == x and p.z == z
 	p.x, p.z, p.set = x, z, true
 	-- (built again only when it moves to another cell: the mouse's every move and the view's every panning frame
@@ -1784,7 +1794,7 @@ end
 
 local function onTap(pos: Vector2, mouse: boolean)
 	if pick then
-		local same = moveGhostTo(pos)
+		local same = moveGhostTo(pos, true)
 		if same and mouse then
 			BuildUI.confirm()
 		else
@@ -1841,6 +1851,8 @@ function BuildUI.confirm()
 	end
 	local lvl = 1
 	local uid = 0
+	-- (the server's model held out of the island the moment it arrives, until its stand-in has dropped in: BuildFx)
+	local expected = BuildFx.expect(myPlot(), p.id, p.x, p.z, p.rot)
 	if moving then
 		local q = placed()[moving]
 		if q then
@@ -1861,12 +1873,21 @@ function BuildUI.confirm()
 		if moving or (goal and goal.id == p.id) or (p.inv and heldBefore <= 1) then
 			pick = nil
 			clearGhost()
+		elseif pick == p then
+			-- placing: the piece stays picked for another copy, its ghost off the spot just filled until the pointer
+			-- moves to another cell (drawn again there at once, a copy stood where the new one dropped in, then went
+			-- off with the pointer, which read as the building sliding sideways: the report of 2026-11-20, "when a
+			-- building is placed, it seems to shift right instead of shifting down")
+			p.set = false
+			p.filled = { p.x, p.z }
+			clearGhost()
 		end
-		-- placing: keep the piece picked for another copy
 		task.defer(function()
 			showGhost()
 			rebuild()
 		end)
+	else
+		BuildFx.release(expected)
 	end
 end
 

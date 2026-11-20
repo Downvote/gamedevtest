@@ -168,6 +168,7 @@ type Dyn = {
 	sR: Rect?,
 	sChg: boolean?,
 	sIn: boolean?,
+	lead: number?, -- studs nearer than it stands when put down on the frame (its "PixelLead" attribute)
 }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
@@ -2872,7 +2873,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		if x1 < 0 or y1 < 0 or x0 > W - 1 or y0 > H - 1 then
 			return
 		end
-		e.pic, e.x0, e.y0, e.x1, e.y1, e.dz, e.gx, e.gy = c, x0, y0, x1, y1, gz, gx, gy
+		e.pic, e.x0, e.y0, e.x1, e.y1, e.dz, e.gx, e.gy = c, x0, y0, x1, y1, gz - (d.lead or 0), gx, gy
 	end
 	for model, d in dyns do
 		local first = d.parts[1]
@@ -5369,7 +5370,10 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 	local lo = if #parts > 0 then parts[1].id else 0
 	local hi = if #parts > 0 then parts[#parts].id else -1
 	SG.forget(dyns[model])
-	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel, lo = lo, hi = hi }
+	-- (a model standing where a static one is being cast, Build mode's landed stand-in: "PixelLead" studs nearer, so it
+	-- wins the ties with the static pixels cast under it so far and they never show through it)
+	local lead = model:GetAttribute("PixelLead")
+	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel, lo = lo, hi = hi, lead = if type(lead) == "number" then lead else nil }
 end
 
 -- A static part leaves the picture (Controllers/Spinners: a turning copy of it is drawn as a moving model instead):
@@ -5492,6 +5496,48 @@ function PixelRenderer.afterBake(fn: () -> ())
 		return
 	end
 	table.insert(afterBake, fn)
+end
+
+-- Whether the picture has still to catch up with model `model` where it stands: a whole bake running or coming, or a
+-- re-cast queued or under way over any of its parts (their rects with their shadows). Build mode keeps a piece's
+-- stand-in drawn until this is false, so the piece never leaves the screen between its landing and its cast (the report
+-- of 2026-11-20: "they seem to vanish for awhile before appearing, especially for bigger buildings"). Always false in
+-- the classic style.
+function PixelRenderer.casting(model: Instance): boolean
+	if tier == "off" or surf == nil then
+		return false
+	end
+	if baking or rebakeAt >= 0 then
+		return true
+	end
+	local cur = invCur
+	if #invQueue == 0 and cur == nil then
+		return false
+	end
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d.Transparency < 1 then
+			local r = partRect(d)
+			if r then
+				x0, y0, x1, y1 = math.min(x0, r.x0), math.min(y0, r.y0), math.max(x1, r.x1), math.max(y1, r.y1)
+			end
+		end
+	end
+	if x0 > x1 then
+		return false
+	end
+	local function over(q: Rect): boolean
+		return q.x1 >= x0 and q.x0 <= x1 and q.y1 >= y0 and q.y0 <= y1
+	end
+	if cur and over(cur.r) then
+		return true
+	end
+	for _, q in invQueue do
+		if over(q) then
+			return true
+		end
+	end
+	return false
 end
 
 -- A stage's folder of static parts (an endless islet's areas come and go as the party runs on): a part added or

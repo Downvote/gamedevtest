@@ -2665,16 +2665,36 @@ do
 	local sx, sz = spot("sandcastle", 0)
 	H.expect(sx ~= nil, "decor", "(room for a sandcastle)")
 	tapFor("sandcastle", sx, sz)
-	-- the pixel filter on, Place
+	-- the pixel filter on (the saved tier too: the client applies the saved one whenever the state's copy changes, and a
+	-- tier set here alone gave way to it at the next sync, a whole new picture baked just as the piece came down), Place
 	E.editableImageMode = "ok"
+	local pixel0 = prof.settings.pixel
+	H.req(p, "settings.set", { k = "pixel", v = "low" })
+	E.run(0.3)
 	H.inClient(p, PRp.setTier, "low")
 	H.expect(H.inClient(p, PRp.isActive), "decor", "(the pixel filter on for the effects)")
+	-- (its first picture drawn and nothing waiting to be cast, as on an island a while after joining: a whole bake under
+	-- way holds a landed stand-in up to its limit)
+	local calm = 0
+	local settled = E.runUntil(function()
+		local st = H.inClient(p, PRp.debugStatic)
+		calm = if H.inClient(p, PRp.ready) and st.shown and st.queued == 0 then calm + 1 else 0
+		return calm >= 20
+	end, 30, 0.05)
+	H.expect(settled, "decor", "(the pixel filter's first picture drawn before the piece is put down)")
 	local dyn2 = E.workspace:FindFirstChild("PixelDynamic")
 	H.clickNamed(p, "Place", { wait = 0 })
 	local q = nil
 	local firstShow, firstPuffs, standIn, heldBack = -1, -1, false, false
+	-- (every frame from the click until it is cast: the piece shows somewhere, as its ghost, its stand-in, or the real
+	-- model with its rect cast (PixelRenderer.casting); the stand-in moves by world height alone, upright over its spot;
+	-- no ghost over it while it drops in. The report of 2026-11-20: "when a building is placed, it seems to shift right
+	-- instead of shifting down. also, they seem to vanish for awhile before appearing, especially for bigger buildings")
+	local gaps, frames, ghostOver, sideways, tilted = 0, 0, 0, 0, 0
+	local sx0, sz0, scr0 = nil, nil, nil
+	local maxSlide = 0
 	local t0 = E.now()
-	for _ = 1, 16 do
+	for f = 1, 60 do
 		E.run(0.05)
 		q = q or pieceAt("sandcastle", sx, sz)
 		local sh = H.inClient(p, BuildFxP.showing)
@@ -2684,21 +2704,55 @@ do
 		if H.inClient(p, PuffsP.count) > 0 and firstPuffs < 0 then
 			firstPuffs = E.now() - t0
 		end
+		local stand = dyn2 and dyn2:FindFirstChild("DropIn")
+		local ghostNow = dyn2 ~= nil and dyn2:FindFirstChild("Ghost") ~= nil
 		if sh > 0 then
-			standIn = standIn or (dyn2 ~= nil and dyn2:FindFirstChild("DropIn") ~= nil)
+			standIn = standIn or stand ~= nil
 			heldBack = heldBack or (q ~= nil and modelOf(q) == nil)
+			if ghostNow then
+				ghostOver += 1
+			end
+		end
+		if stand then
+			local pv = stand:GetPivot()
+			local scr = H.inClient(p, PRp.project, pv.Position)
+			sx0, sz0, scr0 = sx0 or pv.Position.X, sz0 or pv.Position.Z, scr0 or scr.X
+			local slide = math.max(math.abs(pv.Position.X - sx0), math.abs(pv.Position.Z - sz0))
+			maxSlide = math.max(maxSlide, slide)
+			if slide > 1e-3 or math.abs(scr.X - scr0) > 0.5 then
+				sideways += 1
+			end
+			if pv.UpVector.Y < 0.999 then
+				tilted += 1
+			end
+		end
+		local real = q and modelOf(q)
+		local drawn = real ~= nil and not H.inClient(p, PRp.casting, real)
+		frames += 1
+		-- (its ghost stands for it until the drop begins; from then on it goes with the pointer, so only the stand-in or
+		-- the real one cast count)
+		if not ((firstShow < 0 and ghostNow) or stand ~= nil or drawn) then
+			gaps += 1
+		end
+		if firstShow >= 0 and sh == 0 and drawn and H.inClient(p, PuffsP.count) == 0 and f >= 16 then
+			break
 		end
 	end
 	H.expect(q ~= nil, "decor", "Place: a sandcastle on the island", tostring(q))
 	H.expect(firstShow >= 0 and firstShow <= 0.3 and standIn and heldBack, "decor", "right after it's put down it drops in (BuildFx.showing, a stand-in falling, the server's model held back)", string.format("showing after %.2f s, stand-in %s, held %s", firstShow, tostring(standIn), tostring(heldBack)))
 	H.expect(firstPuffs >= 0 and firstPuffs <= 0.5, "decor", "and lands in a burst of particles (Puffs.count)", string.format("puffs after %.2f s", firstPuffs))
+	H.expect(sideways == 0 and tilted == 0 and sx0 ~= nil, "decor", "the stand-in drops straight down: its pivot upright over its spot, the same x and z (and the same x on screen) every frame", string.format("%d frames off its spot by up to %.3f studs, %d tilted", sideways, maxSlide, tilted))
+	H.expect(gaps == 0, "decor", "the piece is on screen every frame from the click on (its ghost until the drop, then its stand-in or the real one cast)", string.format("%d of %d frames with none of them", gaps, frames))
+	H.expect(ghostOver == 0, "decor", "no ghost over it while it drops in (the piece stays picked, its ghost off the spot just filled)", string.format("%d frames with a ghost", ghostOver))
 	local quiet = E.runUntil(function()
 		return H.inClient(p, BuildFxP.showing) == 0 and H.inClient(p, PuffsP.count) == 0
 	end, 2, 0.05)
 	H.expect(quiet and H.inClient(p, BuildFxP.showing) == 0 and H.inClient(p, PuffsP.count) == 0, "decor", "both back to nothing within a moment", string.format("%d showing, %d particles, %.2f s", H.inClient(p, BuildFxP.showing), H.inClient(p, PuffsP.count), E.now() - t0))
 	H.expect((dyn2 == nil or dyn2:FindFirstChild("DropIn") == nil) and q ~= nil and modelOf(q) ~= nil, "decor", "the stand-in gone and the real model back in Static.Decor")
 	H.log("effects: dropping %.2f s after the click, particles %.2f s, quiet %.2f s", firstShow, firstPuffs, E.now() - t0)
-	-- (the classic look again)
+	-- (the classic look again, the saved tier as it was)
+	H.req(p, "settings.set", { k = "pixel", v = pixel0 })
+	E.run(0.3)
 	H.inClient(p, PRp.setTier, "off")
 	E.editableImageMode = "fail"
 	H.clickNamed(p, "Cancel", { wait = 0.2 })

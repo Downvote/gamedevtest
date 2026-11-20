@@ -2338,6 +2338,126 @@ function SCEN.build()
 	return p
 end
 
+-- "drop": a big building put down in Build mode, watched frame by frame (the report of 2026-11-20: "when a building is
+-- placed, it seems to shift right instead of shifting down. also, they seem to vanish for awhile before appearing,
+-- especially for bigger buildings"). An orchard (4 by 4) by the founder: each frame logs where the falling stand-in is
+-- drawn (layer px), whether the server's model is in the island, the re-casts waiting, and how many of the building's
+-- pixels differ from the frame before it was put down; frames drop_0 (just after) to drop_6 and drop_done.
+function SCEN.drop()
+	seedProfile(58, 2, { pieces = { { "nest", -8, 1 } }, pals = { "mossbun" }, shells = 250000 })
+	local p = join(58, "Dropper")
+	settle(p, 30, 1)
+	local BuildUI = modOr(p, "UI.BuildUI")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local BuildFx = modOr(p, "Controllers.BuildFx")
+	local Street = H.sharedServer("Data.Street")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
+	local plot = H.session(p).plot
+	local ox, oz = Street.origin(plot)
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 10, 0.5)
+	if BuildUI == nil or PR == nil or BuildFx == nil then
+		return p
+	end
+	local id = "orchard"
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	local fx = if root then root.Position.X - ox else 0
+	local fz = if root then root.Position.Z - oz else 0
+	local bx, bz, best = nil, nil, math.huge
+	for z = math.floor(fz) - 12, math.floor(fz) + 12 do
+		for x = math.floor(fx) - 12, math.floor(fx) + 12 do
+			local dd = (x + 2 - fx) ^ 2 + (z + 2 - fz - 4) ^ 2
+			if dd < best and Plot.fits(prof.tier, prof.plot.placed, id, x, z, 0) then
+				bx, bz, best = x, z, dd
+			end
+		end
+	end
+	if bx == nil then
+		log("drop: no room for an orchard")
+		return p
+	end
+	-- the building's box on the layer: its footprint's corners from the grass to 6 studs up
+	local st0 = H.inClient(p, PR.debugStatic)
+	local W, H0 = st0.W, st0.H
+	local K = st0.K
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, c in { { 0, 0 }, { 4, 0 }, { 0, 4 }, { 4, 4 } } do
+		for _, up in { 0, 6 } do
+			local sp = H.inClient(p, PR.project, E.v3(ox + bx + c[1], Street.LAWN_Y + up, oz + bz + c[2]))
+			x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
+			x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+		end
+	end
+	x0, y0 = math.max(0, math.floor(x0)), math.max(0, math.floor(y0))
+	x1, y1 = math.min(W - 1, math.ceil(x1)), math.min(H0 - 1, math.ceil(y1))
+	local function snap()
+		local st = H.inClient(p, PR.debugStatic)
+		local b = st.color
+		local out = {}
+		if b then
+			for y = y0, y1 do
+				for x = x0, x1 do
+					out[#out + 1] = buffer.readu32(b, (y * st.W + x) * 4)
+				end
+			end
+		end
+		return out, st
+	end
+	local base = snap()
+	local function differs()
+		local now, st = snap()
+		local n = 0
+		for i, c in now do
+			if c ~= base[i] then
+				n += 1
+			end
+		end
+		return n, st
+	end
+	log("drop: an orchard at %d,%d (founder at %.1f,%.1f), its box on the layer %d,%d - %d,%d (%d px)", bx, bz, fx, fz, x0, y0, x1, y1, (x1 - x0 + 1) * (y1 - y0 + 1))
+	H.inClient(p, function()
+		BuildUI.pick(id, 0)
+		local pos = PR.project(E.v3(ox + bx + 2, Street.LAWN_Y, oz + bz + 2))
+		BuildUI.tapScreen(E.v2(pos.X, pos.Y - E.inset), false)
+	end)
+	E.run(0.1)
+	-- (the piece stays picked for another copy, the pointer still over the spot: no ghost there while it drops in)
+	H.inClient(p, BuildUI.confirm)
+	local dynF = E.workspace:FindFirstChild("PixelDynamic")
+	local plots = E.workspace:FindFirstChild("Plots")
+	local plotM = plots and plots:FindFirstChild("Plot_" .. plot)
+	local decor = plotM and plotM:FindFirstChild("Static") and plotM.Static:FindFirstChild("Decor")
+	local caps = { [1] = "drop_0", [3] = "drop_1", [5] = "drop_2", [6] = "drop_3", [7] = "drop_4", [8] = "drop_5", [12] = "drop_6" }
+	for f = 1, 60 do
+		E.step(E.dt)
+		local stand = dynF and dynF:FindFirstChild("DropIn")
+		local sx, sy = nil, nil
+		local px, py = nil, nil
+		if stand then
+			sx, sy = H.inClient(p, PR.debugShown, stand)
+			local sp = H.inClient(p, PR.project, stand:GetPivot().Position)
+			px, py = sp.X / K, sp.Y / K
+		end
+		local real = false
+		if decor then
+			for _, c in decor:GetChildren() do
+				if string.find(c.Name, ":" .. id .. ":", 1, true) then
+					real = true
+				end
+			end
+		end
+		local n, st = differs()
+		log("drop frame %d: showing %d, stand-in %s drawn at %s,%s pivot at %s,%s; real model %s; ghost %s; re-casts waiting %d; %d of the box's px differ", f, H.inClient(p, BuildFx.showing), tostring(stand ~= nil), tostring(sx), tostring(sy), if px then string.format("%.1f", px) else "-", if py then string.format("%.1f", py) else "-", tostring(real), tostring(dynF ~= nil and dynF:FindFirstChild("Ghost") ~= nil), st.queued, n)
+		if caps[f] then
+			capture(p, caps[f])
+		end
+	end
+	settle(p, 10, 0.5)
+	capture(p, "drop_done")
+	return p
+end
+
 -- "buildui": the build catalog (GAME_DESIGN 4: "Polish the build ui more, just like the bakery game, and reference
 -- bloxburg"): the Decor tab on its Garden row with a card's tooltip (buildui_decor), the search box finding every
 -- lantern (buildui_search), a picket fence drawn round a box
