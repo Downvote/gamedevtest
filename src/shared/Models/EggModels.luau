@@ -17,12 +17,13 @@ local DynTex = require(script.Parent.Parent.Render.DynTex)
 
 local EggModels = {}
 
-local SIZE: { [number]: number } = { 1.25, 1.3, 1.38, 1.48, 1.62, 1.72, 1.82 } -- rarer eggs are a little bigger
+local SIZE: { [number]: number } = { 1.25, 1.3, 1.38, 1.48, 1.62, 1.72, 1.82, 1.92, 2.02 } -- rarer eggs are a little bigger
 EggModels.SIZE = SIZE
 -- Each rarity's shell (its colour and its marks) and glow (Traits.RARITY's colours: grey, green, blue, purple, gold,
--- rose, starlight):
--- body, marks ("spots" freckles or stars, "band" a zigzag band round its middle), whether the marks glow, the glow on
--- the lawn under it.
+-- rose, starlight, and since the request of 2026-11-20, "make more higher tier eggs, about 2 more tiers", ember and
+-- orchid):
+-- body, marks ("spots" freckles or stars, "band" a zigzag band round its middle, "veins" cracks of lava climbing it,
+-- "rainbow" a belt of every colour), whether the marks glow, the glow on the lawn under it.
 export type Look = { body: string, mark: string, marks: string, glow: boolean, lawn: string? }
 local LOOK: { [number]: Look } = {
 	{ body = "cream", mark = "sand_dark", marks = "spots", glow = false },
@@ -32,12 +33,14 @@ local LOOK: { [number]: Look } = {
 	{ body = "gold", mark = "yellow", marks = "band", glow = true, lawn = "yellow" },
 	{ body = "wall_trim", mark = "white", marks = "band", glow = true, lawn = "pink" },
 	{ body = "night", mark = "screen_on", marks = "spots", glow = true, lawn = "screen_on" },
+	{ body = "basalt", mark = "lava", marks = "veins", glow = true, lawn = "lava" },
+	{ body = "plate_white", mark = "r_epic", marks = "rainbow", glow = true, lawn = "crystal" },
 }
 EggModels.LOOK = LOOK
 
 -- What each rarity's egg has besides LOOK, under the tree: the soft highlight on its shell's lit side, its nest's two
--- tones (straw; a legendary egg's of soft cream down, a mythic one's of blossom, a celestial one's of silver wisps)
--- and what lies by the nest.
+-- tones (straw; a legendary egg's of soft cream down, a mythic one's of blossom, a celestial one's of silver wisps, an
+-- ancient one's of ash and black stone, an eternal one's of white and lilac wisps) and what lies by the nest.
 type Trim = { shine: string?, nest: { string }, by: string }
 local STRAW = { "straw", "hair_blond" }
 local TRIM: { [number]: Trim } = {
@@ -48,6 +51,8 @@ local TRIM: { [number]: Trim } = {
 	{ shine = "yellow", nest = { "cream", "sand" }, by = "none" },
 	{ shine = "pink", nest = { "cherry", "white" }, by = "petals" },
 	{ shine = nil, nest = { "steel", "white" }, by = "crystals" },
+	{ shine = "slate", nest = { "basalt", "black" }, by = "embers" },
+	{ shine = nil, nest = { "white", "crystal" }, by = "prism" },
 }
 -- The Tree of Life's lawn under its eggs (DecorModels' EggLawn) stands this far over the grass an egg's foot is set on:
 -- the nest sits on it and the glow over it.
@@ -103,7 +108,9 @@ local FRONT = math.rad(45)
 -- of light went on 2026-11-14) and has a red, a blue and a green gem set in its band. A mythic one is rose with a
 -- glowing white band, pink buds round its crown and two motes; a celestial one the dark blue of a night sky, its spots
 -- glowing like stars, white dust between them, a gold star on its crown and a ring of little lights orbiting it, tilted
--- like a planet's. The nest (not `bare`; the request of 2026-11-15, after the buildings were rebuilt: "can you also do
+-- like a planet's. An ancient one (2026-11-20) is dark stone with cracks of lava climbing it, a gold mark on its crown
+-- and three embers circling it; an eternal one a pearl with a belt of every colour, a gold star on its crown, white
+-- glints and two rings of lights orbiting it, tilted against each other. The nest (not `bare`; the request of 2026-11-15, after the buildings were rebuilt: "can you also do
 -- the same with creature and egg models?"): tufts of straw round the shell's foot in two tones, stalks sticking out of
 -- it, and by it what the rarity has (a pebble, a leaf and a clover, a blue berry, a pink flower, petals, two crystals);
 -- a legendary egg's nest is of cream down, a mythic one's of blossom, a celestial one's of silver wisps. Its parts'
@@ -234,6 +241,24 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 				mark(d[1], d[2], d[3], if big then "sand_dark" else "wood", if big then 0.07 else 0.08)
 			end
 		end
+	elseif look.marks == "veins" then
+		-- an ancient egg: two cracks of lava climbing the side facing the view, each a run of glowing dabs zigzagging
+		-- up, the longer one branching
+		for _, path in { { { 0.16, -34 }, { 0.27, -24 }, { 0.38, -32 }, { 0.5, -20 }, { 0.62, -28 }, { 0.74, -16 } }, { { 0.22, 26 }, { 0.34, 16 }, { 0.46, 24 }, { 0.58, 12 } }, { { 0.5, -20 }, { 0.6, -6 } } } do
+			for _, pt in path do
+				mark(pt[1], pt[2], 0.25, look.mark, 0.08, true)
+			end
+		end
+	elseif look.marks == "rainbow" then
+		-- an eternal egg: a belt of every colour round its middle, two rows of glowing dabs, the colours running on
+		local cols = { "r_mythic", "r_legend", "yellow", "r_uncommon", "r_rare", "r_epic" }
+		for row, h in { 0.47, 0.38 } do
+			local n = 9 - row
+			for k = 0, n - 1 do
+				local deg = -62 + k * 140 / (n - 1) + (row - 1) * 8
+				mark(h, deg, 0.25, cols[(k + (row - 1) * 2) % #cols + 1], 0.08, true)
+			end
+		end
 	else
 		-- a zigzag band round its middle on the side facing the view: dabs up and down in turn (a legendary egg's one
 		-- fewer, its gems between them)
@@ -338,9 +363,42 @@ function EggModels.build(r: number, bare: boolean?, scale: number?, wx: string?)
 			-- two little crystals by the nest, a lilac one and a cyan one
 			straw(Vector3.new(0.25, 0.5, 0.25), at(-26, tuft / 2, 0.15) * CFrame.Angles(0, 0.7, 0.3), "crystal")
 			straw(Vector3.new(0.25, 0.25, 0.25), at(-8, tuft / 2 + 0.04, 0.06) * CFrame.Angles(0.6, 0.7, 0), "screen_on")
+		elseif by == "embers" then
+			-- two coals still glowing at the nest's edge, a black stone by them
+			own(sol("Ell", Vector3.new(0.2, 0.14, 0.18), at(-22, tuft / 2 + 0.04, 0.05), "lava", true))
+			own(sol("Ell", Vector3.new(0.14, 0.1, 0.13), at(-8, tuft / 2 + 0.07, 0.04), "oven_glow", true))
+			own(sol("Ell", Vector3.new(0.24, 0.15, 0.2), at(20, tuft / 2 + 0.05, 0.05) * CFrame.Angles(0, 0.5, 0), "black"))
+		elseif by == "prism" then
+			-- a little crystal at the nest's edge and three beads of light in the rainbow's colours by it
+			straw(Vector3.new(0.25, 0.5, 0.25), at(-26, tuft / 2, 0.15) * CFrame.Angles(0, 0.7, -0.3), "plate_white")
+			for k, c in { "r_mythic", "r_legend", "r_rare" } do
+				own(sol("Ell", Vector3.new(0.1, 0.1, 0.1), at(-12 + k * 12, tuft / 2 + 0.06, 0.06), c, true))
+			end
 		end
 	end
-	if r == 7 then
+	if r >= 9 then
+		-- an eternal egg (the request of 2026-11-20): a gold star on its crown, white glints over its pearl, and two rings
+		-- of lights orbiting it, tilted against each other: one in every colour, one white and lilac (EggView)
+		mark(0.99, 0, 0.25, "yellow", 0.12, true)
+		for _, d in { { 0.72, -20 }, { 0.62, 30 }, { 0.24, -40 }, { 0.2, 18 } } do
+			mark(d[1], d[2], 0.25, "white", 0.06, true)
+		end
+		local cols = { "r_mythic", "r_legend", "yellow", "r_uncommon", "r_rare", "r_epic" }
+		for k = 1, 9 do
+			local bead = Blocks.part(m, { size = Vector3.new(0.16, 0.16, 0.16), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = cols[k % #cols + 1], collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = bead, kind = "orbit", k = k })
+			local bead2 = Blocks.part(m, { size = Vector3.new(0.16, 0.16, 0.16), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = if k % 2 == 0 then "white" else "crystal", collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = bead2, kind = "orbit2", k = k })
+		end
+	elseif r == 8 then
+		-- an ancient egg: a gold mark glowing on its crown and three embers of the first fire circling it slowly
+		-- (EggView: a ring like the celestial one's, three far apart)
+		mark(0.99, 0, 0.25, "yellow", 0.12, true)
+		for k, c in { "lava", "oven_glow", "lava" } do
+			local ember = Blocks.part(m, { size = Vector3.new(0.25, 0.25, 0.25), cf = CFrame.new(0, y0 + 0.6 * s, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = ember, kind = "orbit", k = k * 3 })
+		end
+	elseif r == 7 then
 		-- a celestial egg: white dust between its glowing spots, a gold star on its crown, and a ring of little lights
 		-- orbiting it
 		for _, d in { { 0.36, -5 }, { 0.68, 10 }, { 0.5, 45 }, { 0.22, -48 }, { 0.62, -40 } } do
@@ -398,7 +456,11 @@ end
 --   mythic: rose with white polka dots, two strings of pearls round its middle and a pink band between them, a ring of
 --     pearls round its top, a halo of pink and white lights over it and three motes circling it;
 --   celestial: the dark blue of a night sky, constellations (glowing white stars joined by lilac dots), a few cyan
---     stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes.
+--     stars, a gold star on its crown, a tilted ring of little lights orbiting it like a planet's and three motes;
+--   ancient (2026-11-20): dark old stone, lava glowing in its cracks, gold runes, embers round its foot, three embers
+--     circling it;
+--   eternal (2026-11-20): a pearl with a rainbow belt, white and gold stars, pearls round its top, a halo of every
+--     colour and two rings of lights orbiting it, tilted against each other ("orbit2").
 -- Its cracks (`cracks`: each part with its stage, 1 a short crack at the top, 2 running down and branching, 3 round its
 -- middle where the top comes off; each a thin glowing line, Neon) are kept out of sight until the scene shows them;
 -- the top is what lies above the middle crack. fx: "mote", "halo", "orbit" (moved by the scene).
@@ -570,7 +632,7 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 	-- glint in it (marks are plain colour: only the egg's real lights glow, its stars, the cracks' light, the motes and
 	-- the halo, and only the motes and the halo pool light round them)
 	local SHINE = math.rad(95)
-	local glint = ({ "white", "screen_code", "window", "crystal", "yellow", "pink", "slate" })[r] or "white"
+	local glint = ({ "white", "screen_code", "window", "crystal", "yellow", "pink", "slate", "slate", "white" })[r] or "white"
 	spot(0.72, SHINE, 0.3 * u, glint)
 	spot(0.77, SHINE + 0.1, 0.16 * u, "white", 0.03)
 	spot(0.66, SHINE - 0.06, 0.07 * u, "white", 0.03)
@@ -724,7 +786,99 @@ function EggModels.hero(r: number, h: number): (Model, { { p: BasePart, off: CFr
 			local mote = Blocks.part(m, { size = Vector3.new(0.18, 0.18, 0.18) * u, cf = CFrame.new(0, h * 0.6, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
 			table.insert(fx, { p = mote, kind = "mote", k = k })
 		end
-	elseif r >= 7 then
+	elseif r >= 9 then
+		-- an eternal egg (the request of 2026-11-20, "make more higher tier eggs, about 2 more tiers"): a pearl with a
+		-- rainbow belt round its middle, red at the top to violet at the foot; white and gold stars over the pearl, a
+		-- ring of pearls round its top, a gold star on its crown; a halo of every colour over it, two rings of lights
+		-- orbiting it tilted against each other, and three motes (the sheen between is drawn on the shell, DynTex's
+		-- prism)
+		local cols = { "r_mythic", "r_legend", "yellow", "r_uncommon", "r_rare", "r_epic" }
+		for k, c in cols do
+			band(0.5 - (k - 1) * 0.026, 0.12 * u, 0.09 * u, c, nil, (k % 2) * 0.03)
+		end
+		local placed = 0
+		for i = 1, 60 do
+			local t = 0.16 + rnd() * 0.72
+			local a = front(1.15)
+			if (t < 0.33 or t > 0.56) and not nearCrack(t, a) and placed < 9 then
+				star(t, a, (0.2 + rnd() * 0.1) * u, if i % 3 == 0 then "yellow" else "white")
+				placed += 1
+			end
+		end
+		for k = 0, 11 do
+			local a = k / 12 * math.pi * 2
+			if k % 2 == 0 then
+				bead(0.87, a, 0.16 * u, "white", -0.02)
+			else
+				spot(0.87, a, 0.11 * u, "crystal")
+			end
+		end
+		star(0.975, FRONT - 0.35, 0.34 * u, "yellow")
+		-- (fewer lights a ring than the celestial egg's 28: with a halo and two rings, as many read as a string of beads)
+		for i = 0, 13 do
+			local halo = Blocks.part(m, { size = Vector3.new(0.09, 0.09, 0.09) * u, cf = CFrame.new(0, h + 0.4, 0), color = cols[i % #cols + 1], collide = false, query = false, neon = true, shape = "Ball", name = "Halo" })
+			table.insert(fx, { p = halo, kind = "halo", k = i * 20 / 14 })
+		end
+		for i = 0, 20 do
+			local orb = Blocks.part(m, { size = Vector3.new(0.08, 0.08, 0.08) * u, cf = CFrame.new(0, h * 0.5, 0), color = cols[i % #cols + 1], collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = orb, kind = "orbit", k = i * 28 / 21 })
+		end
+		for i = 0, 13 do
+			local orb2 = Blocks.part(m, { size = Vector3.new(0.07, 0.07, 0.07) * u, cf = CFrame.new(0, h * 0.5, 0), color = if i % 2 == 0 then "white" else "crystal", collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = orb2, kind = "orbit2", k = i * 2 })
+		end
+		for k, c in { "white", "crystal", "yellow" } do
+			local mote = Blocks.part(m, { size = Vector3.new(0.16, 0.16, 0.16) * u, cf = CFrame.new(0, h * 0.6, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
+			table.insert(fx, { p = mote, kind = "mote", k = k })
+		end
+	elseif r == 8 then
+		-- an ancient egg (the request of 2026-11-20): dark old stone with lava glowing in its cracks, four of them
+		-- climbing its front and branching, hot yellow where they meet; gold runes between them, a ring of embers round
+		-- its foot; three embers of the first fire circling it and three motes (the crust between the cracks is drawn
+		-- on the shell, DynTex's magma)
+		local function lava(path: { { number } }, hot: { number }?)
+			for i = 1, #path - 1 do
+				local p0, p1 = path[i], path[i + 1]
+				local q0, q1 = surf(p0[1], FRONT + p0[2], 0), surf(p1[1], FRONT + p1[2], 0)
+				local n = math.max(1, math.floor((q1 - q0).Magnitude / (0.07 * u) + 0.5))
+				for j = if i == 1 then 0 else 1, n do
+					local k = j / n
+					spot(p0[1] + (p1[1] - p0[1]) * k, FRONT + p0[2] + (p1[2] - p0[2]) * k, 0.1 * u, if j % 3 == 0 then "oven_glow" else "lava", nil, true)
+				end
+			end
+			if hot then
+				spot(hot[1], FRONT + hot[2], 0.14 * u, "yellow", 0.02, true)
+			end
+		end
+		lava({ { 0.1, -0.9 }, { 0.19, -0.74 }, { 0.27, -0.86 }, { 0.36, -0.6 }, { 0.44, -0.7 }, { 0.51, -0.5 } }, { 0.36, -0.6 })
+		lava({ { 0.36, -0.6 }, { 0.42, -0.42 }, { 0.48, -0.3 } })
+		lava({ { 0.12, 0.72 }, { 0.21, 0.88 }, { 0.3, 0.64 }, { 0.39, 0.78 }, { 0.48, 0.56 } }, { 0.3, 0.64 })
+		lava({ { 0.63, -0.62 }, { 0.71, -0.46 }, { 0.79, -0.6 }, { 0.87, -0.36 } }, { 0.79, -0.6 })
+		lava({ { 0.65, 0.6 }, { 0.74, 0.76 }, { 0.83, 0.54 } })
+		-- runes: little diamonds of four gold dots round a hot one
+		for _ = 1, 30 do
+			local t = 0.2 + rnd() * 0.66
+			local a = front(0.4)
+			if not nearCrack(t, a) and math.abs(t - SPLIT) > 0.06 then
+				local c, dt, da = 0.07 * u, 0.045, 0.09
+				spot(t + dt, a, c, "yellow", 0.03, true)
+				spot(t - dt, a, c, "yellow", 0.03, true)
+				spot(t, a + da, c, "yellow", 0.03, true)
+				spot(t, a - da, c, "yellow", 0.03, true)
+				spot(t, a, c * 0.8, "oven_glow", 0.03, true)
+				break
+			end
+		end
+		band(0.11, 0.13 * u, 0.1 * u, "lava")
+		for k, c in { "lava", "oven_glow", "lava" } do
+			local ember = Blocks.part(m, { size = Vector3.new(0.2, 0.2, 0.2) * u, cf = CFrame.new(0, h * 0.5, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Orbit" })
+			table.insert(fx, { p = ember, kind = "orbit", k = (k - 1) * 28 / 3 })
+		end
+		for k, c in { "lava", "yellow", "oven_glow" } do
+			local mote = Blocks.part(m, { size = Vector3.new(0.14, 0.14, 0.14) * u, cf = CFrame.new(0, h * 0.6, 0), color = c, collide = false, query = false, neon = true, shape = "Ball", name = "Mote" })
+			table.insert(fx, { p = mote, kind = "mote", k = k })
+		end
+	elseif r == 7 then
 		-- constellations: white four-pointed stars joined by lines of lilac dots, and a few cyan stars on their own (the
 		-- dust of tiny ones between is drawn on the shell, DynTex's stardust)
 		-- (off the way of the cracks)

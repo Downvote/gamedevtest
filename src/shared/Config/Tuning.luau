@@ -51,7 +51,7 @@ local Tuning = {
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
 	PalWork = 0.6, -- a common driftling at work makes this share of its workplace's rate ...
-	RarityWork = { 1, 1.6, 2.5, 4, 7, 11, 17 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
+	RarityWork = { 1, 1.6, 2.5, 4, 7, 11, 17, 26, 40 }, -- ... times this by its rarity ("creatures work faster based on their rarity")
 	-- the driftlings one workplace takes, by the tier it opens at (Data/Buildings'
 	-- `jobs`). The request of 2026-11-18: "increase the capacity of work buildings by alot, in turn, make a cap for the
 	-- amount of work spaces possible in each island expansion. it should match the number of max driftlings possible
@@ -93,9 +93,12 @@ local Tuning = {
 	BoostMax = 0.7, -- the boost buildings' shares together, at most, before the driftlings' boost share (0.6 until the
 	-- boosts of the islands past Driftling Haven; each boosts every workplace since 2026-11-19, the ones for one kind of
 	-- work at a little over half their old share, so a tier 6 island reaches it)
-	-- a second boost building of a kind gives this share of the first's, a third this share of the second's... (the
-	-- request of 2026-11-15: "make it such that boost buildings can stack, but with diminishing returns")
+	-- a second boost building of a kind gives this share of the first's (the request of 2026-11-15: "make it such that
+	-- boost buildings can stack, but with diminishing returns"; a third gave this share of the second's until BoostEach)
 	BoostStack = 0.5,
+	-- at most this many of each boost building on an island (the request of 2026-11-20: "make the max of each boosts
+	-- building to be 2"; Plot.boostLimit). An older save with more keeps them, and builds no more of that one.
+	BoostEach = 2,
 
 	-- the Tree of Life's eggs (GAME_DESIGN 6; Logic/Tree: "bring back the tree of life ... it now spawns eggs around it
 	-- that the player can choose to hatch for some shells. it spawns in 5 eggs around it, which refreshes every few
@@ -118,7 +121,10 @@ local Tuning = {
 	-- an egg's price: shells by its rarity, times EggTier by the island's tier (a bigger island earns more and lays
 	-- better eggs), times the huts' cost shares (cheaper, at most HutCost off). About a quarter of what they were since
 	-- the request of 2026-11-14, "make eggs much cheaper" (the prices x0.4, the tiers' multipliers x0.6)
-	EggPrice = { 8, 36, 160, 800, 4000, 24000, 160000 },
+	-- (an ancient egg 1,000,000 and an eternal one 6,000,000 since the request of 2026-11-20, "make more higher tier
+	-- eggs, about 2 more tiers": the same steps as mythic to celestial; on Everdrift an eternal egg is about half an
+	-- hour of a full island's shells)
+	EggPrice = { 8, 36, 160, 800, 4000, 24000, 160000, 1000000, 6000000 },
 	EggTier = { 1, 2, 5, 12, 27, 54, 96, 160, 250, 380, 460, 540, 640, 750, 880, 1040, 1220, 1440, 1700, 2000 },
 	-- an egg's rarity: a rarity r's weight (Data/Traits.RARITY) times (1 + EggLuck by the island's tier + the huts'
 	-- luck)^(r - 1); what hatches rolls its mutations as one rarity better every EggMutTier tiers past the first
@@ -128,7 +134,7 @@ local Tuning = {
 	-- skip to the next rarity during the cutscene"): an egg of rarity r goes up one with EggUp[r], and on from there with
 	-- the next one's share while the rolls hold (never to a rarity the island has no driftlings of); twice what it was
 	-- since the request of 2026-11-14, "also, increase the chance of eggs tiering up"
-	EggUp = { 0.12, 0.08, 0.05, 0.025, 0.012, 0.006 },
+	EggUp = { 0.12, 0.08, 0.05, 0.025, 0.012, 0.006, 0.003, 0.0015 },
 	-- the seasons and the weather (Data/Weather, Logic/Weather; GAME_DESIGN 13: "also, make weather and seasons, and eggs
 	-- spawns are affected by these with different mutations"): one sea, one calendar for every island, worked out from
 	-- the sea's clock (WorldClock) from WeatherEpoch. A season lasts SeasonSecs (2 h 30 min: the four come round every
@@ -150,12 +156,12 @@ local Tuning = {
 	TreeStage = { 1, 2, 2, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6 },
 	-- selling a driftling (or swapping it out for a new hatchling): shells by its rarity, times 1 + SellTier x its
 	-- mutations' tiers, times its sell share
-	SellPrice = { 2, 7, 25, 85, 320, 1300, 5500 },
+	SellPrice = { 2, 7, 25, 85, 320, 1300, 5500, 24000, 100000 },
 	SellTier = 0.25,
 
 	-- the Hatchery (GAME_DESIGN 6.1; Logic/Breed): two driftlings bred for an egg; by the child's rarity
-	BreedShells = { 20, 80, 300, 1200, 5000, 22000, 90000 }, -- shells an egg costs
-	BreedTurns = { 3, 4, 6, 9, 14, 20, 28 }, -- island turns the egg takes to hatch
+	BreedShells = { 20, 80, 300, 1200, 5000, 22000, 90000, 380000, 1600000 }, -- shells an egg costs
+	BreedTurns = { 3, 4, 6, 9, 14, 20, 28, 38, 50 }, -- island turns the egg takes to hatch
 	-- (BreedKeep, BreedTierUp and BreedNew, the chances a parent's mutation passed on, came out a tier better or a new
 	-- one came, went on 2026-11-19: a child's mutations are decided, shown before the egg is laid, the best tiers of
 	-- both parents', one both carry a tier better: Logic/Breed.inherit. The island's lean on a new mutation, MutLean and
@@ -169,7 +175,7 @@ local Tuning = {
 		cost = 0.5, -- off the eggs' price (was HutCost)
 		boost = 1, -- the boost buildings at most twice as strong
 		charmPct = 2, -- charm at most three times
-		all = 0.6, -- the wondrous ones: every shell
+		all = 0.6, -- the wondrous and fabled ones (Data/Traits: every fabled effect fits under its cap): every shell
 		aura = 0.4, -- every driftling at work
 		eggs = 3, -- eggs more in each lot
 		skip = 0.2, -- added to each step of Tuning.EggUp
@@ -177,7 +183,8 @@ local Tuning = {
 	} :: { [string]: number },
 	-- the tree lays every rarity on every island (the request of 2026-11-19: "Make all eggs obtainable regardless of
 	-- expansion level, but at a very low chance if they are higher rarity"): a rarity none of the kinds open at the
-	-- island's tier has weighs EggEarly of its weight (mythic and celestial short of tier 11), and what hatches from an
+	-- island's tier has weighs EggEarly of its weight (mythic short of tier 11, celestial and ancient short of 14,
+	-- eternal short of 17), and what hatches from an
 	-- egg is one of a kind not open yet with FarKind (any kind of its rarity), else one of the open kinds
 	EggEarly = 0.05,
 	FarKind = 0.03,
@@ -210,8 +217,9 @@ local Tuning = {
 	ShopSize = 8,
 	-- (Mythic and Celestial pieces since the bakery's came, 2026-11-20: its Mythic and Divine Boutique pieces, Weekly
 	-- Cup prizes and reward looks)
-	ShopWeight = { 40, 30, 18, 9, 3, 1, 0.4 },
-	CosmeticPrice = { 120, 400, 1500, 6000, 24000, 60000, 150000 },
+	-- (one a rarity like every table by rarity: no piece is Ancient or Eternal yet)
+	ShopWeight = { 40, 30, 18, 9, 3, 1, 0.4, 0.15, 0.05 },
+	CosmeticPrice = { 120, 400, 1500, 6000, 24000, 60000, 150000, 400000, 1000000 },
 	MaxOutfits = 10, -- saved outfits (Profile.outfits: the customization screen's Outfits tab)
 	-- the pass track (Data/Track): a season lasts TrackSecs on the sea's clock; level L costs TrackBase + TrackStep x
 	-- (L - 1) points; points for an egg hatched (the tree's or the bag's), a Hatchery egg, a quest claimed, the island

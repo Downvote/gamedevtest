@@ -78,6 +78,29 @@ function Plot.hatcheries(placed: { Piece }): number
 	end
 	return n
 end
+-- Whether a piece is a boost building (Data/Buildings kind "gen"), how many of one stand, and how many of each an
+-- island may have (Tuning.BoostEach: the request of 2026-11-20, "make the max of each boosts building to be 2"; the
+-- same on every island). An older save with more keeps them and builds no more of that one.
+function Plot.isBoost(id: string): boolean
+	local d = Buildings.byId[id]
+	return d ~= nil and d.kind == "gen"
+end
+function Plot.boostLimit(): number
+	return Tuning.BoostEach
+end
+function Plot.boosts(placed: { Piece }, id: string): number
+	local n = 0
+	for _, q in placed do
+		if q.id == id then
+			n += 1
+		end
+	end
+	return n
+end
+-- Whether one more boost building of piece id `id` would pass the limit (false for anything that isn't one).
+function Plot.boostFull(placed: { Piece }, id: string): boolean
+	return Plot.isBoost(id) and Plot.boosts(placed, id) >= Plot.boostLimit()
+end
 function Plot.huts(placed: { Piece }): number
 	local n = 0
 	for _, q in placed do
@@ -510,8 +533,8 @@ end
 
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (a hut's room under the housing limit,
--- Tuning.HousingLimit; a workplace's places under the work cap, Plot.workLimit; a Hatchery under Tuning.HatcheryLimit),
--- its price (shells; nothing for one waiting in the
+-- Tuning.HousingLimit; a workplace's places under the work cap, Plot.workLimit; a Hatchery under Tuning.HatcheryLimit;
+-- a boost building under Tuning.BoostEach of its own id), its price (shells; nothing for one waiting in the
 -- inventory; IslandService then sends resting driftlings to work there: Logic/Tree.fillJobs).
 function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): (boolean, any)
 	local def = Buildings.byId[id]
@@ -533,6 +556,9 @@ function Plot.place(p: Profile, id: string, x: number, z: number, rot: number): 
 	end
 	if def.kind == "breed" and Plot.hatcheries(p.plot.placed) >= Plot.hatcheryLimit(p.tier) then
 		return false, "hatcheries" :: ErrCode
+	end
+	if Plot.boostFull(p.plot.placed, id) then
+		return false, "boosts" :: ErrCode
 	end
 	-- (one waiting in the inventory goes down for nothing)
 	local free = Plot.held(p, id) > 0
@@ -901,8 +927,9 @@ end
 -- Replace piece i with another of its kind where it stands (GAME_DESIGN 4.1: a hut for a den, a patch for an
 -- orchard): its uid stays (its workers stay), its level starts again at 1. bad_payload
 -- (another kind, the same piece, the tree), locked (a bigger island's), money, blocked (the new footprint does
--- not fit there), huts or work (the room past the housing limit or the work cap). A smaller hut keeps the driftlings
--- it has room for, the rest are left with no hut; a smaller workplace keeps its first workers, the rest rest.
+-- not fit there), huts or work (the room past the housing limit or the work cap), boosts (a boost building of an id
+-- the island already has Tuning.BoostEach of). A smaller hut keeps the driftlings it has room for, the rest are left
+-- with no hut; a smaller workplace keeps its first workers, the rest rest.
 function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	local q = p.plot.placed[i]
 	local old, new = if q then Buildings.byId[q.id] else nil, Buildings.byId[id]
@@ -923,6 +950,11 @@ function Plot.replace(p: Profile, i: number, id: string): (boolean, any)
 	-- (a bigger workplace likewise under the work cap)
 	if new.jobs > old.jobs and Plot.work(p.plot.placed) - old.jobs + new.jobs > Plot.workLimit(p.tier) then
 		return false, "work" :: ErrCode
+	end
+	-- (a boost building only for one of an id the island has room for: the new id isn't the old one, so the old one's
+	-- place doesn't count)
+	if Plot.boostFull(p.plot.placed, id) then
+		return false, "boosts" :: ErrCode
 	end
 	local cost = Plot.replaceCost(q, id, p) :: { shells: number }
 	if p.shells < cost.shells then

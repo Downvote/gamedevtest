@@ -15,7 +15,7 @@
 -- charm simply increases your shell gain"); then the whole is times 1 + the charm bonus (`charmBonus`), the passes,
 -- the huts' "all" share and a timed boost while one runs. Nothing eats (food went on 2026-11-13: "remove food as a
 -- resource"); a driftling with no hut doesn't work. What the huts' driftlings give the whole island (luck, cheaper eggs,
--- quicker Hatcheries, stronger boosts, more charm and the wondrous mutations' effects): `isle`.
+-- quicker Hatcheries, stronger boosts, more charm and the wondrous and fabled mutations' effects): `isle`.
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
@@ -164,7 +164,8 @@ end
 
 -- The share the k-th boost building of one kind gives (k from 1): its whole share for the first, Tuning.BoostStack of
 -- it for a second, BoostStack² for a third and so on (the request of 2026-11-15: "make it such that boost buildings
--- can stack, but with diminishing returns"; till then a second of a kind gave nothing).
+-- can stack, but with diminishing returns"; till then a second of a kind gave nothing). Since the request of
+-- 2026-11-20 an island builds two of each at most (Plot.boostLimit); an older save's third still counts this way.
 function Island.boostShare(id: string, k: number): number
 	local d = Buildings.byId[id]
 	if d == nil or d.kind ~= "gen" or k < 1 then
@@ -199,11 +200,12 @@ end
 
 -- What a boost building of piece id `id` stands for on the island (its card: GAME_DESIGN 4.6): how many boost
 -- buildings there are, their shares together before and after the cap and the driftlings' boost (`total`, every
--- workplace's), the driftlings' multiplier, and what one more of its kind would add before it.
-function Island.boostInfo(p: Profile, id: string): { count: number, raw: number, total: number, mult: number, more: number }
+-- workplace's), the driftlings' multiplier, how many of its own kind stand (`same`), and what one more of its kind
+-- would add before it (0 once there are Tuning.BoostEach: Plot.boostLimit, the request of 2026-11-20).
+function Island.boostInfo(p: Profile, id: string): { count: number, raw: number, total: number, mult: number, more: number, same: number }
 	local d = Buildings.byId[id]
 	if d == nil or d.kind ~= "gen" then
-		return { count = 0, raw = 0, total = 0, mult = 1, more = 0 }
+		return { count = 0, raw = 0, total = 0, mult = 1, more = 0, same = 0 }
 	end
 	local i = Island.isle(p)
 	local count, same = 0, 0
@@ -216,7 +218,8 @@ function Island.boostInfo(p: Profile, id: string): { count: number, raw: number,
 			end
 		end
 	end
-	return { count = count, raw = Island.boostRaw(p), total = Island.boost(p, i), mult = 1 + i.boost, more = Island.boostShare(d.id, same + 1) }
+	local more = if same >= Plot.boostLimit() then 0 else Island.boostShare(d.id, same + 1)
+	return { count = count, raw = Island.boostRaw(p), total = Island.boost(p, i), mult = 1 + i.boost, more = more, same = same }
 end
 
 -- Whether a building takes workers (it makes something).
@@ -246,7 +249,7 @@ end
 
 -- What a driftling makes at the building it works at, in shares of the building's rate: PalWork x its rarity's
 -- RarityWork x (1 + its work share + its hut's comfort + the island's aura). `comfort`: its hut's (Island.homes), 0
--- with no hut; `aura`: Island.isle's (a wondrous Maestro's), 0 when not given.
+-- with no hut; `aura`: Island.isle's (a wondrous Maestro's, a fabled Rallying's), 0 when not given.
 function Island.palBoost(p: Profile, pal: Types.Pal, comfort: number?, aura: number?): number
 	local d = Creatures.byId[pal.sp]
 	local r = if d then d.rarity else 1
@@ -280,7 +283,7 @@ function Island.output(p: Profile, isle: Isle?): { [number]: number }
 end
 
 -- What a turn makes now: the workplaces' together, times 1 + the charm bonus, the passes, the huts' "all" share (a
--- wondrous Goldtouched's) and a timed shells boost while one runs (Logic/Rewards: Profile.boosts). steady: without
+-- wondrous Goldtouched's, a fabled Crowned's) and a timed shells boost while one runs (Logic/Rewards: Profile.boosts). steady: without
 -- the timed boost (the pace the time away and the rewards counted in minutes go by: a boost only runs while the player
 -- is here, so a banked one must not multiply every return's report; the server review of 2026-11-19).
 function Island.rates(p: Profile, steady: boolean?): Rates

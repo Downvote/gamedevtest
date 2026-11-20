@@ -7,7 +7,9 @@
 -- see-through (CameraController Stage.clear), so the egg stands in front of it.
 -- Each rarity has its own sky (a cozy sunset for a common egg, a golden afternoon, a blue twilight, a violet night, a
 -- deep gold night, and since 2026-11-14 a rose night under two moons for a mythic egg and a deep starry sky with a
--- ringed planet and the band of the galaxy across it for a celestial one): the sky in bands with ordered dither between
+-- ringed planet and the band of the galaxy across it for a celestial one; since 2026-11-20 a red dusk under an eclipse
+-- ringed with fire for an ancient egg and a dawn of every colour, a ringed white sun, a rainbow and the galaxy fading
+-- into the morning, for an eternal one): the sky in bands with ordered dither between
 -- them (never a smear), the sun, the moons or the planet in one flat tone with anti-aliased edges, stars (single
 -- pixels and little crosses), aurora curtains on the rarest nights, three ranges of grassy hills going darker toward
 -- the front (lit caps, patches, blades, tufts; ridges anti-aliased at their steps: see "the land" below) and a glow
@@ -55,8 +57,10 @@ local HatchBackdrop = {}
 type Sky = {
 	stops: { number }, -- the sky's colours from the top down to the horizon
 	horizon: number, -- where the last stop is reached (share of the height)
-	body: string, -- "sun" | "crescent" | "moon" | "bigsun" | "twomoons" | "planet"
-	bodyC: { number }, -- its fill, the second moon's fill (mythic), its spots or bands
+	body: string, -- "sun" | "crescent" | "moon" | "bigsun" | "twomoons" | "planet" | "eclipse" | "halosun"
+	bodyC: { number }, -- its fill, the second moon's fill (mythic), its spots or bands (an eclipse: its fire, the dark
+	-- disc, its rim; a ringed sun: its fill, its ring, its rays' tips)
+	rainbow: boolean?, -- a rainbow arching over the hills (eternal)
 	bodyR: number, -- its radius (share of the height)
 	stars: number,
 	milky: number?, -- the galaxy's band of light across the sky (its colour), thick with stars
@@ -172,6 +176,40 @@ local SKIES: { Sky } = {
 		glowK = 0.9,
 		glowR = 0.62,
 	},
+	-- a red dusk of the first days under an eclipse, its ring of fire, curtains of ember light (ancient: the request of
+	-- 2026-11-20, "make more higher tier eggs, about 2 more tiers")
+	{
+		stops = { 0x14060A, 0x2C0A10, 0x4E1214, 0x7A2216, 0xB2421C, 0xE8782E },
+		horizon = 0.78,
+		body = "eclipse",
+		bodyC = { 0xFFB45A, 0x1A0A0E, 0xFFF0C0 },
+		bodyR = 0.12,
+		stars = 150,
+		twinkle = { 0xFFF0C0, 0xFFC45A, 0xFF8A3A },
+		aurora = { 0xFF6A2E, 0xFFB24A },
+		hills = { { 0x5A1C1C, 0x6E2622 }, { 0x3E1216, 0x50181A }, { 0x24080C, 0x320C10 } },
+		glow = 0xFFC88A,
+		glowK = 0.92,
+		glowR = 0.64,
+	},
+	-- a dawn of every colour: a white sun with a ring of light round it, a rainbow arching over the hills, the band of
+	-- the galaxy fading into the morning and curtains of light (eternal)
+	{
+		stops = { 0x0C0A2A, 0x1C1650, 0x34247A, 0x5E3A9E, 0xA45CB8, 0xF2A6C8 },
+		horizon = 0.78,
+		body = "halosun",
+		bodyC = { 0xFFFBEA, 0xFFE6A0, 0xFFD6F4 },
+		bodyR = 0.085,
+		stars = 220,
+		milky = 0xFFE0FA,
+		rainbow = true,
+		twinkle = { 0xFFFFFF, 0xFFC0E8, 0xC8F4FF, 0xFFF0A8, 0xC8FFC8 },
+		aurora = { 0x9CF2D2, 0xFFA8E6 },
+		hills = { { 0x7A4A9C, 0x8E5CAE }, { 0x56347E, 0x684292 }, { 0x34205A, 0x42286A } },
+		glow = 0xFFF0FF,
+		glowK = 0.95,
+		glowR = 0.66,
+	},
 }
 
 -- Each rarity's pedestal (`paint`'s base): its top, the top's lit rim, its side lit, plain and shaded, the carved band
@@ -192,6 +230,10 @@ local BASES: { Base } = {
 	{ top = 0xEEB4C8, topLit = 0xFAD4E0, sideLit = 0xDC9EB8, side = 0xC88AA6, sideDark = 0xA46C8A, trim = 0xFFF0F6, gem = 0xFFFFFF, ink = 0x3A1E30, flower = 0xFFD0E0, ring = 0xFFE8F2 },
 	-- dark starstone with cyan inlay
 	{ top = 0x3C4E88, topLit = 0x566AAA, sideLit = 0x32427C, side = 0x28366C, sideDark = 0x1A2452, trim = 0x80E8F2, gem = 0xD8F8FF, ink = 0x060A1E, flower = 0x9CF0FF, ring = 0xC8FAFF },
+	-- black stone with lava in its inlay and sparks in the stone (ancient)
+	{ top = 0x40303A, topLit = 0x5C4650, sideLit = 0x382830, side = 0x2C1E26, sideDark = 0x1C1218, trim = 0xFF7A32, gem = 0xFFD27A, ink = 0x0C0608, flower = 0xFF9A4A, ring = 0xFFC48A },
+	-- pearl marble with an orchid inlay, white gems and flecks of colour (eternal)
+	{ top = 0xEEE6F6, topLit = 0xFFFFFF, sideLit = 0xDCD0EC, side = 0xC6B8DA, sideDark = 0xA090BC, trim = 0xE68CFF, gem = 0xFFFFFF, ink = 0x22183A, flower = 0xFFC8F4, ring = 0xFFF2FF },
 }
 
 ------------------------------------------------------------------ colours
@@ -370,6 +412,26 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 			set(x, y, mix(base, 0xFFFFFF, if bright > 0.5 then 0.85 else 0.45))
 		end
 	end
+	-- a rainbow arching over the hills (the eternal dawn, 2026-11-20): six bands from violet inside to red outside,
+	-- each a few px wide, laid over the sky in dithered steps and fading out toward its feet
+	if sky.rainbow then
+		local rcx, rcy = W * 0.5, hy + H * 0.1
+		local r0, bw = H * 0.58, math.max(2, H * 0.02)
+		local RB = { 0xFF6A7A, 0xFFA24A, 0xFFE06A, 0x7EE07A, 0x6AB8FF, 0xB48CFF }
+		for y = 0, math.floor(hy) do
+			for x = 0, W - 1 do
+				local d = math.sqrt((x + 0.5 - rcx) ^ 2 + (y + 0.5 - rcy) ^ 2)
+				local i = math.floor((d - r0) / bw)
+				if i >= 0 and i < #RB then
+					local k = 0.62 * math.clamp((rcy - y) / (H * 0.3), 0, 1)
+					local lvl = math.floor(k * 3 + bay(x, y))
+					if lvl > 0 then
+						set(x, y, mix(get(x, y), RB[#RB - i], lvl / 4))
+					end
+				end
+			end
+		end
+	end
 	-- the sun or the moon, up and to the left: one flat tone with anti-aliased edges (no darker band down its far side,
 	-- and the sunset's sun no stripes across its foot: the request of 2026-11-14, "for these, remove the dark diagonal
 	-- band. also, remove the line at the bottom of the sun for the common one")
@@ -389,6 +451,26 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 				local lvl = math.floor(k * 2 + bay(x, y))
 				if lvl > 0 then
 					set(x, y, mix(get(x, y), bc[1], lvl * 0.18))
+				end
+			end
+		end
+	end
+	-- (an eclipse: tongues of fire round the dark disc, longer here and shorter there, in dithered steps)
+	if sky.body == "eclipse" then
+		for y = math.max(0, math.floor(by - br * 2.2)), math.min(H - 1, math.ceil(by + br * 2.2)) do
+			for x = math.max(0, math.floor(bx - br * 2.2)), math.min(W - 1, math.ceil(bx + br * 2.2)) do
+				local dx, dy = x + 0.5 - bx, y + 0.5 - by
+				local d = math.sqrt(dx * dx + dy * dy) / br
+				if d > 1 and d < 2.1 then
+					local a = math.atan2(dy, dx)
+					local reach = 1.25 + 0.75 * (0.5 + 0.5 * math.sin(a * 5 + 0.7)) * (0.55 + 0.45 * math.sin(a * 3 - 1.1))
+					if d < reach then
+						local k = 1 - (d - 1) / (reach - 1)
+						local lvl = math.floor(k * 3 + bay(x, y))
+						if lvl > 0 then
+							set(x, y, mix(get(x, y), bc[1], math.min(1, lvl * 0.26)))
+						end
+					end
 				end
 			end
 		end
@@ -423,8 +505,36 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 					if math.floor((v + 1) * 3.5) % 2 == 1 then
 						c = bc[3]
 					end
+				elseif sky.body == "eclipse" then
+					-- the dark disc, a thin bright rim round it
+					c = if d > br - 1.3 then bc[3] else bc[2]
 				end
 				set(x, y, if cover >= 0.75 then c elseif cover >= 0.25 then mix(get(x, y), c, 0.5) else get(x, y))
+			end
+		end
+	end
+	-- the ringed sun (the eternal dawn): a ring of light round it a little way out, four long rays crossing through it
+	-- and four shorter ones on the slant, each one pixel wide, fading in dithered steps toward its tip
+	if sky.body == "halosun" then
+		local rr = br * 1.7
+		for y = math.max(0, math.floor(by - rr - 2)), math.min(H - 1, math.ceil(by + rr + 2)) do
+			for x = math.max(0, math.floor(bx - rr - 2)), math.min(W - 1, math.ceil(bx + rr + 2)) do
+				local d = math.sqrt((x + 0.5 - bx) ^ 2 + (y + 0.5 - by) ^ 2)
+				local cover = math.clamp(0.9 - math.abs(d - rr), 0, 1)
+				if cover > 0 then
+					set(x, y, mix(get(x, y), bc[2], if cover >= 0.6 then 0.85 else 0.45))
+				end
+			end
+		end
+		for _, ray in { { 1, 0, 3.8, bc[1] }, { -1, 0, 3.8, bc[1] }, { 0, 1, 3.2, bc[1] }, { 0, -1, 3.8, bc[1] }, { 1, 1, 2.2, bc[3] }, { -1, 1, 2.2, bc[3] }, { 1, -1, 2.2, bc[3] }, { -1, -1, 2.2, bc[3] } } do
+			local len = math.floor(br * ray[3])
+			for t = math.floor(br + 1), len do
+				local x, y = math.floor(bx + ray[1] * t), math.floor(by + ray[2] * t)
+				local k = 1 - (t - br) / (len - br + 1)
+				local lvl = math.floor(k * 3 + bay(x, y))
+				if lvl > 0 then
+					set(x, y, mix(get(x, y), ray[4], lvl * 0.28))
+				end
 			end
 		end
 	end
@@ -786,8 +896,8 @@ function HatchBackdrop.paint(r: number, W: number, H: number, ex: number, ey: nu
 							c = if dx > 0.45 then mix(B.trim, B.sideDark, 0.5) else mix(B.trim, c, 0.25)
 						elseif v <= 0.68 and (x - x0c) % 9 == 0 then
 							c = mix(c, B.ink, 0.3)
-						elseif r == 7 and hash2(x, y) > 0.95 then
-							c = B.gem -- (stars in the starstone)
+						elseif r >= 7 and hash2(x, y) > 0.95 then
+							c = B.gem -- (stars in the starstone, sparks in the black stone, flecks in the pearl)
 						end
 						set(x, y, c)
 					end
@@ -952,7 +1062,7 @@ local streak: Streak? = nil
 local streakAt = 0
 local twinkles: { Twinkle } = {}
 local lifeClock = 0
-local INK: { number } = { 0x6E4E78, 0x4F7A6A, 0x1F2A4C, 0, 0, 0, 0 } -- the birds' colour by rarity (none on the nights)
+local INK: { number } = { 0x6E4E78, 0x4F7A6A, 0x1F2A4C, 0, 0, 0, 0, 0, 0 } -- the birds' colour by rarity (none on the nights)
 local newLife: (r: number, W: number, H: number, K: number) -> ()
 
 local ringBase: BaseAt? = nil

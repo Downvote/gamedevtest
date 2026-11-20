@@ -57,6 +57,10 @@ PAL = {
     "cor0": 0x7C2B40, "cor1": 0xC9504F, "cor2": 0xFF8A72, "cor3": 0xFFC09A,  # coral: a wren's breast
     "ros0": 0x6E2448, "ros1": 0xB4466E, "ros2": 0xE77D9C, "ros3": 0xFFAFC2,  # rose: a mythic egg
     "ind0": 0x10102E, "ind1": 0x1E2050, "ind2": 0x2E3272, "ind3": 0x46509A,  # night blue: a celestial egg
+    # (the request of 2026-11-20: "add another tier of mutations ... make more higher tier eggs, about 2 more tiers")
+    "orc0": 0x5E2777, "orc1": 0xA347BF, "orc2": 0xD97BF0, "orc3": 0xF7BCFF,  # orchid: a fabled mutation's star
+    "prl0": 0x8E78BE, "prl1": 0xC0A9E4, "prl2": 0xEEE2FA, "prl3": 0xFFF8FF,  # pearl: an eternal egg
+    "ash0": 0x1C1218, "ash1": 0x2F2027, "ash2": 0x463036, "ash3": 0x654445,  # dark old stone: an ancient egg
     # the tone markers of a tinted sprite (Render/Fx.TONES, the same four values): drawn in the world they take the
     # tones of a colour given at draw time (a tuft the lawn's under it, a leaf its tree's, a butterfly its own), here a
     # plain green so the contact sheet shows them
@@ -71,6 +75,7 @@ RAMPS = {
     "D": ["drk0", "drk1", "drk2", "drk3"], "M": ["bas0", "bas1", "bas2", "bas3"], "E": ["crm0", "crm1", "crm2", "crm3"],
     "T": ["tel0", "tel1", "tel2", "tel3"], "Q": ["cor0", "cor1", "cor2", "cor3"],
     "H": ["ros0", "ros1", "ros2", "ros3"], "I": ["ind0", "ind1", "ind2", "ind3"],
+    "V": ["orc0", "orc1", "orc2", "orc3"], "L": ["prl0", "prl1", "prl2", "prl3"], "J": ["ash0", "ash1", "ash2", "ash3"],
 }
 FLAT = {
     "k": "ink", "w": "wht", "r": "red2", "o": "org2", "y": "yel2", "g": "grn2", "c": "cyn2", "b": "blu2", "p": "pnk2",
@@ -441,10 +446,11 @@ S("mini_shell", [".........", ".FFFFFFF.", "FFFFFFFFF", "FFjFjFjFF", "FFjFjFjFF"
 # small star sprites to show the rarity of mutations"): one 7 x 7 star a tier, in the tier's colour (UI's
 # Traits.TIER_COLOR: white, green, teal, gold), drawn at its own size for a 10 px line of text.
 STAR_T = ["..4..", ".443.", "44432", ".432.", ".3.2."]
-for _t, _ramp in enumerate(("W", "G", "C", "Y", "H"), start=1):
+for _t, _ramp in enumerate(("W", "G", "C", "Y", "H", "V"), start=1):
     HAND("star_t%d" % _t, STAR_T, [_ramp])
 # (the fifth, rose: a wondrous mutation, the tier the request of 2026-11-19 added: "add a higher, rarer tier of
-# mutations which provide strong and unique buffs")
+# mutations which provide strong and unique buffs"; the sixth, orchid: a fabled one, the request of 2026-11-20: "add
+# another tier of mutations, which are the strongest and rarest")
 
 # ---------------------------------------------------------------- the sheets (UIKit.openPanel, UIKit.heading)
 # The request (2026-11-19): "Look at the bakery game and see its menu. Make a similarly polished and themed menu for
@@ -544,7 +550,9 @@ S("bombfuse", [
 # differently with different effects to allow players to distinguish easily between egg rarities"): a common egg cream
 # with brown freckles, an uncommon one green with a white zigzag band, a rare one sky blue with white stars, an epic one
 # purple with pink spots, a legendary one gold with a band of light, a mythic one rose with a white crescent moon and
-# a white band, a celestial one night blue with a little constellation of white and cyan stars.
+# a white band, a celestial one night blue with a little constellation of white and cyan stars, and since 2026-11-20
+# ("make more higher tier eggs, about 2 more tiers") an ancient one of dark ash stone cracked with lava and an eternal
+# one a pearl with a rainbow round it.
 # (an egg, not an oval: the top narrower, the widest a little low, the base fuller: "The eggs also look too much
 # like perfect ovals, they should be more like eggs, with a bigger base", 2026-11-14)
 EGG = [
@@ -661,6 +669,11 @@ MINI_EGG_MARKS = [
     ("Y", ["......."] * 4 + [".w...w.", "w.w.w.w", "...w...", ".......", "......."]),
     ("H", ["......."] * 2 + ["..w....", ".w.....", "..w....", ".......", "w.w.w.w", ".w.w.w.", "......."]),
     ("I", ["..g....", ".....m.", "....mM.", "...mvm.", "..mMm..", ".mMm.z.", "mvm....", "Mm...v.", "......."]),
+    # ancient (the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers"): dark stone cracked with
+    # glowing lava, a crack running down its front and branching, hot where the cracks meet
+    ("J", ["......."] * 2 + ["....o..", "...o...", "...ho..", "..o..o.", "..o....", ".o.....", "......."]),
+    # eternal: a pearl with a rainbow round it and a gold star on its crown, a glint of white
+    ("L", ["...g...", ".......", ".....v.", ".......", "RROOYYG", "OOYYGBB", "...BBUU", ".......", "......."]),
 ]
 
 
@@ -717,6 +730,16 @@ def hand_egg(name, ramp, tones, marks):
                 hexv = blend(PAL[RAMPS[ramp][tone]], PAL[tgt], amt)
                 key = "mix_%06X" % hexv
                 PAL[key] = hexv
+            elif c == "o":
+                # an ancient egg's lava in its cracks: its own light, never shaded
+                key = "org2"
+            elif c == "h":
+                # and hot where the cracks meet
+                key = "yel2"
+            elif c in "ROYGBU":
+                # an eternal egg's rainbow: each colour's light tone on the lit side, a step down in the shade
+                rr = {"R": "R", "O": "O", "Y": "Y", "G": "G", "B": "B", "U": "P"}[c]
+                key = RAMPS[rr][3 if tone >= 2 else 2]
             else:
                 sys.exit("%s: no mark %r" % (name, c))
             if key not in keys:
@@ -821,6 +844,43 @@ BIG_EGG_MARKS = [
         "......z.....",
         "............",
     ]),
+    # ancient (the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers"): dark old stone with lava
+    # glowing in its cracks, two of them climbing its front and branching, hot where they meet, the way its 3D egg is
+    ("J", [
+        "............",
+        "............",
+        "........o...",
+        ".......o....",
+        ".......ho...",
+        "......o..o..",
+        "..o..o......",
+        "...oho......",
+        "....o.......",
+        "....o..o....",
+        "...o..ho....",
+        "..o..o..o...",
+        "............",
+        "............",
+        "............",
+    ]),
+    # eternal: a pearl with a rainbow belt round its middle, a gold star on its crown and glints of white
+    ("L", [
+        ".....y......",
+        "....ygy.....",
+        ".....y......",
+        "........v...",
+        "............",
+        "..v.........",
+        "RRRRRRRRRRRR",
+        "OOOOOOOOOOOO",
+        "YYYYYYYYYYYY",
+        "GGGGGGGGGGGG",
+        "BBBBBBBBBBBB",
+        "UUUUUUUUUUUU",
+        ".......v....",
+        "............",
+        "............",
+    ]),
 ]
 for _r, (_ramp, _marks) in enumerate(BIG_EGG_MARKS, start=1):
     hand_egg("egg_%d" % _r, _ramp, BIG_EGG_TONES, _marks)
@@ -839,6 +899,15 @@ S("twinkle_p3", ["...p...", ".q.p.q.", "..qwq..", "ppwwwpp", "..qwq..", ".q.p.q.
 S("glint_1", [".........", ".........", ".........", "....z....", "...zwz...", "....z....", ".........", ".........", "........."], outline=False, shade=False)
 S("glint_2", [".........", "....z....", "....z....", "....w....", ".zzwwwzz.", "....w....", "....z....", "....z....", "........."], outline=False, shade=False)
 S("glint_3", ["....c....", ".q..z..q.", "..q.w.q..", "....w....", "czwwwwwzc", "....w....", "..q.w.q..", ".q..z..q.", "....c...."], outline=False, shade=False, flat={"q": "pnk3"})
+# An ancient egg's ember (the request of 2026-11-20, "make more higher tier eggs, about 2 more tiers"): a spark of
+# orange light that flares yellow at its heart, then breaks into four bits. Light, so no outline.
+S("ember_1", [".......", ".......", "...t...", "..tot..", "...t...", ".......", "......."], outline=False, shade=False)
+S("ember_2", [".......", "...t...", "..tyt..", ".toeot.", "..tyt..", "...t...", "......."], outline=False, shade=False)
+S("ember_3", [".......", "..t.t..", "...o...", ".t.e.t.", "...o...", "..t.t..", "......."], outline=False, shade=False)
+# An eternal egg's glint: a cross of white light whose four arms end in the rainbow's colours, then its diagonals.
+S("prism_1", [".........", ".........", ".........", "....q....", "...bwo...", "....z....", ".........", ".........", "........."], outline=False, shade=False)
+S("prism_2", [".........", "....r....", "....q....", "....w....", ".ubwwwoy.", "....w....", "....z....", "....g....", "........."], outline=False, shade=False)
+S("prism_3", ["....r....", ".u..q..y.", "..p.w.o..", "....w....", "ubwwwwwoy", "....w....", "..c.w.g..", ".b..z..g.", "....g...."], outline=False, shade=False, flat={"q": "pnk3"})
 # The hatch scene's flare (UI/HatchScene): a burst of white light where a crack opens, at a step up and by the "New!"
 # tag: a small cross that grows long arms, cream and pale gold at their tips, then its diagonals. Light, so no outline.
 S("flare_1", ["...........", "...........", "...........", "...........", ".....m.....", "....mwm....", ".....m.....", "...........", "...........", "...........", "..........."], outline=False, shade=False)

@@ -1,8 +1,9 @@
 --!strict
 -- A mutation's name with its tier in small star sprites (GAME_DESIGN 7; the request of 2026-11-14: "the * in mutations
 -- should be replaced with small star sprites to show the rarity of mutations"). The name in its tier's colour
--- (Traits.TIER_COLOR), then one 7 x 7 "star_t<tier>" a tier (gen_art.py: white, green, teal, gold, rose), a pixel apart; a
--- tier 0 mutation has none. The stars are the label's children, so the label's Text is the name alone.
+-- (Traits.TIER_COLOR), then one 7 x 7 "star_t<tier>" a tier (gen_art.py: white, green, teal, gold, rose, and orchid for
+-- the fabled tier 6 of the request of 2026-11-20), a pixel apart; a tier 0 mutation has none. The stars are the
+-- label's children, so the label's Text is the name alone.
 --   TierStars.label(parent, text, tier, x, y, opts?) -> (TextLabel, number)   the label (opts.name) and the width it
 --       takes; opts: { color?, z?, name?, suffix? } (suffix: words after the stars, such as ",")
 --   TierStars.measure(text, tier, suffix?) -> number   that width, before drawing
@@ -22,7 +23,7 @@ local GAP = 2 -- between the name and its stars
 export type Opts = { color: Color3?, z: number?, name: string?, suffix: string? }
 
 local function count(tier: number): number
-	return math.clamp(math.floor(tier), 0, 5)
+	return math.clamp(math.floor(tier), 0, Traits.TOP)
 end
 
 function TierStars.width(tier: number): number

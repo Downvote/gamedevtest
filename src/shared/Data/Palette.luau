@@ -307,9 +307,13 @@ local UI: { [string]: number } = {
 	veil = 0xFFFFFF,
 	rule = 0xFFFFFF,
 	xp = 0xC9A6FF,
-	-- the two rarest rarities (Data/Traits, 2026-11-14): a rose pink and a starlight blue
+	-- the two rarities past Legendary (Data/Traits, 2026-11-14): a rose pink and a starlight blue
 	mythic = 0xFF6EB4,
 	celestial = 0xA6F0FF,
+	-- the two past them (the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers"): an ember orange
+	-- (Ancient) and a bright orchid (Eternal; the fabled mutations' tier wears it too)
+	ancient = 0xFF7B3A,
+	eternal = 0xE98CFF,
 	-- the sheets (the request of 2026-11-19: "Look at the bakery game and see its menu. Make a similarly polished and
 	-- themed menu for different tabs"): a lagoon awning with beach stripes and a scalloped hem over the panels' black
 	-- glass (the cream paper and its deeper inks went the same day: "please make it such that the menu and ui remain in

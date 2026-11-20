@@ -957,6 +957,9 @@ FORMS.snapmoss = { shell = "rock", seam = "basalt", keels = true, saw = true, mo
 FORMS.elderreef = { style = "seaturtle", sea = true, shell = "teal", seam = "swamp", reef = "pink", reef2 = "coral", big = 1.15 }
 FORMS.templeback = { shell = "wood_dark", seam = "hair_brown", temple = "gold", big = 1.2 }
 FORMS.starshell = { shell = "black", seam = "night", stars = "yellow", glow = true, belly = "slate", big = 1.1 }
+-- Islebearer (ancient, 2026-11-20): a huge sea turtle whose shell is a green little island, moss and leaves on it and a
+-- wooden hut with a straw hall on top, its lamp lit.
+FORMS.islebearer = { style = "seaturtle", sea = true, shell = "grass", seam = "moss", moss = "leaf", temple = "wood", hall = "straw", belly = "sand", big = 1.2 }
 
 ------------------------------------------------------------------ the golem
 -- A golem: a big chest and shoulders, a small head sunk between them, long heavy arms with big fists, short stout
@@ -1328,6 +1331,9 @@ FORMS.elderbark = { style = "treant", kind = "tree", crown = "leaf", leaf = "lea
 FORMS.basaltor = { kind = "basalt", glow = "orange" }
 FORMS.glacior = { kind = "ice", snow = "white", deep = "ice" }
 FORMS.sentinel = { kind = "guard", trim = "gold", dark = "rock_dark", moss = "moss" }
+-- Craterwarden (ancient, 2026-11-20): a guard of dark crater stone with gold trim, old moss on its shoulders and glowing
+-- marks where its stones meet.
+FORMS.craterwarden = { kind = "guard", trim = "gold", dark = "basalt", moss = "swamp" }
 FORMS.silverbark = { style = "treant", kind = "tree", crown = "crystal", leaf = "crystal", leaf2 = "white", beard = "white", fruit = "white", h = 2.8, faceDetail = { marks = { freckles = "crystal", glow = true } } }
 
 return { plans = PLANS, forms = FORMS }

@@ -343,6 +343,29 @@ return function()
 		T.eq(Creatures.byId[sp].rarity, 7)
 		local sp6 = Tree.roll(n, Util.newRng(4), 6)
 		T.eq(Creatures.byId[sp6].rarity, 6)
+		-- (the two past Celestial, 2026-11-20: "make more higher tier eggs, about 2 more tiers") the ancient ones live
+		-- on the cloudtops and the starfalls, the eternal ones on the starfalls
+		T.truthy(#Tree.pool(13)[8] == 0 and #Tree.pool(14)[8] >= 1 and #Tree.pool(17)[8] >= 4, "ancient kinds from tier 14, four or more by tier 17")
+		T.truthy(#Tree.pool(16)[9] == 0 and #Tree.pool(17)[9] >= 4, "eternal kinds from tier 17, four or more")
+		-- (never laid more often than a commoner rarity, at any tier)
+		for t = 1, #Tuning.EggLuck do
+			local q2 = fresh()
+			q2.tier = t
+			local o = Tree.odds(q2)
+			for r = 6, Traits.RMAX do
+				T.truthy(o[r] < o[r - 1], string.format("tier %d: rarity %d rarer than %d", t, r, r - 1))
+			end
+		end
+		local top = fresh()
+		top.tier = #Tuning.EggLuck
+		local o20 = Tree.odds(top)
+		T.truthy(o20[8] > 0 and o20[8] < o20[7] * 0.3 and o20[9] > 0 and o20[9] < o20[8] * 0.3, string.format("Everdrift: celestial %.4f, ancient %.5f, eternal %.6f", o20[7], o20[8], o20[9]))
+		T.truthy(1 / o20[8] > 200 and 1 / o20[8] < 500 and 1 / o20[9] > 1200 and 1 / o20[9] < 4000, string.format("Everdrift: an ancient egg one in %.0f, an eternal one one in %.0f", 1 / o20[8], 1 / o20[9]))
+		T.truthy(Tree.cost(p, 9) > Tree.cost(p, 8) and Tree.cost(p, 8) > Tree.cost(p, 7), "dearer still")
+		for _, r in { 8, 9 } do
+			local spr = Tree.roll(n, Util.newRng(5 + r), r)
+			T.eq(Creatures.byId[spr].rarity, r, "a new island's egg of rarity " .. r .. " hatches one of them")
+		end
 	end)
 	T.it("an egg may turn rarer as it hatches: EggUp a step (and the huts' skip share), on while the rolls hold", function()
 		local p = fresh()

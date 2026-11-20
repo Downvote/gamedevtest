@@ -1102,7 +1102,9 @@ do
 	local d = x and Creatures.byId[x.sp]
 	if x and d then
 		local muts0 = x.muts
-		x.muts = { "bright2", "rainy3" }
+		-- (and a fabled one, tier 6: the request of 2026-11-20, "add another tier of mutations, which are the strongest
+		-- and rarest")
+		x.muts = { "bright2", "rainy3", "crown6" }
 		H.push(p, 0.6)
 		H.inClient(p, WV.holdPal, s.plot, x.id, 6)
 		E.run(0.2)
@@ -1129,6 +1131,8 @@ do
 				return H.inClient(p, H.cmod(p, "UI.TierStars").shown, l)
 			end
 			H.expect(label("Mut_bright2") == sw.name and stars("Mut_bright2") == sw.tier and label("MutFx_bright2") == sw.blurb and label("Mut_rainy3") == rn.name and stars("Mut_rainy3") == rn.tier and label("MutFx_rainy3") == rn.blurb, "pals", "every mutation with its star sprites and what it does", string.format("%s %d / %s %d", tostring(label("Mut_bright2")), stars("Mut_bright2"), tostring(label("Mut_rainy3")), stars("Mut_rainy3")))
+			local cr = Traits.byId.crown6
+			H.expect(cr ~= nil and cr.tier == 6 and label("Mut_crown6") == cr.name and stars("Mut_crown6") == 6 and label("MutFx_crown6") == cr.blurb, "pals", "a fabled mutation with its six star sprites and what it does", string.format("%s %d %s", tostring(label("Mut_crown6")), stars("Mut_crown6"), tostring(label("MutFx_crown6"))))
 			H.expect(panel ~= nil and panel:FindFirstChild("MutIcon_rainy3", true) ~= nil and panel:FindFirstChild("MutIcon_bright2", true) == nil, "pals", "a weather's mutation with that weather's icon")
 			local work = x.work ~= 0 and Buildings.byId[(function()
 				for _, q in prof.plot.placed do

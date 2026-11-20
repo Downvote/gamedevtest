@@ -184,7 +184,8 @@ local function played(data: { [string]: any }, fromPanel: boolean)
 	local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
 	local name = if def then def.name else "a driftling"
 	local sold = tonumber(data.sold) or 0
-	local a = if def and (def.rarity == 4 or def.rarity == 2) then "an" else "a"
+	-- ("an" before a rarity starting with a vowel: an uncommon, an epic, an ancient, an eternal one)
+	local a = if def and string.match(string.lower(rar.name), "^[aeiou]") then "an" else "a"
 	local what = if def then string.format("%s %s %s", a, string.lower(rar.name), name) else name
 	local muts: { string } = {}
 	if type(data.muts) == "table" then
@@ -478,6 +479,10 @@ local function stepEgg(e: Egg, t: number)
 		elseif f.kind == "orbit" then
 			local a = t * 0.9 + e.ph + f.k / 9 * math.pi * 2
 			f.p.CFrame = cf * CFrame.new(math.cos(a) * 0.85 * s, (0.62 + math.cos(a) * 0.2) * s, math.sin(a) * 0.85 * s)
+		elseif f.kind == "orbit2" then
+			-- (an eternal egg's second ring: the other way round, tilted against the first)
+			local a = -t * 0.7 + e.ph + f.k / 9 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * 0.95 * s, (0.62 - math.sin(a) * 0.24) * s, math.sin(a) * 0.95 * s)
 		elseif f.kind == "beam" then
 			local h = 2.2 + 0.5 * math.sin(t * 1.9 + e.ph)
 			local baseY = 0.06 + 1.1 * s
@@ -490,12 +495,13 @@ end
 -- The rarities' sparks over the eggs (2D, on the World canvas, at whole UI px: "particles are 1 px"): an uncommon egg
 -- lets a green leaf drift up now and then, a rare one twinkles (white and cyan stars blink round it), an epic one sends
 -- pink and white sparks up, a legendary one gold sparks and gold stars, a mythic one pink stars and pink and white
--- sparks, a celestial one long white and cyan glints and motes of every colour rising. Only round eggs lying still (not
--- rising, sinking or hatching), at most SPARKS at once.
+-- sparks, a celestial one long white and cyan glints and motes of every colour rising, an ancient one embers rising and
+-- flaring, an eternal one motes in every rarity's colour and glints of light with rainbow tips (2026-11-20). Only round
+-- eggs lying still (not rising, sinking or hatching), at most SPARKS at once.
 type Spark = { egg: string, at: Vector3, vel: Vector3, born: number, life: number, kind: string, gui: GuiObject, frames: { GuiObject }?, sway: number }
 local sparks: { Spark } = {}
 local SPARKS = 140
-local EVERY: { [number]: number } = { 0, 0.8, 0.42, 0.26, 0.14, 0.11, 0.08 } -- seconds between an egg's sparks, by rarity (0: none)
+local EVERY: { [number]: number } = { 0, 0.8, 0.42, 0.26, 0.14, 0.11, 0.08, 0.07, 0.06 } -- seconds between an egg's sparks, by rarity (0: none)
 
 local function newSpark(e: Egg, foot: Vector3, t: number)
 	if #sparks >= SPARKS then
@@ -540,6 +546,18 @@ local function newSpark(e: Egg, foot: Vector3, t: number)
 		dot(if math.random() < 0.6 then "cherry" else "white", foot + Vector3.new(math.cos(a) * 0.6 * s, 0.25 * s, math.sin(a) * 0.6 * s), Vector3.new(0, 1.1 + math.random() * 0.5, 0), 1.3)
 		if math.random() < 0.35 then
 			star({ "twinkle_p1", "twinkle_p2", "twinkle_p3", "twinkle_p2" }, foot + Vector3.new(math.cos(a + 1.3) * 0.7 * s, (0.3 + math.random() * 1.1) * s, math.sin(a + 1.3) * 0.7 * s), 0.6)
+		end
+	elseif e.r >= 9 then
+		-- motes in every rarity's colour rising, glints with rainbow tips opening and closing round it
+		dot(({ "white", "r_mythic", "r_legend", "r_uncommon", "r_rare", "r_epic" })[math.random(1, 6)], foot + Vector3.new(math.cos(a) * 0.75 * s, 0.2 * s, math.sin(a) * 0.75 * s), Vector3.new(0, 0.8 + math.random() * 0.6, 0), 1.7)
+		if math.random() < 0.4 then
+			star({ "prism_1", "prism_2", "prism_3", "prism_2", "prism_1" }, foot + Vector3.new(math.cos(a + 2) * 0.85 * s, (0.3 + math.random() * 1.3) * s, math.sin(a + 2) * 0.85 * s), 0.8)
+		end
+	elseif e.r == 8 then
+		-- embers rising off it, swaying, and now and then one flaring by it
+		dot(if math.random() < 0.55 then "lava" elseif math.random() < 0.5 then "oven_glow" else "yellow", foot + Vector3.new(math.cos(a) * 0.6 * s, 0.25 * s, math.sin(a) * 0.6 * s), Vector3.new(0, 1.0 + math.random() * 0.6, 0), 1.5)
+		if math.random() < 0.35 then
+			star({ "ember_1", "ember_2", "ember_3" }, foot + Vector3.new(math.cos(a + 1.5) * 0.7 * s, (0.3 + math.random() * 1.1) * s, math.sin(a + 1.5) * 0.7 * s), 0.6)
 		end
 	elseif e.r >= 7 then
 		-- motes of every colour rising, long glints opening and closing round it

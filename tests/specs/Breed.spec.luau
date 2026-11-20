@@ -63,7 +63,7 @@ return function()
 			end
 		end
 		T.eq(Creatures.byId[Breed.child(legends[1], legends[2])].rarity, 5, "two legends: a legend")
-		local rare: { [number]: { string } } = { [6] = {}, [7] = {} }
+		local rare: { [number]: { string } } = { [6] = {}, [7] = {}, [8] = {}, [9] = {} }
 		for _, d in Creatures.list do
 			if rare[d.rarity] then
 				table.insert(rare[d.rarity], d.id)
@@ -71,6 +71,16 @@ return function()
 		end
 		T.truthy(Creatures.byId[Breed.child(rare[6][1], rare[6][2])].rarity >= 5, "two mythic ones: a legend or better")
 		T.eq(Creatures.byId[Breed.child(rare[7][1], rare[7][2])].rarity, 7, "two celestial ones: a celestial one")
+		-- (the two past Celestial, 2026-11-20: never rarer than the commoner parent)
+		for _, a in rare[8] do
+			for _, b in rare[9] do
+				local c = Creatures.byId[Breed.child(a, b)]
+				T.truthy(c.rarity <= 8, a .. " x " .. b .. ": no rarer than the ancient one")
+			end
+		end
+		T.truthy(#rare[8] >= 4 and #rare[9] >= 4, "four or more of each")
+		local eternal = Creatures.byId[Breed.child(rare[9][1], rare[9][2])].rarity
+		T.truthy(eternal >= 5 and eternal <= 9, "two eternal ones: a legend or better")
 	end)
 	T.it("with the island's tier: only the kinds of land open there hatch, or the parents' own", function()
 		for _, a in Creatures.list do
@@ -90,6 +100,9 @@ return function()
 		T.deepEq(Breed.inherit({ "frail" }, { "frail" }), { "sturdy1" }, "a shared flaw: its family's first tier")
 		T.deepEq(Breed.inherit({ "busy4" }, { "busy4" }), { "busy4" }, "never past tier 4")
 		T.deepEq(Breed.inherit({ "golden5" }, { "golden5" }), { "golden5" }, "a wondrous one stays itself")
+		-- (the fabled tier, 2026-11-20: a family of one tier too, passed on before anything else)
+		T.deepEq(Breed.inherit({ "crown6" }, { "crown6" }), { "crown6" }, "a fabled one stays itself")
+		T.deepEq(Breed.inherit({ "busy4", "golden5", "fierce4", "armor4" }, { "crown6" }), { "crown6", "golden5", "armor4", "busy4" }, "the fabled one first, then the wondrous one, then the fours")
 		-- the highest tiers first, at most four
 		local best = Breed.inherit({ "fierce4", "sturdy1", "armor2", "bright1" }, { "golden5", "busy3", "grower1", "chopper2" })
 		T.eq(#best, Traits.MAX)

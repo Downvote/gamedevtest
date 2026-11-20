@@ -12,7 +12,8 @@
 -- feathers, a shell's growth lines, specks and cracks in stone, a wall's courses, bark's grain, a crystal's facets,
 -- pores in skin, ice's streaks, velvet's fuzz, a shell's pits, a jelly's bubbles and cooling lava's bright cracks.
 -- The hatch scene's eggs wear one too (2026-11-14): freckles, dapples, frost sparkles, swirls, a filigree lattice, tiny
--- flowers and stardust, one by rarity (DynTex.EGG); their slices share one pattern (the part's PixelTexV attribute
+-- flowers and stardust, and since 2026-11-20 a crust cracked by lava and a pearl's slanting sheen, one by rarity
+-- (DynTex.EGG); their slices share one pattern (the part's PixelTexV attribute
 -- lifts v to the egg's own height, PixelTexSeed keeps one seed) and it is drawn a little firmer (PixelTexSoft).
 
 local DynTex = {}
@@ -42,6 +43,9 @@ DynTex.NAMES = {
 	"filigree",
 	"bloom",
 	"stardust",
+	-- (the two eggs past the celestial one, 2026-11-20: "make more higher tier eggs, about 2 more tiers")
+	"magma",
+	"prism",
 }
 local KIND: { [string]: number } = {}
 for i, name in DynTex.NAMES do
@@ -363,11 +367,44 @@ function DynTex.lift(kind: number, u: number, v: number, px: number, seed: numbe
 		end
 		local g = hash(iu, iv, 44)
 		return if g > 0.94 then 1 elseif g < 0.02 then -1 else 0
+	elseif kind == 23 then
+		-- magma (an ancient egg): a crust broken into plates by thin bright cracks, the lattice bent so no two plates
+		-- match, a crack missing here and there, dark pits on the plates
+		local wu = iu + math.floor(1.6 * math.sin(iv / 4.3))
+		local wv = iv + math.floor(1.6 * math.sin(iu / 5.1))
+		local cu, cv = wu // 10, wv // 8
+		local lu, lv = wu - cu * 10, wv - cv * 8
+		if lu == 0 and hash(cu, cv, 45) < 0.8 then
+			return 1
+		elseif lv == 0 and hash(cu, cv, 46) < 0.8 then
+			return 1
+		end
+		return if hash(iu, iv, 47) < 0.04 then -1 else 0
+	elseif kind == 24 then
+		-- prism (an eternal egg): soft bands of sheen slanting across the pearl (a clean 2:1 slope), a pixel of shade
+		-- under each, and little four-pointed sparkles in some 10 px cells
+		local k = (iu + 2 * iv) % 18
+		if k == 0 or k == 1 then
+			return 1
+		elseif k == 2 then
+			return -1
+		end
+		local cu, cv = iu // 10, iv // 10
+		local h = hash(cu, cv, 48)
+		if h < 0.35 then
+			local lu, lv = iu - cu * 10, iv - cv * 10
+			local su, sv = 3 + math.floor(h * 19) % 4, 3 + math.floor(h * 29) % 4
+			local du, dv = lu - su, lv - sv
+			if (du == 0 and math.abs(dv) <= 1) or (dv == 0 and math.abs(du) <= 1) then
+				return 1
+			end
+		end
+		return 0
 	end
 	return 0
 end
 
 -- The egg pattern drawn on a hatch-scene egg of rarity r (the names above, by rarity).
-DynTex.EGG = { "freckle", "dapple", "frost", "swirl", "filigree", "bloom", "stardust" } :: { string }
+DynTex.EGG = { "freckle", "dapple", "frost", "swirl", "filigree", "bloom", "stardust", "magma", "prism" } :: { string }
 
 return DynTex

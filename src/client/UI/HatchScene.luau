@@ -54,7 +54,11 @@
 -- The rarer, the grander also in the old ways: twinkles round the egg (rare and up), more sparks and shell, confetti;
 -- the light of dusk for the commoner ones, a blue, violet or deep gold night for the rarer, a rose night for a mythic
 -- one and a deep starry blue for a celestial one (DayLight.hold). A mythic egg's twinkles are pink, a celestial one's
--- long glints of white and cyan, and petals or motes drift by.
+-- long glints of white and cyan, and petals or motes drift by. The two past them (the request of 2026-11-20: "make more
+-- higher tier eggs, about 2 more tiers") are grander still in every way (GLORY: up to 1 s of wait, a 1.8 s build-up,
+-- six shockwave rings): an ancient egg under an eclipse in a red dusk, embers flaring round it and rising, its god
+-- rays the colours of fire; an eternal egg under a dawn of every colour with a rainbow over it, glints with rainbow
+-- tips, motes of every colour and god rays in every rarity's colour going round the fan.
 --   HatchScene.play(result, after?)   result: { sp, muts, r (laid), hr (hatched as), new? (a kind never had: "New!") };
 --                                     while a scene shows, the hatch waits and plays when it ends (HatchScene.waiting():
 --                                     how many wait)
@@ -88,7 +92,7 @@ export type Result = { sp: string, muts: { string }, r: number, hr: number, new:
 
 local ORIGIN = Vector3.new(0, 0, 9000) -- far from the islands (z 0 .. -160)
 local FLOAT_Y = 1.2 -- the pedestal's top above ORIGIN: the egg rests on it, what hatched stands on it
-local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8, 2.9, 3.0 } -- each rarity's egg up close (EggModels.hero), studs tall
+local EGG_H: { number } = { 2.3, 2.4, 2.5, 2.65, 2.8, 2.9, 3.0, 3.1, 3.2 } -- each rarity's egg up close (EggModels.hero), studs tall
 local PAL_SCALE = 1.35 -- what hatched, a little bigger than on the island
 local TAP_GAP = 0.22 -- seconds a tap waits after the last one (a double tap is one)
 -- the box the stage view fits is this many times the egg's own room, about the egg's middle: bigger draws the egg and
@@ -138,6 +142,9 @@ local GLORY: { Glory } = {
 	{ rays = 16, sparks = 50, shards = 14, flash = 0.6, jolt = 3, confetti = 110, stars = 9, wait = 0.5, build = 1.05, slow = 0.3, show = 1.4, beams = 14, reach = 0.62, hush = 0.4, rings = 3, motes = 5, hop = 0.85 },
 	{ rays = 21, sparks = 64, shards = 16, flash = 0.7, jolt = 4, confetti = 150, stars = 10, wait = 0.6, build = 1.2, slow = 0.4, show = 1.6, beams = 16, reach = 0.72, hush = 0.45, rings = 3, motes = 6, hop = 0.95 },
 	{ rays = 26, sparks = 80, shards = 18, flash = 0.8, jolt = 5, confetti = 200, stars = 12, wait = 0.7, build = 1.4, slow = 0.5, show = 1.8, beams = 18, reach = 0.85, hush = 0.5, rings = 4, motes = 8, hop = 1.05 },
+	-- (ancient and eternal, the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers")
+	{ rays = 30, sparks = 96, shards = 20, flash = 0.85, jolt = 6, confetti = 240, stars = 14, wait = 0.85, build = 1.6, slow = 0.6, show = 2.0, beams = 20, reach = 0.92, hush = 0.55, rings = 5, motes = 9, hop = 1.15 },
+	{ rays = 34, sparks = 112, shards = 22, flash = 0.9, jolt = 7, confetti = 280, stars = 16, wait = 1.0, build = 1.8, slow = 0.7, show = 2.2, beams = 22, reach = 1.0, hush = 0.6, rings = 6, motes = 10, hop = 1.25 },
 }
 -- stylua: ignore end
 
@@ -152,11 +159,14 @@ local GRADE: { PixelRenderer.Grade } = {
 	{ mr = 0.98, mg = 0.78, mb = 0.62, lift = 4, sat = 1.04, lamps = 0.9 },
 	{ mr = 1.0, mg = 0.86, mb = 0.94, lift = 5, sat = 1.02, lamps = 0.9 },
 	{ mr = 0.8, mg = 0.88, mb = 1.08, lift = 6, sat = 1.02, lamps = 0.6 }, -- (its ring of lights close round it: less pooling, so they never blot the shell)
+	{ mr = 1.06, mg = 0.8, mb = 0.68, lift = 5, sat = 1.06, lamps = 0.95 }, -- (an ancient egg's red dusk under the eclipse)
+	{ mr = 0.96, mg = 0.92, mb = 1.06, lift = 7, sat = 1.06, lamps = 0.7 }, -- (an eternal egg's dawn of every colour)
 }
 
 -- Each rarity's colours in the scene: its sparks and its cracks' light (palette keys).
-local RAY: { { string } } = { { "cream", "white" }, { "green", "white" }, { "blue", "white" }, { "purple", "pink" }, { "gold", "yellow" }, { "pink", "cherry" }, { "crystal", "screen_on" } }
--- The god rays' colours, beam by beam (palette keys); a mythic or celestial egg's travel round the fan.
+local RAY: { { string } } = { { "cream", "white" }, { "green", "white" }, { "blue", "white" }, { "purple", "pink" }, { "gold", "yellow" }, { "pink", "cherry" }, { "crystal", "screen_on" }, { "lava", "yellow" }, { "crystal", "white" } }
+-- The god rays' colours, beam by beam (palette keys); a mythic or rarer egg's travel round the fan (an eternal one's in
+-- every rarity's colour).
 local SHINE: { { string } } = {
 	{ "cream", "white" },
 	{ "screen_code", "cream" },
@@ -165,10 +175,13 @@ local SHINE: { { string } } = {
 	{ "cream", "yellow", "white" },
 	{ "pink", "cherry", "white" },
 	{ "screen_on", "crystal", "pink", "white", "yellow" },
+	{ "lava", "oven_glow", "yellow", "white" },
+	{ "r_mythic", "r_legend", "yellow", "r_uncommon", "r_rare", "r_epic", "white" },
 }
 
 -- Each rarity's twinkle (its frames, opening and closing): white and cyan stars, gold sparks for a legendary egg, pink
--- stars for a mythic one, long white and cyan glints for a celestial one.
+-- stars for a mythic one, long white and cyan glints for a celestial one, embers for an ancient one and glints with
+-- rainbow tips for an eternal one.
 local TWINKLE: { { string } } = {
 	{ "twinkle_1", "twinkle_2", "twinkle_1" },
 	{ "twinkle_1", "twinkle_2", "twinkle_1" },
@@ -177,6 +190,8 @@ local TWINKLE: { { string } } = {
 	{ "spark_1", "spark_2", "spark_3", "spark_2" },
 	{ "twinkle_p1", "twinkle_p2", "twinkle_p3", "twinkle_p2" },
 	{ "glint_1", "glint_2", "glint_3", "glint_2", "glint_1" },
+	{ "ember_1", "ember_2", "ember_3", "ember_2" },
+	{ "prism_1", "prism_2", "prism_3", "prism_2", "prism_1" },
 }
 -- A flare of white light (a crack opening, "New!" landing): it grows its arms and closes again.
 local FLARE = { "flare_1", "flare_2", "flare_3", "flare_2", "flare_1" }
@@ -842,7 +857,10 @@ end
 
 -- One more of its mutations, on a plate sliding in at the right under the passive's, past its place and back: its
 -- name and stars in its tier's colour, what it does under it; a starburst of its tier's colour over its stars (from
--- tier 1; sparkles along the plate from tier 3; a white blink over it at tier 4).
+-- tier 1; sparkles along the plate from tier 3; a white blink over it at tier 4). A fabled one (tier 6, the request of
+-- 2026-11-20: "add another tier of mutations, which are the strongest and rarest") blinks twice, a second, white
+-- starburst follows the first and its ring of dots comes in every rarity's colour.
+local FABLED_DOTS = { "eternal", "celestial", "mythic", "accent", "good", "button" }
 local function showMut(s: Scene, i: number)
 	local muts = s.res.muts
 	local x, y = plateAt(s, i, PLATE_W)
@@ -873,21 +891,40 @@ local function showMut(s: Scene, i: number)
 				sparkleAlong(s, x, y, PLATE_W, col, 2 + tier)
 			end
 			if tier >= 4 then
-				local blink = UIKit.rect(f, UDim2.new(1, -2, 1, -2), UDim2.fromOffset(1, 1), UIKit.color("white"), 36)
-				blink.Name = "Blink"
-				blink.BackgroundTransparency = 0.4
-				cue(s, s.clock + 0.06, function()
-					blink.BackgroundTransparency = 0.7
-				end)
-				cue(s, s.clock + 0.12, function()
-					blink:Destroy()
+				local blinks = if tier >= 6 then 2 else 1
+				for b = 1, blinks do
+					local t0 = (b - 1) * 0.2
+					cue(s, s.clock + t0, function()
+						if s.closing then
+							return
+						end
+						local blink = UIKit.rect(f, UDim2.new(1, -2, 1, -2), UDim2.fromOffset(1, 1), UIKit.color("white"), 36)
+						blink.Name = "Blink"
+						blink.BackgroundTransparency = 0.4
+						cue(s, s.clock + 0.06, function()
+							blink.BackgroundTransparency = 0.7
+						end)
+						cue(s, s.clock + 0.12, function()
+							blink:Destroy()
+						end)
+					end)
+				end
+			end
+			if tier >= 6 then
+				local sw = TierStars.width(tier)
+				local sx = x + 4 + TierStars.measure(m.name, tier) - math.floor(sw / 2)
+				cue(s, s.clock + 0.16, function()
+					if not s.closing then
+						starburst(s, sx, y + 6, UIKit.color("white"), 8, 18, 0.55)
+					end
 				end)
 			end
 		end)
 		if tier >= 2 then
 			for k = 1, tier * 4 do
 				local a = k / (tier * 4) * math.pi * 2
-				addDot(s, col, nil, x + 8, y + PLATE_H / 2, math.cos(a) * 40, math.sin(a) * 40, 30, 0.5)
+				local dc = if tier >= 6 then FABLED_DOTS[(k - 1) % #FABLED_DOTS + 1] else col
+				addDot(s, dc, nil, x + 8, y + PLATE_H / 2, math.cos(a) * 40, math.sin(a) * 40, 30, 0.5)
 			end
 		end
 	end
@@ -1348,9 +1385,14 @@ local function stepEgg(s: Scene, c: number, d: number)
 			local a = c * 0.9 + f.k / 20 * math.pi * 2
 			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 0.75, eh + 0.45 + 0.05 * math.sin(c * 2), math.sin(a) * er * 0.75)
 		elseif f.kind == "orbit" then
-			-- (a celestial egg's ring of lights: round its middle, tilted like a planet's ring)
+			-- (a celestial egg's ring of lights: round its middle, tilted like a planet's ring; an ancient egg's three
+			-- embers and an eternal egg's first ring the same way)
 			local a = c * 0.7 + f.k / 28 * math.pi * 2
 			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.7, eh * 0.5 + math.cos(a) * er * 0.45, math.sin(a) * er * 1.7)
+		elseif f.kind == "orbit2" then
+			-- (an eternal egg's second ring: the other way round, a little wider, tilted against the first)
+			local a = -c * 0.55 + f.k / 28 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.85, eh * 0.52 - math.sin(a) * er * 0.55, math.sin(a) * er * 1.85)
 		elseif f.kind == "beam" then
 			local hb = 3.4 + 0.6 * math.sin(c * 1.9)
 			f.p.Size = Vector3.new(0.3, Blocks.snap(hb), 0.3)
@@ -1590,11 +1632,33 @@ end
 
 -- What drifts in the air (1 px dots): by day (a common or uncommon egg's sky) seeds and petals blowing across, by
 -- night fireflies rising and blinking; under the rose night pink petals falling slowly (thick for a while after a
--- mythic hatch), under the starry sky white and cyan motes rising (and after a celestial hatch glints raining down).
+-- mythic hatch), under the starry sky white and cyan motes rising (and after a celestial hatch glints raining down);
+-- under the eclipse embers rising thick (a shower of sparks after an ancient hatch), under the dawn of every colour
+-- motes of every colour rising (and after an eternal hatch a rain of them).
+local RAINBOW = { "r_mythic", "r_legend", "yellow", "r_uncommon", "r_rare", "r_epic", "white" }
 local function fireflies(s: Scene, c: number)
 	local off = s.topOff
 	local after = off ~= nil and c - (off :: number) < 3.5
 	local w, h = canvasSize()
+	if s.r >= 9 then
+		if after and math.random() < 0.4 then
+			addDot(s, RAINBOW[math.random(1, #RAINBOW)], nil, math.random(0, math.max(1, w)), -2, (math.random() - 0.5) * 6, 40 + math.random() * 30, 0, h / 40)
+		end
+		if math.random() < 0.14 then
+			local x, y = math.random(10, math.max(11, w - 10)), math.random(40, math.max(41, h - 30))
+			addDot(s, RAINBOW[math.random(1, #RAINBOW)], nil, x, y, (math.random() - 0.5) * 4, -8 - math.random() * 8, 0, 2.4)
+		end
+		return
+	elseif s.r == 8 then
+		if after and math.random() < 0.4 then
+			addDot(s, if math.random() < 0.5 then "lava" else "yellow", nil, math.random(0, math.max(1, w)), h + 1, (math.random() - 0.5) * 10, -50 - math.random() * 30, 0, h / 45)
+		end
+		if math.random() < 0.16 then
+			local x, y = math.random(10, math.max(11, w - 10)), math.random(math.floor(h * 0.4), math.max(math.floor(h * 0.4) + 1, h - 20))
+			addDot(s, if math.random() < 0.6 then "lava" elseif math.random() < 0.5 then "oven_glow" else "yellow", nil, x, y, (math.random() - 0.5) * 6, -10 - math.random() * 12, 0, 2.2)
+		end
+		return
+	end
 	if s.r >= 7 and after and math.random() < 0.3 then
 		addDot(s, if math.random() < 0.5 then "white" else "screen_on", nil, math.random(0, math.max(1, w)), -2, (math.random() - 0.5) * 6, 40 + math.random() * 30, 0, h / 40)
 	end

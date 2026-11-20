@@ -726,9 +726,10 @@ local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): st
 	elseif charm >= 1 then
 		say ..= string.format(" Charm +%d.", math.floor(charm))
 	end
-	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare)
+	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare; two of each at most since
+	-- the request of 2026-11-20, Plot.boostLimit)
 	if def.kind == "gen" then
-		say ..= string.format(" Each extra adds %d%% of the last.", math.round(Tuning.BoostStack * 100))
+		say ..= string.format(" A second adds %d%% of it. Two at most.", math.round(Tuning.BoostStack * 100))
 	end
 	if def.water == "on" then
 		say ..= " Goes on water."
@@ -798,16 +799,23 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 			continue
 		end
 		local afford = v.shells >= cost.shells
+		-- (a boost building the island has two of already: Plot.boostFull, the request of 2026-11-20)
+		local maxed = Plot.boostFull(v.pieces, id)
 		local card = UIKit.row(list, UDim2.fromOffset(88, CARD_H + 10), nil)
 		card.Name = "Swap_" .. id
 		card.LayoutOrder = k
 		picture(card, id, UDim2.fromOffset(3, 3), 4)
-		local what = if d.slots > 0 then string.format("Room %d", d.slots) elseif Buildings.charmOf(d, v.tier) >= 1 then string.format("Charm +%d", math.floor(Buildings.charmOf(d, v.tier))) else ""
+		local what = if maxed then string.format("Max %d", Plot.boostLimit()) elseif d.slots > 0 then string.format("Room %d", d.slots) elseif Buildings.charmOf(d, v.tier) >= 1 then string.format("Charm +%d", math.floor(Buildings.charmOf(d, v.tier))) else ""
 		UIKit.text(card, d.name, UDim2.fromOffset(58, 10), UDim2.fromOffset(29, 3), { color = UIKit.color("text"), z = 4 })
 		UIKit.text(card, what, UDim2.fromOffset(58, 10), UDim2.fromOffset(29, 14), { color = UIKit.color("text_dim"), z = 4 })
 		local b = UIKit.button(card, "", UDim2.fromOffset(84, 14), UDim2.fromOffset(2, CARD_H - 6), function()
 			local cur = pick
 			if cur == nil or cur.move == nil then
+				return
+			end
+			if maxed then
+				UIKit.notice(Words.errText("boosts"), UIKit.color("bad"))
+				Audio.play("deny")
 				return
 			end
 			local res = ask("plot.replace", { i = cur.move, id = id })
@@ -819,7 +827,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 				clearGhost()
 				task.defer(rebuild)
 			end
-		end, { name = "SwapTo_" .. id, color = if afford then UIKit.color("button_ok") else nil })
+		end, { name = "SwapTo_" .. id, color = if maxed then UIKit.color("button_off") elseif afford then UIKit.color("button_ok") else nil })
 		price(b, 3, 2, cost.shells, v, 6)
 	end
 end
@@ -1120,7 +1128,18 @@ end
 
 -- Which limit a piece that won't fit ran into (its card's notice).
 local function roomErr(def: Buildings.BuildingDef): string
-	return if def.kind == "breed" then "hatcheries" elseif def.jobs > 0 then "work" else "huts"
+	return if def.kind == "breed" then "hatcheries" elseif def.kind == "gen" then "boosts" elseif def.jobs > 0 then "work" else "huts"
+end
+
+-- A boost building's count on its card's corner: how many of it stand of the most an island may have ("1/2"), in the
+-- accent while there's room and dim at the limit (the request of 2026-11-20: "make the max of each boosts building to
+-- be 2"). Nothing for any other piece.
+local function boostCount(b: GuiObject, def: Buildings.BuildingDef, v: Types.ClientView, z: number)
+	if def.kind ~= "gen" then
+		return
+	end
+	local n, most = Plot.boosts(v.pieces, def.id), Plot.boostLimit()
+	UIKit.text(b, string.format("%d/%d", n, most), UDim2.fromOffset(CARD_W - 6, 10), UDim2.fromOffset(0, PIC - 8), { x = "right", color = UIKit.color(if n >= most then "text_dim" else "accent"), z = z, name = "BoostCount" })
 end
 
 -- The Inventory tab's cards: each piece waiting there and how many; a tap picks one to put down for nothing (Sell on:
@@ -1137,7 +1156,7 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
 	for k, def in defs do
 		local n = heldOf(v, def.id)
-		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.jobs > 0 and def.jobs > workLeft) or (def.kind == "breed" and hatchFull)
+		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.jobs > 0 and def.jobs > workLeft) or (def.kind == "breed" and hatchFull) or Plot.boostFull(v.pieces, def.id)
 		-- (what it sells back for: nothing for a free piece while the Free Decor pass is owned, Plot.price)
 		local back = math.floor(Plot.price(v, def.id) * Tuning.Refund)
 		local card = UIKit.row(list, UDim2.fromOffset(CARD_W, CARD_H), nil)
@@ -1194,13 +1213,13 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		return
 	end
 	-- (the housing limit: a hut whose room won't fit, Plot.housingLimit; the work cap: a workplace whose places won't,
-	-- Plot.workLimit; the Hatcheries' limit)
+	-- Plot.workLimit; the Hatcheries' limit; two of each boost building, Plot.boostLimit)
 	local roomLeft = Plot.housingLimit(v.tier) - Plot.housing(v.pieces)
 	local workLeft = Plot.workLimit(v.tier) - Plot.work(v.pieces)
 	local hatchFull = Plot.hatcheries(v.pieces) >= Plot.hatcheryLimit(v.tier)
 	for k, def in listFor(v) do
 		local locked = def.tier > v.tier
-		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.jobs > 0 and def.jobs > workLeft) or (def.kind == "breed" and hatchFull)
+		local noRoom = (def.kind == "nest" and def.slots > roomLeft) or (def.jobs > 0 and def.jobs > workLeft) or (def.kind == "breed" and hatchFull) or Plot.boostFull(v.pieces, def.id)
 		local held = heldOf(v, def.id)
 		local cost = Plot.price(v, def.id)
 		local afford = v.shells >= cost or held > 0
@@ -1234,7 +1253,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			UIKit.text(b, string.format("Lv%d", def.tier), UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif noRoom then
 			-- ("Full": "No room" needs 37 px and the card's line has 34, so it was cut short)
-			UIKit.text(b, if def.kind == "breed" then "Max" else "Full", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
+			UIKit.text(b, if def.kind == "breed" or def.kind == "gen" then "Max" else "Full", UDim2.fromOffset(CARD_W - 4, 10), UDim2.fromOffset(0, PIC + 3), { x = "center", color = UIKit.color("text_dim"), z = 7, name = "Lock" })
 		elseif held > 0 then
 			heldLine(b, held, 7)
 		elseif cost <= 0 then
@@ -1246,6 +1265,10 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			local px = math.max(0, math.floor((CARD_W - 4 - w) / 2))
 			PixelSprites.image(b, "mini_shell", UDim2.fromOffset(px, PIC + 3), 7)
 			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = if v.shells >= cost then UIKit.color("text") else UIKit.color("bad"), z = 7, name = "Shells" })
+		end
+		-- (a boost building's count in the corner, where an inventory piece's "x2" would be)
+		if not locked and held == 0 then
+			boostCount(b, def, v, 8)
 		end
 		b.MouseEnter:Connect(function()
 			showTip(card, def, v)

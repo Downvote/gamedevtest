@@ -693,6 +693,37 @@ FORMS.ashwing = {
 	h = 2.4,
 }
 
+FORMS.dawnwing = {
+	-- (eternal, 2026-11-20) a bird of the dawn: a flame of a crest in pink and gold, gold wings with pink flight
+	-- feathers tipped white, a pink breast and very long plumes of pink and white
+	faceDetail = { marks = { freckles = "cherry", glow = true } },
+	scale = 1.15,
+	crest = "flame",
+	crestC = "cherry",
+	crestC2 = "gold",
+	crestC3 = "white",
+	crestLen = 0.66,
+	under = "cream",
+	chest = "cherry",
+	chest2 = "white",
+	wing = "gold",
+	prim = "cherry",
+	primTip = "white",
+	point = true,
+	plen = 0.55,
+	tail = "plumes",
+	tailC = "gold",
+	plumeC = "cherry",
+	plumeTip = "white",
+	tailLen = 0.72,
+	plumeLen = 1.7,
+	tailUp = 12,
+	beak = "white",
+	legs = "gold",
+	h = 2.8,
+	r = 1.1,
+}
+
 FORMS.stiltbeak = { style = "heron",
 	-- a heron: very long legs, a long S of a neck, a straight dagger of a beak, a black plume off the nape
 	legH = 1.3,
@@ -1145,6 +1176,30 @@ FORMS.glyphowl = {
 	head = 0.98,
 	toes = "sand_dark",
 	h = 2.4,
+}
+
+FORMS.skyelder = {
+	-- (ancient, 2026-11-20) a great grey owl, old and tall: long white feather tufts, a white face in a gold ring, gold
+	-- marks on its crown and breast, white flight feathers tipped gold
+	tufts = "feather",
+	tuftLen = 0.8,
+	tuftC = "white",
+	disc = "white",
+	rim = "gold",
+	under = "white",
+	glyphs = "gold",
+	crownSpots = "gold",
+	wing = "slate",
+	prim = "white",
+	primTip = "gold",
+	spotC = "white",
+	beak = "gold",
+	toes = "slate",
+	talon = "gold",
+	tall = 1.15,
+	wide = 1.1,
+	head = 1.06,
+	h = 2.6,
 }
 
 FORMS.lunowl = {

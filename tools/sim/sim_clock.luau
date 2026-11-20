@@ -515,6 +515,38 @@ do
 		local w1, w2 = place("windmill"), place("windmill")
 		local by = Buildings.byId.windmill.boostBy
 		H.expect(w1.ok and w2.ok and math.abs(Island.boostRaw(prof) - (raw0 + by + by * Tuning.BoostStack)) < 1e-9, "boost", "two windmills stack: the second gives BoostStack of the first", string.format("%s %s raw %.3f", tostring(w1.err), tostring(w2.err), Island.boostRaw(prof)))
+		-- two of each at most (the request of 2026-11-20: "make the max of each boosts building to be 2"): a third
+		-- windmill refused with nothing paid, another kind of boost building still going up
+		do
+			local n0, s0 = #prof.plot.placed, prof.shells
+			local w3 = place("windmill")
+			H.expect(not w3.ok and w3.err == "boosts" and #prof.plot.placed == n0 and prof.shells >= s0 and Plot.boostLimit() == 2, "boost", "a third windmill is refused (boosts), nothing paid", tostring(w3.err))
+			local sh = place("smokehouse")
+			H.expect(sh.ok, "boost", "another kind of boost building still goes up", tostring(sh.err))
+			local si = #prof.plot.placed
+			local rp = H.req(p, "plot.replace", { i = si, id = "windmill" })
+			H.expect(not rp.ok and rp.err == "boosts" and prof.plot.placed[si].id == "smokehouse", "boost", "nor can a smokehouse become a third windmill (boosts)", tostring(rp.err))
+			H.req(p, "plot.store", { i = si })
+			H.push(p, 0.4)
+			-- Build mode: the windmill's card greyed, "Max" and its count 2/2; another's count 0/2; a tap on it picks nothing
+			H.clickNamed(p, "Menu_build", { wait = 0.4 })
+			H.clickNamed(p, "Tab_work", { wait = 0.3 })
+			H.clickNamed(p, "Chip_gen", { wait = 0.25 })
+			local card = H.buttonNamed(p, "Buy_windmill", true)
+			local texts = if card then H.textsOf(card) else {}
+			H.expect(card ~= nil and table.find(texts, "Max") ~= nil and table.find(texts, "2/2") ~= nil, "boost", "the windmill's card says Max with its count 2/2", table.concat(texts, "/"))
+			local other = H.buttonNamed(p, "Buy_toolshed", true)
+			H.expect(other ~= nil and table.find(H.textsOf(other), "0/2") ~= nil and table.find(H.textsOf(other), "Max") == nil, "boost", "a boost building with none yet shows 0/2 and its price", other and table.concat(H.textsOf(other), "/"))
+			H.clickNamed(p, "Buy_windmill", { includeDisabled = true, wait = 0.3 })
+			local said = false
+			for _, d in p.PlayerGui:GetDescendants() do
+				if d:IsA("TextLabel") and string.find(d.Text, "Two of each boost building", 1, true) and H.guiVisible(d) then
+					said = true
+				end
+			end
+			H.expect(H.buttonNamed(p, "Place", true) == nil and said, "boost", "a tap on it picks nothing up and says why")
+			H.clickNamed(p, "BuildDone", { wait = 0.3 })
+		end
 		H.push(p, 0.4)
 		E.run(0.7)
 		local BTc = H.cmod(p, "Controllers.BuildingTags")
@@ -535,8 +567,9 @@ do
 			return if v == math.floor(v) then string.format("%d%%", v) else string.format("%.1f%%", v)
 		end
 		local want1 = string.format("Windmill +%s to all from %d boosts", pct(info.total), info.count)
-		local want2 = string.format("One more adds +%s", pct(by * Tuning.BoostStack * Tuning.BoostStack))
-		H.expect(shown and info.count == 2 and st.card == want1 and st.card2 == want2, "boost", "a tap on a windmill: everything's boost from both, and what one more adds", string.format("%q / %q (want %q / %q)", st.card, st.card2, want1, want2))
+		-- (two is the most of a kind since 2026-11-20: the card says so in place of what one more would add)
+		local want2 = "2 of 2 built"
+		H.expect(shown and info.count == 2 and info.more == 0 and st.card == want1 and st.card2 == want2, "boost", "a tap on a windmill: everything's boost from both, and that two is the most", string.format("%q / %q (want %q / %q)", st.card, st.card2, want1, want2))
 		local roomy = 0
 		for _, sp in H.inClient(p, BTc.debugSpots) do
 			if sp.kind == "boost" and sp.room ~= 0 then

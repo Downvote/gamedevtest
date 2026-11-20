@@ -174,7 +174,7 @@ function StoreUI.eggInstead(r: number)
 		return
 	end
 	local rar = Traits.RARITY[Store.EGG_R[key] or 2] or Traits.RARITY[2]
-	local an = if rar.name == "Uncommon" or rar.name == "Epic" then "an" else "a"
+	local an = if string.match(string.lower(rar.name), "^[aeiou]") then "an" else "a"
 	UIKit.notice(string.format("Not enough shells. Buy %s %s egg with Robux?", an, string.lower(rar.name)), UIKit.color("text_dim"))
 	StoreUI.buy(key)
 end
