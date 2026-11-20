@@ -2542,12 +2542,13 @@ day's wind comes as wisps (at most `MAX_WISPS` 7 at once, times the tier scale a
 and the whole of it fading in and out over its 1.6 s (some fifty faint streaks of the lit colour under them read as a
 broken picture in a still frame, the sweep of 2026-11-19); the streaks' list is compacted in place each frame; snow (sprites
 `fx_flake1..3` from ArtData's `fx_flake_1..3`), petals and leaves (`Fx.KINDS`, tinted), haze motes and splashes share
-one `Fx.newSystem(1000)`; fog is `FOG_CLOUDS` 8 `Cloud`s (`{ x, y, vx, born, w, h, dx, dy, d, b, low, n }`, 8 x the
+one `Fx.newSystem(1000)`; fog is `FOG_CLOUDS` 5 `Cloud`s (`{ x, y, vx, born, w, h, dx, dy, d, b, low, n }`, 5 x the
 tier scale, at least 2): x, y in global art px (the cam's `gx`, `gy`, so they hang over the world as the view pans),
 drifting right at 2.5 to 6 px a second; `shapeCloud` lays out 4 to 7 flattened puffs on a cloud 110 to 210 px wide
 (times the screen's fit, `min(W / 640, H / 360)` clamped 0.6 .. 1.2) and half as tall and keeps each pixel's thickness
 step (`d`: 1/4 .. 1), its `BAYER` 4x4 threshold (`b`) and whether it is on the underside (`low`); a pixel draws when
-`d x strength x fade > b` (`FOG_FADE` 2.5 s), mixed at `FOG_ALPHA` 0.62 in `FOG_TOP` or `FOG_LOW`. The first clouds are
+`d x FOG_DENSITY x strength x fade > b` (`FOG_DENSITY` 0.55, `FOG_FADE` 2.5 s), mixed at `FOG_ALPHA` 0.34 in `FOG_TOP`
+or `FOG_LOW` (subtle since 2026-11-20, GAME_DESIGN 13: it was 8 clouds, solid in their middles, mixed at 0.62). The first clouds are
 spread in slots across the screen; one gone off downwind comes back upwind with a new shape, one left behind by a pan
 wraps to the far side. The light: the
 kind's grade stepped in `GRADE_STEPS` 4 over `GRADE_SECS` 2 through `DayLight.setWeather`; a storm flashes it (x1.28,

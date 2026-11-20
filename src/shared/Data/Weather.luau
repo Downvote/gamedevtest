@@ -38,7 +38,7 @@ Weather.KINDS = {
 	{ id = "storm", name = "Storm", laid = "Laid in a storm", starts = "A storm rolls in.", family = "stormy", icon = "storm", mark = "purple",
 		grade = { mr = 0.85, mg = 0.88, mb = 0.97, lift = 6, sat = 0.76 } },
 	{ id = "fog", name = "Fog", laid = "Laid in the fog", starts = "Fog drifts in.", family = "misty", icon = "fog", mark = "steel",
-		grade = { mr = 1.01, mg = 1.02, mb = 1.04, lift = 16, sat = 0.8 } },
+		grade = { mr = 1.0, mg = 1.01, mb = 1.03, lift = 7, sat = 0.9 } },
 	{ id = "snow", name = "Snow", laid = "Laid in the snow", starts = "It's snowing.", family = "frosty", icon = "snow", mark = "white",
 		grade = { mr = 1.03, mg = 1.05, mb = 1.09, lift = 6, sat = 0.92 } },
 	{ id = "blossom", name = "Blossom wind", laid = "Laid in the blossom wind", starts = "Petals on the wind.", family = "bloomy", icon = "petal", mark = "pink",

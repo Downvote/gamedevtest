@@ -255,9 +255,12 @@ end
 -- is a shade cooler than the top (lit from above). The clouds hang over the world (they scroll with the island when
 -- the view pans), come and go by the same dither, and one that drifts off the screen comes back in from upwind with a
 -- new shape.
+-- (subtle since 2026-11-20, "the fog effect is too strong. make it subtle": the mist a third over what is under it,
+-- not two thirds; a cloud's middle at most every other pixel or so (FOG_DENSITY), never solid; fewer clouds)
 local FOG_TOP, FOG_LOW = 0xF6F8FC, 0xDCE3EE
-local FOG_ALPHA = 0.62
-local FOG_CLOUDS = 8 -- clouds at once on the high tier (fewer on the lower ones)
+local FOG_ALPHA = 0.34
+local FOG_DENSITY = 0.55 -- the thickest a cloud's middle is (1: every pixel)
+local FOG_CLOUDS = 5 -- clouds at once on the high tier (fewer on the lower ones)
 local FOG_FADE = 2.5 -- seconds a cloud takes to come in
 local BAYER = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 }
 -- a cloud: where it is (global art px: Raster cams carry their pan as gx, gy), how fast it drifts, when it came in,
@@ -356,7 +359,7 @@ local function drawFog(ctx: Fx.Ctx, k: number, now: number, dt: number, still: b
 		if lx + c.w < 0 or lx >= W or ly + c.h < 0 or ly >= H then
 			continue
 		end
-		local kk = k * math.clamp((now - c.born) / FOG_FADE, 0, 1)
+		local kk = k * FOG_DENSITY * math.clamp((now - c.born) / FOG_FADE, 0, 1)
 		local dxs, dys, ds, bs, lows = c.dx, c.dy, c.d, c.b, c.low
 		for m = 1, c.n do
 			if ds[m] * kk > bs[m] then
