@@ -1390,6 +1390,14 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   it, onto the layer (`load`, then the ink, the contact shade, the water and the grade over it); the region's other
   tiles on the layer are queued, joined into runs along each row; and the staged parts' coming and the replaced
   models' parts' going (`oldParts`: kept as a set, a part going may be cut off from its model by then) cast nothing.
+  After the swap the job answers for its models' comings and goings for 8 s (`untilT`), then lets go (`PC.step`,
+  `PC.swap`: `preReset`), so the island after the next is cast ahead in its turn; before 2026-11-20 it was kept until
+  the next bake, and the next expansion was never cast ahead while the models it had swapped in counted as drawn on
+  every later change ("there are artifacts that appear around after expanding"). `PC.apply` empties the pan cache
+  before putting the cast tiles in (no tile of the island as it was comes back on a pan), and restarts a whole bake
+  under way (`rebakeAt`). A model arriving under the name of a staged one (`newNames`) that is not it, a fresh copy, is
+  queued whole once (`recast`) instead of part by part. PlotService moves the staged tree straight into the island's
+  `Decor` (it went through nil, which a client receives as a new copy: "the tree outlines are still broken").
   `debugPre() -> { tiles, rays, pasted, cast, skipped, reset, other, early, job? }`. The expansion preview
   (`expandperf=<tier>`) waits for the job, swaps, and checks the picture against a fresh cast (`debugCastCheck`: the
   differences left are faces lying at one depth, which the simulator's ray index, built per filter, may break either
@@ -1447,8 +1455,13 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   copying the new picture onto the frame without asking for a whole compose, so the incremental ones went on from the
   old place's base and every effect taken off put back an old pixel: rows of another spot's colours trailing each
   leaf and wisp of wind. `finishBake` asks for one now),
-  `debugCastCheck() -> { off, checked, ids, lits, shades }` (the static layer against casting all of it afresh at its
-  pan, then put back: what pans and the pan cache left different; a few shadow-edge pixels is the usual) and
+  `debugCastCheck(full?, mask?) -> { off, checked, ids, lits, shades, ties, ex, tieEx, inkOff?, skyOver?, ghost?,
+  tiles?, box?, mask? }` (the static layer against casting all of it afresh at its pan, then put back: what pans and
+  the pan cache left different; a few shadow-edge pixels is the usual. `ties`: another part met at the same depth, the
+  ray index's choice. With `full` the ink and contact shade are drawn again and the colour compared too, `inkOff`, and
+  the pixels off sorted: `skyOver` nothing on the layer where a fresh cast meets a part, `ghost` the reverse, the 32 px
+  `tiles` and the `box` they fall in, and with `mask` a byte a layer pixel: 1 sky over, 2 ghost, 3 another part or
+  depth, 4 ink alone, 5 a tie; the `expandrim` preview) and
   `debugWaterCheck() -> { off, checked, wind }` (the water pixels showing a tone not the frame's, and the pixels the
   wind has painted). The `pan` preview walks the founder round a square twice (the second time over ground the pan
   cache has kept), then stands, and reports them.

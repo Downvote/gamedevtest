@@ -4503,6 +4503,8 @@ type PreJob = {
 	folder: Instance,
 	tier: number,
 	newSet: { [Instance]: boolean }, -- the staged models (chunks, the tree)
+	newNames: { [string]: Instance }, -- (the same by name: a copy of one arriving in its place is known)
+	recast: { [Instance]: boolean }, -- (such copies, each re-cast whole once)
 	oldSet: { [Instance]: boolean }, -- the island's models they replace
 	region: { [number]: { number } }, -- every tile the swap changes, by key: { tx, ty }
 	modelTiles: { [Instance]: { number } }, -- each model's tile keys
@@ -4593,6 +4595,8 @@ function PC.start(s: Surf): boolean
 		folder = folder,
 		tier = tierAttr,
 		newSet = {},
+		newNames = {},
+		recast = {},
 		oldSet = {},
 		region = {},
 		modelTiles = {},
@@ -4612,6 +4616,7 @@ function PC.start(s: Surf): boolean
 	local olds: { Instance } = {}
 	for _, m in folder:GetChildren() do
 		job.newSet[m] = true
+		job.newNames[m.Name] = m
 		local cxz = string.match(m.Name, "^(Chunk_%-?%d+_%-?%d+_)")
 		local uid = string.match(m.Name, "^(%d+:tree:)")
 		local from = if cxz then land elseif uid then decor else nil
@@ -4702,6 +4707,12 @@ end
 
 -- Cast pre-cast tiles until `deadline`.
 function PC.step(s: Surf, deadline: number)
+	-- (a swap that has landed lets go once its parts have come and gone: the next island's job can start. Kept, it
+	-- cast nothing ahead for the next expansion and went on calling the swapped models' later changes its own: the
+	-- report of 2026-11-20, "there are artifacts that appear around after expanding")
+	if PC.job and PC.job.switched and os.clock() >= PC.job.untilT then
+		preReset()
+	end
 	if PC.job == nil then
 		if not PC.dirty and os.clock() - PC.tried < 1 then
 			return
@@ -4845,6 +4856,16 @@ function PC.apply(job: PreJob)
 	if s == nil then
 		return
 	end
+	-- (the pan cache starts again from the island as it is now: a tile kept from before the expansion came back on a
+	-- pan wherever a change had not dropped it, a square of the old picture, sky where the new rocks are: the report
+	-- of 2026-11-20, "there are artifacts that appear around after expanding". The tiles cast ahead go in below.)
+	SG.Tiles.clear()
+	if baking then
+		-- (a whole bake under way has cast part of the island as it was: it starts again, or the rows it had done would
+		-- come up with the old island in them, the swap's parts never cast again)
+		rebakeAt = os.clock()
+		rush = true
+	end
 	local gx0, gy0 = s.cam.gx, s.cam.gy
 	local lx1, ly1 = gx0 + s.W - 1, gy0 + s.H - 1
 	PC.stats.ax, PC.stats.ay = gx0, gy0
@@ -4914,6 +4935,11 @@ function PC.swap(d: Instance): boolean
 	if job == nil then
 		return false
 	end
+	if job.switched and os.clock() >= job.untilT then
+		-- (a swap long landed: its models' changes now are ordinary ones)
+		preReset()
+		return false
+	end
 	if job.oldParts[d] then
 		if not job.switched then
 			PC.stats.early += 1
@@ -4924,6 +4950,30 @@ function PC.swap(d: Instance): boolean
 	end
 	local m = PC.modelOf(job, d)
 	if m == nil then
+		if job.switched then
+			-- (another copy of a staged model come in its place, as a client sees a model the server parented to nil
+			-- on the way: the pre-cast drew the staged copy, so the new one is cast again whole, once, its ids its own,
+			-- never a patchwork of the two)
+			local a: Instance? = d.Parent
+			for _ = 1, 8 do
+				if a == nil then
+					break
+				end
+				local twin = job.newNames[(a :: Instance).Name]
+				if twin and twin ~= a then
+					if not job.recast[a :: Instance] then
+						job.recast[a :: Instance] = true
+						local r = PC.modelRect(a :: Instance)
+						if r then
+							queueRect(r)
+						end
+					end
+					PC.stats.skipped += 1
+					return true
+				end
+				a = (a :: Instance).Parent
+			end
+		end
 		PC.stats.other += 1
 		return false
 	end
@@ -5808,7 +5858,12 @@ end
 -- Sims and previews: the static layer against casting all of it afresh at the pan it is at (a pan's strips, cast or
 -- taken back from the pan cache, should give the same pixels as one whole cast). off: the pixels whose part, depth,
 -- normal, light, water or shade differ. The layer is put back as it was afterwards.
-function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: number, lits: number, shades: number, ties: number?, ex: string? }
+-- With `full`: the ink and the contact shade are drawn again too and the colour compared (inkOff: pixels whose cast
+-- matched but whose drawn colour did not, water left out), and the off pixels sorted: skyOver (the layer shows nothing
+-- where a fresh cast meets a part), ghost (the layer shows a part where a fresh cast meets nothing), the 32 px tiles of
+-- the world's grid they fall in (tiles), their box on the layer (box) and, with `mask`, a byte a layer pixel (1 sky
+-- over, 2 ghost, 3 another part or depth, 4 ink only, 5 a tie: another part at the same depth).
+function PixelRenderer.debugCastCheck(full: boolean?, mask: boolean?): { off: number, checked: number, ids: number, lits: number, shades: number, ties: number?, ex: string?, tieEx: string?, inkOff: number?, skyOver: number?, ghost: number?, tiles: number?, box: { number }?, mask: buffer? }
 	local s = surf
 	local out: any = { off = -1, checked = 0, ids = 0, lits = 0, shades = 0 }
 	if s == nil or baking then
@@ -5819,6 +5874,9 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 	table.clear(SG.windPend)
 	local saved: { [string]: buffer } = {}
 	local names = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave" }
+	if full then
+		table.insert(names, "sColor")
+	end
 	local sa = s :: any
 	for _, k in names do
 		saved[k] = buffer.create(buffer.len(sa[k]))
@@ -5826,9 +5884,19 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 	end
 	local rays0 = bakeRays
 	castRect(s, 0, 0, s.W - 1, s.H - 1)
+	if full then
+		reoutline(s, 0, 0, s.W - 1, s.H - 1)
+	end
 	bakeRays = rays0
 	out.off = 0
 	local n = s.W * s.H
+	local mk = if mask then buffer.create(n) else nil
+	local tileSet: { [number]: boolean } = {}
+	local bx0, by0, bx1, by1 = math.huge, math.huge, -1, -1
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	if full then
+		out.inkOff, out.skyOver, out.ghost = 0, 0, 0
+	end
 	for i = 0, n - 1 do
 		local idOff = buffer.readu16(s.sId, i * 2) ~= buffer.readu16(saved.sId, i * 2)
 		local litOff = buffer.readu8(s.sLit, i) ~= buffer.readu8(saved.sLit, i)
@@ -5853,6 +5921,42 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 		if tie then
 			out.ties = (out.ties or 0) + 1
 		end
+		local inkOnly = full and not (idOff or litOff or shadeOff or other) and buffer.readu8(s.sWClass, i) == 0 and buffer.readu32(s.sColor, i * 4) ~= buffer.readu32(saved.sColor, i * 4)
+		if full and (idOff or litOff or shadeOff or other or inkOnly) then
+			local code = if tie then 5 else 3
+			if inkOnly then
+				out.inkOff += 1
+				code = 4
+			elseif buffer.readu16(saved.sId, i * 2) == 0 and buffer.readu16(s.sId, i * 2) ~= 0 then
+				out.skyOver += 1
+				code = 1
+			elseif buffer.readu16(saved.sId, i * 2) ~= 0 and buffer.readu16(s.sId, i * 2) == 0 then
+				out.ghost += 1
+				code = 2
+			end
+			local x, y = i % s.W, i // s.W
+			tileSet[((gx0 + x) // 32 + 32768) * 65536 + ((gy0 + y) // 32 + 32768)] = true
+			bx0, by0, bx1, by1 = math.min(bx0, x), math.min(by0, y), math.max(bx1, x), math.max(by1, y)
+			if mk then
+				buffer.writeu8(mk, i, code)
+			end
+		end
+		if tie and full and (out.tieN or 0) < 6 then
+			-- (a few of the ties too, for the log: which two parts the layer and a fresh cast meet)
+			out.tieN = (out.tieN or 0) + 1
+			local idNames: { [number]: string } = out.revFull or {}
+			if out.revFull == nil then
+				for part, id in staticIds do
+					local ok, name = pcall(function(): string
+						return (part :: Instance):GetFullName()
+					end)
+					idNames[id] = (if ok then name else "?") .. (if (part :: Instance):IsDescendantOf(game) then "" else " (gone)")
+				end
+				out.revFull = idNames
+			end
+			local a, b = buffer.readu16(saved.sId, i * 2), buffer.readu16(s.sId, i * 2)
+			out.tieEx = (out.tieEx or "") .. string.format("[%d,%d %s #%d / %s #%d at %.2f] ", i % s.W, i // s.W, tostring(idNames[a]), a, tostring(idNames[b]), b, buffer.readf32(s.sDepth, i * 4))
+		end
 		if idOff or litOff or shadeOff or other then
 			out.off += 1
 			if not tie and (out.real or 0) < 8 then
@@ -5872,9 +5976,19 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 		end
 	end
 	out.rev = nil
+	out.revFull = nil
 	out.checked = n
 	for _, k in names do
 		buffer.copy(sa[k], 0, saved[k], 0)
+	end
+	if full then
+		local nt = 0
+		for _ in tileSet do
+			nt += 1
+		end
+		out.tiles = nt
+		out.box = if bx1 >= 0 then { bx0, by0, bx1, by1 } else nil
+		out.mask = mk
 	end
 	return out
 end
