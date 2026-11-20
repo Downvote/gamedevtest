@@ -1935,6 +1935,163 @@ function SCEN.hatchery()
 	return p
 end
 
+-- "treeink": the Tree of Life's edges pixel by pixel (the request of 2026-11-20: "the tree has alot of jaggied
+-- outlines, and stray pixels around the outline, especially near the fruits"). The village's tree at the default
+-- zoom (treeink=<n>: on the View slider's notch n), then every pixel round it printed (TREEPX rows: colour, the
+-- part's name, its depth, its id) for tools/preview/tree_ink.py.
+local function treeModelOf(p)
+	local s = H.session(p)
+	local plots = E.workspace:FindFirstChild("Plots")
+	local pm = plots and plots:FindFirstChild("Plot_" .. tostring(s and s.plot))
+	if pm == nil then
+		return nil
+	end
+	for _, d in pm:GetDescendants() do
+		if d:IsA("Model") and string.find(d.Name, ":tree:", 1, true) then
+			return d
+		end
+	end
+	return nil
+end
+
+function SCEN.treeink(zoomTo: number?)
+	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7, 8, 9 } })
+	local p = join(21, "Grove")
+	settle(p)
+	local s = H.session(p)
+	local Street = H.sharedServer("Data.Street")
+	local Tree = H.sharedServer("Logic.Tree")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(s.plot)
+	local q = Tree.piece(prof)
+	if q and p.Character then
+		local _, d = Plot.footprint(q.id, q.rot)
+		p.Character:PivotTo(E.cf.new(ox + q.x - 1, 3, oz + q.z + d + 2))
+		E.run(2)
+		settle(p, 30, 1)
+	end
+
+	local SU = modOr(p, "UI.SettingsUI")
+	if zoomTo and SU then
+		H.inClient(p, SU.setZoom, zoomTo)
+		E.run(1)
+		settle(p, 30, 1)
+	end
+	capture(p, "treeink")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local m = treeModelOf(p)
+	if PR == nil or m == nil or PR.debugStaticIds == nil then
+		log("treeink: no renderer or no tree")
+		return
+	end
+	local fr, ids, isInk = H.inClient(p, PR.debugStaticIds, m)
+	if fr == nil then
+		log("treeink: no picture")
+		return
+	end
+	local W, Hh = fr.W, fr.H
+	local x0, y0, x1, y1 = W, Hh, -1, -1
+	for i = 0, W * Hh - 1 do
+		if ids[buffer.readu16(fr.id, i * 2)] then
+			local x, y = i % W, i // W
+			x0, y0, x1, y1 = math.min(x0, x), math.min(y0, y), math.max(x1, x), math.max(y1, y)
+		end
+	end
+	if x1 < 0 then
+		log("treeink: the tree is not in the picture")
+		return
+	end
+	x0, y0, x1, y1 = math.max(0, x0 - 3), math.max(0, y0 - 3), math.min(W - 1, x1 + 3), math.min(Hh - 1, y1 + 3)
+	local names, nameIx = {}, {}
+	local function ixOf(id)
+		local part = ids[id]
+		if part == nil then
+			return 0
+		end
+		local nm = part.Name
+		if nameIx[nm] == nil then
+			table.insert(names, nm)
+			nameIx[nm] = #names
+		end
+		return nameIx[nm]
+	end
+	print(string.format("TREEBOX %d %d %d %d", x0, y0, x1, y1))
+	for y = y0, y1 do
+		local row = table.create(x1 - x0 + 1)
+		for x = x0, x1 do
+			local i = y * W + x
+			local c = buffer.readu32(fr.color, i * 4) % 16777216
+			local id = buffer.readu16(fr.id, i * 2)
+			local dpt = math.clamp(math.floor(buffer.readf32(fr.depth, i * 4) * 8 + 0.5), 0, 65535)
+			local full = buffer.readu32(fr.color, i * 4)
+			table.insert(row, string.format("%06x%02x%04x%04x%01x", c, ixOf(id), dpt, id, if isInk(full) then 1 else 0))
+		end
+		print("TREEPX " .. y .. " " .. table.concat(row, ""))
+	end
+	print("TREENAMES " .. table.concat(names, ","))
+	-- the check: the glowing marks (runes, glyphs) and motes within 2 px of an outline (another part's ink, or a pixel
+	-- well behind them), and the bits of the tree standing apart from the rest of it (8-connected groups of its pixels
+	-- under 40): 249 and 2 on this tree before the request of 2026-11-20 was seen to, 1 and 0 after
+	local function partAt(i: number): BasePart?
+		return ids[buffer.readu16(fr.id, i * 2)]
+	end
+	local edges, loose, treePx = 0, 0, 0
+	local seen: { [number]: boolean } = {}
+	for i = 0, W * Hh - 1 do
+		local part = partAt(i)
+		if part then
+			treePx += 1
+			local x, y = i % W, i // W
+			local nm = part.Name
+			if nm == "Rune" or nm == "Glyph" or nm == "Mote" then
+				local dep = buffer.readf32(fr.depth, i * 4)
+				local id0 = buffer.readu16(fr.id, i * 2)
+				local hit = false
+				for yy = math.max(0, y - 2), math.min(Hh - 1, y + 2) do
+					for xx = math.max(0, x - 2), math.min(W - 1, x + 2) do
+						local j = yy * W + xx
+						if buffer.readf32(fr.depth, j * 4) > dep + 0.75 or (buffer.readu16(fr.id, j * 2) ~= id0 and isInk(buffer.readu32(fr.color, j * 4))) then
+							hit = true
+						end
+					end
+				end
+				if hit then
+					edges += 1
+				end
+			end
+			if not seen[i] then
+				local stack, n = { i }, 0
+				seen[i] = true
+				while #stack > 0 do
+					local k = table.remove(stack) :: number
+					n += 1
+					local kx, ky = k % W, k // W
+					for dy = -1, 1 do
+						for dx = -1, 1 do
+							local nx, ny = kx + dx, ky + dy
+							if (dx ~= 0 or dy ~= 0) and nx >= 0 and ny >= 0 and nx < W and ny < Hh then
+								local j = ny * W + nx
+								if not seen[j] and partAt(j) then
+									seen[j] = true
+									table.insert(stack, j)
+								end
+							end
+						end
+					end
+				end
+				if n < 40 then
+					loose += 1
+				end
+			end
+		end
+	end
+	log("treeink: %d of the tree's pixels, %d mark pixels at an outline, %d loose bits", treePx, edges, loose)
+	if treePx < 2000 or edges > 6 or loose > 0 then
+		table.insert(E.warnings, { ctx = "preview", text = string.format("TREEINK: %d of the tree's pixels, %d mark pixels at an outline, %d loose bits", treePx, edges, loose), t = 0, phase = "treeink" })
+	end
+end
+
 -- The Tree of Life and its eggs (GAME_DESIGN 6): a village's tree with its lot of eggs round its roots (a common, a
 -- rare, an epic, a legendary, a mythic, a celestial, an ancient and an eternal one, so each rarity's shell and lights show), their prices over them, the founder in front of it (tree); a new lot rising out of the lawn,
 -- the old one sinking (tree_lay); one hatched by its price tag, cracking, its driftling stepping out (tree_hatch); the
@@ -4276,6 +4433,12 @@ for _, name in list do
 	if showArg then
 		fn = function()
 			return showcaseScenario(tonumber(showArg) :: number)
+		end
+	end
+	local tiArg = string.match(name, "^treeink=(%d+)$")
+	if tiArg then
+		fn = function()
+			return SCEN.treeink(tonumber(tiArg))
 		end
 	end
 	local zoomArg = string.match(name, "^zoom=(%d+)$")

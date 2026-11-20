@@ -1303,6 +1303,9 @@ direction * length)` (pos = an InputObject's Position: the pick ray through what
 pad) -> boolean` (whether a world point lies on the layer or within `pad` art px of it: Controllers/WorldView dresses
 and undresses the driftlings by it, Controllers/Spinners turns only the sails near the screen), `debugStatic()`
 (CLI checks: layer, pan, bakes, ticks, `baking` and `behind` (a bake behind the picture), `scrolls`, `scrollRays`, `recasts`, `queued`),
+`debugStaticIds(root?) -> (Raster.Frame?, { [id]: BasePart }, isInk)` (previews: the static picture's buffers (its
+colour as shown, depth and part ids; nil before a bake), the ids the parts under `root` got (every id with no root),
+and `Shading.isInk` to tell an outline's pixel; the preview `treeink` counts the Tree of Life's loose pixels with it),
 `glide(model, now?, posed?)` (Controllers/WorldView every frame: where a driftling stands and where its parts were
 posed; its kept picture slides between them), `debugShown(model) -> (x?, y?)` (where its picture went down last,
 layer px), `debugShadowCheck() -> { high, darkened, ground, shadows }` (the blob shadows' pixels on raised surfaces,
