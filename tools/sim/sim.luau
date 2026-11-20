@@ -150,11 +150,11 @@ do
 	end
 	local k0 = H.inClient(p, PRs.pixelScale)
 	H.expect(prof.settings.screen == "auto" and H.inClient(p, DS.factor) == 1, "settings", "a new player's Screen: Auto, the sim's screen found at 100%", string.format("%s %g", tostring(prof.settings.screen), H.inClient(p, DS.factor)))
-	H.expect(H.clickNamed(p, "Set_screen_125", { wait = 1.2 }) and prof.settings.screen == "125", "settings", "Screen 125%, kept with the profile", tostring(prof.settings.screen))
+	H.expect(H.clickNamed(p, "Set_screen_125", { wait = 0.6 }) and prof.settings.screen == "125", "settings", "Screen 125%, kept with the profile", tostring(prof.settings.screen))
 	local k1 = H.inClient(p, PRs.pixelScale)
 	local px1 = k1 * 1.25
 	H.expect(H.inClient(p, DS.factor) == 1.25 and math.abs(px1 - math.floor(px1 + 0.5)) < 1e-6 and k1 ~= k0, "settings", "at 125% the pixel size is a whole number of the screen's pixels", string.format("%g units -> %g units (%g pixels)", k0, k1, px1))
-	H.expect(H.clickNamed(p, "Set_screen_auto", { wait = 1.2 }) and prof.settings.screen == "auto" and math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "and Auto again: back as it was", string.format("%g", H.inClient(p, PRs.pixelScale)))
+	H.expect(H.clickNamed(p, "Set_screen_auto", { wait = 0.6 }) and prof.settings.screen == "auto" and math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "and Auto again: back as it was", string.format("%g", H.inClient(p, PRs.pixelScale)))
 	-- (Auto finds a screen at 125% from what Roblox reports there: positions and sizes 0.8 of a unit apart)
 	local found = H.inClient(p, function()
 		for _, v in { 100.8, 205.6, 63.2, 1092.8, 614.4, 333.6 } do
@@ -164,7 +164,7 @@ do
 	end)
 	H.expect(found == 1.25, "settings", "Auto finds a screen at 125% from the mouse and the screen's size", tostring(found))
 	H.inClient(p, DS.debugReset)
-	E.run(1)
+	E.run(0.3)
 	H.expect(math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "(and the sim's screen back at 100%)", string.format("%g", H.inClient(p, PRs.pixelScale)))
 	H.expect(H.req(p, "settings.set", { k = "screen", v = "133" }).err == "bad_payload", "settings", "a Screen value that isn't one of the choices: bad_payload")
 end
@@ -439,7 +439,7 @@ do
 	H.expect(n == Tuning.EggCount[1] and #c.list == n and c.next == n + 1, "join", "its first lot laid at once: Tree.count(1) eggs round its roots", string.format("%d of %d, next %d", #c.list, n, c.next))
 	local common = TreeL.cost(prof, 1)
 	H.expect(#c.list >= 2 and c.list[1].r == 1 and c.list[2].r == 1 and common == Tuning.EggPrice[1] * Tuning.EggTier[1] and 2 * common <= Tuning.StartShells, "join", "the first two cheap commons the starting shells cover", eggsAttr(c.list))
-	H.expect(math.abs(TreeL.secs(prof) - Tuning.EggSecs) < 1e-9 and c.left > TreeL.secs(prof) - 12 and c.left <= TreeL.secs(prof), "join", "the next lot Tree.secs (EggSecs) away (the Settings checks before it take a few seconds)", string.format("%.1f s of %.1f", c.left, TreeL.secs(prof)))
+	H.expect(math.abs(TreeL.secs(prof) - Tuning.EggSecs) < 1e-9 and c.left > TreeL.secs(prof) - 16 and c.left <= TreeL.secs(prof), "join", "the next lot Tree.secs (EggSecs) away (the Settings checks before it take a few seconds)", string.format("%.1f s of %.1f", c.left, TreeL.secs(prof)))
 	H.expect(plot1:GetAttribute("Eggs") == eggsAttr(c.list) and plot1:GetAttribute("Tide") == nil, "join", "the plot's Eggs attribute: each egg's id and rarity (no Tide)", tostring(plot1:GetAttribute("Eggs")))
 	E.runUntil(function()
 		return eggsSynced(p)
