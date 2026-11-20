@@ -2500,13 +2500,18 @@ end
 -- especially for bigger buildings"). An orchard (4 by 4) by the founder: each frame logs where the falling stand-in is
 -- drawn (layer px), whether the server's model is in the island, the re-casts waiting, and how many of the building's
 -- pixels differ from the frame before it was put down; frames drop_0 (just after) to drop_6 and drop_done.
-function SCEN.drop()
+-- "dropdrag": the same, the view dragged away fast (Build mode's drag, CameraController.panBy) from the frame after the
+-- tap for 12 frames (the report of 2026-11-20: "putting down a building/anything leaves a clone of it that lingers awhile
+-- if you drag away while doing it"); frames dropdrag_0 .. and dropdrag_done.
+local function dropScenario(drag: boolean)
+	local tag = if drag then "dropdrag" else "drop"
 	seedProfile(58, 2, { pieces = { { "nest", -8, 1 } }, pals = { "mossbun" }, shells = 250000 })
 	local p = join(58, "Dropper")
 	settle(p, 30, 1)
 	local BuildUI = modOr(p, "UI.BuildUI")
 	local PR = modOr(p, "Pixel.PixelRenderer")
 	local BuildFx = modOr(p, "Controllers.BuildFx")
+	local CC = modOr(p, "Controllers.CameraController")
 	local Street = H.sharedServer("Data.Street")
 	local Plot = H.sharedServer("Logic.Plot")
 	local prof = H.profile(p)
@@ -2585,8 +2590,16 @@ function SCEN.drop()
 	local plots = E.workspace:FindFirstChild("Plots")
 	local plotM = plots and plots:FindFirstChild("Plot_" .. plot)
 	local decor = plotM and plotM:FindFirstChild("Static") and plotM.Static:FindFirstChild("Decor")
-	local caps = { [1] = "drop_0", [3] = "drop_1", [5] = "drop_2", [6] = "drop_3", [7] = "drop_4", [8] = "drop_5", [12] = "drop_6" }
+	local caps = { [1] = tag .. "_0", [3] = tag .. "_1", [5] = tag .. "_2", [6] = tag .. "_3", [7] = tag .. "_4", [8] = tag .. "_5", [12] = tag .. "_6" }
+	if drag then
+		caps = { [1] = "dropdrag_0", [4] = "dropdrag_1", [8] = "dropdrag_2", [12] = "dropdrag_3", [16] = "dropdrag_4", [22] = "dropdrag_5", [30] = "dropdrag_6", [45] = "dropdrag_7", [60] = "dropdrag_8" }
+	end
 	for f = 1, 60 do
+		-- (the view dragged away fast: 60 screen px left and 24 up a frame for 12 frames, past what the picture scrolls in
+		-- a frame, so it catches up over the frames after)
+		if drag and CC and f >= 2 and f <= 13 then
+			H.inClient(p, CC.panBy, -60, -24)
+		end
 		E.step(E.dt)
 		local stand = dynF and dynF:FindFirstChild("DropIn")
 		local sx, sy = nil, nil
@@ -2605,14 +2618,34 @@ function SCEN.drop()
 			end
 		end
 		local n, st = differs()
+		if drag and stand then
+			-- (where the server's model stands on the layer now, against where the stand-in was drawn)
+			local rp = H.inClient(p, PR.project, E.v3(ox + bx + 2, Street.LAWN_Y, oz + bz + 2))
+			log("dropdrag frame %d: the spot at %.1f,%.1f on the layer; casting %s", f, rp.X / K, rp.Y / K, tostring(real and decor and H.inClient(p, function()
+				for _, c in decor:GetChildren() do
+					if string.find(c.Name, ":" .. id .. ":", 1, true) then
+						return PR.casting(c)
+					end
+				end
+				return nil
+			end)))
+		end
 		log("drop frame %d: showing %d, stand-in %s drawn at %s,%s pivot at %s,%s; real model %s; ghost %s; re-casts waiting %d; %d of the box's px differ", f, H.inClient(p, BuildFx.showing), tostring(stand ~= nil), tostring(sx), tostring(sy), if px then string.format("%.1f", px) else "-", if py then string.format("%.1f", py) else "-", tostring(real), tostring(dynF ~= nil and dynF:FindFirstChild("Ghost") ~= nil), st.queued, n)
 		if caps[f] then
 			capture(p, caps[f])
 		end
 	end
 	settle(p, 10, 0.5)
-	capture(p, "drop_done")
+	capture(p, tag .. "_done")
 	return p
+end
+
+function SCEN.drop()
+	return dropScenario(false)
+end
+
+function SCEN.dropdrag()
+	return dropScenario(true)
 end
 
 -- "buildui": the build catalog (GAME_DESIGN 4: "Polish the build ui more, just like the bakery game, and reference

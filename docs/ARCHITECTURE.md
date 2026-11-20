@@ -2305,6 +2305,12 @@ until `PixelRenderer.casting(real)` has been false two frames running, at most `
 2026-11-20, "when a building is placed, it seems to shift right instead of shifting down. also, they seem to vanish for
 awhile before appearing, especially for bigger buildings"; the stand-in used to go at the landing while a big
 building's rect took several frames to cast, and was moved along its pivot's own up, which a new model does not set).
+`BuildUI.confirm` takes the spot (`id`, `x`, `z`, `rot`) once, before it asks, and hands that to `expect`, the ask,
+`drop` and the filled cell: the pick's `x` and `z` follow the pointer while the ask waits for the server, and the drop
+used to take them after it (the report of 2026-11-20, "putting down a building/anything leaves a clone of it that
+lingers awhile if you drag away while doing it": the stand-in fell under the pointer and waited `SETTLE_MAX` for a model
+that never came there, the real one held for `EXPECT_SECS`); a pick the pointer took to another cell meanwhile keeps its
+ghost there.
 At the landing
 (`land`): six `poof` clouds on a ring round the footprint, bursts of its feel's two particle kinds (`FEEL`: wood `wood
 dust`, stone `chips dust`, plant `leaf dust`, water `drop drop`, metal `glint dust`, magic `magic star`, sand `dust

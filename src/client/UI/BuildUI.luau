@@ -1851,35 +1851,42 @@ function BuildUI.confirm()
 	end
 	local lvl = 1
 	local uid = 0
+	-- the spot as it is now: the pointer may move the pick to another cell while the server answers (the ask waits on
+	-- it), and the drop, the hold and the filled cell are this spot's (the report of 2026-11-20: "putting down a
+	-- building/anything leaves a clone of it that lingers awhile if you drag away while doing it": the stand-in fell
+	-- where the pointer had gone and waited there for a model that never came, while the real one was held out of the
+	-- island until its watch ran out)
+	local id, x, z, rot = p.id, p.x, p.z, p.rot
 	-- (the server's model held out of the island the moment it arrives, until its stand-in has dropped in: BuildFx)
-	local expected = BuildFx.expect(myPlot(), p.id, p.x, p.z, p.rot)
+	local expected = BuildFx.expect(myPlot(), id, x, z, rot)
 	if moving then
 		local q = placed()[moving]
 		if q then
 			lvl, uid = q.lvl, q.uid
 		end
-		res = ask("plot.move", { i = moving, x = p.x, z = p.z, rot = p.rot })
+		res = ask("plot.move", { i = moving, x = x, z = z, rot = rot })
 	else
-		res = ask("plot.place", { id = p.id, x = p.x, z = p.z, rot = p.rot })
+		res = ask("plot.place", { id = id, x = x, z = z, rot = rot })
 		if res.ok and type(res.data) == "table" then
 			uid = tonumber(res.data.uid) or 0
 		end
 	end
 	if res.ok then
 		-- (it drops in and lands with its dust, its sound and its charm)
-		BuildFx.drop(myPlot(), uid, p.id, p.x, p.z, p.rot, lvl)
+		BuildFx.drop(myPlot(), uid, id, x, z, rot, lvl)
 		-- (the tip's building placed: the tray goes on to the next tip's tab rather than offering another copy; the last
 		-- one from the Inventory tab down: nothing left to put down)
 		if moving or (goal and goal.id == p.id) or (p.inv and heldBefore <= 1) then
 			pick = nil
 			clearGhost()
-		elseif pick == p then
+		elseif pick == p and p.x == x and p.z == z then
 			-- placing: the piece stays picked for another copy, its ghost off the spot just filled until the pointer
 			-- moves to another cell (drawn again there at once, a copy stood where the new one dropped in, then went
 			-- off with the pointer, which read as the building sliding sideways: the report of 2026-11-20, "when a
-			-- building is placed, it seems to shift right instead of shifting down")
+			-- building is placed, it seems to shift right instead of shifting down"). A pick the pointer took to
+			-- another cell while the server answered keeps its ghost there.
 			p.set = false
-			p.filled = { p.x, p.z }
+			p.filled = { x, z }
 			clearGhost()
 		end
 		task.defer(function()

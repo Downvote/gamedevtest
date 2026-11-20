@@ -1382,6 +1382,15 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, Â
   pointer moves to another square: it used to come back there at once, so the new piece dropped onto a copy of itself
   standing in its place, and that copy then went off sideways with the pointer. The server's model is kept out of the
   island from the moment it arrives until its drop is done, so it never shows early.
+
+  > The report (2026-11-20): "putting down a building/anything leaves a clone of it that lingers awhile if you drag
+  > away while doing it"
+
+  Placing waits a moment for the server's answer, and the pointer can move on meanwhile. The drop used to be worked out
+  from where the pointer was when the answer came, so with the pointer on another square the stand-in fell there, on a
+  spot with nothing built, and stood for its full 3 s, while the real building on the square you clicked was kept out of
+  the island for the 5 s its watch lasts. Now the square is taken once, the moment you click: the stand-in drops there,
+  the real building comes back as soon as it lands, and the ghost waits under the pointer for the next one.
 - **The sounds** go by feel, cut from clips the game already has: a hammer's tap for wood, pebbles for stone, rustling
   grass for plants, a low bubble pop for water, a chime's clink for metal, a sparkle of chimes for magic, footsteps in
   sand for sand (higher for snow), a cloth flap for cloth and a shaker for fire.

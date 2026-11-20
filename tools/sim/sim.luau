@@ -2750,6 +2750,69 @@ do
 	H.expect(quiet and H.inClient(p, BuildFxP.showing) == 0 and H.inClient(p, PuffsP.count) == 0, "decor", "both back to nothing within a moment", string.format("%d showing, %d particles, %.2f s", H.inClient(p, BuildFxP.showing), H.inClient(p, PuffsP.count), E.now() - t0))
 	H.expect((dyn2 == nil or dyn2:FindFirstChild("DropIn") == nil) and q ~= nil and modelOf(q) ~= nil, "decor", "the stand-in gone and the real model back in Static.Decor")
 	H.log("effects: dropping %.2f s after the click, particles %.2f s, quiet %.2f s", firstShow, firstPuffs, E.now() - t0)
+	-- the pointer going on to another cell while the server answers: the piece drops in where it was put down, the real
+	-- one comes back into the island at once, and the ghost waits under the pointer (the report of 2026-11-20: "putting
+	-- down a building/anything leaves a clone of it that lingers awhile if you drag away while doing it": the stand-in fell
+	-- where the pointer had gone and stood there for its 3 s, the real one held out of the island for 5)
+	do
+		local ax, az = spot("sandcastle", 0)
+		local bx, bz = nil, nil
+		if ax then
+			for _, d in { { -4, 0 }, { 0, -4 }, { -6, 0 }, { 0, -6 }, { -4, -4 } } do
+				local cx, cz = ax + d[1], az + d[2]
+				if Plot.fits(prof.tier, prof.plot.placed, "sandcastle", cx, cz, 0) then
+					bx, bz = cx, cz
+					break
+				end
+			end
+		end
+		H.expect(ax ~= nil and bx ~= nil, "decor", "(room for two more sandcastles)")
+		if ax and bx then
+			local ox, oz = Street.origin(s.plot)
+			local w, d = Plot.footprint("sandcastle", 0)
+			local at = E.v3(ox + ax + w / 2, Street.LAWN_Y, oz + az + d / 2)
+			local bt = E.v3(ox + bx + w / 2, Street.LAWN_Y, oz + bz + d / 2)
+			tapFor("sandcastle", ax, az)
+			local bScreen = screenAt(bt)
+			local orig = SCp.request
+			SCp.request = function(action, payload)
+				if action == "plot.place" then
+					SCp.request = orig
+					-- (the pointer on the other cell before the answer comes)
+					BuildUI.tapScreen(bScreen, false)
+				end
+				return orig(action, payload)
+			end
+			local t1 = E.now()
+			H.inClient(p, BuildUI.confirm)
+			SCp.request = orig
+			local qa = nil
+			local offSpot, backAt, goneAt, seen = 0, -1, -1, false
+			for _ = 1, 40 do
+				E.run(0.05)
+				qa = qa or pieceAt("sandcastle", ax, az)
+				local stand = dyn2 and dyn2:FindFirstChild("DropIn")
+				if stand then
+					seen = true
+					local pv = stand:GetPivot().Position
+					if math.abs(pv.X - at.X) > 0.5 or math.abs(pv.Z - at.Z) > 0.5 then
+						offSpot += 1
+					end
+				elseif seen and goneAt < 0 then
+					goneAt = E.now() - t1
+				end
+				if backAt < 0 and qa and modelOf(qa) then
+					backAt = E.now() - t1
+				end
+			end
+			local ghost = dyn2 and dyn2:FindFirstChild("Ghost")
+			local gp = ghost and ghost:GetPivot().Position
+			H.expect(qa ~= nil and pieceAt("sandcastle", bx, bz) == nil, "decor", "the pointer moved on while the server answered: the piece goes down where it was put, not under the pointer", string.format("at %d,%d %s, at %d,%d %s", ax, az, tostring(qa ~= nil), bx, bz, tostring(pieceAt("sandcastle", bx, bz) ~= nil)))
+			H.expect(seen and offSpot == 0 and goneAt > 0 and goneAt <= 1.5, "decor", "its stand-in drops on that spot and goes once the real one is drawn (no copy left under the pointer)", string.format("%d frames off the spot, gone after %.2f s", offSpot, goneAt))
+			H.expect(backAt >= 0 and backAt <= 1, "decor", "the real one back in the island within a second, not held for the watch's 5 s", string.format("%.2f s", backAt))
+			H.expect(gp ~= nil and math.abs(gp.X - bt.X) < 0.5 and math.abs(gp.Z - bt.Z) < 0.5, "decor", "and the ghost waits under the pointer for the next one", if gp then string.format("%.1f,%.1f against %.1f,%.1f", gp.X, gp.Z, bt.X, bt.Z) else "no ghost")
+		end
+	end
 	-- (the classic look again, the saved tier as it was)
 	H.req(p, "settings.set", { k = "pixel", v = pixel0 })
 	E.run(0.3)
