@@ -1151,8 +1151,8 @@ end
 E.phase = "daynight"
 -- no day and night (the request of 2026-11-14: "remove the day night cycle, and make everything brighter"): whatever
 -- the sea's clock says, the light is the same bright day (UI/DayLight's BRIGHT grade: lighter, never dark, no lamp
--- pools; with the filter off, as in this engine, Roblox's own clock stays at early afternoon), the crickets never sing
--- and the music is the day's
+-- pools; with the filter off, as in this engine, Roblox's own clock stays at early afternoon) and the music is the
+-- day's; the crickets follow the sky's own night since 2026-11-20 (only the sky turns to night)
 do
 	local PR = H.cmod(p, "Pixel.PixelRenderer")
 	local DL = H.cmod(p, "Controllers.DayLight")
@@ -1176,11 +1176,19 @@ do
 		local st, off = at(f)
 		H.expect(st.frac == DL.frac() and (if off then st.clock >= 12 and st.clock <= 15 else true), "daynight", string.format("bright day at %.2f of the calendar day", f), string.format("frac %.2f, clock %s", st.frac, tostring(st.clock)))
 	end
-	local loud = H.inClient(p, function()
-		local snd = E.find("SoundService"):FindFirstChild("Ambience_crickets", true)
-		return if snd and snd:IsA("Sound") then snd.Volume else 0
-	end)
-	H.expect(loud == 0, "daynight", "no crickets through the calendar's night hours: there is no night", tostring(loud))
+	-- the crickets follow the sky's own night (DayLight.night, the request of 2026-11-20 for a day and night cycle in the
+	-- sky), not the calendar: silent with the sky held at noon, singing with it held at midnight
+	local function crickets(h)
+		H.inClient(p, DL.debugSky, h)
+		E.run(2.5)
+		return H.inClient(p, function()
+			local snd = E.find("SoundService"):FindFirstChild("Ambience_crickets", true)
+			return if snd and snd:IsA("Sound") then snd.Volume else 0
+		end)
+	end
+	local noonVol, nightVol = crickets(0.5), crickets(0.95)
+	H.inClient(p, DL.debugSky, nil)
+	H.expect(noonVol < 0.01 and nightVol > 0.05, "daynight", "the crickets sing in the sky's night and not at its noon, whatever the calendar's hour", string.format("noon %.3f, midnight %.3f", noonVol, nightVol))
 end
 
 ------------------------------------------------------------------ the rewards (GAME_DESIGN 15)

@@ -322,7 +322,7 @@ function SCEN.island()
 	local SB = modOr(p, "UI.SkyBackdrop")
 	if SB then
 		local d = H.inClient(p, SB.debugState)
-		log("island sky: %s, %dx%d art px, painted %d times, clouds at %d", d.kind, d.W, d.H, d.paints, d.off)
+		log("island sky: %s, %dx%d art px, painted %d times, the sea of clouds at %d", d.kind, d.W, d.H, d.paints, d.seaOff)
 	end
 	return p
 end

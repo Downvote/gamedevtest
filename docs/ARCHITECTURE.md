@@ -413,30 +413,46 @@ Models (`src/shared/Models`, Roblox modules):
   chunks = { { name, rect } }, sign, walls }` (the island's chunks of `CHUNK` (8) x 8 cells on a grid from the plot's
   origin and clipped to the lot, each with any of the island in it; a chunk's name is `Chunk_<cx>_<cz>_<signature>`,
   two 26-bit hashes of every cell's code (`cellCode`: 0 the open air, else which of `BANDS` its coast distance is in:
-  the wall's, the lawn's edge and rim, the lip's and every ring of rock's inner and outer edges, the hangers' band)
+  the wall's, the lawn's edge and rim, and every course's wobbling edges from `cutsOf`)
   in it and `LAND_MARGIN` (3) cells round it, and of the sign's place when it is near; a cell further in than the
-  lowest ring's inner edge reads the same on every tier, so an expansion changes only the chunks along the old and
+  deepest course's inner edge reads the same on every tier, so an expansion changes only the chunks along the old and
   the new edge), `landChunk(parent, origin, tier, chunk)` (one chunk's `layers` and `scatterIn`; `Blocks.windy`),
   `wallsName(tier)` ("Walls_<tier>") and `landWalls(parent, origin, tier)` (the invisible wall round the tier's grass,
   one model of its own: out of the chunks, so a chunk's box (what the pixel filter draws again or ahead when it comes
   or goes) is only as big as what shows of it), `landSign(parent, origin, tier)` (the model `signName(tier)`,
   "Sign_<2x>_<2z>", holding the `PlotSign` with its `SignBoard` on the south rim, `Street.sign`), `emptyLot(parent,
-  origin)` (an unclaimed plot: a little islet built the same way, 14 by 11, with a sign), `LIP_BOT` (-3.25) and
-  `BOTTOM` (-12.25: the lowest ring's underside). `layers(m, o, b, dist)`, top down, every outline bevelled: the
-  `Lawn` (`LAWN_H` 0.5 thick, top at `Street.LAWN_Y`, the founders stand on it; tone 2 dark along its rim and in
-  patches, 1 light elsewhere) on every cell with a coast distance of 0 or less; the `Lip` (`chocolate`, darker
-  `hair_brown` streaks; from under the lawn down to `LIP_BOT`) on the ring of cells within `LIP_W` (2) of the edge; the
-  `Rock` in `STRATA`, four rings, each its outline the island's shape `inset` further in (1.5, 3, 4.75, 6.75 studs)
-  and `w` wide (2.25 to 2.5), the next one's top its bottom (-3.25 .. -5.5 .. -8 .. -10.25 .. -12.25), in `rock` and
-  `rock_dark` patches, the lowest `rock_dark` and `slate`. Nothing is built under the island's middle: a ray from the
-  view meets the lawn, a ring's outer face, or passes under the lowest ring. Heights and lengths are on the quarter-stud
-  grid parts snap to (`Blocks.part`). `scatterIn(m, o, b, dist, sx?, sz?)` picks each kind's thing in its own block of
-  the grid (`block` cells a side, the chunk's size a whole number of them): the block's cell with the lowest
-  `hash01(x, z, salt)` among those in the kind's band of coast distance (`lo` .. `hi`), kept when a second hash is
-  under its share `p`, never within 3 studs of the sign: `tuft`s and flowers on the rim (-0.95 .. 0), `root`s hanging
-  from under the lip's overhang (-1.4 .. 0: two thin bars, 0.5 to 1.4 long), `hanger`s under the lowest ring (three
-  stone blocks narrowing to a point, 2 to 6 long, moss on the bigger ones), so a chunk's things depend on its own cells
-  alone. `walls(m, o, b, dist)`: the cells with a coast distance over 0 and up to `Street.WALL`, merged into boxes
+  origin)` (an unclaimed plot: a little islet built the same way, 14 by 11, with a sign), `LIP_BOT` (-3) and
+  `BOTTOM` (-16.75: the deepest course's underside). Since 2026-11-20 ("for the floating island, detail the rocks and
+  below like this too", with a picture) the edge is boulders: `layers(m, o, b, dist)` builds the `Lawn` (`LAWN_H` 0.5
+  thick, top at `Street.LAWN_Y`, the founders stand on it; tone 2 dark along its rim and in patches, 1 light
+  elsewhere) on every cell with a coast distance of 0 or less, then `COURSES`, nine rings of boulders, each `{ hi, w,
+  top, bot, off, cols, foot, core, gap }`.
+  - **Bands and depths:** a course's stones stand on cells whose coast distance lies between its inner edge and `hi`.
+    The rim's band runs from the grass's edge (0) to 1.5; the other courses' `hi` values are 0.75, -0.25, -1.5, -3,
+    -4.75, -6.75, -9 and -11.5. Heights run from -0.5 .. -3 for the rim down to -16.75.
+  - **`cutsOf(x, z)`:** cached per cell, plot-local and the same on every tier. It wobbles each course's edge (always at
+    least half a stud in from the course above) and lists every threshold the drawing compares a cell with: [k] course
+    k's outer edge, [NC + k] its inner edge, [2 NC + 1] the inner edge of the deepest stones' band.
+  - **Cores:** each course's core is a dark `bevelled` skin (`shell`: only cells with an east, south or south-east
+    neighbour outside it), named "Lip" for the rim's soil and "Rock" below.
+  - **`stones`:** one "Boulder" per 2-cell block of the course's grid (offset `off`, so courses are staggered), built by
+    the chunk holding the block's first cell. Each stone is the block's band cells less `gap`, at least 0.75 across,
+    with a jittered top and bottom; below the rim it steps out up to half a stud. Rim stones get a cap and on some a
+    "Turf" with a tuft; seen stones on courses 1 to 5 get a darker foot. Stones below the rim are built only where
+    their face shows (the camera's fixed angle never sees the north-west underside or anything behind an outer
+    face); rim stones go all the way round, their tops show from above.
+  - **`scatterIn(m, o, b, dist, sx?, sz?)`:** picks each kind's thing in its own block of the grid (`block` cells a
+    side, the chunk's size a whole number of them): the block's cell with the lowest `hash01(x, z, salt)` among those
+    in the kind's band, kept when a second hash is under its share `p`, never within 3 studs of the sign: tufts,
+    pebbles and bushes on the rim (-0.95 .. 0), vines under the rim stones, `hanger`s under courses 4 to 9; none of
+    the small things collide, so a chunk's things depend on its own cells alone.
+  - **`cellCode`:** 0 past `REACH_CODE` (2.25), otherwise 1 plus how many of `BANDS` (0, -0.9, -0.95) and the cell's
+    `cutsOf` the distance is at or under; a chunk's signature covers every threshold a cell is compared with, so
+    chunks stay the same across tiers where the island did not change.
+  - `bevelled` gained `shell`, and `quarters` an air-only mode in which only the outline is bevelled. The palette
+    keys `cliff`, `cliff_dark`, `cliff_deep` and `cliff_base` (Data/Palette, in `Palette.order` and Shading's
+    `TEX_STONE`) carry the stone from a light warm beige to a dusky violet. Land parts: 1019 on a first island, 4868
+    at tier 10, 7129 at tier 20 (the sims hold them under 3000 and 12000). `walls(m, o, b, dist)`: the cells with a coast distance over 0 and up to `Street.WALL`, merged into boxes
   `WALL_H` (14) high from a stud under the lawn, invisible, in the collision group `Bounds` (the pixel filter's rays,
   group `PixelRays`, pass through them, and its redraws leave them out). The layers are bevelled (2026-11-13,
   GAME_DESIGN 8: "could you bevel these to make them smoother, with rounded corners?"; `bevelled(m, o, b, lv, lab,

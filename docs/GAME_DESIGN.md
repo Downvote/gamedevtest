@@ -368,8 +368,8 @@ offline progress).
 ## 2. Look and feel
 
 - **World:** one floating island per player in a row in the sky (Visit takes you between them), each with the Tree of
-  Life at its heart, its grass, an earth lip under its edge and rock stepping in under that, in front of a painted 2D
-  sky (§8), seen from the Random Bakery
+  Life at its heart, its grass ringed with chunky boulders and courses of boulders stepping in to a rough point under
+  it, in front of a painted 2D sky (§8), seen from the Random Bakery
   camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
 - **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
@@ -1089,9 +1089,20 @@ The island floats in the sky and grows with its tier: tier 1 a small oval about 
 then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
 its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
 built near the old edge has to move. On top is the lawn (two greens, a darker rim, darker patches), tufts and flowers
-along the rim. Under its edge hangs a warm brown earth lip about two studs deep, roots dangling from under it, then
-grey rock in four steps, each a stud or two further in and two studs further down, and stones hanging from the lowest
-one, so from the camera the island reads as a floating chunk of land tapering down into the sky. Under the middle
+along the rim. Since 2026-11-20 ("for the floating island, detail the rocks and below like this too", with a picture
+of a floating island ringed with stones) a ring of chunky boulders stands round the grass with its tops about level
+with the lawn, some a little higher, some lower so the grass's edge shows over them, some carrying a turf of grass
+with a tuft hanging over the front. Under the rim nine courses of boulders step in toward a rough point, each course
+staggered against the one above like a stone wall, each stone its own height and standing out by up to half a stud; a
+small island runs out of width first, so its point is shallower, and a big one's reaches about 17 studs down, with
+spires at the bottom and crystal at some tips. Leafy vines hang from under the rim stones and smaller stones from the
+lower courses; tufts, flat stones and small round bushes sit on the grass's rim, never where a building may stand.
+The pixel filter lights each stone, a pale top, a mid front and a darker side; rim stones have a rounded cap, stones
+on the upper courses stand on a darker foot, dark soil and dark stone fill the crevices, and the ink line runs round
+each stone. The stone runs from a light warm beige at the top to a dusky violet at the bottom (the palette's `cliff`,
+`cliff_dark`, `cliff_deep` and `cliff_base`, all with the stone texture). Under the rim only the south and east
+sides are built: the camera never sees the north-west underside. From the camera the island reads as a floating
+chunk of land tapering down into the sky. Under the middle
 there is nothing: no ray from the view ever reaches it. An invisible wall just past the grass keeps the founders on it;
 one who falls off anyway (a glitch) is put back by their tree. Buildings stand a stud or more in from the edge. The
 sky behind everything is painted pixel by pixel (§2) and runs through its own day (twenty minutes, every player on a
@@ -2272,8 +2283,8 @@ text (the requests and how each was met) is in the history of this file, up to c
 
 - **Islands like islands:** each island's edge is a wobbly oval of whole-stud cells (four sine wobbles), with its
   bays and points. Since 2026-11-20 ("Never mind, make it a floating island instead, with a 2d skybox. Expanding makes
-  the island bigger.") the island floats in the sky: the grass on top, the earth lip under its edge, the rock stepping
-  in and down under that, stones hanging below (4.4), a painted sky behind (§2), and every tier a bigger island; the
+  the island bigger.") the island floats in the sky: the grass on top, a ring of boulders round it and courses of
+  boulders stepping in and down under that, stones and vines hanging below (4.4), a painted sky behind (§2), and every tier a bigger island; the
   beach, wet sand, foam and shallows round it went with the sea. Buildings stand a stud or more in from the edge.
 - **Rounded shores** (the request of 2026-11-13, with a picture of the stepped shore and a palm's trunk of stacked
   boxes):
@@ -2284,7 +2295,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   Each band's edge was a staircase of whole studs. Now every inner corner of the stairs is filled with a flat
   triangle of that band, and a square outer corner is cut back the same way, so each edge runs straight along the
   grid or on a diagonal and turns in 45 degree steps: the island reads round, and a stretch at 45 degrees is one clean
-  line. The lawn's dark rim and darker patches, the earth lip and each step of rock are bevelled the same way. You walk
+  line. The lawn's dark rim and darker patches and the dark cores behind the boulders are bevelled the same way. You walk
   exactly where you did: the triangles are only looked at. The palms' trunks are one smooth curve of round rings joined end to end,
   rising from the sand, leaning out and straightening under the crown, the rings in two woods in turn and a little
   narrower going up; the catalog's trees lost their steps too (§4).
