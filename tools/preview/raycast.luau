@@ -33,6 +33,12 @@ local caches = {}
 local MAX_CACHES = 8
 
 local basePartCls = {}
+-- Single-precision mode for the ball test: Roblox's own maths is in floats.
+-- (read at each ball test: a scenario named "f32:<scenario>" sets E.f32Rays before it runs)
+local function f32(x: number): number
+	return (string.unpack("f", string.pack("f", x)))
+end
+
 local function isBasePart(cls)
 	local v = basePartCls[cls]
 	if v == nil then
@@ -526,10 +532,22 @@ local function cast(c, ox, oy, oz, dx, dy, dz, tmax)
 			local sh = shape[i]
 			if sh == SH_BALL then
 				local rad = math.min(hxA[i], hyA[i], hzA[i])
-				local qa = dx * dx + dy * dy + dz * dz
-				local qb = 2 * (dx * rx + dy * ry + dz * rz)
-				local qc = rx * rx + ry * ry + rz * rz - rad * rad
-				local disc = qb * qb - 4 * qa * qc
+				local qa, qb, qc, disc
+				if E.f32Rays then
+					-- (Roblox works in single precision: every step rounded to a float, as its own sphere test is;
+					-- a scenario "f32:<name>", the report of 2026-11-20 of fuzzy edges on the tree's small balls)
+					local frx, fry, frz = f32(f32(ox) - f32(cxA[i])), f32(f32(oy) - f32(cyA[i])), f32(f32(oz) - f32(czA[i]))
+					local fdx, fdy, fdz = f32(dx), f32(dy), f32(dz)
+					qa = f32(f32(f32(fdx * fdx) + f32(fdy * fdy)) + f32(fdz * fdz))
+					qb = f32(2 * f32(f32(f32(fdx * frx) + f32(fdy * fry)) + f32(fdz * frz)))
+					qc = f32(f32(f32(f32(frx * frx) + f32(fry * fry)) + f32(frz * frz)) - f32(rad * rad))
+					disc = f32(f32(qb * qb) - f32(4 * f32(qa * qc)))
+				else
+					qa = dx * dx + dy * dy + dz * dz
+					qb = 2 * (dx * rx + dy * ry + dz * rz)
+					qc = rx * rx + ry * ry + rz * rz - rad * rad
+					disc = qb * qb - 4 * qa * qc
+				end
 				if disc >= 0 and qc > 0 then
 					local t = (-qb - math.sqrt(disc)) / (2 * qa)
 					if t >= 0 and t < best then

@@ -14,6 +14,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shading = require(ReplicatedStorage.Shared.Render.Shading)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 
 local BakeCast = {}
 
@@ -24,6 +25,14 @@ BakeCast.SHADOW_RAY = 120 -- sun visibility ray length (studs)
 BakeCast.MAX_HOPS = 4 -- hops past invisible and see-through parts per pixel ray
 BakeCast.CLEAR_MIN = 0.05 -- parts at this Transparency or more are looked through (below 0.95 they tint)
 BakeCast.INVISIBLE = 0.95 -- parts at this Transparency or more are not drawn at all
+-- Nothing static stands higher than this (studs): a pixel ray starts where it comes down through it, not at the ray
+-- plane hundreds of studs up. Roblox tests a ray against a ball in single precision, and from 500 studs off the test
+-- of whether it grazes a ball a quarter of a stud across was no better than the ball's own size: the edges of the
+-- Tree of Life's fruit, blossom and vine flowers came out as a fuzz of loose pixels and its strands' joints as a
+-- speckle (the reports of 2026-11-20, "the tree is the only thing that has this problem", "the fruits seem to be
+-- affected the most"; the preview harness worked in doubles and never showed it: its "f32:" scenarios do). From
+-- here the error is a tenth of what it was and less: at most a hair of a pixel.
+BakeCast.RAY_TOP = Tuning.PixelRayTop
 
 -- Shadow modes for cast(): no test (lit), test now, or defer to the 2x2 block's top-left pixel.
 BakeCast.SHADOW_OFF = 0
@@ -35,6 +44,7 @@ local CLEAR_MIN = BakeCast.CLEAR_MIN
 local INVISIBLE = BakeCast.INVISIBLE
 local SHADOW_RAY = BakeCast.SHADOW_RAY
 local LIT_UNKNOWN = BakeCast.LIT_UNKNOWN
+local RAY_TOP = BakeCast.RAY_TOP
 
 -- Was sample (x, y) (global px) already cast by an earlier pass?
 function BakeCast.skip(pass: number, x: number, y: number): boolean
@@ -101,9 +111,14 @@ function BakeCast.cast(
 	shadow: number,
 	sun: Vector3
 ): (BasePart?, number, number, number, number, BasePart?)
-	local res = workspace:Raycast(origin, dir * far, params)
+	-- (start where the ray comes down through RAY_TOP: the depth still counts from the ray plane)
+	local t0 = 0
+	if dir.Y < -1e-3 and origin.Y > RAY_TOP then
+		t0 = math.min(far, (origin.Y - RAY_TOP) / -dir.Y)
+	end
+	local res = workspace:Raycast(origin + dir * t0, dir * (far - t0), params)
 	local rays = 1
-	local travelled = 0
+	local travelled = t0
 	local hops = 0
 	local tint: BasePart? = nil
 	local tintRes: RaycastResult? = nil

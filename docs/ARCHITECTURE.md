@@ -1190,7 +1190,7 @@ screen's corner (`top % K` with a tolerance), a fractional shift given as a shar
 keeps its fraction); the view's key formats K `%g`. (The jolts, `PixelRenderer.setOffset` and
 `HatchBackdrop.offset`, still move by whole art px times K in offsets: both lose the same fraction.) The report of 2026-11-20 ("the tree still looks like this": screenshots
 whose every pixel was 2.5 of the screen's). The **static layer** is a raycast G-buffer of the view: progressive passes (one
-ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`), time-sliced (`Tuning.PixelBakeMsPerFrame`, more
+ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`: each ray starts where it comes down through `Tuning.PixelRayTop`, 80 studs up, not at the ray plane 500 studs back, and its depth still counts from the plane: Roblox's single-precision ball test from 500 studs off blurred the edges of small balls, 2026-11-20), time-sliced (`Tuning.PixelBakeMsPerFrame`, more
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
 pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
 neighbour casts its own, `refineShadows`, so shadow edges step one pixel: GAME_DESIGN 2), shaded with `Render/Shading`'s three

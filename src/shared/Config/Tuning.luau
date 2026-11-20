@@ -337,6 +337,9 @@ local Tuning = {
 	PixelSnapshotMsPerFrame = 2,
 	PixelBakeMsPerFrame = 6,
 	PixelMaxRayDist = 1400,
+	-- studs: nothing static stands higher; a bake ray starts where it comes down through this height (Pixel/BakeCast:
+	-- from the ray plane 500 studs off, Roblox's single-precision ball test blurred the edges of small balls)
+	PixelRayTop = 80,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	PixelPanCacheTiles = 768, -- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 20 bytes a pixel, about 15.7 MB); 0: off
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went

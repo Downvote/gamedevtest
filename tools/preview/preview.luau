@@ -14,6 +14,11 @@ local tierArg = args[4] or "auto"
 local insetArg = tonumber(args[5] or "")
 
 local E = require("./loader")
+-- ("f32:<scenario>": the scenario with the raycaster's ball test in single precision, as Roblox's is)
+if string.sub(scenario, 1, 4) == "f32:" then
+	scenario = string.sub(scenario, 5)
+	require("./engine").f32Rays = true
+end
 local I = require("./inst")
 local H = require("./harness")
 local R = require("./raycast")

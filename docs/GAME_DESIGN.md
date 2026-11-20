@@ -1548,6 +1548,16 @@ renderer also gathers a smooth model's balls again whenever a part of it comes o
 reach the client over several frames. The preview `treesplit` hands them over in batches and checks the picture
 against a fresh cast.)
 
+**The fuzzy fruit, found** (the reports of 2026-11-20: "the fruits seem to be affected the most", then a close-up
+screenshot). Up close, the gold fruit, the blossom and the white vine flowers had a fuzz of loose outline pixels round
+their edges, and the trunk speckled patches where its strands' joints are. The cause was in the bake's rays, not the
+tree: every ray started at the ray plane, 500 studs back, and Roblox tests a ray against a ball in single precision.
+From that far, whether a ray grazes a ball a quarter of a stud across came out no better than the ball's own size, so
+near its edge rays hit or missed it at random. Big shapes and boxes hardly show it; the tree is covered in small
+balls. Now a ray starts where it comes down through a height nothing on the islands reaches (`Tuning.PixelRayTop`, 80
+studs), a tenth of the way or less, and the edges come out clean. The preview harness worked in doubles and never
+showed it; a scenario run as `f32:<scenario>` now does its ball test in single precision as Roblox does.
+
 **It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4 from the capital, 5 from Lantern Cove,
 6 from Amberfield): stage 2 on a Palm Isle and a Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital to
 Driftling Haven. Each stage the trunk thickens, the crown spreads wider (half as wide again at the last) and climbs (the
