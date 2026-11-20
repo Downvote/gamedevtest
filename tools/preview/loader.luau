@@ -26,8 +26,12 @@ local function argsText(...)
 end
 
 E.patches = {} -- full module name -> { {old, new}, ... } harness-only source patches (e.g. test ids)
--- (Random Bakery patched Locale/Lang here to capture its string catalog; this game's Lang has no catalog yet)
+-- the string catalog's capture (docs/LOCALIZATION.md 4): every string a client's Lang.t is asked for, from every
+-- client, printed by report.luau as "@@LANG <escaped string>" lines
 E.langSeen = {}
+E.patches["ReplicatedStorage.Shared.Locale.Lang"] = {
+	{ "Lang.seen = nil :: { [string]: boolean }?", "Lang.seen = __LANG_SEEN :: { [string]: boolean }?" },
+}
 
 local function makeGlobals(ctx)
 	local G = {}
@@ -253,7 +257,7 @@ local SERVICE_LIST = {
 	"StarterPack", "Lighting", "RunService", "TweenService", "UserInputService", "GuiService", "SoundService",
 	"TextChatService", "MarketplaceService", "DataStoreService", "AnalyticsService", "BadgeService", "SocialService",
 	"PolicyService", "GroupService", "HttpService", "ExperienceNotificationService", "AssetService", "ConfigService",
-	"CollectionService", "ContextActionService", "ContentProvider", "ReplicatedFirst", "PhysicsService",
+	"CollectionService", "ContextActionService", "ContentProvider", "ReplicatedFirst", "PhysicsService", "TextService",
 }
 E.services = {}
 

@@ -29,6 +29,8 @@ find build/luautest -name '*.luau' -exec sed -i -E \
 	-e 's/require\(script\.Parent\.Parent\.([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\)/require("..\/\1\/\2")/g' \
 	-e 's/require\(script\.Parent\.Parent\.([A-Za-z0-9_]+)\)/require("..\/\1")/g' \
 	-e 's/require\(script\.Parent\.([A-Za-z0-9_]+)\)/require(".\/\1")/g' {} +
+# the words the game can show, for the Lang spec's check that every language has them (docs/LOCALIZATION.md 6)
+python3 scripts/locale_strings.py build/luautest/LocaleStrings.luau
 "$TOOLS/bin/luau" tests/run.luau
 echo "== rojo build"
 "$TOOLS/bin/rojo" build default.project.json -o build/ByteSizeStudio.rbxlx

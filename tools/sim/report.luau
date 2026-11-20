@@ -11,6 +11,19 @@ local function injected(w)
 end
 
 return function(E, H)
+	-- the string catalog's capture (loader: E.langSeen), before the report: what the clients' Lang.t was asked for
+	if E.langSeen then
+		local list = {}
+		for k in E.langSeen do
+			table.insert(list, k)
+		end
+		table.sort(list)
+		for _, k in list do
+			local esc = (string.gsub(k, "\\", "\\\\"))
+			esc = (string.gsub(esc, "\n", "\\n"))
+			print("@@LANG " .. esc)
+		end
+	end
 	local issues, mine = 0, 0
 	for _, e in E.issues do
 		if deliberate(e) then

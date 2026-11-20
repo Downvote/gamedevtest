@@ -60,7 +60,10 @@ export type Clutch = { left: number, list: { Laid }, next: number }
 
 -- music, sfx (the sounds: the interface, the island, the weather): "on" (default) | "off" (the Settings panel, 2026-11-14)
 -- zoom: the View slider's notch, 1 (far out) .. #Tuning.CamZoomNotches (close in); Tuning.CamZoomDefault (2026-11-18)
-export type Settings = { pixel: string, music: string?, sfx: string?, zoom: number?, screen: string? }
+-- lang: "auto" (the player's Roblox language when the game has it) or a language's code (Locale/Lang.LIST); text:
+-- "pixel" (the pixel font) or "smooth" (Roblox's own font for every word: the request of 2026-11-20, "an option to turn
+-- off pixel text")
+export type Settings = { pixel: string, music: string?, sfx: string?, zoom: number?, screen: string?, lang: string?, text: string? }
 
 -- days: island days lived; earned: shells made in all; taken: eggs hatched from the Tree of Life (and driftlings taken
 -- in before it laid eggs); sold: driftlings sold; best: the rarest driftling had (0 none yet, 1 .. 5); hatched: the

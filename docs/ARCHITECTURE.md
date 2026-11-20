@@ -120,7 +120,7 @@ read-only as the reference: nothing there was changed). What was copied, and how
 default.project.json   Rojo: Shared -> ReplicatedStorage, Server -> ServerScriptService, Client -> StarterPlayerScripts;
                        characters on (the founder walks and jumps on the islands: JumpHeight 7.2)
 src/shared/            Types, Net, Config (Tuning, Monetization), Data (content), Logic (pure rules), Render (pure pixel
-                       maths, copied; Fx, the effects in the pixel layer), Models (procedural models), Locale (Lang: English only)
+                       maths, copied; Fx, the effects in the pixel layer), Models (procedural models), Locale (Lang and the nine generated language tables: docs/LOCALIZATION.md)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
                        AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
@@ -134,6 +134,9 @@ tests/                 run.luau (spec runner), TestKit.luau, Career.luau (the Ec
                        its runs), specs/*.spec.luau
 scripts/check.sh       the gate every change passes (§11)
 scripts/gen_pixelfont.py  the pixel font's glyph tables (copied; README "Fonts and licences")
+scripts/locale_strings.py the words the game can show, for the Lang spec (docs/LOCALIZATION.md 6; locale/ignore.txt,
+                       locale/extra.txt)
+scripts/gen_locale.py  locale/<code>.json -> src/shared/Locale/<code>.luau (the language tables; do not edit those)
 scripts/gen_art.py     every interface sprite as a text mask -> UI/ArtData.luau (outline, anti-aliasing, shading;
                        `--png <file>` writes a contact sheet; GAME_DESIGN 2's rules; §10.10), and the build catalog's
                        pictures (scripts/thumbs.txt, drawn by tools/preview/thumbs.sh) -> UI/ThumbData.luau
@@ -169,7 +172,9 @@ is `DriftlingIsle-<short hash>.rbxl`.)
   0.3)`; `gen_thumbs.py` (`fit_colours`) and `gen_loading_art.py` merge a picture's closest colours when its outline
   steps take it past the colours a character can name.
 - One function stays under 200 locals and upvalues (luau-compile checks it).
-- Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
+- Player-visible text goes through `Locale/Lang.t` (ten languages since 2026-11-20: docs/LOCALIZATION.md). A sentence
+  built in code is a whole template (`Lang.f`, `Lang.fmt`, `Lang.an` for "a" / "an"), never English pieces glued
+  together; new words go into every `locale/<code>.json` in the same change (`scripts/check.sh` fails otherwise).
 - Some modules keep the names of the games before this one (the plots along a "street", the island's tiers an
   "office"): `Data/Street` is the islands in the sky (no sea since 2026-11-20), `Data/Office` the island's tiers (their names),
   `Models/DecorModels` builds every building, `Models/StreetModels` the floating islands,
@@ -195,7 +200,9 @@ not a Pal id), r (its rarity, 1 .. 9 (`Traits.RMAX`): its look, `EggView.LOOK`),
 island now), ss? (the season it was laid in, a Data/Weather season id), wx? (the weather that touched it, a
 Data/Weather kind id with a mutation family), wt? (that touch's tier, 1 .. 4) }`; what hatches is rolled when it is
 hatched; ss, wx and wt are kept by `Schema.reconcile` only when known, wt only with wx (GAME_DESIGN 13)), `Clutch` (the tree's eggs, saved: `{ left (seconds till the
-next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, music?, sfx? }`: music and sfx "on" | "off", the Settings panel), `Stats`
+next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, music?, sfx?, zoom?, screen?, lang?, text? }`: music and sfx "on" | "off"; lang "auto" or a
+`Lang.LIST` code, text "pixel" | "smooth" (2026-11-20, docs/LOCALIZATION.md: reconcile makes anything else "auto" and
+"pixel"); the Settings panel), `Stats`
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
@@ -907,7 +914,7 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `look.set` | `look` (a `Looks.encode` string, at most 200 characters) | `Store.setLook` (`checkLook`: every index in range, every piece owned and of its slot; the whole look replaces the founder's; the `Founder` attribute follows) | bad_payload, locked |
 | `outfit.set` | `i` (1 .. #outfits + 1), `look` ("" deletes outfit i) | `Store.setOutfit` (saves the look's canonical code as outfit i; returns `{ outfits }`) | bad_payload, locked, dup, full |
-| `settings.set` | `k` ("pixel", "music", "sfx", "zoom" or "screen"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10), the screen's scale (a key of `Tuning.ScreenScales`: auto, 100, 125, 150, 175, 200) | bad_payload |
+| `settings.set` | `k` ("pixel", "music", "sfx", "zoom", "screen", "lang" or "text"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10), the screen's scale (a key of `Tuning.ScreenScales`: auto, 100, 125, 150, 175, 200), the language ("auto" or a code of `Lang.LIST`), the text (pixel, smooth) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
 | `char.home` | - | PlotService puts the founder in front of their own tree | cooldown (`Tuning.HomeCooldown`), not_ready |
@@ -1061,9 +1068,13 @@ units, says it is scaled by a fraction: Pixel/DisplayScale's rule on the two sid
 "picture"; it starts in "start"), `progress(f)`, `finish()` (the bar fills, `FADE_STEPS` (5) steps over `FADE_SEC`
 (0.45) to clear, destroyed, touch buttons back; by itself after `SAFETY_SEC` (45)), `state() -> { up, phase, bar,
 finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island, isle, bob,
-bobMoves, mode, cover, covered, bank, clip, status }`; `cover(opts?) -> boolean` (2026-11-20, "make a transition for expansion, hiding the game
+bobMoves, mode, cover, covered, bank, clip, status, waiting, lang }`; `cover(opts?) -> boolean` (2026-11-20, "make a transition for expansion, hiding the game
 with a loading transition": the card again, for Build mode's expansion; `opts { title?, status?, onCovered?, onOpened?
-}`; false while the card is up), `status(text)` (a cover's words). A cover mounts the same card with its root
+}`; false while the card is up), `status(text)` (a cover's words), `useLang(Lang, smooth?)` (Main, once UIKit has set the player's language: the status,
+the tip and a cover's title show in it from then on, in the pixel font or smooth, a TextLabel in Builder Sans bold with
+a soft stroke, as `smooth()` and the language want; a player whose Roblox language is another of the game's sees the
+dots alone until then, `WAIT_WORDS` 8 s at most; the game's name stays as it is; docs/LOCALIZATION.md 4), `reword()`
+(every line again: `UIKit.LanguageChanged`). A cover mounts the same card with its root
 see-through (`mode` "cover"); `bandShapes(W, H)` lays a bank of cloud for the canvas (per column: where its three
 layers start, `top`, `l1`, `l2`, from rows of round domes, `domes(W, rng, r0, r1, k)`, and where it ends, `bot`, with
 shallow domes hanging under it; sizes for a 360 px tall canvas scaled to it, seed 11; `base0` the bank's top line
@@ -1730,7 +1741,17 @@ with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `
 beside `c`: 0.45 of it plus 0.3 of the UI's ink, the world's step; every outline the UI draws takes it), `hex`, `P`, `size(root)`, `phone`,
 `canvasOrigin`, `text(parent, text, size, pos, opts)` (PixelText-bound; `TextTruncate` AtEnd, so words too long for
 the box end in "..." inside it, the last line of a wrapped one too, never past its edge), `setText`, `setTextColor`, `textWidth`,
-`lineHeight`, `lines(text, w, face?)` (how many lines a wrapped label breaks it into). The look since 2026-11-14
+`lineHeight`, `lines(text, w, face?)` (how many lines a wrapped label breaks it into). Languages and smooth text
+(2026-11-20, docs/LOCALIZATION.md): a label keeps its English and shows `Lang.t` of it, and English written to it later
+turns into its translation as it lands (`opts.raw` / `ButtonOpts.raw`: shown as written, a player's name);
+`applyLanguage(choice, smooth)` (a language, "auto" resolved with `Player.LocaleId`, and the text style: every label
+again, drawn in the pixel font or smooth, then `Resized` and the open panel built again; nothing when neither
+changed), `LanguageChanged` (Signal(code) after it), `smooth()` (Text on Smooth, or a language the pixel font cannot
+draw), `scriptFace()` (Builder Sans bold); a smooth label is a native TextLabel, `NATIVE_SIZE` 9 / 17 UI px, a stroke
+at `NATIVE_STROKE` 0.55, also for words with letters the pixel font lacks (`Lang.needsScript`); `textWidth` and `lines`
+measure what is shown (smooth words with `TextService:GetTextSize`, else `Lang.estimateWidth`); `rawWidth(s)` (words
+never translated: a name tag), `wrap(text, w, face?) -> { string }` (the translation broken into a wrapped label's
+lines, each kept: the hatch scene's passive plate). The look since 2026-11-14
 ("make the ui appear like this instead, with a black transparent background and make it neater", with a picture of
 Random Bakery's HUD): `glass(parent, size, pos?, corner?)` (black see-through glass: `Palette.ui.glass` at
 `GLASS_ALPHA` 0.38 transparency, corners of at most two steps, no outline, frame, bevel or shadow: every HUD block,
@@ -2537,13 +2558,16 @@ it with "Collected N shells." `WelcomeUI.step()` (Hud's heartbeat) opens it by i
 shut and the hatch scene isn't playing; it closes the card when the view has no report. `WelcomeUI.open()`.
 
 ### 10.14 Settings (`UI/SettingsUI`; GAME_DESIGN 9)
-The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: 118 tall, more when narrow): `ROWS` Music (`settings.music`), Sounds
+The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: taller when narrow and for the Language row's lines): `ROWS` Language
+(`settings.lang`, 2026-11-20: Auto and each `Lang.LIST` language by its own name, `raw` buttons, a `flow` row that
+wraps onto as many lines as the body needs; `own` like Screen), Text (`settings.text`: Pixel, Smooth, with the hint
+"Smooth is easier to read on a small screen."), Music (`settings.music`), Sounds
 (`settings.sfx`), Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish) and Screen
 (`settings.screen`: auto, 100, 125, 150, 175, 200; its six buttons on a line of their own under the label, `own`, with
 a hint and `Found_screen`, what Auto found, "Found {n}%", right of the label; `SettingsUI.apply()` hands the value to
 `DisplayScale.setChoice` every frame), each a row of buttons
 `Set_<k>_<v>`, the chosen one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
-`Audio.setSoundsOn`, `PixelRenderer.setTier`) and sends `settings.set`; a refusal drops the pending value with a notice.
+`Audio.setSoundsOn`, `PixelRenderer.setTier`, `SettingsUI.applyLanguage` for lang and text) and sends `settings.set`; a refusal drops the pending value with a notice.
 Under them the View row (2026-11-18, `settings.zoom`): `ZoomOut` (-), the track (an ink frame round a groove, filled to
 the knob), its ten notches' ticks `ZoomTick_<i>` (1 x 3 px under the track, the default's 1 x 4), the 7 x 11 knob
 `ZoomKnob` and `ZoomIn` (+); `ZoomSlider` over the track takes a press and a drag (mouse or touch) and picks the nearest
@@ -2551,7 +2575,8 @@ notch. On a narrow panel (a track beside the label would be under `TRACK_MIN` 11
 slider goes on its own line under the label, the body's whole width, and a hint wraps (it was cut off there before).
 `SettingsUI.setZoom(n)` moves the knob at once with the flip sound; `ZOOM_WAIT` (0.3 s) after the last notch
 it calls `CameraController.setZoom` and sends `settings.set` (a refusal puts the camera back with a notice).
-`SettingsUI.zoom()` (the pending notch, else the view's), `SettingsUI.value(k)`, `SettingsUI.apply()` (Hud's heartbeat: music and sounds follow the settings). `Audio.setSoundsOn(on)`
+`SettingsUI.zoom()` (the pending notch, else the view's), `SettingsUI.value(k)`, `SettingsUI.applyLanguage()`
+(`UIKit.applyLanguage(value("lang"), value("text") == "smooth")`: Main at start and on every view change), `SettingsUI.apply()` (Hud's heartbeat: music and sounds follow the settings). `Audio.setSoundsOn(on)`
 stops every one-shot (`Audio.play` returns false) and fades the loops to nothing; `Audio.soundsOn()`.
 
 ### 10.13 The Store (`UI/StoreUI`; GAME_DESIGN 14.2)
@@ -2920,8 +2945,9 @@ Copied unchanged or nearly: `Render/Raster`, `Render/Picture`, `Render/PixelFont
 `Models/Blocks`, the specs `Raster` (its framing fixture now a local outline instead of the bakery's Layout), `Rim`,
 `PixelFont`, `Util`, `tests/TestKit.luau`, `scripts/gen_pixelfont.py`, `tools/setup.sh`, `tools/defs`, the sim and
 preview engines, `docs/WORKFLOW.md`. Adapted: `Render/Shading` (its LUT colours are the palette and the older rooms'
-themes; the bakery's wallpapers and land tiles are gone) and its spec, `scripts/check.sh` (no locale or server-codes
-steps; builds `build/ByteSizeStudio.rbxlx` as its check), `Net`, `Render/Fx` (the effect layer, cut down: no
+themes; the bakery's wallpapers and land tiles are gone) and its spec, `scripts/check.sh` (no server-codes steps; the
+locale steps came back on 2026-11-20 with the languages, `Locale/Lang`, `scripts/locale_strings.py` and
+`scripts/gen_locale.py`: docs/LOCALIZATION.md; builds `build/ByteSizeStudio.rbxlx` as its check), `Net`, `Render/Fx` (the effect layer, cut down: no
 seasons or places, no weather or shelters; sprites from `ArtData` instead of legends, tinted sprites, sticky pixels,
 a light's glow id; the renderer's books upload only the pixels that changed). Written new for this game: everything else, including a much smaller
 `PixelRenderer` (one fitted scale with pans and rect re-casts, no Actors, no Hold, no per-plot indoor light) and

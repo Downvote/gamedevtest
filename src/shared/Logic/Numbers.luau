@@ -1,6 +1,8 @@
 --!strict
 -- Number formatting for the UI and notices. Pure.
 local Numbers = {}
+-- (a duration's units in the player's language: Locale/Lang, English on the server)
+local Lang = require(script.Parent.Parent.Locale.Lang)
 
 -- 1234567 -> "1,234,567"
 function Numbers.int(n: number): string
@@ -62,9 +64,9 @@ function Numbers.duration(secs: number): string
 	local m = math.max(1, math.ceil(math.max(0, secs) / 60))
 	if m >= 60 then
 		local h, rest = m // 60, m % 60
-		return if rest == 0 then string.format("%d h", h) else string.format("%d h %d min", h, rest)
+		return if rest == 0 then Lang.f("{1} h", h) else Lang.f("{1} h {2} min", h, rest)
 	end
-	return string.format("%d min", m)
+	return Lang.f("{1} min", m)
 end
 
 -- A timer: "4:05", "1:02:09" (whole seconds, rounded up so it reads 0:00 only at the end).

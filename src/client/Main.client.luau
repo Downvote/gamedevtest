@@ -27,6 +27,8 @@ local WeatherView = require(script.Parent.Controllers.WeatherView)
 local Spinners = require(script.Parent.Controllers.Spinners)
 local WeatherChip = require(script.Parent.UI.WeatherChip)
 local SkyBackdrop = require(script.Parent.UI.SkyBackdrop)
+local SettingsUI = require(script.Parent.UI.SettingsUI)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
@@ -42,6 +44,15 @@ CameraController.start()
 PixelRenderer.start()
 DayLight.start()
 UIKit.init()
+-- the language and the text (Settings, the request of 2026-11-20: "like the bakery game, make translations for
+-- different languages, and an option to turn off pixel text"): the saved choice now ("auto": the player's Roblox
+-- language), before the HUD is built, and again whenever it changes (UIKit.applyLanguage does nothing when it has not)
+-- (SettingsUI.value: a tap the server hasn't answered yet wins over the view, so a tick never turns it back)
+SettingsUI.applyLanguage()
+StateClient.Changed:Connect(SettingsUI.applyLanguage)
+-- (the loading card's words too, and again after a change)
+LoadingCard.useLang(Lang, UIKit.smooth)
+UIKit.LanguageChanged:Connect(LoadingCard.reword)
 -- the shells on every sheet's awning on a touch screen (the request of 2026-11-19: "Make menus fill the screen on
 -- mobile with currency showing and an exit button")
 UIKit.setWallet(function(): number?

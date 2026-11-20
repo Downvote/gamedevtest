@@ -11,6 +11,7 @@ local Traits = require(script.Parent.Parent.Data.Traits)
 local Quests = require(script.Parent.Parent.Data.Quests)
 local Office = require(script.Parent.Parent.Data.Office)
 local Util = require(script.Parent.Util)
+local Lang = require(script.Parent.Parent.Locale.Lang)
 local Island = require(script.Parent.Island)
 local Plot = require(script.Parent.Plot)
 local Tree = require(script.Parent.Tree)
@@ -151,7 +152,7 @@ function Schema.default(now: number, seed: number): Profile
 		tut = 1,
 		quest = 1,
 		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
-		settings = { pixel = "high", music = "on", sfx = "on", zoom = Tuning.CamZoomDefault, screen = "auto" },
+		settings = { pixel = "high", music = "on", sfx = "on", zoom = Tuning.CamZoomDefault, screen = "auto", lang = "auto", text = "pixel" },
 		createdAt = now,
 		inv = {},
 		passes = {},
@@ -719,6 +720,9 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			sfx = if settings.sfx == "off" then "off" else "on",
 			zoom = int(settings.zoom, Tuning.CamZoomDefault, 1, #Tuning.CamZoomNotches),
 			screen = if type(settings.screen) == "string" and Tuning.ScreenScales[settings.screen] ~= nil then settings.screen else "auto",
+			-- the language (2026-11-20): "auto" or a code the game has; the text: the pixel font or Roblox's own
+			lang = if type(settings.lang) == "string" and (settings.lang == "auto" or Lang.byCode[settings.lang] ~= nil) then settings.lang else "auto",
+			text = if settings.text == "smooth" then "smooth" else "pixel",
 		},
 		createdAt = num(r.createdAt, now),
 		passes = {},

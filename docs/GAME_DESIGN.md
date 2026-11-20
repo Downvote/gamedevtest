@@ -2664,7 +2664,21 @@ at the new zoom a moment after the last notch, so dragging across several only r
 stays up while it does. A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
 same detail as on a desktop (§8, the camera: the View slider's notch, 11 art px a stud by default), so it shows a part of the island round
 the founder and follows them; before, it fitted a smaller box round the island's heart (`CamFramePhone` 0.6 against
-`CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
+`CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail.
+
+> The request (2026-11-20): "like the bakery game, make translations for different languages, and an option to turn
+> off pixel text"
+
+**Language and Text** (docs/LOCALIZATION.md). Settings' first rows: Language, Auto (the player's Roblox language when
+the game has it, else English) or one of the bakery's ten by its own name: English, Bahasa Indonesia, Español, ไทย,
+Português, العربية, Русский, Français, 简体中文, Italiano. Then Text, Pixel or Smooth ("Smooth is easier to read on a
+small screen."): Smooth draws every word in Roblox's own rounded font with a soft dark edge, while the sprites, icons
+and the world stay pixel art. Thai, Arabic and Chinese are always drawn that way, since the pixel font has no letters
+for them. A pick shows at once, every screen laid out again for the new words, and is kept with the profile. The
+loading card speaks the player's language too. Driftlings keep their names in every language; everything else a
+player reads is translated, and the check fails when a new word has no translation in one of them.
+
+**The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:
 
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
@@ -3096,8 +3110,8 @@ reason.
 
 ## 12. Out of scope for this version
 
-Trading between players, visiting with gifts, offline progress, other languages (English only; every string goes
-through `Locale/Lang.t`). (Purchases came in on 2026-11-14: §14.)
+Trading between players, visiting with gifts. (Purchases came in on 2026-11-14: §14; offline earnings on 2026-11-14:
+§14.3; other languages on 2026-11-20: §9 and docs/LOCALIZATION.md.)
 
 ## 13. Seasons and the weather (`Data/Weather`, `Logic/Weather`, `Controllers/WeatherView`, `UI/WeatherChip`)
 

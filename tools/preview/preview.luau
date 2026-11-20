@@ -19,6 +19,25 @@ if string.sub(scenario, 1, 4) == "f32:" then
 	scenario = string.sub(scenario, 5)
 	require("./engine").f32Rays = true
 end
+-- ("lang=<code>:<scenario>": the scenario with the player's language set to that one; "smooth:<scenario>": with
+-- Settings' Text on Smooth, every word in Roblox's own font; both can be given, either order)
+local LANG_ARG: string? = nil
+local SMOOTH_ARG = false
+while true do
+	local code, rest = string.match(scenario, "^lang=(%a+):(.+)$")
+	if code and rest then
+		LANG_ARG, scenario = code, rest
+	elseif string.sub(scenario, 1, 7) == "smooth:" then
+		SMOOTH_ARG, scenario = true, string.sub(scenario, 8)
+	else
+		break
+	end
+end
+-- (the players' Roblox language is that one too, so a profile the scenario didn't seed, on Auto, follows it: the
+-- loading card's)
+if LANG_ARG then
+	E.locale = LANG_ARG
+end
 local I = require("./inst")
 local H = require("./harness")
 local R = require("./raycast")
@@ -203,6 +222,13 @@ local function seedProfile(userId, tier, opts)
 	prof.inv = opts.inv or prof.inv
 	prof.day = opts.day or 12
 	prof.tut = opts.tut or 0
+	-- (the language and the text style the scenario asked for: lang=<code>:, smooth:)
+	if LANG_ARG then
+		prof.settings.lang = LANG_ARG
+	end
+	if SMOOTH_ARG then
+		prof.settings.text = "smooth"
+	end
 	-- (opts.fill(prof): lays pieces itself, the stress test's full island)
 	if opts.fill then
 		opts.fill(prof)

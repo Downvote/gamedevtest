@@ -1,6 +1,12 @@
 --!strict
 -- The Settings panel (GAME_DESIGN 9; the request of 2026-11-14: "Add a settings tab, replacing the music button"): the
 -- menu bar's Settings opens it, in place of the music note that sat in the top right corner.
+--   Language  Auto / each language      settings.lang: Auto (the player's Roblox language when the game has it) or a
+--                                       language by its own name, its words in its own letters (never translated);
+--                                       the choices flow over lines of their own under the label (2026-11-20: "like
+--                                       the bakery game, make translations for different languages")
+--   Text      Pixel / Smooth            settings.text: the pixel font, or Roblox's own font for every word (2026-11-20:
+--                                       "an option to turn off pixel text")
 --   Music     On / Off                  settings.music: the background music
 --   Sounds    On / Off                  settings.sfx: every one-shot sound and the island's loops (waves, birds, rain)
 --   Pixel art High / Medium / Low       settings.pixel: the pixel filter's detail (no Off: the user asked for none, 2026-11-14)
@@ -32,8 +38,20 @@ local UIKit = require(script.Parent.UIKit)
 local SettingsUI = {}
 
 type Opt = { v: string, text: string }
-type Row = { k: string, label: string, opts: { Opt }, hint: string?, own: boolean? }
+type Row = { k: string, label: string, opts: { Opt }, hint: string?, own: boolean?, flow: boolean? }
+-- (the language row's choices: Auto, then each language by its own name, shown as written)
+local LANG_OPTS: { Opt } = { { v = "auto", text = "Auto" } }
+for _, info in Lang.LIST do
+	table.insert(LANG_OPTS, { v = info.code, text = info.name })
+end
 local ROWS: { Row } = {
+	{ k = "lang", label = "Language", opts = LANG_OPTS, own = true, flow = true },
+	{
+		k = "text",
+		label = "Text",
+		opts = { { v = "pixel", text = "Pixel" }, { v = "smooth", text = "Smooth" } },
+		hint = "Smooth is easier to read on a small screen.",
+	},
 	{ k = "music", label = "Music", opts = { { v = "on", text = "On" }, { v = "off", text = "Off" } } },
 	{ k = "sfx", label = "Sounds", opts = { { v = "on", text = "On" }, { v = "off", text = "Off" } } },
 	{
@@ -78,6 +96,10 @@ function SettingsUI.value(k: string): string
 		return if type(saved) == "string" then saved else "high"
 	elseif k == "screen" then
 		return if type(saved) == "string" and Tuning.ScreenScales[saved] ~= nil then saved else "auto"
+	elseif k == "lang" then
+		return if type(saved) == "string" and (saved == "auto" or Lang.byCode[saved] ~= nil) then saved else "auto"
+	elseif k == "text" then
+		return if saved == "smooth" then "smooth" else "pixel"
 	end
 	return if saved == "off" then "off" else "on"
 end
@@ -89,6 +111,12 @@ function SettingsUI.apply()
 	DisplayScale.setChoice(SettingsUI.value("screen"))
 end
 
+-- The language and the text as the settings say, a tap not answered yet included (Main.client on every view; UIKit
+-- does nothing when they are on already).
+function SettingsUI.applyLanguage()
+	UIKit.applyLanguage(SettingsUI.value("lang"), SettingsUI.value("text") == "smooth")
+end
+
 local function set(k: string, val: string)
 	if SettingsUI.value(k) == val then
 		return
@@ -98,6 +126,9 @@ local function set(k: string, val: string)
 		PixelRenderer.setTier(val)
 	end
 	SettingsUI.apply()
+	if k == "lang" or k == "text" then
+		SettingsUI.applyLanguage()
+	end
 	Audio.play("click")
 	task.spawn(function()
 		local res = StateClient.request("settings.set", { k = k, v = val })
@@ -106,6 +137,7 @@ local function set(k: string, val: string)
 			UIKit.notice("Couldn't save that. Try again.", UIKit.color("bad"))
 		end
 		SettingsUI.apply()
+		SettingsUI.applyLanguage()
 		if UIKit.currentPanel() == "settings" then
 			UIKit.refreshPanel()
 		end
@@ -271,6 +303,23 @@ local function viewRow(body: Frame, w: number, y: number)
 	end)
 end
 
+-- A flowing row's choices laid out in a body w wide: each button's x, y (from the row's first line) and width, and
+-- how many lines they take (a choice's words as shown: a language's own name, never translated).
+local function flowLayout(row: Row, w: number): ({ { x: number, y: number, w: number } }, number)
+	local out: { { x: number, y: number, w: number } } = {}
+	local x, line = PAD, 0
+	for _, o in row.opts do
+		local bw = math.max(26, (if o.v == "auto" then UIKit.textWidth(o.text) else UIKit.rawWidth(o.text)) + 12)
+		if x > PAD and x + bw > w - PAD then
+			x = PAD
+			line += 1
+		end
+		table.insert(out, { x = x, y = line * 16, w = bw })
+		x += bw + 3
+	end
+	return out, line + 1
+end
+
 local function build(body: Frame, _arg: any?)
 	local bw = body:GetAttribute("W")
 	local w = if type(bw) == "number" then bw else 228
@@ -283,6 +332,19 @@ local function build(body: Frame, _arg: any?)
 			UIKit.text(body, found, UDim2.fromOffset(w - 2 * PAD - 60, 12), UDim2.fromOffset(PAD + 60, y + 2), { color = UIKit.color("text_dim"), x = "right", name = "Found_screen" })
 		end
 		local cur = SettingsUI.value(row.k)
+		if row.flow then
+			-- (the choices flow over lines of their own under the label, from the left)
+			local spots, n = flowLayout(row, w)
+			y += 14
+			for i, o in row.opts do
+				local at = spots[i]
+				UIKit.button(body, o.text, UDim2.fromOffset(at.w, 14), UDim2.fromOffset(at.x, y + at.y), function()
+					set(row.k, o.v)
+				end, { name = "Set_" .. row.k .. "_" .. o.v, color = if cur == o.v then UIKit.color("button") else UIKit.color("plate_light"), raw = o.v ~= "auto" })
+			end
+			y += 16 * n + 6
+			continue
+		end
 		-- the choices to the right, each as wide as its word, the chosen one lit (a row of many on a line of its own
 		-- under the label, from the left)
 		local widths: { number } = {}
@@ -320,6 +382,11 @@ local function heightFor(pw: number): number
 	local w = pw - 8
 	local y = 4
 	for _, row in ROWS do
+		if row.flow then
+			local _, n = flowLayout(row, w)
+			y += 14 + 16 * n + 6
+			continue
+		end
 		y += ROW_H + (if row.own then 14 else 0)
 		if row.hint then
 			y += 8 + 10 * (hintLines(row.hint, w) - 1)

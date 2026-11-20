@@ -1210,6 +1210,24 @@ IMPL.StarterGui = {
 		return v == nil or v
 	end,
 }
+-- TextService:GetTextSize, measured with the GUI engine's font metrics (the advances topng.py draws with): UIKit's
+-- smooth text (Builder Sans bold -> the body bold face) sizes its boxes to what the PNG shows
+IMPL.TextService = {
+	GetTextSize = function(self, text, size, font, _frame)
+		local G = require("./guiengine")
+		local name = tostring(font)
+		local key = if string.find(name, "Arcade", 1, true) then "arcade"
+			elseif string.find(name, "Heavy", 1, true) or string.find(name, "Black", 1, true) then "body800"
+			elseif string.find(name, "Bold", 1, true) then "body700"
+			else "body500"
+		local w, n = 0, 0
+		for _, line in string.split(tostring(text), "\n") do
+			w = math.max(w, G.textWidth(line, key, size))
+			n += 1
+		end
+		return v2(math.ceil(w), math.ceil(size * n))
+	end,
+}
 IMPL.ConfigService = {
 	GetConfigAsync = function()
 		E.gap("ConfigService:GetConfigAsync")

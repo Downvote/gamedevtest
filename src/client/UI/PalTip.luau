@@ -22,6 +22,7 @@ local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local UIKit = require(script.Parent.UIKit)
 local TierStars = require(script.Parent.TierStars)
 
@@ -70,7 +71,7 @@ function PalTip.lines(pal: Types.Pal): { Line }
 	table.insert(out, { text = d.name, color = rar.color, title = rar.name })
 	table.insert(out, { text = string.format("Works %s anywhere", times(base * (1 + Traits.work(fx)))), color = "text" })
 	table.insert(out, { text = string.format("%s base speed %s", rar.name, times(base)), color = "text_dim" })
-	table.insert(out, { text = d.passive.name .. ": " .. Traits.describe(d.passive.fx), color = "accent" })
+	table.insert(out, { text = Lang.f("{1}: {2}@@pair", Lang.t(d.passive.name), Lang.t(Traits.describe(d.passive.fx))), color = "accent" })
 	local island: { [string]: boolean } = {}
 	for k in d.passive.fx do
 		if ISLAND_KEYS[k] then
@@ -99,8 +100,14 @@ function PalTip.lines(pal: Types.Pal): { Line }
 		end
 	end
 	if #names > 0 then
-		local said = if #names == 1 then names[1] else table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
-		table.insert(out, { text = string.format("Its %s count%s while in a hut", said, if #names == 1 then "s" else ""), color = "text_dim" })
+		-- (each name in the player's language, the list joined with the language's own "and", then a whole sentence for
+		-- one and for many: Locale/Lang)
+		local shown: { string } = {}
+		for i, nm in names do
+			shown[i] = Lang.t(nm)
+		end
+		local said = if #shown == 1 then shown[1] else table.concat(shown, ", ", 1, #shown - 1) .. Lang.t(" and ") .. shown[#shown]
+		table.insert(out, { text = Lang.f(if #names == 1 then "Its {1} counts while in a hut" else "Its {1} count while in a hut", said), color = "text_dim" })
 	end
 	table.insert(out, { text = "Sells for " .. Numbers.coins(Tree.price(pal)) .. " coins", color = "text_dim" })
 	return out

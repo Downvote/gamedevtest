@@ -26,6 +26,7 @@ local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Quests = require(ReplicatedStorage.Shared.Data.Quests)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local EggView = require(script.Parent.Parent.Controllers.EggView)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -1035,8 +1036,7 @@ local function onEggs(msg: { [string]: any })
 	local turned = tonumber(msg.turned)
 	if turned and Traits.RARITY[turned] then
 		local rar = Traits.RARITY[turned]
-		local a = if string.match(string.lower(rar.name), "^[aeiou]") then "An" else "A"
-		UIKit.notice(string.format("%s %s egg waits at the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
+		UIKit.notice(Lang.an("An {1} egg waits at the tree.", "A {1} egg waits at the tree.", rar.name), UIKit.color(rar.color), 5)
 		Audio.play("grow")
 		local tc = treeCard
 		if tc and tc.Parent and tc.Visible then
@@ -1053,9 +1053,9 @@ local function onEggs(msg: { [string]: any })
 	local more = tonumber(msg.more) or 0
 	if best >= 4 then
 		local rar = Traits.RARITY[best] or Traits.RARITY[1]
-		-- ("An" before an epic, an ancient or an eternal egg)
-		local a = if string.match(string.lower(rar.name), "^[aeiou]") then "An" else "A"
-		UIKit.notice(string.format("%s %s egg waits at the tree.", a, string.lower(rar.name)), UIKit.color(rar.color), 5)
+		-- ("An" before an epic, an ancient or an eternal egg; whole sentences, so a language has its own words round the
+		-- rarity: Locale/Lang.an)
+		UIKit.notice(Lang.an("An {1} egg waits at the tree.", "A {1} egg waits at the tree.", rar.name), UIKit.color(rar.color), 5)
 		Audio.play("grow")
 		local tc = treeCard
 		if tc and tc.Parent and tc.Visible then

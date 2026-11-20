@@ -71,6 +71,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Palette = require(ReplicatedStorage.Shared.Data.Palette)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
@@ -790,20 +791,8 @@ local function passiveBox(s: Scene): (number, number, { string })
 	local words = Traits.describe(def.passive.fx)
 	local room = math.max(PLATE_W, w - (math.floor(w / 2) + 78) - 6)
 	local width = math.min(room, math.max(PLATE_W, 15 + math.max(UIKit.textWidth(def.passive.name), UIKit.textWidth(words)) + 5))
-	local lines: { string } = {}
-	local cur = ""
-	for word in string.gmatch(words, "%S+") do
-		local try = if cur == "" then word else cur .. " " .. word
-		if cur ~= "" and 15 + UIKit.textWidth(try) + 5 > width then
-			table.insert(lines, cur)
-			cur = word
-		else
-			cur = try
-		end
-	end
-	if cur ~= "" then
-		table.insert(lines, cur)
-	end
+	-- (broken into lines in the language on show: UIKit.wrap)
+	local lines = UIKit.wrap(words, width - 20)
 	return width, 12 + math.max(1, #lines) * 10, lines
 end
 local function plateAt(s: Scene, slot: number, width: number): (number, number)
@@ -835,7 +824,7 @@ local function showPassive(s: Scene)
 		return
 	end
 	local width, height, lines = passiveBox(s)
-	local words = table.concat(lines, "\n")
+	local words = Lang.keep(table.concat(lines, "\n"))
 	local x, y = plateAt(s, 0, width)
 	local f = UIKit.glass(s.root, UDim2.fromOffset(width, height), UDim2.fromOffset(x + 30, y), 2)
 	f.Name = "HatchPassive"

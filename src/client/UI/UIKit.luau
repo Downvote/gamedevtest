@@ -280,25 +280,305 @@ export type TextOpts = {
 	face: string?, -- "small" | "big"
 	z: number?,
 	name: string?,
+	raw: boolean?, -- shown as written, never translated (a player's name)
 }
 
 local XA = { left = Enum.TextXAlignment.Left, center = Enum.TextXAlignment.Center, right = Enum.TextXAlignment.Right }
 local YA = { top = Enum.TextYAlignment.Top, center = Enum.TextYAlignment.Center, bottom = Enum.TextYAlignment.Bottom }
 
+------------------------------------------------------------------ languages and smooth text
+-- The request of 2026-11-20: "like the bakery game, make translations for different languages, and an option to turn
+-- off pixel text" (docs/LOCALIZATION.md). Every label UIKit.text makes keeps its English (srcOf) and shows Lang.t of
+-- it; an English string written to it later (label.Text = "...", UIKit.setText) turns into its translation as it
+-- lands. A label is drawn in the pixel font (Pixel/PixelText) unless the text is smooth: Settings' Text set to Smooth,
+-- a language the pixel font has no letters for (Thai, Arabic, Chinese), or words in such a script (a language's own
+-- name in Settings, a player's name); a smooth label is a native TextLabel in Builder Sans bold (UIKit.scriptFace),
+-- NATIVE_SIZE UI px tall, a soft dark stroke round its letters standing in for the pixel font's shadow and outline.
+-- UIKit.applyLanguage(code, smooth) turns every label to the new words and look and lays the screens out again.
+local NATIVE_SIZE = { small = 9, big = 17 } -- a smooth label's TextSize in UI px (the pixel font: 8 and 16, 7 and 14 px caps)
+local NATIVE_STROKE = 0.55 -- a smooth label's stroke transparency (none for the "plain" kind)
+local srcOf: { [TextLabel]: string } = setmetatable({}, { __mode = "k" }) :: any
+local styleOf: { [TextLabel]: PixelText.Style } = setmetatable({}, { __mode = "k" }) :: any
+local rawOf: { [TextLabel]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local nativeOf: { [TextLabel]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local writing: { [TextLabel]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local smoothText = false
+local scriptFaceCache: Font? = nil
+local widthCache: { [string]: number } = {}
+local widthCount = 0
+
+-- Builder Sans, bold (Roblox draws Thai, Arabic and Chinese in its fallback fonts where the face has none).
+function UIKit.scriptFace(): Font?
+	local f = scriptFaceCache
+	if f == nil then
+		local ok, made = pcall(function(): Font
+			return Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
+		end)
+		f = if ok then made else nil
+		scriptFaceCache = f
+	end
+	return f
+end
+
+-- Whether every label is smooth now: Settings' Text on Smooth, or a language the pixel font has no letters for.
+function UIKit.smooth(): boolean
+	return smoothText or not Lang.pixel()
+end
+
+-- Whether `words` are drawn smooth: everything is, or they have letters the pixel font cannot draw.
+local function wantsNative(words: string): boolean
+	return UIKit.smooth() or Lang.needsScript(words)
+end
+
+-- Width in UI px of a line in the smooth face (Roblox's measure where it can, else Lang.estimateWidth), widest line
+-- of several. Cached.
+local function nativeWidth(text: string, face: string?): number
+	local em = if face == "big" then NATIVE_SIZE.big else NATIVE_SIZE.small
+	local key = em .. "|" .. text
+	local hit = widthCache[key]
+	if hit then
+		return hit
+	end
+	local widest = 0
+	for _, line in string.split(text, "\n") do
+		local w: number? = nil
+		local ok, size = pcall(function(): Vector2
+			return game:GetService("TextService"):GetTextSize(line, em, (Enum.Font :: any).BuilderSansBold, Vector2.new(100000, 1000))
+		end)
+		if ok and typeof(size) == "Vector2" and (size.X > 0 or line == "") then
+			w = math.ceil(size.X)
+		end
+		widest = math.max(widest, (w or Lang.estimateWidth(line, em)) + 1)
+	end
+	if widthCount > 4000 then
+		table.clear(widthCache)
+		widthCount = 0
+	end
+	widthCache[key] = widest
+	widthCount += 1
+	return widest
+end
+
+-- How many lines `text` wraps to in the smooth face in w UI px: words break at spaces, a run without spaces (Chinese,
+-- Thai) between any two characters.
+local function nativeLines(text: string, w: number, face: string?): number
+	local n = 0
+	for _, para in string.split(text, "\n") do
+		local line = ""
+		n += 1
+		local words = if string.find(para, " ", 1, true) then string.split(para, " ") else nil
+		if words then
+			for _, word in words do
+				local cand = if line == "" then word else line .. " " .. word
+				if line ~= "" and nativeWidth(cand, face) > w then
+					n += 1
+					line = word
+				else
+					line = cand
+				end
+			end
+		else
+			for _, cp in utf8.codes(para) do
+				local cand = line .. utf8.char(cp)
+				if line ~= "" and nativeWidth(cand, face) > w then
+					n += 1
+					line = utf8.char(cp)
+				else
+					line = cand
+				end
+			end
+		end
+	end
+	return math.max(1, n)
+end
+
 function UIKit.textWidth(text: string, face: string?): number
-	return PixelFont.width(Lang.t(text), if face == "big" then PixelFont.BIG else PixelFont.SMALL)
+	local words = Lang.t(text)
+	if wantsNative(words) then
+		return nativeWidth(words, face)
+	end
+	return PixelFont.width(words, if face == "big" then PixelFont.BIG else PixelFont.SMALL)
+end
+
+-- Width in UI px of words shown as written (never translated: a language's own name), in the face they are drawn in.
+function UIKit.rawWidth(text: string, face: string?): number
+	if wantsNative(text) then
+		return nativeWidth(text, face)
+	end
+	return PixelFont.width(text, if face == "big" then PixelFont.BIG else PixelFont.SMALL)
 end
 
 -- How many lines `text` wraps to in w UI px (as a wrapped label breaks it: whole words, the small face unless "big").
 function UIKit.lines(text: string, w: number, face: string?): number
-	return #PixelFont.wrap(Lang.t(text), w, if face == "big" then PixelFont.BIG else PixelFont.SMALL)
+	local words = Lang.t(text)
+	if wantsNative(words) then
+		return nativeLines(words, w, face)
+	end
+	return #PixelFont.wrap(words, w, if face == "big" then PixelFont.BIG else PixelFont.SMALL)
+end
+
+-- `text` in the language on show, broken into the lines a wrapped label shows it in, w UI px wide: at spaces, or
+-- between any two characters in a run without them (Chinese, Thai). Each line is kept as it is (Lang.keep: a piece of
+-- a translation is never translated again), so a caller can lay the lines out itself.
+function UIKit.wrap(text: string, w: number, face: string?): { string }
+	local words = Lang.t(text)
+	local out: { string } = {}
+	if not wantsNative(words) then
+		for _, line in PixelFont.wrap(words, w, if face == "big" then PixelFont.BIG else PixelFont.SMALL) do
+			table.insert(out, Lang.keep(line))
+		end
+		return out
+	end
+	for _, para in string.split(words, "\n") do
+		local line = ""
+		local parts = if string.find(para, " ", 1, true) then string.split(para, " ") else nil
+		if parts then
+			for _, word in parts do
+				local cand = if line == "" then word else line .. " " .. word
+				if line ~= "" and nativeWidth(cand, face) > w then
+					table.insert(out, Lang.keep(line))
+					line = word
+				else
+					line = cand
+				end
+			end
+		else
+			for _, cp in utf8.codes(para) do
+				local ch = utf8.char(cp)
+				if line ~= "" and nativeWidth(line .. ch, face) > w then
+					table.insert(out, Lang.keep(line))
+					line = ch
+				else
+					line ..= ch
+				end
+			end
+		end
+		table.insert(out, Lang.keep(line))
+	end
+	return out
 end
 
 function UIKit.lineHeight(face: string?): number
 	return if face == "big" then 18 else 10
 end
 
--- A label in UI px. Its Text stays readable by the sims and screen readers; the pixel font draws it.
+-- A label made by UIKit.text drawn smooth: its glyph layers go and it shows its own text in the script face.
+local function toNative(l: TextLabel)
+	if PixelText.isBound(l) then
+		PixelText.unbind(l)
+	end
+	local style = styleOf[l]
+	local face = if style and style.face == "big" then "big" else "small"
+	local f = UIKit.scriptFace()
+	if f then
+		l.FontFace = f
+	end
+	l.TextSize = NATIVE_SIZE[face]
+	l.TextStrokeColor3 = if style and style.under then style.under else UIKit.color("ink")
+	l.TextStrokeTransparency = if style and style.kind == "plain" then 1 else 1 - (1 - NATIVE_STROKE) * (1 - l.TextTransparency)
+	nativeOf[l] = true
+end
+
+-- A label made by UIKit.text drawn in the pixel font again (Pixel/PixelText, the way it was made). false when it
+-- cannot be (no EditableImages here: it stays native, in Arcade unless smooth).
+local function toPixel(l: TextLabel): boolean
+	nativeOf[l] = nil
+	local style = styleOf[l]
+	l.Font = Enum.Font.Arcade
+	l.TextSize = if style and style.face == "big" then 16 else 8
+	l.TextStrokeTransparency = 1
+	if style and PixelText.available() then
+		return PixelText.bind(l, style)
+	end
+	return false
+end
+
+-- A label follows its words: smooth when they need it (UIKit.smooth, a script the pixel font cannot draw), the pixel
+-- font otherwise.
+local function fit(l: TextLabel, words: string)
+	if wantsNative(words) then
+		if not nativeOf[l] then
+			toNative(l)
+		end
+	elseif nativeOf[l] or (not PixelText.isBound(l) and PixelText.available()) then
+		toPixel(l)
+	end
+end
+
+-- A label shows `text` in the player's language from now on (UIKit.text does this for its labels): its Text is the
+-- translation, and an English string written to it later turns into its translation as it lands.
+local function localize(l: TextLabel, text: string, raw: boolean?)
+	srcOf[l] = text
+	rawOf[l] = raw == true
+	l.Text = if raw then text else Lang.t(text)
+	l:GetPropertyChangedSignal("Text"):Connect(function()
+		if writing[l] then
+			return
+		end
+		local s = l.Text
+		if rawOf[l] or Lang.produced(s) then
+			if rawOf[l] then
+				srcOf[l] = s
+			end
+			fit(l, s)
+			return
+		end
+		srcOf[l] = s
+		local out = Lang.t(s)
+		if out ~= s then
+			writing[l] = true
+			l.Text = out
+			writing[l] = nil
+		end
+		fit(l, out)
+	end)
+	-- (a smooth label's stroke fades with its words)
+	l:GetPropertyChangedSignal("TextTransparency"):Connect(function()
+		local style = styleOf[l]
+		if nativeOf[l] and not (style and style.kind == "plain") then
+			l.TextStrokeTransparency = 1 - (1 - NATIVE_STROKE) * (1 - l.TextTransparency)
+		end
+	end)
+end
+
+-- Shows a language and a text style ("auto" or a code: Settings' Language, resolved with the player's Roblox
+-- language; smooth: Settings' Text on Smooth): every label UIKit.text made shows its words again in it, drawn in the
+-- pixel font or smooth as the new language and style want, then the screens lay themselves out again (Resized, the
+-- open panel built again). Nothing happens when both are already on.
+function UIKit.applyLanguage(choice: string?, smooth: boolean?)
+	local loc: string? = nil
+	pcall(function()
+		loc = if player then player.LocaleId else nil
+	end)
+	local code = Lang.resolve(choice, loc)
+	local styleChanged = (smooth == true) ~= smoothText
+	smoothText = smooth == true
+	local langChanged = Lang.set(code)
+	if not langChanged and not styleChanged then
+		return
+	end
+	table.clear(widthCache)
+	widthCount = 0
+	for l, src in srcOf do
+		if l.Parent then
+			local words = if rawOf[l] then src else Lang.t(src)
+			writing[l] = true
+			l.Text = words
+			writing[l] = nil
+			fit(l, words)
+		end
+	end
+	UIKit.LanguageChanged:Fire(code)
+	scheduleResized()
+	if UIKit.currentPanel() then
+		task.defer(UIKit.refreshPanel)
+	end
+end
+UIKit.LanguageChanged = Util.Signal() :: Types.Signal<string>
+
+-- A label in UI px. Its Text holds the words on show (the player's language; the sims and screen readers read it);
+-- the pixel font draws it, or it is smooth (UIKit.smooth). opts.raw: the words are shown as written, never translated
+-- (a player's name).
 function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, opts: TextOpts?): TextLabel
 	local o: TextOpts = opts or {}
 	local l = Instance.new("TextLabel")
@@ -307,7 +587,6 @@ function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, o
 	l.BorderSizePixel = 0
 	l.Size = size
 	l.Position = pos or UDim2.new()
-	l.Text = text
 	l.TextColor3 = o.color or UIKit.color("text")
 	l.TextXAlignment = XA[o.x or "left"] or Enum.TextXAlignment.Left
 	l.TextYAlignment = YA[o.y or "center"] or Enum.TextYAlignment.Center
@@ -320,20 +599,26 @@ function UIKit.text(parent: Instance?, text: string, size: UDim2, pos: UDim2?, o
 	l.Font = Enum.Font.Arcade
 	l.TextSize = if o.face == "big" then 16 else 8
 	l.LineHeight = 1.25
-	if PixelText.available() then
-		PixelText.bind(l, {
-			kind = o.kind or "shadow",
-			under = o.under or UIKit.color("ink"),
-			face = o.face or "small",
-			unit = 1,
-		})
+	styleOf[l] = {
+		kind = o.kind or "shadow",
+		under = o.under or UIKit.color("ink"),
+		face = o.face or "small",
+		unit = 1,
+		raw = o.raw,
+	}
+	localize(l, text, o.raw)
+	if wantsNative(l.Text) then
+		toNative(l)
+	elseif PixelText.available() then
+		PixelText.bind(l, styleOf[l])
 	end
 	l.Parent = parent
 	return l
 end
 
+-- A label's words, as English (shown translated): written only when they change.
 function UIKit.setText(l: TextLabel, text: string)
-	if l.Text ~= text then
+	if srcOf[l] ~= text or (srcOf[l] == nil and l.Text ~= text) then
 		l.Text = text
 	end
 end
@@ -625,7 +910,8 @@ function UIKit.rect(parent: Instance?, size: UDim2, pos: UDim2?, c: Color3, z: n
 end
 
 ------------------------------------------------------------------ buttons
-export type ButtonOpts = { color: Color3?, textColor: Color3?, enabled: boolean?, name: string?, face: string?, ghost: boolean? }
+-- raw: the words are shown as written, never translated (a language's own name in Settings)
+export type ButtonOpts = { color: Color3?, textColor: Color3?, enabled: boolean?, name: string?, face: string?, ghost: boolean?, raw: boolean? }
 
 local buttonColor: { [GuiButton]: Color3 } = {}
 
@@ -721,6 +1007,7 @@ function UIKit.button(parent: Instance?, text: string, size: UDim2, pos: UDim2?,
 		face = o.face,
 		z = 3,
 		name = "Words",
+		raw = o.raw,
 	})
 	l.Active = false
 	local function act()

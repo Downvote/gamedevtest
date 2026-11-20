@@ -33,7 +33,7 @@ local function titleOf(pl: Player): (string?, string?)
 end
 
 local function layout(tag: Tag, name: string, title: string?, color: string?)
-	local wName = UIKit.textWidth(name) + 4
+	local wName = UIKit.rawWidth(name) + 4
 	local wTitle = if title then UIKit.textWidth(title) + 4 else 0
 	local w = math.max(wName, wTitle)
 	local h = if title then LINE * 2 else LINE
@@ -57,7 +57,7 @@ function NameTags.make(pl: Player): Tag
 	frame.BorderSizePixel = 0
 	frame.Size = UDim2.fromOffset(10, LINE)
 	frame.Parent = UIKit.canvas("World")
-	local name = UIKit.text(frame, pl.DisplayName, UDim2.fromOffset(10, LINE), nil, { x = "center", kind = "outline", name = "Name", color = UIKit.color("white") })
+	local name = UIKit.text(frame, pl.DisplayName, UDim2.fromOffset(10, LINE), nil, { x = "center", kind = "outline", name = "Name", color = UIKit.color("white"), raw = true })
 	local title = UIKit.text(frame, "", UDim2.fromOffset(10, LINE), UDim2.fromOffset(0, LINE), { x = "center", kind = "outline", name = "Title" })
 	local tag: Tag = { frame = frame, name = name, title = title, key = "" }
 	NameTags.refresh(tag, pl)

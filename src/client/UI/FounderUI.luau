@@ -159,7 +159,8 @@ local TABS: { TabDef } = {
 	{ id = "hat", text = "Hat", keys = { "hat" }, pieces = true, tint = "hat" },
 	{ id = "face", text = "Face", keys = { "face" }, pieces = true, tint = "face" },
 	{ id = "neck", text = "Neck", keys = { "neck" }, pieces = true, tint = "neck" },
-	{ id = "back", text = "Back", keys = { "back" }, pieces = true, tint = "back" },
+	-- ("Back@@slot": the back of the body, apart from the Back button, so a language has its own word: Locale/Lang)
+	{ id = "back", text = "Back@@slot", keys = { "back" }, pieces = true, tint = "back" },
 	{ id = "hand", text = "Hand", keys = { "hand" }, pieces = true, tint = "hand" },
 	{ id = "outfits", text = "Outfits", keys = {} },
 	{ id = "titles", text = "Titles", keys = {} },
@@ -1523,7 +1524,7 @@ local function buildTitles(parent: Frame, y: number, w: number, h: number)
 		if res.ok then
 			Audio.play("flip")
 			if name then
-				notice(Lang.fmt("Title set: {name}.", { name = name }), color("good"))
+				notice(Lang.fmt("Title set: {name}.", { name = Lang.t(name) }), color("good"))
 			end
 		else
 			Audio.play("deny")

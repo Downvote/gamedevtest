@@ -301,21 +301,26 @@ function Traits.clean(muts: any): { string }
 	return out
 end
 
--- An effect's words for the panels ("+24% work", "eggs cost 30% less", "+2 charm", "Hatchery 12% faster").
-local WORDS: { [string]: string } = {
-	work = "work",
-	aura = "work for all",
-	all = "all coins",
-	boost = "boost buildings",
-	charmPct = "charm",
-	sell = "sell price",
-	luck = "egg luck",
-	skip = "rarer hatch chance",
-	away = "offline coins",
+-- An effect's words for the panels ("+24% work", "eggs cost 30% less", "+2 charm", "Hatchery 12% faster"), each way
+-- of each effect a whole phrase, so a language has its own words for it (Locale/Lang: the list's items are translated
+-- one by one).
+local WORDS: { [string]: { string } } = {
+	work = { "+{1}% work", "-{1}% work" },
+	aura = { "+{1}% work for all", "-{1}% work for all" },
+	all = { "+{1}% all coins", "-{1}% all coins" },
+	boost = { "+{1}% boost buildings", "-{1}% boost buildings" },
+	charmPct = { "+{1}% charm", "-{1}% charm" },
+	sell = { "+{1}% sell price", "-{1}% sell price" },
+	luck = { "+{1}% egg luck", "-{1}% egg luck" },
+	skip = { "+{1}% rarer hatch chance", "-{1}% rarer hatch chance" },
+	away = { "+{1}% offline coins", "-{1}% offline coins" },
 }
 local function pct(v: number): string
 	local x = math.abs(v) * 100
 	return if math.abs(x - math.round(x)) < 0.05 then tostring(math.round(x)) else string.format("%.1f", x)
+end
+local function fill(tpl: string, value: string): string
+	return (string.gsub(tpl, "{1}", (string.gsub(value, "%%", "%%%%"))))
 end
 function Traits.describe(fx: Fx): string
 	local parts: { string } = {}
@@ -323,15 +328,18 @@ function Traits.describe(fx: Fx): string
 		local v = fx[k]
 		if v and math.abs(v) > 1e-6 then
 			if k == "cost" then
-				table.insert(parts, string.format("eggs cost %s%% %s", pct(v), if v < 0 then "less" else "more"))
+				table.insert(parts, fill(if v < 0 then "eggs cost {1}% less" else "eggs cost {1}% more", pct(v)))
 			elseif k == "charm" then
-				table.insert(parts, string.format("%s%d charm", if v > 0 then "+" else "", math.round(v)))
+				table.insert(parts, fill(if v > 0 then "+{1} charm" else "-{1} charm", tostring(math.abs(math.round(v)))))
 			elseif k == "hatch" then
-				table.insert(parts, string.format("Hatchery %s%% %s", pct(v), if v > 0 then "faster" else "slower"))
+				table.insert(parts, fill(if v > 0 then "Hatchery {1}% faster" else "Hatchery {1}% slower", pct(v)))
 			elseif k == "eggs" then
-				table.insert(parts, string.format("%s%d egg%s per lot", if v > 0 then "+" else "", math.round(v), if math.abs(math.round(v)) == 1 then "" else "s"))
+				-- (one and many as whole phrases)
+				local n = string.format("%s%d", if v > 0 then "+" else "", math.round(v))
+				table.insert(parts, fill(if math.abs(math.round(v)) == 1 then "{1} egg per lot" else "{1} eggs per lot", n))
 			else
-				table.insert(parts, string.format("%s%s%% %s", if v > 0 then "+" else "-", pct(v), WORDS[k] or k))
+				local w = WORDS[k]
+				table.insert(parts, if w then fill(if v > 0 then w[1] else w[2], pct(v)) else string.format("%s%s%% %s", if v > 0 then "+" else "-", pct(v), k))
 			end
 		end
 	end

@@ -50,11 +50,6 @@ local tab = "today"
 local tabSeq = -1
 
 ------------------------------------------------------------------ words
-local function an(word: string): string
-	local c = string.lower(string.sub(word, 1, 1))
-	return if c == "a" or c == "e" or c == "i" or c == "o" or c == "u" then "an" else "a"
-end
-
 -- A reward's words for this player now: "1,200 shells", "a rare egg", "2 spins", "Lucky Hour, 15 min", "the Devoted
 -- title"; short (a card's): "1.2K", "Rare", "2 spins", "15 min", "Title".
 function RewardsUI.words(v: View?, r: Reward, short: boolean?): string
@@ -63,7 +58,7 @@ function RewardsUI.words(v: View?, r: Reward, short: boolean?): string
 		return if short then Numbers.short(n) else Numbers.coins(n) .. " coins"
 	elseif r.kind == "egg" then
 		local rar = Traits.RARITY[math.clamp(r.r or 1, 1, Traits.RMAX)]
-		return if short then rar.name else string.format("%s %s egg", an(rar.name), string.lower(rar.name))
+		return if short then rar.name else Lang.an("an {1} egg", "a {1} egg", rar.name)
 	elseif r.kind == "spin" then
 		local n = r.n or 1
 		return if n == 1 then "1 spin" else string.format("%d spins", n)
@@ -82,11 +77,12 @@ end
 
 -- A bundle in one line: "a rare egg and 5 min of shells".
 local function bundleWords(v: View?, list: { Reward }): string
-	local out = ""
-	for i, r in list do
-		out ..= (if i == 1 then "" elseif i == #list then " and " else ", ") .. RewardsUI.words(v, r)
+	-- (each piece in the language on show, joined in it: Locale/Lang)
+	local items: { string } = {}
+	for _, r in list do
+		table.insert(items, Lang.t(RewardsUI.words(v, r)))
 	end
-	return out
+	return Lang.list(items)
 end
 
 -- A reward's mini icon ("mini_" less).
@@ -302,7 +298,7 @@ local function buildToday(list: ScrollingFrame, v: View, W: number): number
 		local state = if i < d.round or (i == d.round and not d.ready) then "got" elseif i == d.round then "now" else ""
 		local w = if i == n then W - x else cw
 		local more = if #give > 1 then "+" else ""
-		local words = fit(RewardsUI.words(v, first, true) .. more, (if first.kind == "egg" then "Egg" else RewardsUI.words(v, first, true)) .. more, w - 4)
+		local words = fit(Lang.keep(Lang.t(RewardsUI.words(v, first, true)) .. more), Lang.keep(Lang.t(if first.kind == "egg" then "Egg" else RewardsUI.words(v, first, true)) .. more), w - 4)
 		card(list, x, y, w, 36, string.format("Day %d", i), RewardsUI.icon(first), words, state, "Day_" .. i)
 		x += w + 2
 	end
@@ -335,7 +331,7 @@ local function buildToday(list: ScrollingFrame, v: View, W: number): number
 		local state = if done then "got" elseif secs >= g.min * 60 then "now" else ""
 		local first = g.give[1]
 		local more = if #g.give > 1 then "+" else ""
-		local words = fit(RewardsUI.words(v, first, true) .. more, (if first.kind == "egg" then "Egg" else RewardsUI.words(v, first, true)) .. more, gw - 4)
+		local words = fit(Lang.keep(Lang.t(RewardsUI.words(v, first, true)) .. more), Lang.keep(Lang.t(if first.kind == "egg" then "Egg" else RewardsUI.words(v, first, true)) .. more), gw - 4)
 		card(list, (i - 1) * (gw + 2), y, gw, 36, string.format("%d min", g.min), RewardsUI.icon(first), words, state, "Play_" .. i)
 	end
 	y += 36

@@ -205,6 +205,16 @@ return function()
 		T.eq(p.settings.pixel, "low")
 		T.eq(p.settings.music, "on", "music on by default")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { pixel = "low", music = "off" } }, 2000, 9) :: any).settings.music, "off", "music off kept")
+		-- the language and the text (2026-11-20): "auto" and the pixel font by default, a known code and "smooth" kept,
+		-- anything else back to the default
+		T.eq(p.settings.lang, "auto", "the language: auto by default")
+		T.eq(p.settings.text, "pixel", "the pixel font by default")
+		local kept = (Schema.reconcile({ v = Schema.VERSION, settings = { pixel = "low", lang = "ru", text = "smooth" } }, 2000, 9) :: any).settings
+		T.eq(kept.lang, "ru", "a language kept")
+		T.eq(kept.text, "smooth", "smooth text kept")
+		local junk = (Schema.reconcile({ v = Schema.VERSION, settings = { pixel = "low", lang = "xx", text = 3 } }, 2000, 9) :: any).settings
+		T.eq(junk.lang, "auto", "an unknown language: auto")
+		T.eq(junk.text, "pixel", "junk text: the pixel font")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { music = 7 } }, 2000, 9) :: any).settings.music, "on", "a bad value: on")
 		-- the View slider's notch (2026-11-18): the default for a save from before it, kept when set, kept in range
 		T.eq(p.settings.zoom, Tuning.CamZoomDefault, "the View slider on its default notch")

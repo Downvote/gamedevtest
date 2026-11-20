@@ -30,6 +30,7 @@ local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local DecorModels = require(ReplicatedStorage.Shared.Models.DecorModels)
 local EggModels = require(ReplicatedStorage.Shared.Models.EggModels)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local StateClient = require(script.Parent.StateClient)
 local Audio = require(script.Parent.Audio)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
@@ -183,11 +184,10 @@ end
 local function played(data: { [string]: any }, panel: string?)
 	local def = if type(data.sp) == "string" then Creatures.byId[data.sp] else nil
 	local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
-	local name = if def then def.name else "a driftling"
 	local sold = tonumber(data.sold) or 0
-	-- ("an" before a rarity starting with a vowel: an uncommon, an epic, an ancient, an eternal one)
-	local a = if def and string.match(string.lower(rar.name), "^[aeiou]") then "an" else "a"
-	local what = if def then string.format("%s %s %s", a, string.lower(rar.name), name) else name
+	-- ("an" before a rarity starting with a vowel: an uncommon, an epic, an ancient, an eternal one; whole phrases, so
+	-- a language has its own words round the rarity and the name: Locale/Lang.an)
+	local what = if def then Lang.an("an {1} {2}", "a {1} {2}", rar.name, def.name) else Lang.t("a driftling")
 	local muts: { string } = {}
 	if type(data.muts) == "table" then
 		for _, m in data.muts do
@@ -206,8 +206,8 @@ local function played(data: { [string]: any }, panel: string?)
 		if panel and StateClient.view() ~= nil and HatchScene.waiting() == 0 then
 			UIKit.openPanel(panel)
 		end
-		local said = if sold > 0 then string.format("Hatched %s. The old one sold for %s coins.", what, Numbers.coins(sold)) else string.format("Hatched %s.", what)
-		UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
+		local said = if sold > 0 then Lang.f("Hatched {1}. The old one sold for {2} coins.", what, Numbers.coins(sold)) else Lang.f("Hatched {1}.", what)
+		UIKit.notice(Lang.keep((if fresh then Lang.t("New! ") else "") .. said), UIKit.color(rar.color), 4)
 	end)
 end
 

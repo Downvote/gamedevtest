@@ -47,6 +47,9 @@
 --   LoadingCard.cover(opts?)     the card again over the game, for an expansion: a bank of cloud drifts up the screen
 --                                and leaves it behind ({ title, status, onCovered, onOpened }; false while it is up)
 --   LoadingCard.status(text)     a cover's words under the title
+--   LoadingCard.useLang(Lang, smooth?)  the game's words from now on (Main, once UIKit has set the player's language;
+--                                `smooth()`: every word smooth, UIKit.smooth)
+--   LoadingCard.reword()         every line again (a change of language or text style)
 --   LoadingCard.state()          for the sims: { up, phase, bar, finished, fading, painted, fallback, ticks, K,
 --                                size, title (its rect: { x0, y0, x1, y1 }, UI px), still (the island's picture: { name
 --                                ("big" | "small"), x0, y0, w, h }, nil until shown), moon ({ x, y, r }), mode
@@ -133,6 +136,18 @@ local TIPS = {
 	"Blue-spotted eggs hatch rare ones. Save coins for them.",
 	"A bigger island gets more eggs, and better ones.",
 }
+-- The words in the player's language (docs/LOCALIZATION.md; the request of 2026-11-20, "like the bakery game, make
+-- translations for different languages, and an option to turn off pixel text"): Main hands Lang over (useLang) once
+-- UIKit has set the player's saved language and text style, and the status, the tip and a cover's title show in it from
+-- then on, drawn in the pixel font or smooth (Roblox's own font, Builder Sans bold, a soft dark stroke) as the game's
+-- labels are. A player whose Roblox language is one of the others the game has sees the dots alone under the title
+-- until then (WAIT_WORDS at most, then the English), so no English line flashes up first; everyone else reads the English
+-- at once. The game's name stays as it is.
+local OTHER_LANGS: { [string]: boolean } = { id = true, es = true, th = true, pt = true, ar = true, ru = true, fr = true, zh = true, it = true }
+local WAIT_WORDS = 8 -- s
+local SMOOTH_SIZE = { small = 9, big = 17 } -- a smooth line's TextSize in UI px (UIKit's NATIVE_SIZE)
+local SMOOTH_STROKE = 0.55
+type LangModule = typeof(require(game:GetService("ReplicatedStorage").Shared.Locale.Lang))
 
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 -- The bank of cloud: per column (1 .. W) the rows, from the bank's top line `base`, where each layer starts (`top`,
@@ -182,8 +197,13 @@ local S = {
 	fill = nil :: Frame?,
 	fillHi = nil :: Frame?,
 	dots = {} :: { Frame },
-	statusLabel = nil :: ImageLabel?,
-	tipLabel = nil :: ImageLabel?,
+	statusLabel = nil :: GuiObject?,
+	tipLabel = nil :: GuiObject?,
+	titleLabel = nil :: GuiObject?,
+	lang = nil :: LangModule?, -- the game's words (useLang), nil until Main hands them over
+	smoothFn = nil :: (() -> boolean)?, -- whether every word is smooth (UIKit.smooth)
+	waiting = false, -- a player in another language: no words until Lang arrives
+	smoothFace = nil :: Font?,
 	tipPlate = nil :: Frame?,
 	tipIndex = 1,
 	tipAt = 0,
@@ -621,9 +641,86 @@ local function textImage(text: string, big: boolean, style: string, face: number
 	return content, w, h, x0, y0, m.blockW
 end
 
--- A line centred on the canvas at row y (the em box's top). Returns the label and the block's rect.
-local function centredText(parent: Instance, L: Layout, text: string, y: number, big: boolean, style: string, face: number, under: number, aa: number?, z: number): (ImageLabel?, Rect)
-	local content, w, h, ox, oy, blockW = textImage(text, big, style, face, under, aa)
+------------------------------------------------------------------ the words in the player's language
+-- s in the player's language once Lang has arrived (else as written: English).
+local function words(s: string): string
+	local L = S.lang
+	return if L then L.t(s) else s
+end
+
+-- Whether a line is drawn smooth rather than in the pixel font: Settings' Text on Smooth, a language the pixel font has
+-- no letters for (Thai, Arabic, Chinese), or letters it lacks (Lang.needsScript).
+local function isSmooth(s: string): boolean
+	local L = S.lang
+	if L == nil then
+		return false
+	end
+	local f = S.smoothFn
+	return not L.pixel() or (f ~= nil and f()) or L.needsScript(s)
+end
+
+-- Builder Sans, bold (Roblox draws Thai, Arabic and Chinese in its fallback fonts where the face has none).
+local function smoothFace(): Font?
+	local f = S.smoothFace
+	if f == nil then
+		local ok, made = pcall(function(): Font
+			return Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
+		end)
+		f = if ok then made else nil
+		S.smoothFace = f
+	end
+	return f
+end
+
+-- How wide a smooth line is in UI px: Roblox's measure where it can, else Lang's estimate.
+local function smoothWidth(s: string, size: number): number
+	local ok, v = pcall(function(): Vector2
+		return game:GetService("TextService"):GetTextSize(s, size, (Enum.Font :: any).BuilderSansBold, Vector2.new(100000, 1000))
+	end)
+	if ok and typeof(v) == "Vector2" and v.X > 0 then
+		return math.ceil(v.X)
+	end
+	local L = S.lang
+	return if L then math.ceil(L.estimateWidth(s, size)) else 8 * (utf8.len(s) or #s)
+end
+
+-- A smooth line centred on the canvas at row y: a TextLabel in the face colour with a soft stroke of `under`, as wide
+-- as the canvas and centred in it (so a measure a little short never cuts it), its rect from the measure.
+local function smoothText(parent: Instance, L: Layout, text: string, y: number, big: boolean, face: number, under: number, z: number): (GuiObject, Rect)
+	local size = if big then SMOOTH_SIZE.big else SMOOTH_SIZE.small
+	local h = if big then 16 else 8
+	local w = smoothWidth(text, size)
+	local bx = math.floor((L.W - w) / 2)
+	local t = Instance.new("TextLabel")
+	t.Name = "Words"
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.fromOffset(L.W, h)
+	t.Position = UDim2.fromOffset(0, y)
+	t.TextXAlignment = Enum.TextXAlignment.Center
+	local font = smoothFace()
+	if font then
+		t.FontFace = font
+	end
+	t.TextSize = size
+	t.TextColor3 = rgb(face)
+	t.TextStrokeColor3 = rgb(under)
+	t.TextStrokeTransparency = SMOOTH_STROKE
+	t.Text = text
+	t.ZIndex = z
+	t.Parent = parent
+	return t, { x0 = bx, y0 = y, x1 = bx + w, y1 = y + h }
+end
+
+-- A line centred on the canvas at row y (the em box's top), in the player's language (raw: as written, the game's
+-- name). Returns the label and the block's rect.
+local function centredText(parent: Instance, L: Layout, text: string, y: number, big: boolean, style: string, face: number, under: number, aa: number?, z: number, raw: boolean?): (GuiObject?, Rect)
+	local shown = if raw then text else words(text)
+	-- (the game's name stays in the pixel font unless every word is smooth by choice)
+	local f = S.smoothFn
+	if (raw and S.lang ~= nil and f ~= nil and f() and (S.lang :: LangModule).pixel()) or (not raw and isSmooth(shown)) then
+		return smoothText(parent, L, shown, y, big, face, under, z)
+	end
+	local content, w, h, ox, oy, blockW = textImage(shown, big, style, face, under, aa)
 	local bx = math.floor((L.W - blockW) / 2)
 	local r: Rect = { x0 = bx, y0 = y, x1 = bx + blockW, y1 = y + (if big then 16 else 8) }
 	if content == nil then
@@ -667,6 +764,13 @@ local function setStatus()
 	if S.fallback then
 		return
 	end
+	if S.waiting then
+		-- (the dots alone, centred, until the player's words arrive)
+		for k, d in S.dots do
+			d.Position = UDim2.fromOffset(math.floor(L.W / 2) - 4 + (k - 1) * 3, L.statusY + 6)
+		end
+		return
+	end
 	local im, r = centredText(layer, L, text, L.statusY, false, "shadow", C.status, C.ink, nil, 902)
 	S.statusLabel = im
 	-- three dots after it, lit one after another
@@ -688,12 +792,66 @@ local function setTip()
 	if plate then
 		plate:Destroy()
 	end
+	S.tipLabel, S.tipPlate = nil, nil
+	if S.waiting then
+		return
+	end
 	local text = TIPS[S.tipIndex]
 	local im, r = centredText(layer, L, text, L.tipY + 3, false, "shadow", C.text, C.ink, nil, 902)
 	S.tipLabel = im
 	local p = rect(layer, r.x0 - 5, L.tipY, r.x1 - r.x0 + 10, 13, C.ink, 901, "TipPlate")
 	p.BackgroundTransparency = 0.3
 	S.tipPlate = p
+end
+
+-- The title over the sky: the game's name, or a cover's (already in the player's language).
+local function setTitle()
+	local L, layer = S.L, S.layer
+	if L == nil or layer == nil then
+		return
+	end
+	local old = S.titleLabel
+	if old then
+		old:Destroy()
+	end
+	local cover = S.mode == "cover" and S.coverTitle ~= nil
+	local text = if cover then words(S.coverTitle :: string) else "Driftling Isle"
+	if S.fallback then
+		local t = Instance.new("TextLabel")
+		t.Name = "Title"
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.new(1, 0, 0, 16)
+		t.Position = UDim2.fromOffset(0, L.titleY)
+		local font = if isSmooth(text) then smoothFace() else nil
+		if font then
+			t.FontFace = font
+			t.TextSize = SMOOTH_SIZE.big
+		else
+			t.Font = Enum.Font.Arcade
+			t.TextSize = 16
+		end
+		t.TextColor3 = rgb(C.accent)
+		t.Text = text
+		t.ZIndex = 902
+		t.Parent = layer
+		S.titleLabel = t
+		S.title = { x0 = 0, y0 = L.titleY, x1 = L.W, y1 = L.titleY + 16 }
+	else
+		local im, r = centredText(layer, L, text, L.titleY, true, "title", C.accent, C.title_ink, C.title_aa, 902, true)
+		S.titleLabel = im
+		S.title = r
+	end
+end
+
+-- Every line again in the language and style now on.
+local function reword()
+	if S.layer == nil then
+		return
+	end
+	S.statusShown = ""
+	setTitle()
+	setStatus()
+	setTip()
 end
 
 ------------------------------------------------------------------ the bank of cloud (the expansion's cover)
@@ -842,7 +1000,7 @@ local function build()
 	if old then
 		old:Destroy()
 	end
-	S.statusLabel, S.tipLabel, S.tipPlate, S.statusShown = nil, nil, nil, ""
+	S.statusLabel, S.tipLabel, S.tipPlate, S.titleLabel, S.statusShown = nil, nil, nil, nil, ""
 	S.stillShown = nil
 	-- the painting, then over it a clip (all of the canvas but while a cover comes or goes) holding the rest: the
 	-- island, the words and the bar
@@ -926,22 +1084,8 @@ local function build()
 		rect(layer, 0, L.horizon, W, H - L.horizon, CLOUDS[3], 2, "Clouds")
 		rect(layer, L.ix + math.floor(L.iw * 0.2), L.iy + math.floor(L.ih * 0.45), math.floor(L.iw * 0.6), math.floor(L.ih * 0.45), STONE, 3, "Stones")
 		rect(layer, L.ix, L.iy + math.floor(L.ih * 0.2), L.iw, math.floor(L.ih * 0.35), GRASS, 4, "Island")
-		local t = Instance.new("TextLabel")
-		t.Name = "Title"
-		t.BackgroundTransparency = 1
-		t.Size = UDim2.new(1, 0, 0, 16)
-		t.Position = UDim2.fromOffset(0, L.titleY)
-		t.Font = Enum.Font.Arcade
-		t.TextSize = 16
-		t.TextColor3 = rgb(C.accent)
-		t.Text = if S.mode == "cover" and S.coverTitle then S.coverTitle else "Driftling Isle"
-		t.ZIndex = 902
-		t.Parent = layer
-		S.title = { x0 = 0, y0 = L.titleY, x1 = W, y1 = L.titleY + 16 }
-	else
-		local _, r = centredText(layer, L, if S.mode == "cover" and S.coverTitle then S.coverTitle else "Driftling Isle", L.titleY, true, "title", C.accent, C.title_ink, C.title_aa, 902)
-		S.title = r
 	end
+	setTitle()
 	-- the bar in its frame of planks: its outline, the frame's light top and dark foot, the track, the fill with its light
 	-- top
 	local bx = math.floor(W / 2) - math.floor(L.barW / 2)
@@ -1115,6 +1259,11 @@ local function mount()
 		for k, d in S.dots do
 			d.Visible = k <= lit and not S.fallback
 		end
+		if S.waiting and now - S.t0 > WAIT_WORDS then
+			-- (the player's words never came: the English)
+			S.waiting = false
+			reword()
+		end
 		if now - S.tipAt > TIP_SEC then
 			S.tipAt = now
 			if S.tipAt > S.t0 + 0.5 then
@@ -1138,6 +1287,13 @@ end
 function LoadingCard.show()
 	if S.up or S.finished then
 		return
+	end
+	if S.lang == nil then
+		local loc = "en"
+		pcall(function()
+			loc = (Players.LocalPlayer :: Player).LocaleId
+		end)
+		S.waiting = OTHER_LANGS[string.lower(string.sub(loc, 1, 2))] == true
 	end
 	S.mode = "join"
 	mount()
@@ -1171,6 +1327,20 @@ function LoadingCard.status(text: string)
 		S.coverStatus = text
 		setStatus()
 	end
+end
+
+-- The game's words (Main, once UIKit has set the player's language and text style): every line shows in them from
+-- now on; `smooth` says whether every word is smooth (UIKit.smooth).
+function LoadingCard.useLang(Lang: LangModule, smooth: (() -> boolean)?)
+	S.lang = Lang
+	S.smoothFn = smooth
+	S.waiting = false
+	reword()
+end
+
+-- Every line again (Main, after a change of language or text style).
+function LoadingCard.reword()
+	reword()
 end
 
 function LoadingCard.phase(name: string)
@@ -1247,6 +1417,8 @@ function LoadingCard.state(): { [string]: any }
 		bank = if S.cover then (S.cover :: Cover).base else nil,
 		clip = if S.clip then { y = (S.clip :: Frame).Position.Y.Offset, h = (S.clip :: Frame).Size.Y.Offset } else nil,
 		status = S.statusShown,
+		waiting = S.waiting,
+		lang = if S.lang then (S.lang :: LangModule).code() else nil,
 		still = S.stillShown,
 		moon = if L then { x = L.moonX, y = L.moonY, r = L.moonR } else nil,
 	}

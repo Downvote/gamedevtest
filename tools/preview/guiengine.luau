@@ -202,7 +202,9 @@ local function textWidth(s, key, size)
 	local adv = FM[key].adv
 	local w = 0
 	for _, cp in codes(s) do
-		w += adv[cp] or FALLBACK[cp] or 600
+		-- (a Chinese, Japanese or Korean character, or a full-width form, is a whole em wide in Roblox's fallback fonts)
+		local wide = (cp >= 0x2E80 and cp <= 0x9FFF) or (cp >= 0xAC00 and cp <= 0xD7AF) or (cp >= 0xF900 and cp <= 0xFAFF) or (cp >= 0xFF01 and cp <= 0xFF60)
+		w += adv[cp] or FALLBACK[cp] or (if wide then 1000 else 600)
 	end
 	return w * size / 1000
 end

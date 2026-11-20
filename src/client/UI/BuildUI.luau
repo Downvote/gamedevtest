@@ -47,6 +47,24 @@ local Audio = require(script.Parent.Parent.Controllers.Audio)
 local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local Words = require(script.Parent.Words)
 local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
+-- What the draw tray and the quick remove say while taking things up, as whole sentences for each kind (a language
+-- has its own words for each: Locale/Lang), a box first, then a line.
+local ERASE_SAY: { [string]: { string } } = {
+	fences = { "Drag a box over the fences to take them up.", "Drag along the fences to take them up." },
+	water = { "Drag a box over the water to take it up.", "Drag along the water to take it up." },
+	paths = { "Drag a box over the paths to take them up.", "Drag along the paths to take them up." },
+}
+local ERASE_TITLE: { [string]: string } = { fences = "Taking up fences", water = "Taking up water", paths = "Taking up paths" }
+local QUICK_SAY: { [string]: { string } } = {
+	fences = {
+		"Tap a building to put it away. Drag a box to take up the fences in it.",
+		"Tap a building to put it away. Drag across the fences to take them up.",
+	},
+	paths = {
+		"Tap a building to put it away. Drag a box to take up the paths and water in it.",
+		"Tap a building to put it away. Drag across the paths and water to take them up.",
+	},
+}
 local LoadingCard = require(game:GetService("ReplicatedFirst").Loading.LoadingCard)
 
 local BuildUI = {}
@@ -505,9 +523,14 @@ local function showDrawGhost(cells: { { number } })
 	local plan, n, cost = strokePlan(cells)
 	local fence = fenceDraw()
 	if label and label:IsA("TextLabel") and #cells > 1 then
-		local what = if fence then "length" else "tile"
 		local erase = draw.erase or pick == nil
-		UIKit.setText(label, if erase then string.format("%d to take up", n) elseif cost == 0 then string.format("%d %s%s, free", n, what, if n == 1 then "" else "s") else string.format("%d %s%s, %s coins", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
+		-- (whole phrases, one and many, so each language has its own words: Locale/Lang)
+		local words = if erase then string.format("%d to take up", n)
+			elseif fence and cost == 0 then (if n == 1 then "1 length, free" else string.format("%d lengths, free", n))
+			elseif fence then (if n == 1 then string.format("1 length, %s coins", Numbers.coins(cost)) else string.format("%d lengths, %s coins", n, Numbers.coins(cost)))
+			elseif cost == 0 then (if n == 1 then "1 tile, free" else string.format("%d tiles, free", n))
+			else (if n == 1 then string.format("1 tile, %s coins", Numbers.coins(cost)) else string.format("%d tiles, %s coins", n, Numbers.coins(cost)))
+		UIKit.setText(label, words)
 	end
 	local ox, oz = origin()
 	local m = Blocks.model(nil, "DrawGhost")
@@ -712,36 +735,42 @@ end
 
 -- What a piece is, in a line: its blurb, what it makes, its room and comfort, its charm on an island of `tier` (a
 -- decor piece's a tile, growing with the island: Buildings.charmOf), its size.
+-- (each sentence in the player's language as it is added, Locale/Lang: never English glued to a translation; Chinese
+-- runs its sentences on with no space between)
 local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): string
-	local say = def.blurb
+	local parts: { string } = { Lang.t(def.blurb) }
 	if def.rate > 0 then
-		say = string.format("%s %s coins a minute per common worker.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
+		local rate = (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", ""))
+		table.insert(parts, Lang.f("{1} coins a minute per common worker.", rate))
 	end
 	-- (its places: Data/Buildings' jobs, the request of 2026-11-18)
 	if def.jobs > 0 then
-		say ..= string.format(" Up to %d workers.", def.jobs)
+		table.insert(parts, Lang.f("Up to {1} workers.", def.jobs))
 	end
 	if def.slots > 0 then
 		local c = def.comfort + (Tuning.ComfortLvl[lvl or 1] or 0)
-		say = string.format("%s Room for %d.%s", say, def.slots, if c > 0 then string.format(" Comfort +%d%%.", math.round(c * 100)) else "")
+		table.insert(parts, Lang.f("Room for {1}.", def.slots))
+		if c > 0 then
+			table.insert(parts, Lang.f("Comfort +{1}%.", math.round(c * 100)))
+		end
 	end
 	local charm = Buildings.charmOf(def, tier)
 	if def.kind == "decor" then
-		say ..= string.format(" Charm +%d%s.", math.floor(charm), if tier < #Tuning.DecorCharm then ", more as the island grows" else "")
+		table.insert(parts, Lang.f(if tier < #Tuning.DecorCharm then "Charm +{1}, more as the island grows." else "Charm +{1}.", math.floor(charm)))
 	elseif charm >= 1 then
-		say ..= string.format(" Charm +%d.", math.floor(charm))
+		table.insert(parts, Lang.f("Charm +{1}.", math.floor(charm)))
 	end
 	-- (boost buildings stack, less each time: the request of 2026-11-15, Island.boostShare; two of each at most since
 	-- the request of 2026-11-20, Plot.boostLimit)
 	if def.kind == "gen" then
-		say ..= string.format(" A second adds %d%% of it. Two at most.", math.round(Tuning.BoostStack * 100))
+		table.insert(parts, Lang.f("A second adds {1}% of it. Two at most.", math.round(Tuning.BoostStack * 100)))
 	end
 	if def.water == "on" then
-		say ..= " Goes on water."
+		table.insert(parts, Lang.t("Goes on water."))
 	elseif def.water == "over" then
-		say ..= " Goes over water."
+		table.insert(parts, Lang.t("Goes over water."))
 	end
-	return (string.gsub(say, "^%s+", ""))
+	return Lang.keep(table.concat(parts, if Lang.code() == "zh" then "" else " "))
 end
 
 local function closeTip()
@@ -827,7 +856,7 @@ local function replaceBar(f: Frame, p: Pick, v: Types.ClientView, q: Types.Piece
 			local res = ask("plot.replace", { i = cur.move, id = id })
 			if res.ok then
 				Audio.play("level_up")
-				UIKit.notice(string.format("The %s is a %s now.", if old then old.name else "piece", d.name), UIKit.color("good"))
+				UIKit.notice(if old then Lang.f("The {1} is a {2} now.", Lang.t(old.name), Lang.t(d.name)) else Lang.f("It's a {1} now.", Lang.t(d.name)), UIKit.color("good"))
 				BuildFx.drop(myPlot(), q.uid, id, q.x, q.z, q.rot, 1)
 				pick = nil
 				clearGhost()
@@ -912,12 +941,12 @@ local function drawBar(f: Frame, p: Pick, v: Types.ClientView)
 		rebuild()
 	end, { color = UIKit.color("plate_light"), name = "Cancel" })
 	local fence = def ~= nil and def.kind == "fence"
-	local noun = if fence then "fences" elseif def and def.kind == "water" then "water" else "paths"
+	local which = if fence then "fences" elseif def and def.kind == "water" then "water" else "paths"
 	local say
 	if draw.look then
 		say = "Drag to look around. Tap again to draw."
 	elseif draw.erase then
-		say = if draw.box then string.format("Drag a box over the %s to take them up.", noun) else string.format("Drag along the %s to take them up.", noun)
+		say = ERASE_SAY[which][if draw.box then 1 else 2]
 	elseif fence then
 		say = if draw.box then "Drag a box to fence it in." else "Drag along the grid lines."
 	elseif def and def.kind == "water" then
@@ -928,7 +957,7 @@ local function drawBar(f: Frame, p: Pick, v: Types.ClientView)
 	if def and def.blurb ~= "" and not draw.erase and not draw.look then
 		say = def.blurb .. " " .. say
 	end
-	local info = infoPlate(f, p, v, (if draw.erase then "Taking up " .. noun else "Drawing: " .. (if def then def.name else p.id)), say, def ~= nil and not draw.erase)
+	local info = infoPlate(f, p, v, (if draw.erase then ERASE_TITLE[which] else Lang.f("Drawing: {1}", Lang.t(if def then def.name else p.id))), say, def ~= nil and not draw.erase)
 	-- the stroke under way: how many and what they cost (set as it changes: showDrawGhost)
 	UIKit.text(info, "", UDim2.fromOffset(150, 10), UDim2.new(1, -154, 0, 15), { x = "right", color = UIKit.color("accent"), z = 4, name = "Stroke" })
 end
@@ -1036,13 +1065,21 @@ local function actionBar(f: Frame, p: Pick, v: Types.ClientView)
 		rebuild()
 	end, "Cancel")
 	-- what it is and costs
-	local name = (if def then def.name else p.id) .. (if q and q.lvl > 1 then " Lv" .. q.lvl else "")
-	infoPlate(f, p, v, (if p.move then "Moving: " else "Placing: ") .. name, if def then about(def, if q then q.lvl else 1, v.tier) else "", q == nil and def ~= nil)
+	-- (whole phrases in the language on show: Locale/Lang)
+	local name = Lang.t(if def then def.name else p.id)
+	if q and q.lvl > 1 then
+		name = Lang.keep(name .. " " .. Lang.f("Lv{1}", q.lvl))
+	end
+	infoPlate(f, p, v, Lang.f(if p.move then "Moving: {1}" else "Placing: {1}", name), if def then about(def, if q then q.lvl else 1, v.tier) else "", q == nil and def ~= nil)
 end
 
 -- The tab's pieces in the chosen row: unlocked first, cheapest first; the locked ones after, by the level they open at.
+-- (the name in the language on show too, so a player finds a piece in their own words)
 local function matches(d: Buildings.BuildingDef, q: string): boolean
-	return string.find(string.lower(d.name), q, 1, true) ~= nil or string.find(d.sub, q, 1, true) ~= nil or string.find(d.tab, q, 1, true) ~= nil
+	return string.find(string.lower(d.name), q, 1, true) ~= nil
+		or string.find(string.lower(Lang.t(d.name)), q, 1, true) ~= nil
+		or string.find(d.sub, q, 1, true) ~= nil
+		or string.find(d.tab, q, 1, true) ~= nil
 end
 
 local function listFor(v: Types.ClientView): { Buildings.BuildingDef }
@@ -1405,12 +1442,11 @@ local function quickBar(f: Frame)
 	UIKit.button(f, "Stop", UDim2.fromOffset(UIKit.buttonWidth("Stop", 5), 13), UDim2.fromOffset(x, 2), function()
 		BuildUI.quickRemove(false)
 	end, { color = UIKit.color("plate_light"), name = "QuickStop" })
-	local noun = if quick.fence then "fences" else "paths and water"
 	local say
 	if draw.look then
 		say = "Drag to look around. Tap again to take things up."
 	else
-		say = string.format("Tap a building to put it away. %s", if draw.box then string.format("Drag a box to take up the %s in it.", noun) else string.format("Drag across the %s to take them up.", noun))
+		say = QUICK_SAY[if quick.fence then "fences" else "paths"][if draw.box then 1 else 2]
 	end
 	local w = f.Size.X.Offset - 8
 	local tw = w - 40 - 96
@@ -1455,7 +1491,7 @@ local function expandIsland(from: number)
 		Audio.play("grow")
 		AvatarView.cheer()
 		local name = Office.plan(grown or from + 1).name
-		UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s moved.", name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s.", name), UIKit.color("good"), 4)
+		UIKit.notice(if moved == 1 then string.format("Your island grew into %s. 1 building moved.", name) elseif moved > 1 then string.format("Your island grew into %s. %d buildings moved.", name, moved) else string.format("Your island grew into %s.", name), UIKit.color("good"), 4)
 	end
 	local function builtTier(): number
 		local plots = workspace:FindFirstChild("Plots")
@@ -1510,8 +1546,11 @@ end
 
 local function expandButton(f: Frame, v: Types.ClientView)
 	local cost = Island.expandCost(v.tier)
-	-- (56 wide: "Island max" needs 51 px of words and the button keeps 2 a side; at 54 its last letter was cut)
-	UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(56, 13), UDim2.new(1, -104, 0, 2), function()
+	-- (56 wide at least: "Island max" needs 51 px of words and the button keeps 2 a side; at 54 its last letter was cut;
+	-- wider for longer words in another language ("Расширить"), its right edge staying put)
+	local label = if cost then "Expand" else "Island max"
+	local bw = math.max(56, UIKit.buttonWidth(label, 3))
+	UIKit.button(f, label, UDim2.fromOffset(bw, 13), UDim2.new(1, -48 - bw, 0, 2), function()
 		Audio.play("close")
 		expandIsland(v.tier)
 	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells })

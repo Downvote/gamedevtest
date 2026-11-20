@@ -1,0 +1,78 @@
+# Strings scripts/locale_strings.py finds that a player never sees (a part's, an instance's or a panel's name, a
+# line for the output window), one per line exactly as `python3 scripts/locale_strings.py --list` prints them (a line
+# break as \n). The Lang spec's check skips them. Lines starting "# " are notes.
+ (gone)
+ shade
+ sun
+Ball
+Beam
+Bit{1}
+Block
+Bounds
+Center
+Clouds
+Cylinder
+Default
+Dot{1}
+Glow
+Glyphs
+Halo
+Moon
+None
+Office
+Owner
+Plank
+Plot
+Rays
+Rect
+Router.on: no Validate schema for {1}
+Shard
+Sky
+Stage
+Staged
+Stones
+Sun
+Tier
+Wedge
+World
+Row
+hatch light
+hatch rings
+moved, last seen off the layer
+never drawn
+no model for {1}
+not kept
+old picture
+other scale
+sky far
+sky moon
+sky sun
+the classic look is on
+this device can't draw the pixel filter
+Titles: duplicate id {1}
+{1}:start
+{1}|title|{2},{3}
+|rich|{1}|{2}
+Footprint
+Island
+Pals
+Label
+Note
+Edge
+Line
+Popup
+Button
+Dot
+Fill
+Fold
+Hi
+Lo
+Hud
+Modal
+Nail
+Portrait
+Px
+Seam
+Stripe
+({1},{2}) inc {3} id {4} depth {5}, whole {6} id {7} depth {8}, static {9} id {10}, tile {11}
+{1}@@slot

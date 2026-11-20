@@ -235,7 +235,7 @@ local function extrasOf(s: Spot): { string }
 			out = { string.format("Earns %s coins/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
 		elseif s.kind == "boost" then
 			local b = Island.boostInfo(prof, s.id)
-			local first = string.format("+%s to all from %d boost%s", pct(b.total), b.count, if b.count == 1 then "" else "s")
+			local first = if b.count == 1 then string.format("+%s to all from 1 boost", pct(b.total)) else string.format("+%s to all from %d boosts", pct(b.total), b.count)
 			-- (two of each at most since the request of 2026-11-20: "make the max of each boosts building to be 2")
 			local second = if b.raw >= Tuning.BoostMax - 1e-9 then string.format("Max boost %s", pct(Tuning.BoostMax)) elseif b.more <= 0 then string.format("%d of %d built", b.same, Plot.boostLimit()) else string.format("One more adds +%s", pct(b.more))
 			out = { first, second }
@@ -247,7 +247,8 @@ end
 
 -- The words of a building's card.
 local function fullness(s: Spot): string
-	return string.format(if s.work then "Workers %d/%d" else "Living here %d/%d", s.n, s.room)
+	-- (each a whole phrase, so a language has its own words: Locale/Lang)
+	return if s.work then string.format("Workers %d/%d", s.n, s.room) else string.format("Living here %d/%d", s.n, s.room)
 end
 
 local function dropCard()

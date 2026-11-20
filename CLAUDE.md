@@ -19,7 +19,7 @@ village island2 island3 city everdrift gallery tree treeink day dusk night dawn 
 loading themes hatches weathers crowd alerts`, `showcase=<1..20>` (a well decorated town on an island of that expansion level), `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<skin|style|bangs|hair|eyes|shirt|top|apron|hat|face|neck|back|hand|outfits|titles>` (the My founder screen), `panel=rewards:<today|tasks|spin|index|codes>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing
 the cosmetics, with their white outlines and name tags; `looks=f<1..5>` the customization screen's features: new styles, bangs,
-aprons and eye colours, tints and the hand's turn, covering hats), `stress=<n>` (the full-island stress walk's first n legs), `expandperf=<tier>` (a full island at that tier expanded once, every frame timed), `expandrim=<tier>[:quick][:xN][:ui][:replica][:midbake]` (expansions with the view dragged round the island, the picture checked against a fresh cast at every step, over the tree too), `treeink=<n>` or `treeink=<n>,<tier>[,<turn>]` (the Tree of Life's stray marks and loose bits counted at View notch n at midday, on an island of that tier, turned by `<turn>` degrees), `treewalk[=<tier>][:expand]` (the founder walking round the tree as a player does, hatching an egg, the View slider moved, Build mode opened, the tree's box checked against a fresh cast every few frames; `tools/preview/tree_walk.py <outdir>` marks what is off), `treesplit[=<tier>]` (the tree's parts handed over in batches, as the game's replication does, then checked against a fresh cast), `treebake[=<tier>]` (the island baked again on the real clock, a frame at a time as in the game, then the tree checked against a fresh cast), `f32:<scenario>` (any scenario with the raycaster's ball test in single precision, as Roblox's is), `zoom=<1..10>` or `zooms` (the harbour island with the View slider on that notch, the Settings panel open and shut), `screen=<125|150|175|200>` (Settings' Screen at that scale: the log says the pixel size in the screen's own pixels and whether the pixel layer and every interface canvas sit on whole ones), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
+aprons and eye colours, tints and the hand's turn, covering hats), `stress=<n>` (the full-island stress walk's first n legs), `expandperf=<tier>` (a full island at that tier expanded once, every frame timed), `expandrim=<tier>[:quick][:xN][:ui][:replica][:midbake]` (expansions with the view dragged round the island, the picture checked against a fresh cast at every step, over the tree too), `treeink=<n>` or `treeink=<n>,<tier>[,<turn>]` (the Tree of Life's stray marks and loose bits counted at View notch n at midday, on an island of that tier, turned by `<turn>` degrees), `treewalk[=<tier>][:expand]` (the founder walking round the tree as a player does, hatching an egg, the View slider moved, Build mode opened, the tree's box checked against a fresh cast every few frames; `tools/preview/tree_walk.py <outdir>` marks what is off), `treesplit[=<tier>]` (the tree's parts handed over in batches, as the game's replication does, then checked against a fresh cast), `treebake[=<tier>]` (the island baked again on the real clock, a frame at a time as in the game, then the tree checked against a fresh cast), `f32:<scenario>` (any scenario with the raycaster's ball test in single precision, as Roblox's is), `lang=<code>:<scenario>` (any scenario in that language) and `smooth:<scenario>` (with Settings' Text on Smooth), `zoom=<1..10>` or `zooms` (the harbour island with the View slider on that notch, the Settings panel open and shut), `screen=<125|150|175|200>` (Settings' Screen at that scale: the log says the pixel size in the screen's own pixels and whether the pixel layer and every interface canvas sit on whole ones), `anim=<id>` or `anim=<id>:<mood>,<mood>` (one driftling moving
 on its skeleton, eight frames a mood; a mood `act_<name>` plays one of DriftMotion's idle acts through in nine frames), `catalog=<group>` (a group of the build catalog: `ground fence
 nature theme theme2 fun`, a Build mode tab or ids), `theme=<beach|garden|frost|zen|volcano|fairy>` or `weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves>` (the village by its tree in that weather, two touched eggs, the HUD's season and weather lines). The loading card's
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows); so are the game passes' and
@@ -73,8 +73,24 @@ none of the stock AI words ("delve", "embark", "unleash", "vibrant", "bustling",
 hype ("epic adventure awaits!"); no stated morals. Short and specific, the way a game's own characters would say
 it. Read new text aloud once before it goes in.
 
-## Language
+## Languages: translate as you go
 
-English only in this version. Every player-visible string still goes through `Locale/Lang.t` (and `Lang.fmt` for
-templates), so translations can be added the Random Bakery way later. Latin and Cyrillic text is drawn in the pixel
-font: a letter it lacks needs a glyph in `scripts/gen_pixelfont.py`.
+The user's request (2026-11-20): "like the bakery game, make translations for different languages, and an option to
+turn off pixel text". The game ships in English, Bahasa Indonesia, Español, ไทย, Português, العربية, Русский,
+Français, 简体中文 and Italiano (docs/LOCALIZATION.md), and Settings' Text can be Pixel or Smooth (Roblox's own font).
+
+- Every change that adds or changes text a player can see includes its translations into all nine languages, in the
+  same commit: add the English string (or its template with {1}) and its words to each `locale/<code>.json`
+  (`id es th pt ar ru fr zh it`), keeping every `{n}`, then run `python3 scripts/gen_locale.py`. Reuse the wording each
+  table already has for the game's terms (grep the table first); keep it short and casual. The Writing rule holds in
+  every language (no dashes, nothing machine-sounding).
+- Build sentences as whole templates (`Lang.f`, `Lang.fmt`, `Lang.an` for "a" / "an"; one and many as two keys), never
+  English pieces glued together. A key may carry a note after `@@` when one word means two things (`Back@@slot`).
+- `scripts/check.sh` fails when a string the game can show has no translation (the Lang spec, fed by
+  `scripts/locale_strings.py`). A string that is never shown (a part's name, an id, a log line) goes in
+  `locale/ignore.txt` instead.
+- Driftlings keep their names in every language (their keys map to themselves).
+- Latin and Cyrillic text is drawn in the pixel font: a letter it lacks needs a glyph in `scripts/gen_pixelfont.py`.
+  Thai, Arabic and Chinese are always drawn smooth, in Roblox's own font.
+- Check a change in another language and in smooth text with the preview prefixes `lang=<code>:` and `smooth:`
+  (`lang=ru:panel=settings`, `lang=zh:smooth:buildui`; give each its own output folder).

@@ -40,6 +40,7 @@ local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Store = require(ReplicatedStorage.Shared.Logic.Store)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local UIKit = require(script.Parent.UIKit)
@@ -174,8 +175,7 @@ function StoreUI.eggInstead(r: number)
 		return
 	end
 	local rar = Traits.RARITY[Store.EGG_R[key] or 2] or Traits.RARITY[2]
-	local an = if string.match(string.lower(rar.name), "^[aeiou]") then "an" else "a"
-	UIKit.notice(string.format("Not enough coins. Buy %s %s egg with Robux?", an, string.lower(rar.name)), UIKit.color("text_dim"))
+	UIKit.notice(Lang.an("Not enough coins. Buy an {1} egg with Robux?", "Not enough coins. Buy a {1} egg with Robux?", rar.name), UIKit.color("text_dim"))
 	StoreUI.buy(key)
 end
 
@@ -199,11 +199,6 @@ local function claimVip()
 end
 
 ------------------------------------------------------------------ words
-local function an(word: string): string
-	local c = string.lower(string.sub(word, 1, 1))
-	return if c == "a" or c == "e" or c == "i" or c == "o" or c == "u" then "an" else "a"
-end
-
 -- What a purchase or a reward gave (Fx rewards' `given`), in one plain line: each thing when there are three or fewer,
 -- else counted ("2 eggs, 2 pieces").
 local FROM: { [string]: string } = {
@@ -222,7 +217,8 @@ local FROM: { [string]: string } = {
 }
 local BOOST_NAMES: { [string]: string } = { shells = "Busy Day", luck = "Lucky Hour" }
 function StoreUI.rewardText(from: string, given: { any }): string
-	local head = FROM[from] or (if ITEM_BY[from] then ITEM_BY[from].name else "Got")
+	-- (each piece in the language on show, the list joined in it too: whole phrases, Locale/Lang)
+	local head = Lang.t(FROM[from] or (if ITEM_BY[from] then ITEM_BY[from].name else "Got"))
 	local parts: { string } = {}
 	local shells, eggs, looks, titles, pals = 0, 0, 0, 0, 0
 	local one: { string } = {}
@@ -235,35 +231,35 @@ function StoreUI.rewardText(from: string, given: { any }): string
 		elseif g.kind == "egg" then
 			eggs += 1
 			local rar = Traits.RARITY[math.clamp(tonumber(g.r) or 1, 1, Traits.RMAX)]
-			table.insert(one, string.format("%s %s egg", an(rar.name), string.lower(rar.name)))
+			table.insert(one, Lang.an("an {1} egg", "a {1} egg", rar.name))
 		elseif g.kind == "look" then
 			looks += 1
 			local c = Cosmetics.byId[tostring(g.id)]
-			table.insert(one, if c then c.name else "a piece")
+			table.insert(one, Lang.t(if c then c.name else "a piece"))
 		elseif g.kind == "title" then
 			titles += 1
 			local t = Titles.byId[tostring(g.id)]
-			table.insert(one, "the " .. (if t then t.name else "new") .. " title")
+			table.insert(one, if t then Lang.f("the {1} title", Lang.t(t.name)) else Lang.t("a title"))
 		elseif g.kind == "spin" then
 			local n = tonumber(g.n) or 1
-			table.insert(one, if n == 1 then "a Lucky Spin" else string.format("%d Lucky Spins", n))
+			table.insert(one, if n == 1 then Lang.t("a Lucky Spin") else Lang.f("{1} Lucky Spins", n))
 		elseif g.kind == "boost" then
-			table.insert(one, string.format("%s for %d min", BOOST_NAMES[tostring(g.id)] or "a boost", math.max(1, math.floor((tonumber(g.n) or 60) / 60 + 0.5))))
+			table.insert(one, Lang.f("{1} for {2} min", Lang.t(BOOST_NAMES[tostring(g.id)] or "a boost"), math.max(1, math.floor((tonumber(g.n) or 60) / 60 + 0.5))))
 		elseif g.kind == "shop" then
-			table.insert(one, "a new shop set")
+			table.insert(one, Lang.t("a new shop set"))
 		elseif g.kind == "eggs" then
-			table.insert(one, "new eggs at the tree")
+			table.insert(one, Lang.t("new eggs at the tree"))
 		elseif g.kind == "ready" then
 			local n = math.max(1, math.floor(tonumber(g.n) or 1))
-			table.insert(one, if n == 1 then "an egg ready at the Hatchery" else string.format("%d eggs ready at the Hatcheries", n))
+			table.insert(one, if n == 1 then Lang.t("an egg ready at the Hatchery") else Lang.f("{1} eggs ready at the Hatcheries", n))
 		elseif g.kind == "pal" then
 			pals += 1
 			local d = Creatures.byId[tostring(g.id)]
-			table.insert(one, if d then d.name .. " hatched" else "a driftling hatched")
+			table.insert(one, if d then Lang.f("{1} hatched", d.name) else Lang.t("a driftling hatched"))
 		end
 	end
 	if shells > 0 then
-		table.insert(parts, Numbers.coins(shells) .. " coins")
+		table.insert(parts, Lang.f("{1} coins", Numbers.coins(shells)))
 	end
 	if #one + #parts <= 3 then
 		for _, w in one do
@@ -271,26 +267,22 @@ function StoreUI.rewardText(from: string, given: { any }): string
 		end
 	else
 		if eggs > 0 then
-			table.insert(parts, if eggs == 1 then "an egg" else eggs .. " eggs")
+			table.insert(parts, if eggs == 1 then Lang.t("an egg") else Lang.f("{1} eggs", eggs))
 		end
 		if looks > 0 then
-			table.insert(parts, if looks == 1 then "a piece" else looks .. " pieces")
+			table.insert(parts, if looks == 1 then Lang.t("a piece") else Lang.f("{1} pieces", looks))
 		end
 		if titles > 0 then
-			table.insert(parts, if titles == 1 then "a title" else titles .. " titles")
+			table.insert(parts, if titles == 1 then Lang.t("a title") else Lang.f("{1} titles", titles))
 		end
 		if pals > 0 then
-			table.insert(parts, if pals == 1 then "a driftling hatched" else pals .. " driftlings hatched")
+			table.insert(parts, if pals == 1 then Lang.t("a driftling hatched") else Lang.f("{1} driftlings hatched", pals))
 		end
 	end
 	if #parts == 0 then
-		return head .. "."
+		return Lang.f("{1}.@@reward", head)
 	end
-	local list = parts[1]
-	for i = 2, #parts do
-		list ..= (if i == #parts then " and " else ", ") .. parts[i]
-	end
-	return head .. ": " .. list .. "."
+	return Lang.f("{1}: {2}.@@reward", head, Lang.list(parts))
 end
 
 -- What earns a title, plainly (Data/Titles `how`, `n`).
@@ -304,7 +296,7 @@ local function howWords(t: Titles.Title): string
 		return string.format("Hatch %s eggs.", Numbers.coins(n))
 	elseif h == "best" then
 		local rar = Traits.RARITY[math.clamp(n, 1, Traits.RMAX)]
-		return string.format("Have %s %s driftling.", an(rar.name), string.lower(rar.name))
+		return Lang.an("Have an {1} driftling.", "Have a {1} driftling.", rar.name)
 	elseif h == "seen" then
 		return if n > 0 then string.format("Find %d kinds.", n) else "Find every kind."
 	elseif h == "earned" then
@@ -381,7 +373,7 @@ local function countdown(label: TextLabel, left: () -> number, fmt: string)
 			return
 		end
 		local secs = math.max(60, left())
-		local t = string.format(fmt, if secs >= 2 * 86400 then string.format("%d days", math.floor(secs / 86400)) else Numbers.duration(secs))
+		local t = Lang.f(fmt, if secs >= 2 * 86400 then Lang.f("{1} days", math.floor(secs / 86400)) else Numbers.duration(secs))
 		if t ~= last then
 			last = t
 			UIKit.setText(label, t)
@@ -511,7 +503,7 @@ local function buildEggs(body: Frame, v: Types.ClientView, W: number, H: number,
 	-- (where bought eggs go)
 	local n = #(v.bag or {})
 	local f = row(list, order + 1, 14, "BagNote")
-	UIKit.text(f, if n > 0 then string.format("%d %s in your bag. Hatch at the tree.", n, if n == 1 then "egg" else "eggs") else "Bought eggs wait in your bag at the tree.", UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 4 })
+	UIKit.text(f, if n == 1 then "1 egg in your bag. Hatch at the tree." elseif n > 0 then string.format("%d eggs in your bag. Hatch at the tree.", n) else "Bought eggs wait in your bag at the tree.", UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("text_dim"), z = 4 })
 end
 
 -- The eggs on sale, as rows at the end of a list (the Tree of Life's panel, under the eggs lying there: the request of
@@ -548,7 +540,7 @@ local function buildShop(body: Frame, v: Types.ClientView, W: number, H: number,
 	countdown(when, function(): number
 		local _, left = Store.rotation(StateClient.seaClock())
 		return left
-	end, "New pieces in %s")
+	end, "New pieces in {1}")
 	local rb = UIKit.button(body, "New set " .. robuxText("RefreshShop"), UDim2.fromOffset(112, 13), UDim2.fromOffset(W - 114, top - 1), function()
 		StoreUI.buy("RefreshShop")
 	end, { name = "ShopRefresh", color = UIKit.color("button_warn") })
@@ -582,7 +574,9 @@ local function buildShop(body: Frame, v: Types.ClientView, W: number, H: number,
 				slot = s.name
 			end
 		end
-		UIKit.text(f, rar.name .. ", " .. string.lower(slot), UDim2.fromOffset(tw, 10), UDim2.fromOffset(30, 13), { color = UIKit.color("text_dim"), z = 4, name = "Kind" })
+		-- (the slot's word as a slot: "Back@@slot" apart from the Back button, Locale/Lang; lower case in English)
+		local slotWords = if Lang.code() == "en" then string.lower(slot) else Lang.t(slot .. "@@slot")
+		UIKit.text(f, Lang.keep(Lang.t(rar.name) .. ", " .. slotWords), UDim2.fromOffset(tw, 10), UDim2.fromOffset(30, 13), { color = UIKit.color("text_dim"), z = 4, name = "Kind" })
 		local has = v.owned and v.owned[id] == true
 		if has then
 			local worn = (v.founder :: any)[c.slot] == id
@@ -686,7 +680,7 @@ local function buildTrack(body: Frame, v: Types.ClientView, W: number, H: number
 		countdown(left, function(): number
 			local _, l = Store.season(StateClient.seaClock())
 			return l
-		end, "Ends in %s. Most things earn points.")
+		end, "Ends in {1}. Most things earn points.")
 	end
 	y += boxH + 3
 	-- the premium pass, while it isn't owned

@@ -1,0 +1,9 @@
+# Strings scripts/locale_strings.py cannot find in the source (a template too short for its scan; words put together
+# at run time), one per line exactly as shown ("\n" for a line break). The Lang spec checks every language has them.
+{1} h
+{1} h {2} min
+{1} min
+{1}/min
+a {1} {2}
+, @@list
+ and @@list

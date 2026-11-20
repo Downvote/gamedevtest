@@ -18,6 +18,7 @@ local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
 local Weather = require(ReplicatedStorage.Shared.Logic.Weather)
 local Store = require(ReplicatedStorage.Shared.Logic.Store)
 local Rewards = require(ReplicatedStorage.Shared.Logic.Rewards)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local Codes = require(script.Parent.Parent.Config.Codes)
 local Session = require(script.Parent.Session)
 local WorldClock = require(script.Parent.WorldClock)
@@ -301,6 +302,16 @@ function IslandService.init()
 		elseif a.k == "screen" and type(a.v) == "string" and Tuning.ScreenScales[a.v] ~= nil then
 			-- the screen's own scale (the Settings panel, 2026-11-20: Pixel/DisplayScale): kept with the profile
 			s.profile.settings.screen = a.v
+			return true, nil
+		elseif a.k == "lang" and type(a.v) == "string" and (a.v == "auto" or Lang.byCode[a.v] ~= nil) then
+			-- the language (the Settings panel, 2026-11-20: "like the bakery game, make translations for different
+			-- languages"): "auto" (the player's Roblox language) or a code the game has, kept with the profile
+			s.profile.settings.lang = a.v
+			return true, nil
+		elseif a.k == "text" and (a.v == "pixel" or a.v == "smooth") then
+			-- the pixel font or Roblox's own for every word (the Settings panel, 2026-11-20: "an option to turn off
+			-- pixel text"), kept with the profile
+			s.profile.settings.text = a.v
 			return true, nil
 		end
 		return false, "bad_payload"
