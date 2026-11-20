@@ -1290,12 +1290,17 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   when expanding"; Data/Street.darkness the rule). Each static pixel the street's view casts keeps a key in `sDark`
   (u32, `DK.keyOf` from the hit point: the island (`Street.plotAt`) times 2^26, its direction bin from the island's
   heart less one times 2^16, its distance in sixteenths of a stud; 0 off every island's reach, and on a stage); the key
-  scrolls, pastes from the pan cache and swaps with a bake like the water's phase. `gradeSpan` darkens a pixel by the
-  level (0 .. `LEVELS`, 16) `Street.darkAt` gives its distance against its island's radius in its bin (`DK.cur[plot]`,
-  `DARK_BINS` radii; nil for an empty lot, a whole island open, or nothing known yet) and the coast's (`DK.coast`, the
-  top tier's), worked out inline: `DK.darken(c, level)` greys it a little and moves it toward the night colour
-  (`NIGHT` 22, 26, 52) by level / LEVELS x `MAX` (0.74), cached by colour and level; a dynamic model's pixel (a founder,
-  a driftling) takes the ground's key behind it and half the level, so it stays readable. `DK.step(s)` every frame (the
+  scrolls, pastes from the pan cache and swaps with a bake like the water's phase. `gradeSpan` darkens a pixel by how
+  dark (0 .. 1) `Street.darkAt` makes its distance against its island's radius in its bin (`DK.cur[plot]`, `DARK_BINS`
+  radii; nil for an empty lot, a whole island open, or nothing known yet) and the coast's (`DK.coast`, the top tier's),
+  worked out inline, then dithered (the request of 2026-11-20, later: "Make the outside fuly black, and use dithering
+  for gradients"): d x `TONES` (3) splits into a flat tone and a fraction, and the pixel takes the next tone where the
+  fraction beats its threshold in the 4 x 4 ordered dither (`DK.BAYER`, (n + 0.5) / 16) at its world pixel (x +
+  `cam.gx`, y + `cam.gy`: the pattern holds still on a pan, since the static layer, its keys and the graded copy shift
+  together). `DK.darken(c, level)` (level 0 .. `SCALE`, 48; a tone is `SCALE` / `TONES`) greys it a little and scales it
+  toward pure black, black at `SCALE`, cached by colour and level. A dynamic model's pixel (a founder, a driftling)
+  takes the ground's key behind it and half the darkness, rounded to a level with no dither, so it stays readable and
+  doesn't shimmer as it walks over the pattern. `DK.step(s)` every frame (the
   street's view only): each plot's `Owner` and `Tier` attributes ten times a second; an island first seen or gone
   grades the whole picture again (`SG.ok` false); a new tier starts its edge easing from where it stands to the new
   tier's radii over `SECS` (1.4 s, eased out). While an edge moves the picture is looked over in sweeps of `ROWS` (30)

@@ -1039,18 +1039,24 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > models built again and cast); now 22 frames over 1.3 s (the worst 335 ms, the server's answer and the Build tray),
 > no land model built, and a second later the island draws as fast as before it grew.
 
+> The request (2026-11-20, later): "Make the outside fuly black, and use dithering for gradients". So the dark land
+> goes all the way to black, and the ramp into it is three flat tones with an ordered dither between each pair, the
+> pattern fixed to the world's pixels so it doesn't crawl when the view moves.
+
 The island is whole from the first day and round: about 132 studs across, its beaches, palms and shallows all round.
 The founder starts in the middle of it, by the Tree of Life, on a meadow round it, and the rest of the grass lies in
-the dark: the pixel filter darkens the land past the open ground toward a deep night blue, from nothing at the meadow's
-edge to its darkest six studs out (`Street.DARK_RAMP`), and lighter again over the last three studs before the beach, so
-the beach and the sea stay lit (`Street.darkness`; a founder or a driftling out there is half as dark, so it stays
-readable). Anyone may walk out into the dark; nobody builds there. Each tier opens a wider ring round the tree
+the dark: the pixel filter darkens the land past the open ground to pure black, from nothing at the meadow's edge to
+black six studs out (`Street.DARK_RAMP`), and lighter again over the last three studs before the beach, so the beach and
+the sea stay lit (`Street.darkness`). The ramp is drawn the pixel art way: three flat tones between lit and black, each
+blending into the next by a 4 x 4 ordered dither fixed to the world's pixel grid, so it holds still while the view pans.
+A founder or a driftling out there is half as dark, in plain steps with no dither, so it stays readable and doesn't
+shimmer as it walks. Anyone may walk out into the dark; nobody builds there. Each tier opens a wider ring round the tree
 (`Data/Street`'s isles: the first a small oval, then circles from 19 studs across the radius to 60, each edge with its
 own wobble), so the open ground grows outward evenly every way, and growing to a tier pushes the dark back off its
 ring: the edge eases out over about a second and a half while the picture is graded again a band at a time. The land
 itself is the same on every tier, so an expansion builds, sends and draws no land at all. (Until the same day the
 grass past the open ground was under rock, shelves of stone with invisible walls, and a trail ran through it from beach
-to beach; both went with the request below.) The rings open as
+to beach; both went with the request above.) The rings open as
 much ground as the islands used to gain (the table's grass), so the limits and prices still fit. The ring reaches the
 beaches about Sunspire Capital and the whole island is open at Everdrift: 12,193 cells. The islands stand 170 studs
 apart (80 before, when a new island was small), so open sea still runs between two neighbours. A piece may stand

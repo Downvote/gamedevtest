@@ -3085,7 +3085,7 @@ SCEN.picons = piconsScenario
 -- lays them out with the title and the captions)
 local function gthumbsScenario(arg: string?)
 	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile, harbor = HARBOR, pals = PALS }
-	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "rocks") then
+	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "dark") then
 		env.mode = arg
 	elseif arg then
 		env.only = {}

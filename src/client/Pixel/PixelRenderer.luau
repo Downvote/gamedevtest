@@ -444,18 +444,27 @@ local SG = {
 
 -- The darkness over the land not open yet (the request of 2026-11-20: "Remove the rocks and make it a gradient dark
 -- filter instead, with the darkness retreating as it expands. This should also make it much less laggy when
--- expanding"; Data/Street.darkness has the rule). Each static pixel the street's view casts keeps a key (sDark, u32): the
--- island its hit point lies on, the direction from that island's heart (one of Street.DARK_BINS) and its distance
--- (sixteenths of a stud), or 0 off every island. The grade (gradeSpan) darkens a pixel by how far it lies past its
--- island's open radius in that direction (`cur`: per plot, DARK_BINS radii; nil, no darkness: an empty lot, a whole
--- island open, a stage) in LEVELS steps toward a deep night blue (what moves, half as many steps: a founder out there
--- stays readable; its pixel takes the key of the ground behind it), so the land itself never changes with the tier and
--- an expansion casts no ray: `step` sees the plot's Tier attribute change and eases its radii out to the new tier's
--- over SECS, grading ROWS of the picture again a frame meanwhile (the moving edge sweeps across in a few frames).
+-- expanding", then "Make the outside fuly black, and use dithering for gradients"; Data/Street.darkness has the rule).
+-- Each static pixel the street's view casts keeps a key (sDark, u32): the island its hit point lies on, the direction
+-- from that island's heart (one of Street.DARK_BINS) and its distance (sixteenths of a stud), or 0 off every island.
+-- The grade (gradeSpan) darkens a pixel by how far it lies past its island's open radius in that direction (`cur`: per
+-- plot, DARK_BINS radii; nil, no darkness: an empty lot, a whole island open, a stage): TONES flat steps down to black,
+-- each band blending into the next by a 4 x 4 ordered dither pinned to the world's pixel grid (BAYER, at the pixel's
+-- x + cam.gx, y + cam.gy), so the pattern holds still while the view pans and the far land is pure black. What moves
+-- (a founder or a driftling out there, its pixel keyed by the ground behind it) is half as dark, in plain steps with
+-- no dither so it doesn't shimmer as it walks across the pattern. The land itself never changes with the tier and an
+-- expansion casts no ray: `step` sees the plot's Tier attribute change and eases its radii out to the new tier's over
+-- SECS, grading ROWS of the picture again a frame meanwhile (the moving edge sweeps across in a few frames).
 SG.DK = {
-	LEVELS = 16,
-	MAX = 0.74, -- (how far the darkest step goes toward the night colour)
-	NIGHT = { r = 22, g = 26, b = 52 },
+	TONES = 3, -- (the flat steps from lit to black; the dither blends each into the next)
+	SCALE = 48, -- (darken's level runs 0 .. SCALE, black at SCALE: a tone is SCALE / TONES of it, what moves any of it)
+	-- (the 4 x 4 ordered dither's thresholds, row by row, as fractions of a step: (n + 0.5) / 16)
+	BAYER = table.freeze({
+		0.5 / 16, 8.5 / 16, 2.5 / 16, 10.5 / 16,
+		12.5 / 16, 4.5 / 16, 14.5 / 16, 6.5 / 16,
+		3.5 / 16, 11.5 / 16, 1.5 / 16, 9.5 / 16,
+		15.5 / 16, 7.5 / 16, 13.5 / 16, 5.5 / 16,
+	}),
 	SECS = 1.4,
 	ROWS = 30, -- (picture rows looked over a frame while an edge moves: a sweep of the picture about every 12 frames)
 	band = {} :: { [number]: { lo: { number }, hi: { number } } }, -- (per moving island: its radii before and after the step)
@@ -487,7 +496,7 @@ function SG.DK.keyOf(wx: number, wz: number): number
 	return i * 67108864 + (b - 1) * 65536 + math.min(65535, math.floor(rho * 16 + 0.5))
 end
 
--- How dark (0 .. LEVELS) a key is with the radii now.
+-- How dark (0 .. SCALE, before the dither) a key is with the radii now.
 function SG.DK.level(key: number): number
 	local DK = SG.DK
 	local pl = DK.cur[key // 67108864]
@@ -496,10 +505,10 @@ function SG.DK.level(key: number): number
 	end
 	local b = (key // 65536) % 1024 + 1
 	local d = Street.darkAt((key % 65536) / 16, pl[b], DK.coast[b])
-	return math.floor(d * DK.LEVELS + 0.5)
+	return math.floor(d * DK.SCALE + 0.5)
 end
 
--- A colour (u32, its alpha byte kept) darkened by `lvl` steps: a little greyer, then toward the night colour.
+-- A colour (u32, its alpha byte kept) darkened by `lvl` (of SCALE): a little greyer on the way, pure black at SCALE.
 function SG.DK.darken(c: number, lvl: number): number
 	local DK = SG.DK
 	local key = c + lvl * 4294967296
@@ -509,12 +518,11 @@ function SG.DK.darken(c: number, lvl: number): number
 	end
 	local r, g, b = c % 256, (c // 256) % 256, (c // 65536) % 256
 	local a = c - c % 16777216
-	local f = lvl / DK.LEVELS * DK.MAX
+	local f = math.min(1, lvl / DK.SCALE)
 	local l = 0.3 * r + 0.59 * g + 0.11 * b
 	local grey = 0.4 * f
-	r, g, b = r + (l - r) * grey, g + (l - g) * grey, b + (l - b) * grey
-	local N = DK.NIGHT
-	r, g, b = r + (N.r - r) * f, g + (N.g - g) * f, b + (N.b - b) * f
+	local keep = 1 - f
+	r, g, b = (r + (l - r) * grey) * keep, (g + (l - g) * grey) * keep, (b + (l - b) * grey) * keep
 	local o = math.clamp(math.floor(r + 0.5), 0, 255) + math.clamp(math.floor(g + 0.5), 0, 255) * 256 + math.clamp(math.floor(b + 0.5), 0, 255) * 65536 + a
 	DK.map[key] = o
 	return o
@@ -1308,10 +1316,15 @@ local function gradeSpan(src: buffer, fid: buffer, i0: number, n: number, out: b
 	local cur = DK.cur
 	local kb = if sv and not sv.view.stage and next(cur) ~= nil and buffer.len(sv.sDark) >= (i0 + n) * 4 then sv.sDark else nil
 	local coast = DK.coast
-	local LEVELS = DK.LEVELS
+	local TONES = DK.TONES
+	local STEP = DK.SCALE // TONES
+	local HALF = DK.SCALE * 0.5
+	local BAYER = DK.BAYER
 	local RAMP = Street.DARK_RAMP
 	local RATIO = Street.DARK_RAMP / Street.DARK_COAST
-	local LSCALE = LEVELS / RAMP
+	local W = if kb then (sv :: Surf).W else 1
+	local gx = if kb then (sv :: Surf).cam.gx else 0
+	local gy = if kb then (sv :: Surf).cam.gy else 0
 	-- (a run of one colour of one part under one pool and one darkness, as pixel art is mostly: graded once)
 	local lastC, lastId, lastL, lastD, lastO = -1, -1, -1, -1, 0
 	for k = 0, n - 1 do
@@ -1333,10 +1346,19 @@ local function gradeSpan(src: buffer, fid: buffer, i0: number, n: number, out: b
 						past = back
 					end
 					if past > 0 then
-						dl = if past >= RAMP then LEVELS else math.floor(past * LSCALE + 0.5)
-						-- (what moves, a founder or a driftling, half as dark: it stays readable out there)
+						local d = if past >= RAMP then 1 else past / RAMP
 						if id >= DYN_ID0 then
-							dl = dl // 2
+							-- (what moves, a founder or a driftling, half as dark and not dithered: it stays readable
+							-- out there and doesn't shimmer as it walks over the pattern)
+							dl = math.floor(d * HALF + 0.5)
+						else
+							-- (a flat tone, or the next one where the pixel's place in the 4 x 4 pattern says so)
+							local v = d * TONES
+							local t = math.floor(v)
+							if t < TONES and v - t > BAYER[((i // W + gy) % 4) * 4 + (i % W + gx) % 4 + 1] then
+								t += 1
+							end
+							dl = t * STEP
 						end
 					end
 				end
@@ -5927,7 +5949,7 @@ function PixelRenderer.debugDark(): { islands: { [number]: { tier: number, movin
 			if st then
 				local b = (key // 65536) % 1024 + 1
 				local rho = (key % 65536) / 16
-				want = math.floor(Street.darkAt(rho, Street.openRadii(st.tier)[b], DK.coast[b]) * DK.LEVELS + 0.5)
+				want = math.floor(Street.darkAt(rho, Street.openRadii(st.tier)[b], DK.coast[b]) * DK.SCALE + 0.5)
 				if st.tier >= Street.TOP then
 					want = 0
 				end
