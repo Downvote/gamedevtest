@@ -13,6 +13,7 @@ local ERRORS: { [string]: string } = {
 	full = "Huts full. Swap one out or build a hut.",
 	max = "Already maxed.",
 	locked = "Not open yet.",
+	dup = "You saved that one already.",
 	cooldown = "Not yet. Try again soon.",
 	blocked = "Can't do that here.",
 	no_room = "No room for that.",

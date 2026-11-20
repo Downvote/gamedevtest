@@ -215,7 +215,7 @@ return function()
 	end)
 	T.it("the save: fresh on a new island, cleaned from anything; v19 saves come up to v20", function()
 		local p = Schema.default(0, 1)
-		T.eq(p.v, 20)
+		T.eq(p.v, Schema.VERSION)
 		T.eq(p.rewards.daily.last, -1)
 		T.deepEq(p.boosts, {})
 		local raw: any = table.clone(p)
@@ -243,7 +243,7 @@ return function()
 		old.rewards = nil
 		old.boosts = nil
 		local up = Schema.reconcile(Schema.migrate(old), 0, 1)
-		T.eq(up.v, 20)
+		T.eq(up.v, Schema.VERSION)
 		T.eq(up.rewards.spin.extra, 0)
 	end)
 end

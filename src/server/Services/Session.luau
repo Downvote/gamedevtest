@@ -120,6 +120,7 @@ function Session.view(s: S): Types.ClientView
 		owned = p.owned,
 		titles = p.titles,
 		title = p.title,
+		outfits = p.outfits,
 		shopList = shopList,
 		shopLeft = shopLeft,
 		shopRefresh = Store.refreshes(p, now),

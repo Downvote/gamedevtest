@@ -32,7 +32,7 @@ local Schema = {}
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
 -- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15)
-Schema.VERSION = 20
+Schema.VERSION = 21
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -66,8 +66,39 @@ local function look(v: any, owned: { [string]: boolean }?): Types.Look
 	for _, slot in Looks.worn do
 		local id = t[slot]
 		local c = if type(id) == "string" then Cosmetics.byId[id] else nil
-		if c and c.slot == slot and owned and owned[id] then
+		if c and c.slot == slot and Cosmetics.owns(owned, id) then
 			(out :: any)[slot] = id
+		end
+	end
+	-- the bakery's fields (version 21), each kept only when in range and not its default
+	local LIMIT: { [string]: number } = { bangs = #Looks.bangs, hair2 = #Looks.hair, eye = #Looks.eyes, eye2 = #Looks.eyes, apron = #Looks.aprons, turn = #Looks.turns }
+	for _, key in Looks.extra do
+		local d = Looks.extraDefault[key]
+		local n = int(t[key], d, if d == 0 then 0 else 1, LIMIT[key])
+		if n ~= d then
+			(out :: any)[key] = n
+		end
+	end
+	for _, f in Looks.tintFields do
+		local n = int(t[f], 1, 1, #Looks.tints)
+		if n > 1 then
+			(out :: any)[f] = n
+		end
+	end
+	return out
+end
+
+-- The saved outfits: look codes that read (Data/Looks.decode), at most Tuning.MaxOutfits, none twice. (A piece in one
+-- the player no longer has is checked when it is put on: Store.checkLook.)
+local function outfits(v: any): { string }
+	local out: { string } = {}
+	local seen: { [string]: boolean } = {}
+	if type(v) == "table" then
+		for _, s in v do
+			if type(s) == "string" and #s <= 200 and not seen[s] and Looks.decode(s) ~= nil and #out < Tuning.MaxOutfits then
+				seen[s] = true
+				table.insert(out, s)
+			end
 		end
 	end
 	return out
@@ -130,6 +161,7 @@ function Schema.default(now: number, seed: number): Profile
 		owned = {},
 		titles = { newcomer = true },
 		title = "newcomer",
+		outfits = {},
 		shop = { at = -1, n = 0 },
 		track = { s = -1, xp = 0, got = {}, gotP = {} },
 		seenAt = now,
@@ -435,6 +467,13 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	if v < 20 then
 		v = 20
 	end
+	-- 20 -> 21: the bakery's customization (the request of 2026-11-20: "Port the entire character customization menu
+	-- from the bakery game to this game"): the founder's look takes bangs, a second hair colour, eye colours, an apron,
+	-- a colour for each piece worn and a turn for what is in the hand, and saved outfits come (Profile.outfits). Each
+	-- is absent for its default, so an older look reads as it was; reconcile starts the outfits empty.
+	if v < 21 then
+		v = 21
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -662,6 +701,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		owned = idSet(r.owned, Cosmetics.byId),
 		titles = idSet(r.titles, Titles.byId),
 		title = "",
+		outfits = outfits(r.outfits),
 		shop = { at = -1, n = 0 },
 		track = { s = -1, xp = 0, got = {}, gotP = {} },
 		seenAt = num(r.seenAt, 0, 0, 1e11),

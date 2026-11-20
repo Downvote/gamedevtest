@@ -90,6 +90,22 @@ local ORDER: { string } = {
 	-- (more skins for the founders: Data/Looks, 2026-11-14)
 	"skin5",
 	"skin6",
+	-- the bakery's accessory colours (Models/AccessoryModels, Data/Looks' tints and eye colours: the request of
+	-- 2026-11-20, "Port the entire character customization menu from the bakery game to this game")
+	"chocolate",
+	"choco_dark",
+	"hair_pink",
+	"oven_glow",
+	"plate_gold",
+	"plate_lacquer",
+	"plate_white",
+	"r_uncommon",
+	"r_rare",
+	"r_epic",
+	"r_mythic",
+	"r_legend",
+	"sponge",
+	"street",
 }
 
 -- Rich, warm colours (the request of 2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use
@@ -180,6 +196,22 @@ local COLORS: { [string]: number } = {
 	brick = 0xC04B2E,
 	skin5 = 0x5E3826,
 	skin6 = 0xFFD7C7,
+
+	-- (Random Bakery's, for its accessories, tints and eye colours)
+	chocolate = 0x8E5C3E,
+	choco_dark = 0x58321F,
+	hair_pink = 0xFF8EC1,
+	oven_glow = 0xFF9B3D,
+	plate_gold = 0xE9C35C,
+	plate_lacquer = 0xA9343E,
+	plate_white = 0xFAFAF5,
+	r_uncommon = 0x6CCB5F,
+	r_rare = 0x4FA3F7,
+	r_epic = 0xB067E8,
+	r_mythic = 0xFF5FA8,
+	r_legend = 0xFFB238,
+	sponge = 0xF4D488,
+	street = 0x6D6878,
 }
 
 -- The office tiers' surfaces (Data/Office: theme per tier). floor_a / floor_b: the two floor tile tones, wall /

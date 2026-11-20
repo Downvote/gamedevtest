@@ -28,6 +28,7 @@
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local Cosmetics = require(script.Parent.Parent.Data.Cosmetics)
+local Looks = require(script.Parent.Parent.Data.Looks)
 local Titles = require(script.Parent.Parent.Data.Titles)
 local Track = require(script.Parent.Parent.Data.Track)
 local Creatures = require(script.Parent.Parent.Data.Creatures)
@@ -308,11 +309,114 @@ function Store.wear(p: Profile, slot: string, id: string): (boolean, any)
 	if c == nil or c.slot ~= slot then
 		return false, "bad_payload" :: ErrCode
 	end
-	if not p.owned[id] then
+	if not Cosmetics.owns(p.owned, id) then
 		return false, "locked" :: ErrCode
 	end
 	f[slot] = id
 	return true, nil
+end
+
+------------------------------------------------------------------ the whole look (the customization screen)
+-- (each extra field's range: the lowest allowed and its list's length)
+local RANGES: { [string]: { lo: number, n: number } } = {
+	skin = { lo = 1, n = #Looks.skin },
+	hair = { lo = 1, n = #Looks.hair },
+	style = { lo = 1, n = #Looks.styles },
+	shirt = { lo = 1, n = #Looks.shirt },
+	bangs = { lo = 1, n = #Looks.bangs },
+	hair2 = { lo = 0, n = #Looks.hair },
+	eye = { lo = 1, n = #Looks.eyes },
+	eye2 = { lo = 0, n = #Looks.eyes },
+	apron = { lo = 1, n = #Looks.aprons },
+	turn = { lo = 1, n = #Looks.turns },
+}
+
+-- A look sent whole (Data/Looks.encode, the customization screen's Save and an outfit), checked as a whole: the look
+-- (only what differs from the defaults kept), or nil and why: bad_payload (not a look, a field out of its list, a
+-- piece of another slot or none such), locked (a piece worn the player does not have: Cosmetics.owns).
+function Store.checkLook(code: string, owned: { [string]: boolean }): (Types.Look?, ErrCode?)
+	local t = if type(code) == "string" and #code <= 200 then Looks.decode(code) else nil
+	if t == nil then
+		return nil, "bad_payload" :: ErrCode
+	end
+	for key, r in RANGES do
+		local v = t[key]
+		if type(v) ~= "number" or v < r.lo or v > r.n then
+			return nil, "bad_payload" :: ErrCode
+		end
+	end
+	local out: { [string]: any } = { skin = t.skin, hair = t.hair, style = t.style, shirt = t.shirt }
+	for _, key in Looks.extra do
+		if t[key] ~= Looks.extraDefault[key] then
+			out[key] = t[key]
+		end
+	end
+	for _, slot in Looks.worn do
+		local id = t[slot]
+		if type(id) == "string" and id ~= "" then
+			local c = Cosmetics.byId[id]
+			if c == nil or c.slot ~= slot then
+				return nil, "bad_payload" :: ErrCode
+			end
+			if not Cosmetics.owns(owned, id) then
+				return nil, "locked" :: ErrCode
+			end
+			out[slot] = id
+		end
+	end
+	for _, f in Looks.tintFields do
+		local v = t[f]
+		if type(v) == "number" and v > 1 and v <= #Looks.tints then
+			out[f] = v
+		end
+	end
+	return (out :: any) :: Types.Look, nil
+end
+
+-- Wear a whole look (Store.checkLook's rules). Data { look } (the code worn).
+function Store.setLook(p: Profile, code: string): (boolean, any)
+	local look, err = Store.checkLook(code, p.owned)
+	if look == nil then
+		return false, err
+	end
+	p.founder = look
+	return true, { look = Looks.encode(look :: any) }
+end
+
+-- Saved outfit `i` (Profile.outfits, at most Tuning.MaxOutfits; i one past the last adds one) becomes `code`, a look
+-- Store.checkLook takes (its own canonical code is kept); "" deletes it and the later ones move up. bad_payload (i out
+-- of range, a bad look), locked, full (an add past the limit), dup (the same outfit saved already). Data { outfits }.
+function Store.setOutfit(p: Profile, i: number, code: string): (boolean, any)
+	local list = p.outfits
+	if i < 1 or i > #list + 1 or i ~= math.floor(i) then
+		return false, "bad_payload" :: ErrCode
+	end
+	if code == "" then
+		if i > #list then
+			return false, "bad_payload" :: ErrCode
+		end
+		table.remove(list, i)
+		return true, { outfits = list }
+	end
+	local look, err = Store.checkLook(code, p.owned)
+	if look == nil then
+		return false, err
+	end
+	local canon = Looks.encode(look :: any)
+	for k, o in list do
+		if o == canon and k ~= i then
+			return false, "dup" :: ErrCode
+		end
+	end
+	if i > #list then
+		if #list >= Tuning.MaxOutfits then
+			return false, "full" :: ErrCode
+		end
+		table.insert(list, canon)
+	else
+		list[i] = canon
+	end
+	return true, { outfits = list }
 end
 
 -- Wear title `id` ("" for none). not_found (no such title), locked (not earned).

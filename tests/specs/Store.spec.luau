@@ -14,6 +14,7 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Util = require("../../build/luautest/shared/Logic/Util")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
 local Creatures = require("../../build/luautest/shared/Data/Creatures")
+local Traits = require("../../build/luautest/shared/Data/Traits")
 local Cosmetics = require("../../build/luautest/shared/Data/Cosmetics")
 local Titles = require("../../build/luautest/shared/Data/Titles")
 local Track = require("../../build/luautest/shared/Data/Track")
@@ -309,11 +310,92 @@ return function()
 		T.truthy(q.gifts.vip and q.gifts.starter == nil)
 	end)
 
+	T.it("the whole look (the customization screen): checked as a whole, kept lean, outfits saved and deleted", function()
+		local p = Schema.default(0, 1)
+		-- every field of the bakery's: style 12 (afro), bangs, a second hair colour, odd eyes, an apron, the hand's turn,
+		-- a free bakery hat in a tint, a bought piece
+		p.owned.lantern = true
+		local want: any = { skin = 2, hair = 3, style = 12, shirt = 4, bangs = 3, hair2 = 5, eye = 5, eye2 = 2, apron = 10, turn = 2, hat = "toque", hatTint = 4, hand = "lantern", handTint = 9, apronTint = 2 }
+		local ok, data = Store.setLook(p, Looks.encode(want))
+		T.truthy(ok, tostring(data))
+		local f: any = p.founder
+		T.truthy(f.style == 12 and f.bangs == 3 and f.hair2 == 5 and f.eye == 5 and f.eye2 == 2 and f.apron == 10 and f.turn == 2)
+		T.truthy(f.hat == "toque" and f.hatTint == 4 and f.hand == "lantern" and f.handTint == 9 and f.apronTint == 2)
+		T.eq(data.look, Looks.encode(want), "the code comes back as sent")
+		-- defaults are left out: a plain look is the four numbers
+		T.truthy(Store.setLook(p, "1.1.1.1"))
+		T.eq(Looks.encode(p.founder :: any), "1.1.1.1")
+		T.eq((p.founder :: any).bangs, nil)
+		-- refused whole: a piece not had, one of another slot, a field out of its list, junk; nothing changes
+		local before = Looks.encode(p.founder :: any)
+		T.eq(select(2, Store.setLook(p, "1.1.1.1|crown_gold|||||")), "locked")
+		T.eq(select(2, Store.setLook(p, "1.1.1.1|lantern|||||")), "bad_payload")
+		T.eq(select(2, Store.setLook(p, string.format("1.1.%d.1", #Looks.styles + 1))), "bad_payload")
+		T.eq(select(2, Store.setLook(p, string.format("1.1.1.1.%d.0.1.0.1.1", #Looks.bangs + 1))), "bad_payload")
+		T.eq(select(2, Store.setLook(p, "not a look")), "bad_payload")
+		T.eq(Looks.encode(p.founder :: any), before)
+		-- a free piece needs nothing owned; a tint code past the list reads as Original
+		T.truthy(Store.setLook(p, "1.1.1.1||glasses|||||0z"))
+		T.eq((p.founder :: any).face, "glasses")
+		T.eq((p.founder :: any).faceTint, nil)
+		-- outfits: added one past the last, not twice, replaced, deleted (the rest move up), never past the limit
+		T.eq(select(2, Store.setOutfit(p, 2, "1.1.1.1")), "bad_payload", "no gap")
+		T.truthy(Store.setOutfit(p, 1, "2.2.2.2"))
+		T.truthy(Store.setOutfit(p, 2, "3.3.3.3|toque|||||"))
+		T.eq(select(2, Store.setOutfit(p, 3, "2.2.2.2")), "dup")
+		T.eq(select(2, Store.setOutfit(p, 3, "1.1.1.1|crown_gold|||||")), "locked")
+		T.truthy(Store.setOutfit(p, 1, "4.4.4.4"))
+		T.deepEq(p.outfits, { "4.4.4.4", "3.3.3.3|toque|||||" })
+		T.truthy(Store.setOutfit(p, 1, ""))
+		T.deepEq(p.outfits, { "3.3.3.3|toque|||||" })
+		T.eq(select(2, Store.setOutfit(p, 2, "")), "bad_payload", "nothing there to delete")
+		for k = 2, Tuning.MaxOutfits do
+			T.truthy(Store.setOutfit(p, k, string.format("%d.1.1.1", k % #Looks.skin + 1) .. string.format(".1.%d.1.0.1.1", k)))
+		end
+		T.eq(#p.outfits, Tuning.MaxOutfits)
+		T.eq(select(2, Store.setOutfit(p, Tuning.MaxOutfits + 1, "5.5.5.5")), "full")
+		-- an old save's look and junk outfits come up clean (Schema.reconcile)
+		local raw: any = table.clone(p)
+		raw.founder = { skin = 99, hair = 2, style = 3, shirt = 4, bangs = 999, eye = 4, eye2 = 0, hatTint = 50, hat = "toque", face = "crown_gold" }
+		raw.outfits = { "1.1.1.1", "1.1.1.1", "junk", 7 }
+		local q = Schema.reconcile(raw, 0, 1)
+		local qf: any = q.founder
+		T.truthy(qf.skin == #Looks.skin and qf.bangs == #Looks.bangs and qf.eye == 4 and qf.eye2 == nil and qf.hatTint == #Looks.tints)
+		T.truthy(qf.hat == "toque" and qf.face == nil, "a free hat kept, a piece of another slot dropped")
+		T.deepEq(q.outfits, { "1.1.1.1" })
+	end)
+
+	T.it("a look's code: the old ones read as they were, the bakery's fields and tints round the trip", function()
+		local old = Looks.decode("3.2.5.7|strawhat||lei|||sailor") :: any
+		T.truthy(old.skin == 3 and old.style == 5 and old.hat == "strawhat" and old.neck == "lei" and old.top == "sailor")
+		T.truthy(old.bangs == 1 and old.hair2 == 0 and old.eye == 1 and old.apron == 1 and old.turn == 1 and old.hatTint == nil)
+		T.eq(Looks.decode("1.2.3"), nil)
+		local full: any = { skin = 1, hair = 2, style = 3, shirt = 4, bangs = 2, hair2 = 3, eye = 4, eye2 = 5, apron = 6, turn = 3, face = "glasses", faceTint = 21, topTint = 3 }
+		local code = Looks.encode(full)
+		local back = Looks.decode(code) :: any
+		for k, v in full do
+			T.eq(back[k], v, k)
+		end
+		-- tints: a one-colour piece takes it all over, a darker tone takes the shade, the tint's own colour swaps back
+		T.deepEq({ Looks.tinted("white", "white", "berry_red") }, { "berry_red", "berry_red" })
+		T.deepEq({ Looks.tinted("gold", "plate_gold", "blue") }, { "blue", "sky_night" })
+		T.deepEq({ Looks.tinted("pink", "blue", "blue") }, { "blue", "pink" })
+		T.deepEq({ Looks.tinted("pink", "white", nil) }, { "pink", "white" })
+		T.eq(Looks.tintOf({ hatTint = 2 }, "hat"), "berry_red")
+		T.eq(Looks.tintOf({ hatTint = 1 }, "hat"), nil)
+		T.eq(Looks.turnOf({ turn = 3 }), 90)
+		-- every list has a name for each entry, and every colour is the palette's
+		for key, list in { skin = Looks.skin, hair = Looks.hair, styles = Looks.styles, shirt = Looks.shirt, eyes = Looks.eyes } do
+			T.eq(#Looks.names[key], #list, key)
+		end
+	end)
+
 	T.it("every cosmetic in a slot, a rarity, a known source; the track's and the gifts' pieces exist", function()
 		T.truthy(#Cosmetics.list >= 80, tostring(#Cosmetics.list))
-		local SRC = { shop = true, track = true, trackp = true, vip = true, starter = true }
+		local SRC = { shop = true, track = true, trackp = true, vip = true, starter = true, free = true }
 		for _, c in Cosmetics.list do
-			T.truthy(c.rarity >= 1 and c.rarity <= 5 and SRC[c.src] and Cosmetics.bySlot[c.slot], c.id)
+			T.truthy(c.rarity >= 1 and c.rarity <= Traits.RMAX and SRC[c.src] and Cosmetics.bySlot[c.slot], c.id)
+			T.truthy(Tuning.CosmeticPrice[c.rarity] ~= nil and Tuning.ShopWeight[c.rarity] ~= nil, c.id .. ": a price and a weight")
 			T.truthy(string.find(c.name, "%-") == nil, c.id .. ": no dashes")
 		end
 		for _, lv in Track.list do

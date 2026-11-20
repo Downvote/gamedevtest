@@ -3,7 +3,7 @@
 -- pass with "bad_payload" before a service sees it. A schema maps field -> kind:
 --   "id"     a string of 1-24 letters, digits or underscores (a building id ...)
 --   "int"    a whole number in [0, 1e6] (a driftling or piece id; 0: none)
---   "small"  a whole number in [1, 16] (a look index)
+--   "small"  a whole number in [1, 32] (a look index)
 --   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 7)
 --   "key"    a settings key ("pixel", "music", "sfx", "zoom")
 --   "coord"  a whole number in [-240, 64] (a plot-local stud: the biggest islands reach far north)
@@ -15,6 +15,9 @@
 --   "group"  what Build mode's Remove all takes away: "pieces", "tiles" or "fences"
 --   "slot"   a cosmetics slot (Data/Cosmetics.SLOTS: "hat", "face", "neck", "back", "hand", "top")
 --   "lookid" a string of 0-24 letters, digits or underscores (a cosmetic or a title; "" for none)
+--   "look"   a whole look's code (Data/Looks.encode: digits, dots, bars, letters and underscores, at most 200; "" an
+--            outfit deleted): Logic/Store.checkLook reads it
+--   "outfit" a whole number in [1, Tuning.MaxOutfits + 1] (a saved outfit; one past the last adds one)
 --   "level"  a whole number in [1, 30] (a pass track level)
 --   "bool"   true or false
 --   "any"    anything (the settings value; its service checks it)
@@ -22,6 +25,7 @@
 local Traits = require(script.Parent.Parent.Data.Traits)
 local Cosmetics = require(script.Parent.Parent.Data.Cosmetics)
 local Track = require(script.Parent.Parent.Data.Track)
+local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 local Validate = {}
 
@@ -51,6 +55,9 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	-- the store (GAME_DESIGN 14): wearing a cosmetic or a title, buying from the rotating shop, the pass track's rewards,
 	-- hatching a bag egg, VIP's daily gift
 	["look.wear"] = { slot = "slot", id = "lookid" },
+	-- the customization screen (GAME_DESIGN 14.1): the whole look, and a saved outfit
+	["look.set"] = { look = "look" },
+	["outfit.set"] = { i = "outfit", look = "look" },
 	["title.set"] = { id = "lookid" },
 	["shop.buy"] = { id = "id" },
 	["track.claim"] = { lvl = "level", prem = "bool" },
@@ -82,7 +89,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "int" then
 		return isInt(v, 0, 1e6)
 	elseif kind == "small" then
-		return isInt(v, 1, 16)
+		return isInt(v, 1, 32)
 	elseif kind == "rarity" then
 		return isInt(v, 1, Traits.RMAX)
 	elseif kind == "coord" then
@@ -121,6 +128,10 @@ local function check(kind: string, v: any): boolean
 		return type(v) == "string" and Cosmetics.bySlot[v] ~= nil
 	elseif kind == "lookid" then
 		return type(v) == "string" and #v <= 24 and (v == "" or string.match(v, "^[%w_]+$") ~= nil)
+	elseif kind == "look" then
+		return type(v) == "string" and #v <= 200 and string.match(v, "^[%w_%.|]*$") ~= nil
+	elseif kind == "outfit" then
+		return isInt(v, 1, Tuning.MaxOutfits + 1)
 	elseif kind == "level" then
 		return isInt(v, 1, Track.LEVELS)
 	elseif kind == "bool" then

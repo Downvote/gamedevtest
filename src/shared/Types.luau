@@ -2,7 +2,11 @@
 -- Shared types (docs/ARCHITECTURE.md 3). Pure: no requires, no Roblox APIs.
 
 -- The founder's look: indices into Data/Looks' lists (skin, hair colour, hair style, shirt colour), and what they wear
--- in each of Data/Cosmetics' slots (a cosmetic's id, absent or "" for nothing: GAME_DESIGN 14).
+-- in each of Data/Cosmetics' slots (a cosmetic's id, absent or "" for nothing: GAME_DESIGN 14). Since 2026-11-20 the
+-- bakery's customization too (GAME_DESIGN 14.1), each absent for its default: `bangs` (Looks.bangs, 1 the style's own),
+-- `hair2` (a second hair colour for the middle of the fringe, Looks.hair; 0 none), `eye` and `eye2` (Looks.eyes; eye2
+-- 0 the same as eye), `apron` (Looks.aprons, 1 none), `turn` (Looks.turns: what is in the hand turned about the fist,
+-- 1 straight) and a tint for each worn slot and the apron (Looks.tints, 1 the piece's own colours).
 export type Look = {
 	skin: number,
 	hair: number,
@@ -14,6 +18,19 @@ export type Look = {
 	back: string?,
 	hand: string?,
 	top: string?,
+	bangs: number?,
+	hair2: number?,
+	eye: number?,
+	eye2: number?,
+	apron: number?,
+	turn: number?,
+	hatTint: number?,
+	faceTint: number?,
+	neckTint: number?,
+	backTint: number?,
+	handTint: number?,
+	topTint: number?,
+	apronTint: number?,
 }
 
 -- A building or a piece of decor standing on the island (Logic/Plot): `uid` stays the same while it stands (the
@@ -116,6 +133,9 @@ export type Profile = {
 	owned: { [string]: boolean }, -- cosmetics owned (Data/Cosmetics ids)
 	titles: { [string]: boolean }, -- titles earned (Data/Titles ids)
 	title: string, -- the title worn ("" none)
+	-- saved outfits (Data/Looks.encode strings, at most Tuning.MaxOutfits; the customization screen's Outfits tab, the
+	-- bakery's: 2026-11-20)
+	outfits: { string },
 	shop: { at: number, n: number }, -- the rotating shop: the rotation the refreshes are for, and how many were bought
 	track: Track,
 	-- offline earnings and the group (GAME_DESIGN 14.3; 2026-11-14)
@@ -160,6 +180,7 @@ export type ClientView = {
 	owned: { [string]: boolean },
 	titles: { [string]: boolean },
 	title: string,
+	outfits: { string }, -- the saved outfits (Profile.outfits)
 	shopList: { string }, -- the rotating shop's pieces now (Logic/Store.shopNow)
 	shopLeft: number, -- seconds till the shop turns over
 	shopRefresh: number, -- the refreshes bought in this rotation
@@ -206,6 +227,7 @@ export type ErrCode =
 	| "not_found"
 	| "not_done"
 	| "used"
+	| "dup"
 
 export type Response = { ok: boolean, data: any?, err: ErrCode? }
 

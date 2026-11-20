@@ -371,6 +371,17 @@ function CharacterModels.buildStanding(look: Types.Look, name: string, seed: num
 	return { model = model, parts = parts, rest = rest, seed = seed or 0, extra = extra }
 end
 
+-- A standalone founder for pictures (the customization screen's stage and thumbnails, Pixel/Snapshot): the standing
+-- rig in its rest pose with everything the look wears, feet at the origin facing +Z (WorldPivot identity, so PivotTo
+-- places it), anchored, not collidable or queryable, before Tuning.FounderScale. Parent it yourself and Destroy it.
+function CharacterModels.preview(look: Types.Look): Model
+	local rig = CharacterModels.buildStanding(look, "FounderPreview", 0)
+	local m = rig.model
+	m.PrimaryPart = nil
+	m.WorldPivot = CFrame.identity
+	return m
+end
+
 local HIP_L, HIP_R = Vector3.new(-0.3, 1.25, 0), Vector3.new(0.3, 1.25, 0)
 local KNEE_L, KNEE_R = Vector3.new(-0.3, 0.75, 0), Vector3.new(0.3, 0.75, 0)
 local ARM_L, ARM_R = Vector3.new(-0.8125, 2.4, 0), Vector3.new(0.8125, 2.4, 0)

@@ -207,9 +207,12 @@ local Tuning = {
 	-- deals the player a new set till it turns over), picked by rarity with ShopWeight; a piece costs CosmeticPrice by
 	-- its rarity times EggTier by the island's tier
 	ShopSecs = 14400,
-	ShopSize = 6,
-	ShopWeight = { 40, 30, 18, 9, 3 },
-	CosmeticPrice = { 120, 400, 1500, 6000, 24000 },
+	ShopSize = 8,
+	-- (Mythic and Celestial pieces since the bakery's came, 2026-11-20: its Mythic and Divine Boutique pieces, Weekly
+	-- Cup prizes and reward looks)
+	ShopWeight = { 40, 30, 18, 9, 3, 1, 0.4 },
+	CosmeticPrice = { 120, 400, 1500, 6000, 24000, 60000, 150000 },
+	MaxOutfits = 10, -- saved outfits (Profile.outfits: the customization screen's Outfits tab)
 	-- the pass track (Data/Track): a season lasts TrackSecs on the sea's clock; level L costs TrackBase + TrackStep x
 	-- (L - 1) points; points for an egg hatched (the tree's or the bag's), a Hatchery egg, a quest claimed, the island
 	-- grown, and every minute on the island
