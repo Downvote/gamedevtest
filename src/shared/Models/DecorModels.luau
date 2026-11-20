@@ -1818,11 +1818,8 @@ B.tree = function(m, f, stage)
 		local n = #pts - 1
 		tube(m, f, pts, function(i: number): number
 			return d0 + (d1 - d0) * (i - 1) / math.max(1, n - 1)
-		end, function(_i: number): string
-			-- (one wood the whole way: segments in turn of two woods drew as light and dark chunks with stepped edges,
-			-- the report of 2026-11-20, "this only happens to the tree of life"; c2 is kept for the callers)
-			local _ = c2
-			return c1
+		end, function(i: number): string
+			return if i % 2 == 1 then c1 else c2
 		end, name, cap)
 	end
 	local function flat(a: number, r: number, y: number): Vector3
@@ -1904,11 +1901,11 @@ B.tree = function(m, f, stage)
 		end
 		bough(pts, (if big then 1.1 else 0.85) * ts, 0.35, "wood_dark", "wood", "Root")
 		if front then
-			bough({ pts[3], flat(a + (if k % 2 == 0 then 0.32 else -0.32), r3 + 0.3, -0.02) }, 0.25, 0.25, "wood_dark", "wood_dark", "Root")
+			bough({ pts[3], flat(a + (if k % 2 == 0 then 0.32 else -0.32), r3 + 0.3, -0.02) }, 0.25, 0.25, "skin4", "skin4", "Root")
 		end
 		if big and front then
 			local h0 = math.min(r3 + 0.6, 2.25)
-			bough({ flat(a, h0, -0.04), flat(a, h0 + 0.25, 0.18), flat(a, h0 + 0.5, -0.04) }, 0.3, 0.25, "wood_dark", "wood_dark", "Root")
+			bough({ flat(a, h0, -0.04), flat(a, h0 + 0.25, 0.18), flat(a, h0 + 0.5, -0.04) }, 0.3, 0.25, "wood_dark", "skin4", "Root")
 		end
 	end
 
@@ -1934,14 +1931,13 @@ B.tree = function(m, f, stage)
 			table.insert(pts, flat(a0 + i * 0.45, (0.75 - i * 0.03 / ys) * ts, 0.6 * ts + i * rise))
 		end
 		strands[st + 1] = pts
-		tube(m, f, pts, strandDia, function(_i: number): string
-			return "wood"
+		tube(m, f, pts, strandDia, function(i: number): string
+			return if (st + i) % 2 == 1 then "wood" else "wood_dark"
 		end, "Strand", true)
 	end
-	-- the bark: moss low down, on the side the camera sees. (No glowing marks on it: cyan blocks on the bark read as
-	-- stray blue rectangles, the report of 2026-11-20, "there are strange blue rectangles as well", "on the tree"; and no
-	-- knots: a swelling with a dark heart drew as a blotch on a strand, the same day, "this only happens to the tree of
-	-- life".)
+	-- the bark: knots with a dark heart and moss low down, on the side the camera sees. (No glowing marks on it: cyan
+	-- blocks on the bark read as stray blue rectangles, the report of 2026-11-20, "there are strange blue rectangles as
+	-- well", "on the tree".)
 	local toCam = (TREE_CAM * 0.866 + UP * 0.5).Unit
 	for st, pts in strands do
 		for i = 2, #pts - 1 do
@@ -1951,7 +1947,14 @@ B.tree = function(m, f, stage)
 			if not seen(out) then
 				continue
 			end
+			local dir = (b - a).Unit
 			local rad = strandDia(i) / 2
+			if (i + st) % 3 == 0 and i < #pts - 1 and out:Dot(TREE_CAM) > 0.35 then
+				-- a knot: a swelling with a dark heart
+				local kn = (out - dir:Cross(out).Unit * 0.5).Unit
+				knob(b + kn * (rad - 0.12), 0.5 * ts, "skin4", "Knot")
+				knob(b + kn * (rad + 0.08), 0.25, "skin5", "Knot")
+			end
 			if i <= 3 and out:Dot(TREE_CAM) > 0.35 then
 				knob(a + (out + UP * 0.6).Unit * (rad - 0.06), 0.5, "moss", "BarkMoss")
 			end
@@ -2225,12 +2228,6 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 		m:SetAttribute("PixelSmooth", true)
 		for _, d in m:GetDescendants() do
 			if d:IsA("BasePart") and (d.Name == "Lawn" or d.Name == "EggLawn" or d.Name == "Moss") then
-				d:SetAttribute("PixelOwn", true)
-			end
-			-- (the wood, its trunk, strands, roots and limbs, lit by its own round shapes like any log: blended across the
-			-- balls at every joint, a lit band's edge wavered from one joint to the next and broke into ragged patches;
-			-- the report of 2026-11-20, "its still uneven")
-			if d:IsA("BasePart") and (d.Name == "Trunk" or d.Name == "Strand" or d.Name == "Root" or d.Name == "Branch") then
 				d:SetAttribute("PixelOwn", true)
 			end
 		end

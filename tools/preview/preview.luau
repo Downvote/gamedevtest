@@ -4009,6 +4009,109 @@ local function treeSplit(arg: string)
 	return p
 end
 
+-- "treebake[=<tier>]" (the reports of 2026-11-20, "the tree is the only thing that has this problem", "the fruits
+-- seem to be affected the most": in the game the small round pieces had spikes and loose outline pixels): the
+-- harness bakes on the simulator's clock, which stands still inside a frame, so a bake always finished in one; the
+-- game reads the real clock and spreads a bake over many frames, coarse passes first. An island at that tier (1
+-- unless given) at midday, its picture baked again on the real clock frame by frame, then the layer checked against
+-- a fresh cast over the tree's box. Frames treebake_after and treebake_fresh.
+local function treeBake(arg: string)
+	local tier = tonumber(string.match(arg, "^(%d+)")) or 1
+	seedProfile(23, tier, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 9e9 })
+	local p = join(23, "Baker")
+	settle(p, 60, 2)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local DLt = modOr(p, "Controllers.DayLight")
+	if PR == nil or PR.debugCastCheck == nil or PR.debugClock == nil then
+		log("treebake: no pixel filter")
+		return p
+	end
+	if DLt and DLt.debugSky then
+		H.inClient(p, DLt.debugSky, 0.45)
+	end
+	local m = treeModelOf(p)
+	local s = H.session(p)
+	local Street = H.sharedServer("Data.Street")
+	local Tree = H.sharedServer("Logic.Tree")
+	local Plot = H.sharedServer("Logic.Plot")
+	local ox, oz = Street.origin(s.plot)
+	local q = Tree.piece(H.profile(p))
+	local tx, tz = ox, oz
+	if q then
+		local w, d = Plot.footprint(q.id, q.rot)
+		tx, tz = ox + q.x - 1 + w / 2, oz + q.z - 1 + d / 2
+	end
+	p.Character:PivotTo(E.cf.new(tx - 6, 3, tz + 6))
+	E.run(1)
+	settle(p, 30, 1)
+	-- the bake again on the real clock, a frame at a time
+	H.inClient(p, PR.debugClock, os.clock)
+	H.inClient(p, PR.rebake)
+	local frames = 0
+	for _ = 1, 3000 do
+		E.step(1 / 60)
+		frames += 1
+		if not H.inClient(p, PR.debugStatic).baking and frames > 5 then
+			break
+		end
+	end
+	for _ = 1, 30 do
+		E.step(1 / 60)
+	end
+	local st = H.inClient(p, PR.debugStatic)
+	local K, W, Hh = st.K, st.W, st.H
+	local x0, y0, x1, y1 = 1, 1, W - 2, Hh - 2
+	if m then
+		local cf, size = (m :: any):GetBoundingBox()
+		local a0, b0, a1, b1 = math.huge, math.huge, -math.huge, -math.huge
+		for _, sx in { -0.5, 0.5 } do
+			for _, sy in { -0.5, 0.5 } do
+				for _, sz in { -0.5, 0.5 } do
+					local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
+					local sp = H.inClient(p, PR.project, w.Position)
+					a0, b0 = math.min(a0, sp.X / K), math.min(b0, sp.Y / K)
+					a1, b1 = math.max(a1, sp.X / K), math.max(b1, sp.Y / K)
+				end
+			end
+		end
+		x0, y0 = math.max(1, math.floor(a0) - 2), math.max(1, math.floor(b0) - 2)
+		x1, y1 = math.min(W - 2, math.ceil(a1) + 2), math.min(Hh - 2, math.ceil(b1) + 2)
+	end
+	local cc = H.inClient(p, PR.debugCastCheck, true, true)
+	local off, kinds = 0, { 0, 0, 0, 0, 0 }
+	local mk = cc.mask
+	if mk and (cc.off or -1) >= 0 then
+		for y = y0, y1 do
+			local row = {}
+			local any = false
+			for x = x0, x1 do
+				local c = buffer.readu8(mk, y * W + x)
+				if c > 0 then
+					kinds[c] += 1
+					if c ~= 5 then
+						off += 1
+						any = true
+					end
+				end
+				table.insert(row, if c > 0 and c ~= 5 then tostring(c) else ".")
+			end
+			if any then
+				print(string.format("TBMASK %d %s", y, table.concat(row)))
+			end
+		end
+	end
+	capture(p, "treebake_after")
+	log("treebake: baked again over %d frames on the real clock; the tree's box %d,%d-%d,%d has %d pixels off a fresh cast (%d sky over a part, %d a part over sky, %d other, %d ink alone; %d ties)%s; %s", frames, x0, y0, x1, y1, off, kinds[1], kinds[2], kinds[3], kinds[4], kinds[5], if (cc.off or -1) < 0 then " (a bake still running: not checked)" else "", tostring(cc.ex))
+	H.inClient(p, PR.debugClock, nil)
+	H.inClient(p, PR.rebake)
+	settle(p, 60, 1)
+	capture(p, "treebake_fresh")
+	if off > 6 then
+		table.insert(E.warnings, { ctx = "preview", text = string.format("TREEBAKE: %d pixels off a fresh cast over the tree after a bake spread over frames", off), t = 0, phase = "treebake" })
+	end
+	return p
+end
+
 local function menuBarReport(p, tag)
 	local bar
 	for _, x in I.descendants(p:FindFirstChild("PlayerGui"), {}) do
@@ -5349,6 +5452,12 @@ for _, name in list do
 	if scArg then
 		fn = function()
 			return SCEN.screen(scArg)
+		end
+	end
+	local tbArg = string.match(name, "^treebake=?(%d*)$")
+	if tbArg then
+		fn = function()
+			return treeBake(tbArg)
 		end
 	end
 	local tsArg = string.match(name, "^treesplit=?(%d*)$")

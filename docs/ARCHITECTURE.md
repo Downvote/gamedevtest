@@ -514,10 +514,8 @@ Models (`src/shared/Models`, Roblox modules):
   4; `StoneMoss` tufts, gold from stage 4, moss down the face, `Lichen`, a gap at the front);
   `Root`s flaring from about 1.8 studs up the trunk, the big ones dipping into the ground and coming up again past the
   stones, with rootlets (simpler behind the trunk); a `Trunk` core and three braided `Strand`s (each a `tube`, one
-  facing the camera, the other two ending either side of the doorway; one wood each, the roots too: two woods by turns
-  and `Knot`s drew as light and dark chunks, 2026-11-20; the `Trunk`, `Strand`, `Root` and `Branch` parts "PixelOwn",
-  lit by their own shapes, not blended across the balls), `BarkMoss` on the camera's side (no `Rune`s or `Glyph`s since
-  2026-11-20: they drew as blue rectangles); the `Hollow` at the front
+  facing the camera, the other two ending either side of the doorway), `Knot`s with dark hearts and `BarkMoss` on the
+  camera's side (no `Rune`s or `Glyph`s since 2026-11-20: they drew as blue rectangles); the `Hollow` at the front
   with its glowing `Pod` (Neon) in an arched frame (`Lintel`, `Jamb`s), a stone `Step` and a `Lantern` on a `Post` either side (from stage 1); a
   `BirdHouse` (`BirdRoof`, `BirdHole`, `Perch`) on the trunk; round `Branch` limbs (tubes) out to the leaf clouds,
   each one `Leaves` ball with `LeafPuff` lobes, `LeafLit` patches on the sunny side and `LeavesUnder` beneath (the
@@ -1635,8 +1633,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `Smooth.onSolids` gives the nearest one's gradient there and a weight (1 on its surface, 0 `SOLID_REACH` 0.12 studs
   off it), blended into the normal in `shadeTex`. A smooth solid itself keeps its own normal (`SmoothParts.role`: its
   "PixelShape" set). The static bake (`castSample`): a hit on a smooth model's part asks
-  `SmoothParts.staticNormal` (a part of a smooth model takes no surface texture, `texInfoOf`: per-piece wood grain
-  read as a dither on the tree's trunk, 2026-11-20; the model's balls gathered the first time one of its parts is hit; `SmoothParts.reset` at
+  `SmoothParts.staticNormal` (the model's balls gathered the first time one of its parts is hit; `SmoothParts.reset` at
   `startBake`; `SmoothParts.changed(part)` when a part comes to or leaves a smooth model under Workspace.Plots drops
   that model's balls and the renderer casts the model's whole box again once that frame, since in the game the tree's
   parts reach the client over several frames) and stores

@@ -1541,24 +1541,12 @@ blue rectangles stuck on the trunk. They are gone at every stage. The tree's lig
 fruit, its lanterns and its rings of light. (The paragraphs above describe the tree as it was built; where they mention
 runes or marks on the stones, those are the parts that went.)
 
-**One wood a strand** (the report of 2026-11-20, "this only happens to the tree of life, can you look into it?", after
-"it still looks uneven no matter what pixel scale i use"). The game draws the tree as the previews do, so the trouble
-was in how it was built: each braided strand and each root took two woods by turns, a segment light and the next
-dark, with a knot (a ball with a dark heart) every third segment. At play size that came out as light and dark
-chunks with stepped edges all over the trunk, which nothing else on the island has. Now a strand is one wood from foot
-to limbs, a root one wood too, and the knots are gone, so the braid reads as three clean bands round the core. (The
+**The trunk as it was** (2026-11-20: "please dont change how the trunk looks, keep it as it was before. just fix the
+bug"). For a few builds the same day the strands and roots were one wood each, the knots and the wood's grain were
+gone and the wood was lit by its own shape; all of that is back as it was. Only the glowing marks stay off. (The
 renderer also gathers a smooth model's balls again whenever a part of it comes or goes: in the game the tree's parts
 reach the client over several frames. The preview `treesplit` hands them over in batches and checks the picture
 against a fresh cast.)
-
-**Wood without grain, lit by its own shape** (the report of 2026-11-20: "its still uneven. do you think it might be
-because of the dithering shading it uses?"). The shading bands have no dither, but the wood had grain: every small
-piece of the tree took its own pattern, so each slanted segment of a strand had grain running its own way, and its
-lighter marks, which show only in full light, broke the trunk's sunny side into speckled patches that read like a
-dither. A model lit as one smooth surface now takes no surface pattern at all. And the wood (the core, the strands,
-the roots and the limbs) is lit by its own round shapes like any log, the way a cylinder is shaded in pixel art: a
-clean light band down each strand's sunny side. Blended across the balls at its joints, a lit band's edge wavered from
-one joint to the next. The leaf clouds keep the blended light.
 
 **It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4 from the capital, 5 from Lantern Cove,
 6 from Amberfield): stage 2 on a Palm Isle and a Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital to
