@@ -563,7 +563,7 @@ floor, it just looks noisy", 2026-11-14),
   coral Close), over the island seen through a sea-dark veil; the island card and the tree's card the same, their
   names on planks; the chips, the notices and the tip (a parchment note) thin frames; the chips and the rows in the
   panels are carved boards (a lit top row, a shaded bottom one); the menu bar stands on a wooden dock; the build tray is
-  a workbench with its tabs on a plank. The loading card is the floating island at dusk (§11).
+  a workbench with its tabs on a plank. The loading card is a still picture of the island in the night sky (§11).
 - **The founder:** you walk your island and visit the others as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
@@ -2863,9 +2863,24 @@ reason.
 
 ## 11. Polish and animation
 
-> The request (2026-11-20): "redo the loading screen. it should be the floating island now"
+> The request (2026-11-20), with a screenshot of the island floating in the night sky: "make the island loading screen
+> like this view, but render it as a still image, then polish it like a pixel art illustration"
 
-- **The loading card is the floating island** the game is now: no sea, no boat, no foam. The dusk sky stays (its
+- **The loading card is a still picture of the island**, as the game shows it from the View slider's farthest notch:
+  a decorated island (the Tree of Life with its eggs, huts, a stall, palms, a few driftlings about) floating in the
+  middle of a night sky. Nothing on it moves but the bar, the status and the tips. The island is drawn ahead of time by
+  the game's own picture path, then polished the way a pixel artist would finish an illustration: specks and loose
+  pixels cleaned up, a 1 px outline all round in a darker step of the colour inside it, a rim of light along the edges
+  that face the light (the top and the left), the rock underside sinking into the night toward its tip, and the
+  outline's stair steps anti-aliased against the sky. A phone held flat gets a smaller picture of it (drawn at its own
+  size, never scaled). The sky is painted round it: dithered bands from a deep blue to violet, stars with a few bright
+  four-pointed ones, a faint band of the galaxy, the moon with its craters and a soft halo, far islets as silhouettes
+  and a sea of clouds along the bottom in round billows, each layer lighter than the one behind it, with moonlight
+  along their tops.
+
+> The request (2026-11-20, earlier): "redo the loading screen. it should be the floating island now"
+
+- (Until the still picture above.) **The loading card was the floating island** the game is now: no sea, no boat, no foam. The dusk sky stays (its
   dithered bands, the stars, the sun) but the sun goes down into a sea of clouds, five layers of round billows in flat
   colour with no outline, each lower and lighter than the one behind it, as the game's own sky draws them. Far islets
   float over the clouds as silhouettes. In the middle the island floats on its own: the grass top with its patches,

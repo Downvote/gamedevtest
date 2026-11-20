@@ -3694,8 +3694,17 @@ local function cshared(p, path)
 end
 -- "ploadingart": the loading card's scene art, drawn through the game's own picture path (tools/preview/loading_art.luau;
 -- tools/preview/gen_loading_art.py turns its log into src/first/LoadingArt.luau: sh tools/preview/loading_art.sh)
-function SCEN.ploadingart()
-	return require("./loading_art")({ E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr })
+local function loadingArtScenario(arg: string?)
+	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile, pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit", "gullfin", "frondle" } }
+	-- ("ploadingart=<tier>,<big notch>,<small notch>,<drop>": to try another island or framing)
+	local t, b, sm, d = string.match(arg or "", "^(%d+),(%d+),(%d+),?(%d*)$")
+	if t then
+		env.tier, env.big, env.small, env.drop = tonumber(t), tonumber(b), tonumber(sm), tonumber(d)
+	end
+	return require("./loading_art")(env)
+end
+SCEN.ploadingart = function()
+	return loadingArtScenario(nil)
 end
 
 -- "pportraits": the driftlings' portraits drawn from their models (tools/preview/portraits.luau; gen_portraits.py tidies
@@ -3897,7 +3906,8 @@ end
 
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
 -- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
--- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, its actors, whether it painted).
+-- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, the island's picture, whether it
+-- painted).
 function SCEN.loading()
 	local p = H.addPlayer({ userId = 7400, name = "Loader" })
 	setTier(p)
@@ -3916,7 +3926,7 @@ function SCEN.loading()
 			if i >= 10 and not shot then
 				shot = true
 				capture(p, "loading")
-				log("loading: phase %s, bar %.2f, actors %d, painted %s, fallback %s, K %d, size %dx%d", st.phase, st.bar, st.actors, tostring(st.painted), tostring(st.fallback), st.K, st.size.X, st.size.Y)
+				log("loading: phase %s, bar %.2f, picture %s, painted %s, fallback %s, K %d, size %dx%d", st.phase, st.bar, if st.still then string.format("%s %dx%d at %d,%d", st.still.name, st.still.w, st.still.h, st.still.x0, st.still.y0) else "none", tostring(st.painted), tostring(st.fallback), st.K, st.size.X, st.size.Y)
 			end
 			if i >= 4 and i % 2 == 0 and k < 16 then
 				capture(p, string.format("loading_%03d", k))
@@ -4908,6 +4918,12 @@ for _, name in list do
 	if zoomArg then
 		fn = function()
 			return zoomScenario(tonumber(zoomArg) :: number)
+		end
+	end
+	local laArg = string.match(name, "^ploadingart=(.+)$")
+	if laArg then
+		fn = function()
+			return loadingArtScenario(laArg)
 		end
 	end
 	local wxArg = string.match(name, "^weather=(%a+)$")

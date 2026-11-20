@@ -1071,49 +1071,40 @@ coveredAt, onCovered, onOpened }` moves the top line from `base0` to `base1` ove
 (`bankBase`). Every Heartbeat `drawBand()` writes the rows the bank crossed since the last frame (`lo`, `hi`: one
 `WritePixelsBuffer` of exactly those rows): each pixel the painting's (`paintBuf`, kept for the next cover of the same
 canvas size, `paintKey`) under the bank while it closes and over it while it opens, the bank's flat `BANK` colours
-(0xB99BC6, 0xD9B9D6, 0xF4DDE4, back to front), or clear; `placeClip()` sizes the `Clip` frame (ClipsDescendants) that
+(0x5B5084, 0x776A9E, 0x9A90C2, back to front: the card's moonlit clouds), or clear; `placeClip()` sizes the `Clip` frame (ClipsDescendants) that
 holds the sprites, words and bar (`S.layer`, the `Over` frame inside it, under the `Painting`'s `Scene`) to the rows
 the card wholly covers. Covered: `onCovered` runs. `finish()` on a cover waits `HOLD_MIN` (0.9 s) after it covered and
 for the bar to fill, then the bank rises again over `OPEN_SEC` (0.8), the card over it; `onOpened` runs once it is
 destroyed. A cover's bar follows `progress(f)` (1.2 a second); it opens by itself after `COVER_SAFETY` (20 s).
 Without EditableImages only the clip moves: the plain card behind a straight edge. Laid out from
-the canvas's size (`layoutFor`: the island's middle and radii, `rx` 0.24 of the width (70 .. 160), `ry` 0.3 of it,
-`depth` the underside's (up to 0.58 of `rx`, what room is left above the tip), the horizon (the top of the sea of
-clouds), the sun, the title, status, bar and tip rows) and built again 0.15 s after the camera's ViewportSize changes.
-Since 2026-11-20 ("redo the loading screen. it should be the floating island now") it is two pictures. `paint(L)`
-writes the sky into one EditableImage of the canvas's size: its gradients through `bandAt(list, u, x, y, zone?)` /
-`band(list, t, ...)` (flat, then three dither steps of `stepOn(x, y, s)`: a quarter, a half, three quarters), stars,
-the sun with its halo, four far islets (silhouettes in `FAR`, the edge facing the sun `FAR_TOP`, palms on the two
-big ones) and the sea of clouds (`CLOUDS`, five layers of `domes`, flat, no outline). `paintIsle(L) -> (buf, x0, y0, w,
-h)` paints the floating island on a clear buffer of its own box: the grass top (the oval of radii `rx`, `ry / PITCH`
-times Street's four sines, `rimR(L, a)`, `PITCH` 0.5) in patches with tufts and flowers and a darker lip; under it,
-per column, a band of `SOIL` and rows of stones (random heights, cuts along the rim at `s = rx * asin(dx / rx)`, so the
-stones narrow toward the sides) down to a ragged rounded foot (chunks of the rim a few px lower or higher, long ones
-under the middle), each stone a `STONE` step by depth plus one in the shadow on the right, its top row and left
-column `STONE_LIT`, its foot a step darker, the cracks two steps darker; the grass hanging over the lip, a stream to a
-rounded end, stones floating beside it; then the outline (every pixel next to a clear one takes `inkOf` of its own
-colour: 0.45 of it plus 0.3 of the ink 0x2B1E2E); then vines and roots (kept over the stones) and a puff of mist under
-the stream (flat, no outline). Every `put` rounds to whole pixels (a fraction would write across two pixels' bytes:
-on a phone the far islets came out shifted and blue). The island is the `Isle` ImageLabel in the `Over` layer (ZIndex
-3, under the sprites) and bobs: `step` moves it to `S.bob` (-1, 0, 1 px by a sine over `BOB_SEC`, 3.6 s) and
-re-shows every actor marked `isle`, which `show` draws `S.bob` px lower. `buildAtlas()` decodes `LoadingArt` into
-one atlas EditableImage (the run-length format of `gen_loading_art.py`), `placeScene(L)` lays the actors (ImageLabels
-on the atlas, `ImageRectOffset` per frame, whole UI px, ZIndex by their foot's row; all but the gulls and stars on the
-island, `isle`) and `step(dt)` moves them at most `SCENE_FPS` (24) times a second from the card's one Heartbeat:
-stills (the Tree of Life, `tree`, at the back in the middle, or at the back on the left when its crown, `TREE_TOP`
-(77) art px over its foot, would reach the bar; a "blink" still: its second frame, the hollow, fruit and marks
-dimmer, for a fifth of a second every 4.2 s; a tall palm, `palm_b`, on the right); the fire, the cheering Conchy (a
-burst, a rest), walkers (driftlings up and down a lane, a pause at each end, the sequence's name left and
-`<name>_r` right), followers (a driftling `gap` px behind its walker), gulls, stars, embers. (The boat, the wave
-crests and the sun's glints went with the sea on 2026-11-20; their sprites are still in the atlas.)
-`state()` adds `island.depth`, `isle` (the island image's box), `bob` and `bobMoves`.
+the canvas's size (`layoutFor`: the title, status, bar and tip rows; the island's picture, `still` "big" when it fits
+between the bar and the tip (and the width), else "small" with its foot allowed down behind the tip, centred under the
+bar at `ix`, `iy` (`iw` x `ih`); the horizon, the top of the sea of clouds, seven tenths of the way down the island;
+the moon, `moonX`, `moonY`, `moonR`, high on the right beside the island) and built again 0.15 s after the camera's
+ViewportSize changes. Since 2026-11-20 ("make the island loading screen like this view, but render it as a still
+image, then polish it like a pixel art illustration") it is the night sky with the island's still picture over it.
+`paint(L)` writes the sky into one EditableImage of the canvas's size: `SKY`'s bands through `bandAt(list, u, x, y,
+zone?)` / `band(list, t, ...)` (flat, then three dither steps of `stepOn(x, y, s)`: a quarter, a half, three
+quarters), the galaxy's faint band (`MILKY` on a dither across a diagonal), stars (fewer toward the horizon, a few
+bright ones with four points), the moon (`MOON`, `MOON_CRATER`, its lower right rim `MOON_RIM`, its edge mixed half
+into the sky, a halo of `MOON_HALO` in two dithered rings), four far islets (silhouettes in `FAR`, the edge toward the
+moon `FAR_LIT`, a tree on the two big ones) and the sea of clouds (`CLOUDS`, five layers of `domes`, flat, a pixel of
+`CLOUD_RIM` along each top). Every `put` rounds to whole pixels (a fraction would write across two pixels' bytes: on a
+phone the far islets once came out shifted and blue). The island is `decodeStill(ART[L.still])` (decoded once a
+size, `S.stills`) in an `Island` ImageLabel in the `Over` layer (ZIndex 3, under the words), at one UI px an art px.
+Nothing moves on the card but the bar, the status's dots and the tips; `S.ticks` counts its Heartbeats. `state()`
+adds `still` ({ name, x0, y0, w, h }) and `moon` ({ x, y, r }).
 The words: `textImage` rasterises a line with `PixelFont.mask`
 (the title in `BIG` with the "title" under layer and `PixelFont.smooth`'s anti-aliasing steps, the status and the tip
 in `SMALL` with a drop shadow) into an EditableImage, centred on the canvas; the status's dots and the bar are Frames.
-Without EditableImages (`fallback`): Frames and an Arcade TextLabel. `LoadingArt` (generated: `W`, `H`, `palette`,
-`seqs[name] = { w, h, ax, ay, dur, at, pal, px, base?, head?, flame? }`): `frond`, `frond_r`, `pebble`, `pebble_r`,
-`crab`, `crab_r`, `bun`, `bun_r`, `gullfin`, `gullfin_r`, `cheer` (a Conchy), `fire`, `palm`, `palm_b`, `nest`,
-`burrow`, `torch`, `flowers`, `bush`, `tree` (65 x 85, two frames: lit and dimmer), `boat`, and the hand-made `gull`, `star`, `crest`, `ember`, `glint`.
+Without EditableImages (`fallback`): Frames and an Arcade TextLabel. `LoadingArt` (generated by
+`tools/preview/loading_art.sh`: the preview scenario `ploadingart` draws the island and `gen_loading_art.py` polishes
+and packs it) is `{ big: Still, small: Still }`, `Still = { w, h, pal (0xRRGGBB), alpha (255, or 128: an
+anti-aliasing pixel the card's sky shows through), px }`: one line of run-length codes over the 91 printable
+characters from '#' to '~' without the backslash (with NS = 1 + #pal, a code below NS a symbol, 0 clear and 1 + i the
+palette's i + 1; the codes from NS up the digits of the run's length, bijective base 91 - NS, least significant
+first). The big picture is the View slider's farthest notch (5 art px a stud, 222 x 234), the small one 3 art px a
+stud (134 x 143).
 The card's own outlines are darker steps of what they ring (`C.title_ink` the gold title's, 0.3 and 0.3; `C.bar_ink`
 the bar frame's, `ROCK_INK` and `LOG_INK`, 0.45 and 0.3), never `C.ink`, which stays for the words' drop shadow and the
 tip's plate.
