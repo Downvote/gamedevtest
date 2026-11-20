@@ -124,7 +124,7 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
                        AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
-                       Menus, BuildUI, PixelSprites, ArtData and ThumbData (generated), Words, PalTip)
+                       Menus, BuildUI, StoreUI, FounderUI, PixelSprites, ArtData and ThumbData (generated), Words, PalTip)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
                        (puts the loading card up first), LoadingCard, LoadingArt (generated: tools/preview/loading_art.sh)
 src/RbxCharacterSounds.client.luau  an empty LocalScript in StarterPlayerScripts under the name Roblox would give its own
@@ -1868,7 +1868,7 @@ first while `offline` waits ("Away earnings", "+N": opens "welcome") and `Offer_
 while `groupOn`: "Join the group" / "Free gift" while `group.member` is false, "Group gift" / "Ready" while it is and
 `group.gift` isn't (both open "store" on "passes"), each a glass
 chip with its `mini_` icon, `Text` and, when both fit, `Sub` (its price or "Ready"). `Hud.start` runs `StoreUI.init()`
-after `Menus.init()`.
+after `Menus.init()`, then `FounderUI.init()` (10.18).
 
 ### 10.4 Menus
 `UI/PalTip` (GAME_DESIGN 6, the request of 2026-11-15): `attach(target, pal)` on a row or button that shows one
@@ -1938,7 +1938,7 @@ the sims), the likely child
 `Breed_<uid>`, on while the shells are there), "index" (`Entry_<species>`, 90 tall in three columns: portrait or silhouette, name or "???" (65 px beside the
 portrait: Glimmerfleece's), the kind of island it comes from, its passive once seen with its effects in up to four
 lines from the top (`PassiveFx` 40 tall; it was 20 in a 70 card, and 37 kinds' effects ended in "..."); "Seen n of 55 kinds"; a kind not open yet says the island tier
-it hatches from: "From island Lv 4."). "looks" is `UI/StoreUI`'s since 2026-11-14 (10.13). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut
+it hatches from: "From island Lv 4."). "looks" is `UI/FounderUI`'s since 2026-11-20 (10.18; `UI/StoreUI`'s from 2026-11-14). `Words.errText(err)` words every ErrCode (`no_hut`: "Build a hut
 first."; `full`: "Huts full. Swap one out or build a hut."; `not_found`: "That egg is
 gone."; `fixed`: "The tree stays. You can move it."; `huts`: "No more hut
 room. Grow the island."; `work`: "No more work spots.
@@ -2322,9 +2322,9 @@ it calls `CameraController.setZoom` and sends `settings.set` (a refusal puts the
 `SettingsUI.zoom()` (the pending notch, else the view's), `SettingsUI.value(k)`, `SettingsUI.apply()` (Hud's heartbeat: music and sounds follow the settings). `Audio.setSoundsOn(on)`
 stops every one-shot (`Audio.play` returns false) and fades the loops to nothing; `Audio.soundsOn()`.
 
-### 10.13 The Store and Looks (`UI/StoreUI`; GAME_DESIGN 14.2)
-`StoreUI.init()` registers "store" (title "Store", `mini_store`, 380 x 210; its argument a tab id) and "looks" (360 x
-200; argument "pieces" or "titles"), and words the store's Fx: `pass` with `bought` (a thanks line by key), `rewards`
+### 10.13 The Store (`UI/StoreUI`; GAME_DESIGN 14.2)
+`StoreUI.init()` registers "store" (title "Store", `mini_store`, 380 x 210; its argument a tab id; "looks" went to
+`UI/FounderUI` on 2026-11-20: 10.18), and words the store's Fx: `pass` with `bought` (a thanks line by key), `rewards`
 (`StoreUI.rewardText(from, given)`: "<from>: <what>." with each thing when three or fewer, else counted; `from` a
 product or pass key, "track" or "vip"), `titles` ("New title: X. Wear it in Looks.", Newcomer never). `StoreUI.buy(key)`
 hands a pass to `MarketplaceService:PromptGamePassPurchase` or a product to `PromptProductPurchase` only when
@@ -2370,14 +2370,64 @@ in the background (`PriceInRobux`, the panel refreshed when it lands), else `Sug
   further back, and keeps its place (`trackScroll`, UI px; `CanvasPosition` counts screen px, `UIKit.P` a UI px).
   When the panel is short (a phone) the heading, `FreeHead` and `PremHead` go and the box says "Pass Track: level
   6/30" as `TrackLevel`.
-"looks": the portrait (`UIKit.portrait` of the worn look with the colours being tried), `WornTitle`, `Prev_<k>` /
-`Next_<k>` (skin, hair, style, shirt over Data/Looks' lengths), `SaveLook` (`founder.set`), `PieceCount`,
-`LooksShop` (opens "store" on "shop"), the tabs `LooksTab_pieces` / `LooksTab_titles`; pieces: `Slot_<slot>` chips, then
-`Own_<id>` rows (the rarest first; `WearPiece_<id>`: Wear, or Take off sending id ""), or `NoPieces`; titles:
-`Title_none` (`WearTitle_none`), earned `Title_<id>` (`Name` in its colour, what earned it, `WearTitle_<id>` sending
-`title.set`), then `Locked_<id>` greyed with `StoreUI.howWords(t)`. The draft colours are dropped when another panel
-opens. `StoreUI.offers` / `offerKey`: the HUD's chips (10.3). `EggView.hatchBag(id, swap?)` sends `bag.hatch` and plays
+`StoreUI.offers` / `offerKey`: the HUD's chips (10.3). `EggView.hatchBag(id, swap?)` sends `bag.hatch` and plays
 the same hatch scene as `EggView.hatch` (a shared `played`); `full` opens the tree's swap picker with `bag = true`.
+
+### 10.18 My founder (`UI/FounderUI`; GAME_DESIGN 14.4)
+Random Bakery's "My baker" screen (`src/client/UI/BakerUI.luau` there) brought over on 2026-11-20 (the request: "Port
+the entire character customization menu from the bakery game to this game, such accessory colors and other features,
+along with the accessories it has"), without its pets and staff. `FounderUI.init()` registers "looks" (title "My
+founder", `mini_visitor`, 560 x 272; a phone's sheet fills the screen, UIKit) with the argument a tab id (`TABS`:
+`skin`, `style`, `bangs`, `hair` (hair, hair2), `eyes` (eye, eye2), `shirt`, `top`, `apron`, `hat`, `face`, `neck`,
+`back`, `hand`, `outfits`, `titles`; "pieces" means `hat`); the tab picked stays for the next opening.
+State: `working` (the Types.Look being tried, `FounderUI.working()` for the sims; nil while shut), `kept` (a look the
+X left unsaved, back on the next opening with "Not saved yet"), `tab`, `angle` (1..8). The sheet's root frame
+("Founder") has the `Keep` attribute, so `UIKit.refreshPanel` (Hud's, on every view) leaves it; `build` lays it out
+again only when `signature(view)` changes (`Looks.encode(founder)`, how many pieces and titles are owned, the title
+worn, the outfits) and never while it closes after a save. A tab, an outfit saved or deleted rebuild it (`rebuild`);
+an option picked repaints in place (`onDraft`: the cells, the caption, the status, the stage).
+Layout (`layout`): side by side (the stage `math.clamp(W * 0.31, 96, 190)` wide), stacked under 300 px (the stage 40%
+of the height, 96 to 220); `compact` under 190 px for the right side (no caption line: `Status` and `Choice` ride on
+the stage's glass, the tabs a strip). Names the sims use:
+- the stage `Stage` (a TextButton, a drag of `DRAG_STEP` 14 px a step turns it), `TurnLeft` / `TurnRight` (ghost
+  buttons with `arrow_left` / `arrow_right`), the picture `Founder` (an ImageLabel bound to a Snapshot of
+  `CharacterModels.preview(tidy(working))`, `w, h = 2 * half, up + foot` at one `scale` and `anchor` (the feet) for
+  every angle, yaw `(angle - 1) * 45`; `REACH_UP` 5.6, `REACH_SIDE` 2.4, `REACH_DOWN` 0.5 studs, the scale the
+  largest of 8..26 that fits), the name tag `TagName` / `TagTitle` (or `Status` on a compact stage), `Choice` at its
+  foot when compact. A new picture shows when drawn (`bindWhenReady`), the founder hopping 2 px (`hopStage`: a
+  snapped tween); the angle on show is drawn at priority 3, the thumbnails 2, the next angles 1, the rest 0;
+  `KEEP_LOOKS` 4 looks' pictures are kept, every picture released on close (`mine`);
+- the tabs `LooksTab_<id>` (two rows when they fit, else a sideways strip `Tabs` scrolled to the open one);
+  `Choice` (`captionText`: "Wizard Hat, Blue", "Magic Wand, Tipped forward", "Brown and Snow", "<name> (locked)",
+  "Outfit 2", "Your outfits: 2/10", "Wearing: Islander") and `Status` ("Not saved yet" while
+  `codeOf(working) ~= codeOf(founder)`; `codeOf` = `Looks.encode(tidy(look))`, `tidy` dropping defaults and the tint
+  of an empty slot or a rainbow piece);
+- the colour row `Colours` (a tab with `tint`): `ColourLabel`, then `Swatches` of `Tint_<Looks.tints id>` cells (a
+  chip each; `Tint_orig` the piece's own `color` or the apron's, cream for a piece with none, with an = on it) setting
+  `working[Looks.tintField[slot]]`, or `ColourNote` ("Pick one to colour it.", "This one keeps its own colours."); the
+  Hand tab's `TurnHeld` (`mini_refresh`, `turn % #Looks.turns + 1`);
+- the grid `Options` (cells `cell` px, as many across as fit at 40 px, 30 compact, at most 48; thumbnails 6 px smaller,
+  4 under 40): `Option_<value>` (a list index, a piece id, `Option_none`; a second field's `Option_<key>_<value>`;
+  `Section` heads it), a colour field's chip, else an ImageLabel `Thumb` bound to a Snapshot of `thumbLook(key,
+  value)` (the look being tried wearing that option, the tints, the turn and what the family does not show taken off)
+  cropped and framed by `THUMBS[key]` (`lo` / `hi`: the part centres kept; `yaw`, `pitch`, `scale` for 40 px, `focusY`,
+  `focusX`). A piece cell has a 1 px bar in its rarity's colour and, not owned (`Owned` attribute false), its
+  thumbnail at 0.45 and `Lock` (`mini_lock`); `ShopCell` (`mini_store`, "Shop") ends a piece tab and opens "store" on
+  "shop" (the look kept without a notice). Outfits: `SaveOutfit` (a plus; `outfit.set { i = #outfits + 1, look }`,
+  "This look is saved already." / "Your outfits are full. Delete one first." first), `Outfit_<i>` (a whole-founder
+  thumbnail, `OUTFIT_THUMB`; a tap wears it) with `DeleteOutfit_<i>` (`mini_close`) on the one worn: a first tap arms
+  it (red), a second sends `outfit.set { i, look = "" }`; the last answer's `outfits` stands for 5 s till the view has
+  it. Titles: `TitleList` with `Title_none` / `WearTitle_none`, `Title_<id>` / `WearTitle_<id>` (`title.set`), then
+  `Locked_<id>` with `StoreUI.howWords`;
+- the actions: `Randomise` (`mini_dice`; "Random" or the die alone when narrow: owned pieces only, most in their own
+  colours), `ResetLook` (skin, hair, style, shirt, the second colour and the eyes kept), `CancelLook` and `SaveLook`
+  (`look.set { look = Looks.encode(cleaned(working)) }`: `cleaned` swaps a piece not owned back for the one worn there
+  with its tint and turn; "Saving", then a 4 px hop, `UIKit.confetti` and the sheet closing 0.6 s later with "Saved.
+  Everyone sees your new look."; a look that is the one worn closes at once; a refusal says why and stays).
+Pictures: `pixelPictures()` (`Snapshot.available()` and `PixelRenderer.tier()` not "off"), else ViewportFrames
+(`viewportOf`, a 20 degree camera at the same yaw, pitch and focus; the stage's camera goes round on a turn), and
+`PixelRenderer.Changed` rebuilds the sheet in the other kind. A tap on a locked piece notices where it comes from
+(`whereFrom`: "Sold in the shop now and then.", "A pass track reward.", ...) and "It won't save till it's yours.".
 
 ### 10.12 The weather (`Controllers/WeatherView`, `UI/WeatherChip`; GAME_DESIGN 13)
 `WeatherView`: one effect layer of its own (`PixelRenderer.addFxLayer("weather", draw)`, Render/Fx, whole art
@@ -2459,7 +2509,8 @@ than a sixteenth of the piece's span made that thick; `Pixel/Snapshot` on five c
 `has(id)`) draws a piece's picture, or its slot's mini icon when it has none.
 The store's 11 x 11 icons (2026-11-14): `mini_store` (a stall with a striped awning: the menu bar's Store),
 `mini_crown` (VIP), `mini_ticket` (the pass track), `mini_lock` (a premium card without its pass), `mini_check` (a track reward taken), `mini_gift` (the Starter Pack, VIP's gift), `mini_refresh` (two
-turning arrows: Shop Refresh), each with its `_sil`.
+turning arrows: Shop Refresh; My founder's Turn), each with its `_sil`. `mini_dice` (2026-11-20: a white die with three
+pips, My founder's Randomise) is its own `HAND` call.
 Every `mini_` icon but the shell (51 of them, 2026-11-14) is hand-toned: `HAND(name, rows, ramps, flat?)` in `gen_art.py` takes 9 x 9
 rows where `1234`, `5678` and `abcd` are the dark, shadow, base and light tones of up to three `RAMPS`, `w` a white
 glint, `x` near-black, other letters the sprite's `flat` keys; the `ICONS` table holds 43 of them, eight more are their

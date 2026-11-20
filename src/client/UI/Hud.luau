@@ -36,6 +36,7 @@ local PixelSprites = require(script.Parent.PixelSprites)
 local Words = require(script.Parent.Words)
 local Menus = require(script.Parent.Menus)
 local StoreUI = require(script.Parent.StoreUI)
+local FounderUI = require(script.Parent.FounderUI)
 local RewardsUI = require(script.Parent.RewardsUI)
 local SettingsUI = require(script.Parent.SettingsUI)
 local WelcomeUI = require(script.Parent.WelcomeUI)
@@ -393,6 +394,7 @@ local MENUS: { Menu } = {
 	{ text = "Build", panel = "build", icon = "home" },
 	{ text = "Driftlings", panel = "pals", icon = "pal" },
 	{ text = "Index", panel = "index", icon = "star" },
+	-- the My founder screen (UI/FounderUI, 2026-11-20: Random Bakery's customization screen)
 	{ text = "Looks", panel = "looks", icon = "visitor" },
 	-- the rewards for coming back and playing (UI/RewardsUI, 2026-11-19): a red dot while something waits
 	{ text = "Gifts", panel = "rewards", icon = "gift" },
@@ -1119,6 +1121,7 @@ end
 function Hud.start()
 	Menus.init()
 	StoreUI.init()
+	FounderUI.init()
 	RewardsUI.init()
 	SettingsUI.init()
 	WelcomeUI.init()

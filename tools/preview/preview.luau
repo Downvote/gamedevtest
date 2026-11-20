@@ -1637,7 +1637,8 @@ end
 -- looks, hatch (the Hatchery: a harbour island with two, one warming a rare egg, the other with two parents picked
 -- through the panel).
 local function panelScenario(name)
-	-- (panel=store:<tab> / looks:<tab>: the Store on a tab, Looks on pieces or titles; GAME_DESIGN 14)
+	-- (panel=store:<tab> / looks:<tab>: the Store on a tab, the My founder screen on a tab: skin, style, bangs, hair, eyes,
+	-- shirt, top, apron, hat, face, neck, back, hand, outfits or titles; GAME_DESIGN 14)
 	local arg = nil
 	local base, sub = string.match(name, "^(%w+):(%w+)$")
 	if base then
@@ -1709,6 +1710,28 @@ local function panelScenario(name)
 		prof.vipDay = -1
 		prof.gifts.vip = true
 		prof.shells = 250000
+		if name == "looks" then
+			-- the My founder screen (UI/FounderUI): a few of the bakery's pieces owned too, a gold beret over twin tails
+			-- with side bangs and a white streak, odd eyes, a candy stripe apron in sky blue, the wand held tipped
+			-- forward, and three saved outfits
+			for _, id in { "magic_wand", "golden_crown", "angel_wings", "pearl_necklace", "bouquet" } do
+				if H.sharedServer("Data.Cosmetics").byId[id] then
+					prof.owned[id] = true
+				end
+			end
+			local LooksD = H.sharedServer("Data.Looks")
+			local f = prof.founder
+			f.style, f.bangs, f.hair2, f.eye, f.eye2 = 7, 3, 9, 6, 4
+			f.hat, f.hatTint = "beret", 5
+			f.face, f.neck = "glasses", nil
+			f.apron, f.apronTint = 10, 8
+			f.hand, f.turn = "magic_wand", 2
+			prof.outfits = {
+				LooksD.encode({ skin = 2, hair = 3, style = 2, shirt = 4, hat = "flowercrown", back = "butterflywings" }),
+				LooksD.encode({ skin = 4, hair = 2, style = 12, shirt = 8, hat = "toque", apron = 2 }),
+				LooksD.encode({ skin = 3, hair = 4, style = 6, shirt = 6, face = "sunglasses", neck = "lei", top = "sailor" }),
+			}
+		end
 		H.push(p, 0.6)
 	end
 	if name == "rewards" then
@@ -1796,6 +1819,10 @@ local function panelScenario(name)
 			H.openPanel(p, name)
 		end
 		E.run(0.8)
+		if name == "looks" then
+			-- (the stage's eight angles and the tab's thumbnails drawn: Pixel/Snapshot's pictures, a few a frame)
+			E.run(3)
+		end
 		if name == "hatch" then
 			-- the second Hatchery: two parents picked as a player would
 			local prof = H.profile(p)
