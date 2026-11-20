@@ -9,7 +9,15 @@
 --   SmoothParts.role(part) -> number             Smooth.ROLE_*
 --   SmoothParts.staticNormal(part, px, py, pz, ox, oy, oz) -> (nx, ny, nz)?   for the static bake: the smooth normal
 --       at a hit point on a part of a smooth model (its balls as they stand, gathered once), nil for any other part
+--   SmoothParts.changed(part) -> Model?          a part came to or left a smooth model: its balls are gathered again
+--       the next time one of its parts is hit (the model returned, for the renderer to cast its box again; nil for a
+--       part of no smooth model)
 --   SmoothParts.Smooth                            Render/Smooth (one require for the renderer)
+-- (The balls used to be gathered once, the first time a part of the model was hit. In the game the Tree of Life's 400
+-- to 800 parts reach the client over several frames, so a bake that met its first parts early lit the whole trunk
+-- from the few balls there were then, in patches, until the next whole bake: the reports of 2026-11-20, "the tree
+-- outlines are still broken, not like the screenshot you sent" and "this only happens to the tree of life". The
+-- previews build it in one go and never showed it.)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Smooth = require(ReplicatedStorage.Shared.Render.Smooth)
@@ -38,7 +46,7 @@ end
 
 -- the static models' balls (gathered the first time one of their parts is hit) and each part's group and role
 type Group = { xs: { number }, ys: { number }, zs: { number }, rs: { number }, idx: { number }, n: number }
-type PartInfo = { g: Group, role: number }
+type PartInfo = { m: Model, role: number }
 local groups: { [Model]: Group } = setmetatable({}, { __mode = "k" }) :: any
 local infos: { [BasePart]: PartInfo } = setmetatable({}, { __mode = "k" }) :: any
 local plain: { [BasePart]: boolean } = setmetatable({}, { __mode = "k" }) :: any -- parts lit their own way
@@ -74,13 +82,27 @@ function SmoothParts.staticNormal(part: BasePart, px: number, py: number, pz: nu
 			plain[part] = true
 			return nil, nil, nil
 		end
-		inf = { g = groupOf(m :: Model), role = role }
+		inf = { m = m :: Model, role = role }
 		infos[part] = inf
 	end
-	local g = inf.g
+	local g = groups[inf.m] or groupOf(inf.m)
 	local n = Smooth.near(g.xs, g.ys, g.zs, g.rs, g.n, px, py, pz, 0, near)
 	local nx, ny, nz = Smooth.normal(g.xs, g.ys, g.zs, g.rs, near, n, px, py, pz, ox, oy, oz, inf.role)
 	return nx, ny, nz
+end
+
+function SmoothParts.changed(part: Instance): Model?
+	if not part:IsA("BasePart") then
+		return nil
+	end
+	local m = SmoothParts.model(part)
+	if m == nil then
+		return nil
+	end
+	groups[m] = nil
+	infos[part :: BasePart] = nil
+	plain[part :: BasePart] = nil
+	return m
 end
 
 -- Forget the static models' balls (a new bake after the island changed).

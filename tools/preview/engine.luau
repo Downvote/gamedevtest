@@ -869,8 +869,17 @@ end
 local UD = {}
 local UDMT = { __newindex = immutable("UDim") }
 TYPEOF[UDMT] = "UDim"
+-- (Roblox keeps an Offset as a whole number: one given with a fraction loses it, toward zero. The harness does the
+-- same, so a picture sized W * K units with K a fraction of a unit shows here as it does in the game)
+local function whole(o)
+	o = o or 0
+	if o ~= o or o == math.huge or o == -math.huge then
+		return 0
+	end
+	return if o >= 0 then math.floor(o) else -math.floor(-o)
+end
 local function udim(s, o)
-	return setmetatable({ Scale = s or 0, Offset = o or 0 }, UDMT)
+	return setmetatable({ Scale = s or 0, Offset = whole(o) }, UDMT)
 end
 UDMT.__index = function(_, k)
 	error(tostring(k) .. " is not a valid member of UDim", 2)

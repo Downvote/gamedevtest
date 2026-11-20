@@ -18,7 +18,7 @@
 --
 -- API: DisplayScale.start() (once, on the client), DisplayScale.factor() -> number (the scale in use),
 -- DisplayScale.fit(K) -> number, DisplayScale.setChoice(c: "auto" | "100" | "125" | "150" | "175" | "200"),
--- DisplayScale.choice() -> string, DisplayScale.observe(v) (a coordinate as Roblox reported it: the sims and previews
+-- DisplayScale.choice() -> string, DisplayScale.found() -> number (what Auto found), DisplayScale.observe(v) (a coordinate as Roblox reported it: the sims and previews
 -- feed it), DisplayScale.Changed (fires with the new scale), DisplayScale.debugState().
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -111,6 +111,11 @@ end
 
 function DisplayScale.choice(): string
 	return choice
+end
+
+-- What Auto found (1 until the samples say otherwise), whatever the choice: Settings shows it beside "Screen".
+function DisplayScale.found(): number
+	return detected
 end
 
 -- The Settings choice ("auto" finds it; an unknown one is taken as "auto").

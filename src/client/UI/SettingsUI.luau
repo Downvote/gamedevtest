@@ -21,6 +21,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
@@ -276,6 +277,11 @@ local function build(body: Frame, _arg: any?)
 	local y = 4
 	for _, row in ROWS do
 		UIKit.text(body, row.label, UDim2.fromOffset(60, 12), UDim2.fromOffset(PAD, y + 2), { color = UIKit.color("text"), name = "Label_" .. row.k })
+		if row.k == "screen" then
+			-- (what Auto found, so a player can tell whether the game saw the screen's scale)
+			local found = Lang.fmt("Found {n}%", { n = math.floor(DisplayScale.found() * 100 + 0.5) })
+			UIKit.text(body, found, UDim2.fromOffset(w - 2 * PAD - 60, 12), UDim2.fromOffset(PAD + 60, y + 2), { color = UIKit.color("text_dim"), x = "right", name = "Found_screen" })
+		end
 		local cur = SettingsUI.value(row.k)
 		-- the choices to the right, each as wide as its word, the chosen one lit (a row of many on a line of its own
 		-- under the label, from the left)

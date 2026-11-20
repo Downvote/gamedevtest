@@ -1534,16 +1534,32 @@ floating stones' marks lie inside their faces. The vines' flowers are round, lik
 tree at the View slider's seventh notch (the preview `treeink=7`): 249 pixels of a glowing mark or a mote at an outline
 and 2 loose bits before, 1 and 0 after.
 
+**No glowing marks** (the report of 2026-11-20: "also, there are strange blue rectangles as well", and asked where,
+"on the tree"). The runes on the bark, the mark on the doorway's keystone and the marks on the standing stones and the
+floating stones were cyan blocks a few pixels across with nothing to say what they were, so at play size they read as
+blue rectangles stuck on the trunk. They are gone at every stage. The tree's light now comes from its hollow, its gold
+fruit, its lanterns and its rings of light. (The paragraphs above describe the tree as it was built; where they mention
+runes or marks on the stones, those are the parts that went.)
+
+**One wood a strand** (the report of 2026-11-20, "this only happens to the tree of life, can you look into it?", after
+"it still looks uneven no matter what pixel scale i use"). The game draws the tree as the previews do, so the trouble
+was in how it was built: each braided strand and each root took two woods by turns, a segment light and the next
+dark, with a knot (a ball with a dark heart) every third segment. At play size that came out as light and dark
+chunks with stepped edges all over the trunk, which nothing else on the island has. Now a strand is one wood from foot
+to limbs, a root one wood too, and the knots are gone, so the braid reads as three clean bands round the core. (The
+renderer also gathers a smooth model's balls again whenever a part of it comes or goes: in the game the tree's parts
+reach the client over several frames. The preview `treesplit` hands them over in batches and checks the picture
+against a fresh cast.)
+
 **It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4 from the capital, 5 from Lantern Cove,
 6 from Amberfield): stage 2 on a Palm Isle and a Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital to
 Driftling Haven. Each stage the trunk thickens, the crown spreads wider (half as wide again at the last) and climbs (the
-top cloud from 12 studs to 19), the leaf clouds grow, and more of it glows: more runes up the bark, more of the standing
-stones lit (every third, every other, then all), more blossom, longer vines. From the second stage lanterns of light
+top cloud from 12 studs to 19), the leaf clouds grow, and it carries more blossom and longer vines. From the second stage lanterns of light
 hang in its lower limbs; from the third the ring of clouds is eight with an upper ring of four, and every cloud carries
 three gold fruit; at the last the crown is in full blossom, a ring of gold light floats over it, the stones wear gold
 caps and a second ring of light glows on the ground. The fifth stage (the request of 2026-11-14: "allow expansion up to
 level 20 ... and other details as required for this") hangs a lantern under every limb, floats a second, wider ring of
-light over the crown and three mossy stones round the trunk, each with its glowing mark; the sixth puts gold leaves in
+light over the crown and three mossy stones round the trunk; the sixth puts gold leaves in
 the crown, a third ring of light on the ground and a ring of low standing stones with gold caps round the eggs' lawn.
 When the island grows into a new stage, the tree is built again at it.
 
@@ -2591,6 +2607,17 @@ scale out from what Roblox reports (no script can ask for it: at 125% a mouse mo
 window 1366 pixels wide is 1092.8 units); a screen at a whole scale (100%, a Mac's 200%, a phone's 300%) keeps its
 pixel size as it was. The loading card does the same from the screen's size alone.
 
+> The next report (2026-11-20): "it still looks uneven no matter what pixel scale i use", with a screenshot whose
+> pixels were still 2.5 of the screen's, and asked which Screen options were tried: "all of them".
+
+Roblox keeps an Offset as a whole number of units: one given with a fraction loses it. The pixel layer, the painted sky
+and the hatch scene's backdrop were sized as W × K units in offsets, and the interface's canvases moved down by a
+fraction of a unit to sit on the grid, so with K at 2.4 or 3.2 every one of them was cut short and the picture no
+longer matched the grid it was drawn for. Now each is laid out in art pixels and scaled by K with a UIScale (a scale
+keeps its fraction), and a canvas's shift goes in as a share of its root's height. The previews' harness keeps an
+Offset whole the way Roblox does, so a fractional offset shows there too. Beside "Screen" the panel says what Auto
+found ("Found 125%"): if it says 100% on a screen at 125%, Auto could not tell, and the 125% button sets it by hand.
+
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
 rain; `settings.sfx`), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
@@ -2937,7 +2964,7 @@ reason.
   on it and small waves; in the middle the island (its shallows, a ring of foam, wet sand, the sand with its cliff in
   front, the grass). On it the game's own models, drawn ahead of time through the game's picture path (the
   preview scenario `ploadingart` bakes them frame by frame into `src/first/LoadingArt`): the Tree of Life at the
-  back rising over the sea, its hollow, fruit and runes glowing and dimming (on a short screen, a phone held flat, it
+  back rising over the sea, its hollow and fruit glowing and dimming (on a short screen, a phone held flat, it
   stands at the back on the left so its crown stays clear of the bar; a tall palm stood there while the tide ran),
   palms, a Driftling Hut, a Cozy Burrow, Tiki
   Torches, Flower Beds and Round Bushes, the campfire flickering and throwing embers, a Conchy cheering by it, a

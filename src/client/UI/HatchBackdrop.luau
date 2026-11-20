@@ -1141,6 +1141,11 @@ function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
 		l.BackgroundTransparency = 1
 		l.BorderSizePixel = 0
 		l.ResampleMode = Enum.ResamplerMode.Pixelated
+		-- (sized in art px and scaled by K: Roblox keeps an Offset whole, so W * K units given as an offset lost its
+		-- fraction when K was fitted to a screen scaled by 125%; the life layer below works the same way)
+		local sc = Instance.new("UIScale")
+		sc.Name = "PixelSize"
+		sc.Parent = l
 		l.Parent = ng
 		ng.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 		gui, label = ng, l
@@ -1148,8 +1153,12 @@ function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
 	end
 	local l = label :: ImageLabel
 	l.ImageContent = Content.fromObject(im)
-	l.Size = UDim2.fromOffset(W * K, H * K)
+	l.Size = UDim2.fromOffset(W, H)
 	l.Position = UDim2.fromOffset(0, 0)
+	local lsc = l:FindFirstChildOfClass("UIScale")
+	if lsc then
+		lsc.Scale = K
+	end
 	l.ZIndex = 2
 	-- (behind it, the sky's top colour over its upper half and the nearest hills' under the lower, a step darker as the
 	-- corners are: what shows along an edge while the picture jolts by a few px)
@@ -1183,14 +1192,14 @@ local function pixel(parent: Instance, c: number): Frame
 	local f = Instance.new("Frame")
 	f.BorderSizePixel = 0
 	f.BackgroundColor3 = Color3.fromRGB(rgb(c))
-	f.Size = UDim2.fromOffset(lifeK, lifeK)
+	f.Size = UDim2.fromOffset(1, 1)
 	f.ZIndex = 5
 	f.Parent = layer or parent
 	return f
 end
 
 local function put(f: Frame, x: number, y: number)
-	f.Position = UDim2.fromOffset(math.floor(x) * lifeK, math.floor(y) * lifeK)
+	f.Position = UDim2.fromOffset(math.floor(x), math.floor(y))
 end
 
 -- A bird's two wing beats (5 x 3 art px): wings up in a V, then level.
@@ -1220,7 +1229,10 @@ newLife = function(r: number, W: number, H: number, K: number)
 	lay.Name = "Layer"
 	lay.BackgroundTransparency = 1
 	lay.BorderSizePixel = 0
-	lay.Size = UDim2.fromScale(1, 1)
+	lay.Size = UDim2.fromOffset(W, H)
+	local lsc = Instance.new("UIScale")
+	lsc.Scale = K
+	lsc.Parent = lay
 	lay.Parent = g
 	layer = lay
 	local sky = SKIES[math.clamp(r, 1, #SKIES)]
@@ -1277,8 +1289,8 @@ makeRings = function(r: number, K: number)
 	l.BorderSizePixel = 0
 	l.ResampleMode = Enum.ResamplerMode.Pixelated
 	l.ImageContent = Content.fromObject(im)
-	l.Size = UDim2.fromOffset(w * K, h * K)
-	l.Position = UDim2.fromOffset((math.floor(base.x) - math.floor(w / 2)) * K, (math.floor(base.y) - math.floor(h / 2)) * K)
+	l.Size = UDim2.fromOffset(w, h)
+	l.Position = UDim2.fromOffset(math.floor(base.x) - math.floor(w / 2), math.floor(base.y) - math.floor(h / 2))
 	l.ZIndex = 6
 	l.Parent = layer or g
 	ringDirty = true
@@ -1442,7 +1454,7 @@ local function newImageLabel(name: string, im: EditableImage, z: number): ImageL
 	l.BorderSizePixel = 0
 	l.ResampleMode = Enum.ResamplerMode.Pixelated
 	l.ImageContent = Content.fromObject(im)
-	l.Size = UDim2.fromOffset(lightW * lifeK, lightH * lifeK)
+	l.Size = UDim2.fromOffset(lightW, lightH)
 	l.ZIndex = z
 	l.Parent = layer
 	return l

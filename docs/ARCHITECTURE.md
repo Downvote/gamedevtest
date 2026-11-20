@@ -511,26 +511,25 @@ Models (`src/shared/Models`, Roblox modules):
   white and a tuft of beach grass; about 77 parts). The Tree of Life
   (`tree`, 8 x 8; GAME_DESIGN 6 has the references it was drawn after): an `EggLawn` (7.8 studs across: its eggs lie
   on it), a `Lawn` and `Moss`; a ring of standing `Stone`s at radius 2.3 (1.25 and 0.75 tall, times 1.2 from stage
-  4; `StoneMoss` tufts, gold from stage 4, moss down the face, `Lichen`, a Neon `Glyph` on some, a gap at the front);
+  4; `StoneMoss` tufts, gold from stage 4, moss down the face, `Lichen`, a gap at the front);
   `Root`s flaring from about 1.8 studs up the trunk, the big ones dipping into the ground and coming up again past the
   stones, with rootlets (simpler behind the trunk); a `Trunk` core and three braided `Strand`s (each a `tube`, one
-  facing the camera, the other two ending either side of the doorway), `Knot`s with dark hearts and `BarkMoss` on the
-  camera's side, pale blue Neon `Rune`s upright where the strands face the camera (6 at stage 1 to 14 at stage 6,
-  every third with a dot); the `Hollow` at the front with its glowing `Pod` (Neon) in an arched frame (`Lintel`,
-  `Jamb`s, a keystone with a rune), a stone `Step` and a `Lantern` on a `Post` either side (from stage 1); a
+  facing the camera, the other two ending either side of the doorway; one wood each, the roots too: two woods by turns
+  and `Knot`s drew as light and dark chunks, 2026-11-20), `BarkMoss` on the camera's side (no `Rune`s or `Glyph`s since
+  2026-11-20: they drew as blue rectangles); the `Hollow` at the front
+  with its glowing `Pod` (Neon) in an arched frame (`Lintel`, `Jamb`s), a stone `Step` and a `Lantern` on a `Post` either side (from stage 1); a
   `BirdHouse` (`BirdRoof`, `BirdHole`, `Perch`) on the trunk; round `Branch` limbs (tubes) out to the leaf clouds,
   each one `Leaves` ball with `LeafPuff` lobes, `LeafLit` patches on the sunny side and `LeavesUnder` beneath (the
   clouds at the back darker), `Blossom`, swaying `Vine`s (chalk, so they don't rustle) with `VineFlower`s and a
-  `VineTip`, and Neon gold `Fruit` on a `Stalk` under it; a `Ring` of gold Neon dashes on the ground, `Mote`s and
-  fireflies, mushrooms (`Stem`, `Cap` and `Spot` balls), `Flower`s and `Fallen` blossom; the ground, the stones and
+  `VineTip`, and Neon gold `Fruit` on a `Stalk` under it; a `Ring` of gold Neon dashes on the ground,
+  mushrooms (`Stem`, `Cap` and `Spot` balls), `Flower`s and `Fallen` blossom; the ground, the stones and
   the roots inside the inner 6 x 6, nothing standing between 3.05 and 3.85 studs out all the way round (the eggs).
   About 435 parts at stage 1 and 817 at stage 6 (269 and 623 before the rebuild of 2026-11-15). Its stage (`lvl` 1 .. 6,
   `Tree.stage`) scales it above that ground: the trunk's girth, the limbs' and the ring of clouds' height, the top
-  cloud's height (12.2 studs x 1, 1.18, 1.36, 1.55, 1.68, 1.8), the crown's spread and each cloud's size; more `Rune`s, lit
-  `Glyph`s, `Blossom` and `Mote`s; `Lantern`s (Neon) from stage 2; eight ring clouds, four more above them and three
+  cloud's height (12.2 studs x 1, 1.18, 1.36, 1.55, 1.68, 1.8), the crown's spread and each cloud's size; more `Blossom`; `Lantern`s (Neon) from stage 2; eight ring clouds, four more above them and three
   `Fruit` a cloud from stage 3; from stage 4 blossom on every cloud, a `Halo` of gold Neon over the crown, gold caps on
   the stones and a second ring of light; from stage 5 a `Lantern` under every limb, a second, wider `Halo` and three
-  `Floating` stones round the trunk (`FloatingMoss`, a `Glyph` each, a `Pebble`); at stage 6 `GoldLeaves` in the crown,
+  `Floating` stones round the trunk (`FloatingMoss`, a `Pebble`); at stage 6 `GoldLeaves` in the crown,
   a third ring of light and two low `OuterStone`s with `OuterCap`s in each corner of the lawn (radius 4.7 to 4.95,
   off the eggs' ring, inside the 8 x 8); no Lv 3
   pennant (its `lvl` is a stage). `DecorModels.HOLLOW` (the hollow's
@@ -1182,9 +1181,14 @@ keeps the last 32 distinct values; the scale is the smallest of `1, 1.25, 1.5, 1
 3.5, 4` that makes every one a whole number of pixels (within 0.02; nothing other than 1 before 6 samples), or the
 Settings choice (`setChoice(c)`, `Tuning.ScreenScales`: "auto" 0, "100" 1 .. "200" 2); `factor()`; `fit(K)` = K at a
 whole scale, else `round(K * s) / s`; `Changed` (the camera refits: `CameraController.pixelK` returns `fit` of
-`Raster.pixelScale`); `debugState()`, `debugReset()`. Everything that sizes from K takes it as it is (UIKit's
-canvases, SkyBackdrop, HatchBackdrop, the view's key formats it `%g`); UIKit's canvas sits on the K grid from the
-screen's corner (`top % K` with a tolerance). The report of 2026-11-20 ("the tree still looks like this": screenshots
+`Raster.pixelScale`); `found()` (what Auto found, whatever the choice: Settings shows it); `debugState()`,
+`debugReset()`. Roblox keeps a UDim Offset whole, so nothing puts K into an offset: the layer's `Image` is W x H
+offset units with a UIScale child `PixelSize` of K, SkyBackdrop lays everything on a `Canvas` frame (W x H) with a
+UIScale of K, HatchBackdrop's `Image` has a `PixelSize` UIScale and its life `Layer` (W x H) a UIScale of K, the
+pieces on them placed and sized in art px; UIKit's canvases have their UIScale of K and sit on the K grid from the
+screen's corner (`top % K` with a tolerance), a fractional shift given as a share of the root's height (a UDim Scale
+keeps its fraction); the view's key formats K `%g`. (The jolts, `PixelRenderer.setOffset` and
+`HatchBackdrop.offset`, still move by whole art px times K in offsets: both lose the same fraction.) The report of 2026-11-20 ("the tree still looks like this": screenshots
 whose every pixel was 2.5 of the screen's). The **static layer** is a raycast G-buffer of the view: progressive passes (one
 ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`), time-sliced (`Tuning.PixelBakeMsPerFrame`, more
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
@@ -1629,7 +1633,10 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `Smooth.onSolids` gives the nearest one's gradient there and a weight (1 on its surface, 0 `SOLID_REACH` 0.12 studs
   off it), blended into the normal in `shadeTex`. A smooth solid itself keeps its own normal (`SmoothParts.role`: its
   "PixelShape" set). The static bake (`castSample`): a hit on a smooth model's part asks
-  `SmoothParts.staticNormal` (the model's balls gathered once a bake; `SmoothParts.reset` at `startBake`) and stores
+  `SmoothParts.staticNormal` (the model's balls gathered the first time one of its parts is hit; `SmoothParts.reset` at
+  `startBake`; `SmoothParts.changed(part)` when a part comes to or leaves a smooth model under Workspace.Plots drops
+  that model's balls and the renderer casts the model's whole box again once that frame, since in the game the tree's
+  parts reach the client over several frames) and stores
   the result as a fine normal index, `Shading.fineIndex` (27 .. 255: 229 directions on a Fibonacci spiral, within 12
   degrees of any direction; `Shading.normalVec` decodes both kinds; 0 .. 26 stay the world's coarse ones, so every
   "faces up" test is unchanged). The renderer's `NX NY NZ` and `courseFams` tables hold all 256.
@@ -2527,7 +2534,8 @@ shut and the hatch scene isn't playing; it closes the card when the view has no 
 The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: 118 tall, more when narrow): `ROWS` Music (`settings.music`), Sounds
 (`settings.sfx`), Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish) and Screen
 (`settings.screen`: auto, 100, 125, 150, 175, 200; its six buttons on a line of their own under the label, `own`, with
-a hint; `SettingsUI.apply()` hands the value to `DisplayScale.setChoice` every frame), each a row of buttons
+a hint and `Found_screen`, what Auto found, "Found {n}%", right of the label; `SettingsUI.apply()` hands the value to
+`DisplayScale.setChoice` every frame), each a row of buttons
 `Set_<k>_<v>`, the chosen one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
 `Audio.setSoundsOn`, `PixelRenderer.setTier`) and sends `settings.set`; a refusal drops the pending value with a notice.
 Under them the View row (2026-11-18, `settings.zoom`): `ZoomOut` (-), the track (an ink frame round a groove, filled to

@@ -516,6 +516,12 @@ local function ensureLayer(): (ScreenGui, ImageLabel)
 	label.Active = false
 	label.ResampleMode = Enum.ResamplerMode.Pixelated
 	label.ImageTransparency = 1
+	-- (sized in art px and scaled by K here: Roblox keeps an Offset whole, so W * K units given as an offset lost its
+	-- fraction when K was fitted to a screen scaled by 125%)
+	local sc = Instance.new("UIScale")
+	sc.Name = "PixelSize"
+	sc.Scale = 1
+	sc.Parent = label
 	label.Parent = gui
 	gui.Parent = pg
 	layer, image = gui, label
@@ -1660,7 +1666,11 @@ local function buildSurf(v: CameraController.View)
 		shown = false
 		im.ImageTransparency = 1
 	end
-	im.Size = UDim2.fromOffset(W * K, H * K)
+	im.Size = UDim2.fromOffset(W, H)
+	local psz = im:FindFirstChildOfClass("UIScale")
+	if psz then
+		psz.Scale = K
+	end
 	im.Visible = true
 	if old and old.view.stage and not v.stage then
 		-- back from a stage with no picture kept (the screen changed size meanwhile): the stage's last frame must not
@@ -5025,7 +5035,29 @@ local function watchStatic()
 	if plots == nil then
 		return
 	end
-	local function poke(d: Instance)
+	-- A part came to or left a model lit as one smooth surface (the Tree of Life; `sm`, SmoothParts.changed has dropped
+	-- its balls already): the whole model's box is cast again once this frame, since every pixel of it was lit from the
+	-- balls there were (in the game the tree's parts arrive over several frames).
+	local smoothDirty: { [Model]: boolean } = {}
+	local function smoothRecast(m: Model)
+		if smoothDirty[m] then
+			return
+		end
+		smoothDirty[m] = true
+		task.defer(function()
+			smoothDirty[m] = nil
+			if rebakeAt >= 0 or m.Parent == nil or surf == nil or CameraController.view().stage then
+				return
+			end
+			local cf, size = m:GetBoundingBox()
+			local r = SG.boxRect(cf, size)
+			if r then
+				queueRect(r)
+				PC.drop(r)
+			end
+		end)
+	end
+	local function poke(d: Instance, sm: Model?)
 		if not d:IsA("BasePart") or surf == nil then
 			return
 		end
@@ -5056,6 +5088,9 @@ local function watchStatic()
 			queueRect(r)
 			PC.drop(r)
 		end
+		if sm then
+			smoothRecast(sm)
+		end
 		stats.perf.pokes += 1
 		stats.perf.pokeMs += (SG.clock() - p0) * 1000
 	end
@@ -5064,10 +5099,10 @@ local function watchStatic()
 		if d:IsA("BasePart") and d.LocalTransparencyModifier ~= 0 then
 			d.LocalTransparencyModifier = 0
 		end
-		poke(d)
+		poke(d, SmoothParts.changed(d))
 	end)
 	plots.DescendantRemoving:Connect(function(d: Instance)
-		poke(d)
+		poke(d, SmoothParts.changed(d))
 		staticIds[d] = nil
 	end)
 end

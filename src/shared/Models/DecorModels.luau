@@ -1760,24 +1760,23 @@ end
 
 ------------------------------------------------------------------ the Tree of Life (GAME_DESIGN 6; Logic/Tree)
 -- Tree of Life (8 x 8; `lvl` its stage, 1 .. 6, Logic/Tree.stage: it grows grander with the island: from the second
--- stage a taller trunk, a crown climbing and spreading wider, more runes, blossom, fruit, lanterns and lit stones; from
+-- stage a taller trunk, a crown climbing and spreading wider, blossom, fruit and lanterns; from
 -- the third eight clouds round the crown and four over them and three fruit a cloud; from the fourth a crown in full
 -- blossom, gold caps on the stones, a ring of light over it and a second ring of light on the
 -- ground; on the islands past Driftling Haven (the request of 2026-11-14: "allow expansion up to level 20 ... and other
 -- details as required for this") the fifth adds a lantern under every limb, a second ring of light over the crown and
--- three stones floating round the trunk, each with its glowing mark, and the sixth gold leaves in the crown, a third
+-- three stones floating round the trunk, and the sixth gold leaves in the crown, a third
 -- ring of light on the ground and low standing stones with gold caps in the lawn's corners). The request
 -- (2026-11-12): "make the tree of life more like a tree of life, reference references for it, make it look bigger and
 -- more grand". After the old pictures of a world tree (our own design): a great trunk of three strands braided round
 -- each other, wide roots that spread over the ground the way the limbs spread overhead (as above, so below), a ring
--- of standing stones round its foot (the circle of life), a glowing hollow at the front (`Pod`), glowing marks winding
--- up the bark, long limbs holding out clouds of leaves with sky between them, aerial roots and blossom hanging from
--- them, gold fruit glowing under them, a ring of light on the ground, and twinkles of light on its fruit. Round the
+-- of standing stones round its foot (the circle of life), a glowing hollow at the front (`Pod`), long limbs holding
+-- out clouds of leaves with sky between them, aerial roots and blossom hanging from them, gold fruit glowing under them, a ring of light on the ground, and twinkles of light on its fruit. Round the
 -- ring of light a wide mossy lawn where its eggs lie (2026-11-13: "it now spawns eggs around it"): they are the
 -- client's (Controllers/EggView), on a circle DecorModels.EGG_RING studs from its middle. DecorModels.HOLLOW: the
 -- hollow's foot in the model's own frame.
 -- Rebuilt in more detail on 2026-11-15 ("can you also rebuild the tree of life", after every building was reworked
--- the bakery's way): bark with knots and moss on it and the runes facing the camera; roots flaring from high on the
+-- the bakery's way): bark with knots and moss on it; roots flaring from high on the
 -- trunk, the big ones dipping into the ground and coming up again past the stones, with rootlets; stones with moss and
 -- lichen; a bigger glowing doorway in an arched frame, with a step and a lantern either side; a bird house on the
 -- trunk; leaf clouds of more puffs in three greens, lit on top and dark underneath; vines that sway as they hang, with
@@ -1785,9 +1784,10 @@ end
 -- the way round: the eggs lie on the south and east whichever way the tree is turned) stays clear of anything that
 -- stands up off the lawn; only the ring of light lies flat on it.
 -- Its edges cleaned on 2026-11-20 ("the tree has alot of jaggied outlines, and stray pixels around the outline,
--- especially near the fruits"): no motes or fireflies cast as parts, the runes only where a strand faces the camera,
--- blossom set into the clouds' faces, every fruit on its own stalk clear of the leaves, the stones' marks inside their
--- faces, and the camera's side worked out in the tree's own frame so a turned tree keeps them in view (GAME_DESIGN 6).
+-- especially near the fruits"): no motes or fireflies cast as parts, blossom set into the clouds' faces, every fruit on
+-- its own stalk clear of the leaves, and the camera's side worked out in the tree's own frame so a turned tree keeps
+-- its knots and lit leaves in view (GAME_DESIGN 6). The glowing marks on its bark, its keystone and its stones went the
+-- same day ("there are strange blue rectangles as well", "on the tree": cyan blocks with no shape to them).
 DecorModels.HOLLOW = Vector3.new(0, 0, 1.25)
 DecorModels.EGG_RING = 3.45
 -- (the side the camera sees, on the ground: the view looks down from the south-east; in the world's frame)
@@ -1813,17 +1813,16 @@ B.tree = function(m, f, stage)
 	local function knob(p: Vector3, dia: number, color: string, name: string): BasePart
 		return ball(m, f, p.X, p.Y, p.Z, dia, color, name)
 	end
-	-- a piece lying on a surface at p, its face toward n and its height along up
-	local function onFace(p: Vector3, n: Vector3, up: Vector3, w: number, h: number, d: number, color: string, name: string, neon: boolean?): BasePart
-		return part(Vector3.new(w, h, d), CFrame.lookAt(p, p + n, up), color, name, neon)
-	end
 	-- a round limb, root or strand through pts, narrowing from d0 to d1, its two colours in turn
 	local function bough(pts: { Vector3 }, d0: number, d1: number, c1: string, c2: string, name: string, cap: boolean?)
 		local n = #pts - 1
 		tube(m, f, pts, function(i: number): number
 			return d0 + (d1 - d0) * (i - 1) / math.max(1, n - 1)
-		end, function(i: number): string
-			return if i % 2 == 1 then c1 else c2
+		end, function(_i: number): string
+			-- (one wood the whole way: segments in turn of two woods drew as light and dark chunks with stepped edges,
+			-- the report of 2026-11-20, "this only happens to the tree of life"; c2 is kept for the callers)
+			local _ = c2
+			return c1
 		end, name, cap)
 	end
 	local function flat(a: number, r: number, y: number): Vector3
@@ -1871,9 +1870,7 @@ B.tree = function(m, f, stage)
 
 	------------------------------------------------ the standing stones
 	-- the circle of standing stones round its foot (a gap at the front for the hollow), the tall ones showing over the
-	-- eggs: each with moss on top and down its face and a fleck of lichen; more of them glow as it grows (every third,
-	-- then every other one, then all of them) and from the fourth stage they wear gold caps
-	local glowEvery = ({ 3, 2, 1, 1, 1, 1 })[s]
+	-- eggs: each with moss on top and down its face and a fleck of lichen; from the fourth stage they wear gold caps
 	for k = 0, 9 do
 		local a = (k + 0.5) / 10 * math.pi * 2
 		if math.cos(a) > 0.9 then
@@ -1889,11 +1886,6 @@ B.tree = function(m, f, stage)
 		-- (the fleck and the mark lie on the stone's face, a pixel or more inside its edges: at its corner they stuck out
 		-- past its outline as loose pixels, the request of 2026-11-20)
 		part(Vector3.new(0.25, 0.25, 0.125), at * CFrame.new(-0.1875, 0.25, 0.25), if k % 2 == 0 then "straw" else "cream", "Lichen")
-		if k % glowEvery == 0 and flat(a, 1, 0):Dot(TREE_CAM) > 0.5 then
-			-- a glowing mark carved in the stone, a stroke in the middle of its face (on the stones whose face the camera
-			-- sees; on one seen edge on, or by the moss over its top, the mark sat on an outline)
-			part(Vector3.new(0.25, 0.5, 0.125), at * CFrame.new(0.0625, h * 0.5 - 0.125, 0.25), "screen_on", "Glyph", true)
-		end
 	end
 
 	------------------------------------------------ the roots
@@ -1912,11 +1904,11 @@ B.tree = function(m, f, stage)
 		end
 		bough(pts, (if big then 1.1 else 0.85) * ts, 0.35, "wood_dark", "wood", "Root")
 		if front then
-			bough({ pts[3], flat(a + (if k % 2 == 0 then 0.32 else -0.32), r3 + 0.3, -0.02) }, 0.25, 0.25, "skin4", "skin4", "Root")
+			bough({ pts[3], flat(a + (if k % 2 == 0 then 0.32 else -0.32), r3 + 0.3, -0.02) }, 0.25, 0.25, "wood_dark", "wood_dark", "Root")
 		end
 		if big and front then
 			local h0 = math.min(r3 + 0.6, 2.25)
-			bough({ flat(a, h0, -0.04), flat(a, h0 + 0.25, 0.18), flat(a, h0 + 0.5, -0.04) }, 0.3, 0.25, "wood_dark", "skin4", "Root")
+			bough({ flat(a, h0, -0.04), flat(a, h0 + 0.25, 0.18), flat(a, h0 + 0.5, -0.04) }, 0.3, 0.25, "wood_dark", "wood_dark", "Root")
 		end
 	end
 
@@ -1942,14 +1934,15 @@ B.tree = function(m, f, stage)
 			table.insert(pts, flat(a0 + i * 0.45, (0.75 - i * 0.03 / ys) * ts, 0.6 * ts + i * rise))
 		end
 		strands[st + 1] = pts
-		tube(m, f, pts, strandDia, function(i: number): string
-			return if (st + i) % 2 == 1 then "wood" else "wood_dark"
+		tube(m, f, pts, strandDia, function(_i: number): string
+			return "wood"
 		end, "Strand", true)
 	end
-	-- the bark: knots with a dark heart and moss low down, on the side the camera sees; and the glowing marks winding
-	-- up it (more as it grows), each where a strand faces the camera
+	-- the bark: moss low down, on the side the camera sees. (No glowing marks on it: cyan blocks on the bark read as
+	-- stray blue rectangles, the report of 2026-11-20, "there are strange blue rectangles as well", "on the tree"; and no
+	-- knots: a swelling with a dark heart drew as a blotch on a strand, the same day, "this only happens to the tree of
+	-- life".)
 	local toCam = (TREE_CAM * 0.866 + UP * 0.5).Unit
-	local runeSpots: { { p: Vector3, n: Vector3 } } = {}
 	for st, pts in strands do
 		for i = 2, #pts - 1 do
 			local a, b = pts[i], pts[i + 1]
@@ -1958,52 +1951,16 @@ B.tree = function(m, f, stage)
 			if not seen(out) then
 				continue
 			end
-			local dir = (b - a).Unit
 			local rad = strandDia(i) / 2
-			if (i + st) % 3 == 0 and i < #pts - 1 and out:Dot(TREE_CAM) > 0.35 then
-				-- a knot: a swelling with a dark heart
-				local kn = (out - dir:Cross(out).Unit * 0.5).Unit
-				knob(b + kn * (rad - 0.12), 0.5 * ts, "skin4", "Knot")
-				knob(b + kn * (rad + 0.08), 0.25, "skin5", "Knot")
-			end
 			if i <= 3 and out:Dot(TREE_CAM) > 0.35 then
 				knob(a + (out + UP * 0.6).Unit * (rad - 0.06), 0.5, "moss", "BarkMoss")
 			end
-			if out:Dot(TREE_CAM) > 0.7 then
-				local n = (toCam - dir * toCam:Dot(dir)).Unit
-				for _, t in { 0.3, 0.75 } do
-					local p = a + (b - a) * t + n * (rad - 0.0625)
-					if p.Y > 1.9 and p.Y < base - 1.5 then
-						table.insert(runeSpots, { p = p, n = n })
-					end
-				end
-			end
-		end
-	end
-	-- (none by the bird house: a mark against its roof or its side was lost in their outlines)
-	local birdAt = flat(math.rad(50), 1.05 * ts + 0.375, 4.0 * ys)
-	for i = #runeSpots, 1, -1 do
-		if (runeSpots[i].p - birdAt).Magnitude < 1.2 then
-			table.remove(runeSpots, i)
-		end
-	end
-	table.sort(runeSpots, function(x, y)
-		return x.p.Y < y.p.Y
-	end)
-	local nRunes = math.min(2 + 2 * s, #runeSpots)
-	for i = 1, nRunes do
-		local sp = runeSpots[math.floor((i - 0.5) * #runeSpots / nRunes) + 1]
-		onFace(sp.p, sp.n, UP, 0.25, 0.5, 0.25, "screen_on", "Rune", true)
-		if i % 3 == 0 then
-			-- (a dot beside it: a mark of two strokes)
-			local side = UP:Cross(sp.n).Unit
-			onFace(sp.p + side * 0.25 + UP * 0.125, sp.n, UP, 0.25, 0.25, 0.25, "screen_on", "Rune", true)
 		end
 	end
 
 	------------------------------------------------ the hollow
-	-- at the front, between two strands: a dark arched opening with a warm light in it, in a frame of wood with a
-	-- glowing mark on its keystone, a stone step before it and a lantern on a post either side
+	-- at the front, between two strands: a dark arched opening with a warm light in it, in a frame of wood, a stone
+	-- step before it and a lantern on a post either side
 	local z0 = 1.0 * ts + 0.1
 	part(Vector3.new(1.0, 1.0, 0.25), CFrame.new(0, 0.62, z0), "black", "Hollow")
 	cyl(m, f, 0, 1.12, z0, 1.0, 0.25, "black", "Hollow").CFrame = f * CFrame.new(0, 1.12, z0) * CFrame.Angles(0, math.pi / 2, 0)
@@ -2016,7 +1973,6 @@ B.tree = function(m, f, stage)
 		part(Vector3.new(0.25, 0.5, 0.25), CFrame.new(x * 0.72, 1.56, z0 + 0.25) * CFrame.Angles(0, 0, if x < 0 then -math.pi / 4 else math.pi / 4), "wood", "Lintel")
 	end
 	part(Vector3.new(0.5, 0.25, 0.25), CFrame.new(0, 1.81, z0 + 0.3125), "wood_dark", "Lintel")
-	part(Vector3.new(0.25, 0.25, 0.25), CFrame.new(0, 1.81, z0 + 0.4375), "screen_on", "Rune", true)
 	part(Vector3.new(1.0, 0.25, 0.5), CFrame.new(0, 0.125, z0 + 0.625), "rock", "Step")
 	for _, sx in { -1, 1 } do
 		part(Vector3.new(0.25, 1.25, 0.25), CFrame.new(sx * 1.0, 0.625, z0 + 0.5), "wood_dark", "Post")
@@ -2182,8 +2138,8 @@ B.tree = function(m, f, stage)
 			end
 		end
 	end
-	-- stones floating round the trunk from the fifth stage: a rough rock with moss on top and a glowing mark, roots
-	-- trailing from it, a pebble under it
+	-- stones floating round the trunk from the fifth stage: a rough rock with moss on top, roots trailing from it, a
+	-- pebble under it
 	if s >= 5 then
 		for k = 0, 2 do
 			local a = k / 3 * math.pi * 2 + 1.1
@@ -2193,10 +2149,6 @@ B.tree = function(m, f, stage)
 			part(Vector3.new(0.75, 0.5, 0.5), at * CFrame.new(0.0625, -0.375, 0), "rock_dark", "Floating")
 			part(Vector3.new(0.5, 0.25, 0.25), at * CFrame.new(0, -0.75, 0.0), "rock_dark", "Floating")
 			part(Vector3.new(0.75, 0.25, 0.5), at * CFrame.new(-0.125, 0.375, 0), "moss", "FloatingMoss")
-			if flat(a, 1, 0):Dot(TREE_CAM) > 0.5 then
-				-- (its mark on the face the camera sees, set into it: on a stone turned away it stuck out at its edge)
-				part(Vector3.new(0.25, 0.25, 0.125), at * CFrame.new(0.125, 0, 0.375), "screen_on", "Glyph", true)
-			end
 			part(Vector3.new(0.25, 0.75, 0.25), at * CFrame.new(-0.25, -0.75, 0.0625), "wood_dark", "Floating")
 			part(Vector3.new(0.25, 0.25, 0.25), CFrame.new(x + 0.2, y - 1.4, z - 0.1), "rock_dark", "Pebble")
 		end

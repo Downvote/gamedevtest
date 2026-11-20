@@ -106,11 +106,14 @@ local function layoutCanvas(rec: CanvasRec)
 		size = Vector2.new(vp.X, vp.Y - top)
 	end
 	-- (K may be a fraction of a unit on a display scaled by a fraction, Pixel/DisplayScale: still a whole number of
-	-- the screen's pixels)
+	-- the screen's pixels. Roblox keeps an Offset whole, so a shift with a fraction in it is given as a share of the
+	-- root's height instead: a Scale keeps its fraction)
 	local oy = top % K
 	local shift = if oy < 1e-6 or K - oy < 1e-6 then 0 else K - oy
 	rec.scaler.Scale = K
-	rec.canvas.Position = UDim2.fromOffset(0, shift)
+	rec.canvas.Position = if shift == math.floor(shift) or size.Y <= 0
+		then UDim2.fromOffset(0, shift)
+		else UDim2.new(0, 0, shift / size.Y, 0)
 	rec.canvas.Size = UDim2.fromOffset(math.max(1, math.floor(size.X / K + 1e-6)), math.max(1, math.floor((size.Y - shift) / K + 1e-6)))
 end
 

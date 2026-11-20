@@ -154,6 +154,12 @@ do
 	local k1 = H.inClient(p, PRs.pixelScale)
 	local px1 = k1 * 1.25
 	H.expect(H.inClient(p, DS.factor) == 1.25 and math.abs(px1 - math.floor(px1 + 0.5)) < 1e-6 and k1 ~= k0, "settings", "at 125% the pixel size is a whole number of the screen's pixels", string.format("%g units -> %g units (%g pixels)", k0, k1, px1))
+	-- (the next report, "it still looks uneven no matter what pixel scale i use": Roblox keeps an Offset whole, so the
+	-- pixel size reaches the picture through a UIScale, never an offset; the harness keeps offsets whole too)
+	-- (the pixel layer's own UIScale is checked with the sky, where the filter is on)
+	local spg = p:FindFirstChildOfClass("PlayerGui")
+	local fl = spg and spg:FindFirstChild("Found_screen", true)
+	H.expect(fl ~= nil and (fl :: any).Text == "Found 100%", "settings", "beside Screen, what Auto found (the sim's screen: 100%)", if fl then (fl :: any).Text else "none")
 	H.expect(H.clickNamed(p, "Set_screen_auto", { wait = 0.6 }) and prof.settings.screen == "auto" and math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "and Auto again: back as it was", string.format("%g", H.inClient(p, PRs.pixelScale)))
 	-- (Auto finds a screen at 125% from what Roblox reports there: positions and sizes 0.8 of a unit apart)
 	local found = H.inClient(p, function()
@@ -3957,9 +3963,19 @@ do
 	E.run(1)
 	local g = pg and pg:FindFirstChild("SkyBackdrop")
 	local whole = g ~= nil and g.Enabled
+	-- (on its Canvas frame, laid out in art px under a UIScale of K)
+	local cv = g and g:FindFirstChild("Canvas")
 	for _, n in { "Sky", "Sun", "Moon", "FarA", "FarB", "Life" } do
-		whole = whole and g:FindFirstChild(n) ~= nil
+		whole = whole and cv ~= nil and cv:FindFirstChild(n) ~= nil
 	end
+	local lay = pg and pg:FindFirstChild("PixelLayer")
+	local img = lay and lay:FindFirstChild("Image")
+	local isc = img and img:FindFirstChildOfClass("UIScale")
+	local kNow = H.inClient(p, PRs.pixelScale)
+	local artW = math.ceil(E.viewport.X / kNow)
+	H.expect(isc ~= nil and img ~= nil and math.abs(isc.Scale - kNow) < 1e-6 and img.Size.X.Offset == artW, "sky", "the pixel layer sized in art px and scaled by the pixel size with a UIScale (Roblox keeps an Offset whole)", if isc and img then string.format("UIScale %g, K %g, %d art px (the screen: %d)", isc.Scale, kNow, img.Size.X.Offset, artW) else "no UIScale on the layer")
+	local cvs = cv and cv:FindFirstChildOfClass("UIScale")
+	H.expect(cvs ~= nil and math.abs(cvs.Scale - H.inClient(p, PRs.pixelScale)) < 1e-6, "sky", "the painted sky's canvas scaled by the pixel size (no K in an offset)", if cvs then string.format("%g, K %g", cvs.Scale, H.inClient(p, PRs.pixelScale)) else "no UIScale")
 	H.expect(whole and g:FindFirstChild("CloudsA") == nil, "sky", "with the pixel filter on, the sky behind the islands: its picture, the sun, the moon, the far islets and the sea of clouds twice, its life; no clouds drifting across it")
 	local function at(h)
 		H.inClient(p, SBm.debugHour, h, 0)
@@ -3988,36 +4004,24 @@ do
 end
 -- the Tree of Life's edges (the request of 2026-11-20: "the tree has alot of jaggied outlines, and stray pixels around
 -- the outline, especially near the fruits"). Its model at every stage and turned every way: no motes cast as parts
--- (loose two and three pixel squares round it), every rune on a strand facing the camera head on (where a strand
--- passes the trunk's edge a rune sat on the outline, and on a turned tree the runes stayed on the side an unturned one
--- shows), every gold fruit on a stalk up into the leaves (the third of a cloud's hung in the air on nothing), the
--- stones' glowing marks on a face the camera sees. (The picture itself is the preview's to check: the simulator's
--- rays meet only its ground. The scenario treeink counts the glowing marks at an outline and the loose bits on the
--- village's tree: 249 and 2 before, 1 and 0 after.)
+-- (loose two and three pixel squares round it), every gold fruit on a stalk up into the leaves (the third of a cloud's
+-- hung in the air on nothing), and no glowing marks on its bark, keystone or stones (the same day: "there are strange
+-- blue rectangles as well", "on the tree"; they were cyan blocks). (The picture itself is the preview's to check: the
+-- simulator's rays meet only its ground. The scenario treeink counts the glowing marks at an outline and the loose bits
+-- on the village's tree.)
 do
-	local camW = E.v3(1, 0, 1).Unit
 	local bad: { string } = {}
 	for _, rot in { 0, 90, 180, 270 } do
 		for stage = 1, 6 do
 			local at = E.cf.new(0, 0, 0) * E.cf.Angles(0, math.rad(rot), 0)
 			local m = DecorModels.build("tree", at, stage)
-			local runes, motes, loose, stalks, fruit = 0, 0, 0, {}, {}
+			local marks, motes, loose, stalks, fruit = 0, 0, 0, {}, {}
 			for _, d in m:GetDescendants() do
 				if d:IsA("BasePart") then
 					if d.Name == "Mote" then
 						motes += 1
-					elseif d.Name == "Rune" and d.Position.Y > 1.95 then
-						-- (the trunk's runes: the hollow's keystone is lower)
-						runes += 1
-						local out = E.v3(d.Position.X, 0, d.Position.Z).Unit
-						if out:Dot(camW) < 0.6 then
-							table.insert(bad, string.format("rot %d stage %d: a rune facing %.2f of the camera", rot, stage, out:Dot(camW)))
-						end
-					elseif d.Name == "Glyph" then
-						local out = E.v3(d.Position.X, 0, d.Position.Z).Unit
-						if out:Dot(camW) < 0.4 then
-							table.insert(bad, string.format("rot %d stage %d: a glyph on a stone facing %.2f of the camera", rot, stage, out:Dot(camW)))
-						end
+					elseif d.Name == "Rune" or d.Name == "Glyph" then
+						marks += 1
 					elseif d.Name == "Stalk" then
 						table.insert(stalks, d)
 					elseif d.Name == "Fruit" or d.Name == "Sparkle" then
@@ -4038,13 +4042,13 @@ do
 					loose += 1
 				end
 			end
-			if motes > 0 or loose > 0 or runes == 0 then
-				table.insert(bad, string.format("rot %d stage %d: %d motes, %d fruit on no stalk, %d runes", rot, stage, motes, loose, runes))
+			if motes > 0 or loose > 0 or marks > 0 then
+				table.insert(bad, string.format("rot %d stage %d: %d motes, %d fruit on no stalk, %d glowing marks", rot, stage, motes, loose, marks))
 			end
 			m:Destroy()
 		end
 	end
-	H.expect(#bad == 0, "tree", "the Tree of Life's model, every stage turned every way: no motes, every rune facing the camera, every fruit on a stalk, the glyphs on faces the camera sees", table.concat(bad, "; "))
+	H.expect(#bad == 0, "tree", "the Tree of Life's model, every stage turned every way: no motes, no glowing marks, every fruit on a stalk", table.concat(bad, "; "))
 end
 H.checkProfile(p, "end")
 mirror(p, "end")

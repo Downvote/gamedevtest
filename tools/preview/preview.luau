@@ -3884,6 +3884,131 @@ local function treeWalk(arg: string)
 	return p
 end
 
+-- "treesplit[=<tier>]" (the reports of 2026-11-20, "the tree outlines are still broken, not like the screenshot you
+-- sent" and "this only happens to the tree of life"): in the game the Tree of Life's 400 to 800 parts reach the client
+-- over several frames, never all at once as here. An island at that tier (11 unless given) at midday, drawn; then the
+-- tree taken away and its parts brought back in five batches a few frames apart (a sixth of them first), the way
+-- replication hands them over; then the layer checked against a fresh cast over the tree's box
+-- (PixelRenderer.debugCastCheck with the ink). Frames treesplit_after and treesplit_fresh.
+local function treeSplit(arg: string)
+	local tier = tonumber(string.match(arg, "^(%d+)")) or 11
+	seedProfile(23, tier, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 9e9 })
+	local p = join(23, "Splitter")
+	settle(p, 60, 2)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local DLt = modOr(p, "Controllers.DayLight")
+	if PR == nil or PR.debugCastCheck == nil then
+		log("treesplit: no pixel filter")
+		return p
+	end
+	if DLt and DLt.debugSky then
+		H.inClient(p, DLt.debugSky, 0.45)
+	end
+	local m = treeModelOf(p)
+	if m == nil then
+		log("treesplit: no tree")
+		return p
+	end
+	local s = H.session(p)
+	local Street = H.sharedServer("Data.Street")
+	local Tree = H.sharedServer("Logic.Tree")
+	local Plot = H.sharedServer("Logic.Plot")
+	local ox, oz = Street.origin(s.plot)
+	local q = Tree.piece(H.profile(p))
+	local tx, tz = ox, oz
+	if q then
+		local w, d = Plot.footprint(q.id, q.rot)
+		tx, tz = ox + q.x - 1 + w / 2, oz + q.z - 1 + d / 2
+	end
+	p.Character:PivotTo(E.cf.new(tx - 12, 3, tz + 12))
+	E.run(1)
+	settle(p, 30, 1)
+	-- the tree away, its parts held aside with where they were
+	local home = m.Parent
+	local parts: { any } = {}
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			table.insert(parts, { part = d, parent = d.Parent })
+		end
+	end
+	m.Parent = nil
+	settle(p, 30, 1)
+	-- (a new model, as the server's rebuilt tree is: the renderer has never seen it, so nothing of it is gathered yet)
+	local nm = I.new("Model")
+	nm.Name = m.Name
+	for k, v in m:GetAttributes() do
+		nm:SetAttribute(k, v)
+	end
+	local holder = I.new("Folder")
+	for i, e in parts do
+		e.parent = nm
+		e.part.Parent = if i > #parts // 6 then holder else nm
+	end
+	m = nm
+	-- a sixth of it lands, drawn, then the rest in four batches
+	m.Parent = home
+	for _ = 1, 4 do
+		E.step(1 / 60)
+	end
+	settle(p, 20, 1)
+	local per = math.ceil((#parts - #parts // 6) / 4)
+	local i = #parts // 6 + 1
+	for _ = 1, 4 do
+		for _ = 1, per do
+			local e = parts[i]
+			if e then
+				e.part.Parent = e.parent
+			end
+			i += 1
+		end
+		for _ = 1, 3 do
+			E.step(1 / 60)
+		end
+	end
+	settle(p, 60, 2)
+	local st = H.inClient(p, PR.debugStatic)
+	local K, W, Hh = st.K, st.W, st.H
+	local cf, size = (m :: any):GetBoundingBox()
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, sx in { -0.5, 0.5 } do
+		for _, sy in { -0.5, 0.5 } do
+			for _, sz in { -0.5, 0.5 } do
+				local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
+				local sp = H.inClient(p, PR.project, w.Position)
+				x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
+				x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+			end
+		end
+	end
+	x0, y0 = math.max(1, math.floor(x0) - 2), math.max(1, math.floor(y0) - 2)
+	x1, y1 = math.min(W - 2, math.ceil(x1) + 2), math.min(Hh - 2, math.ceil(y1) + 2)
+	local cc = H.inClient(p, PR.debugCastCheck, true, true)
+	local off, kinds = 0, { 0, 0, 0, 0, 0 }
+	local mk = cc.mask
+	if mk and (cc.off or -1) >= 0 then
+		for y = y0, y1 do
+			for x = x0, x1 do
+				local c = buffer.readu8(mk, y * W + x)
+				if c > 0 then
+					kinds[c] += 1
+					if c ~= 5 then
+						off += 1
+					end
+				end
+			end
+		end
+	end
+	capture(p, "treesplit_after")
+	log("treesplit: %d parts in %d batches; the tree's box %d,%d-%d,%d has %d pixels off a fresh cast (%d sky over a part, %d a part over sky, %d other, %d ink alone; %d ties)%s", #parts, 5, x0, y0, x1, y1, off, kinds[1], kinds[2], kinds[3], kinds[4], kinds[5], if (cc.off or -1) < 0 then " (a bake still running: not checked)" else "")
+	H.inClient(p, PR.rebake)
+	settle(p, 60, 1)
+	capture(p, "treesplit_fresh")
+	if off > 6 then
+		table.insert(E.warnings, { ctx = "preview", text = string.format("TREESPLIT: %d pixels off a fresh cast over the tree after its parts came in batches", off), t = 0, phase = "treesplit" })
+	end
+	return p
+end
+
 local function menuBarReport(p, tag)
 	local bar
 	for _, x in I.descendants(p:FindFirstChild("PlayerGui"), {}) do
@@ -5224,6 +5349,12 @@ for _, name in list do
 	if scArg then
 		fn = function()
 			return SCEN.screen(scArg)
+		end
+	end
+	local tsArg = string.match(name, "^treesplit=?(%d*)$")
+	if tsArg then
+		fn = function()
+			return treeSplit(tsArg)
 		end
 	end
 	local laArg = string.match(name, "^ploadingart=(.+)$")

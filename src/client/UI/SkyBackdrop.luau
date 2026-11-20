@@ -746,6 +746,10 @@ type Twinkle = { f: Frame, ph: number, rate: number }
 type Streak = { x: number, y: number, age: number, px: { Frame } }
 
 local gui: ScreenGui? = nil
+-- (everything is laid out in art pixels on this frame, its UIScale the pixel size K: Roblox keeps an Offset whole, so
+-- W * K units given as an offset lost its fraction when K was fitted to a screen scaled by 125%)
+local canvas: Frame? = nil
+local canvasScale: UIScale? = nil
 local skyLabel: ImageLabel? = nil
 local frontLabels: { ImageLabel } = {}
 local lifeLayer: Frame? = nil
@@ -785,18 +789,28 @@ local function ensureGui(): ScreenGui
 	ng.ScreenInsets = Enum.ScreenInsets.None
 	ng.DisplayOrder = Tuning.PixelDisplayOrder - 3 -- (behind the hatch scene's backdrop and the pixel layer)
 	ng.ResetOnSpawn = false
-	skyLabel = label(ng, "Sky", 1)
-	local sl, ml = label(ng, "Sun", 2), label(ng, "Moon", 2)
+	local cv = Instance.new("Frame")
+	cv.Name = "Canvas"
+	cv.BackgroundTransparency = 1
+	cv.BorderSizePixel = 0
+	cv.Size = UDim2.fromOffset(1, 1)
+	cv.Parent = ng
+	local sc = Instance.new("UIScale")
+	sc.Scale = 1
+	sc.Parent = cv
+	canvas, canvasScale = cv, sc
+	skyLabel = label(cv, "Sky", 1)
+	local sl, ml = label(cv, "Sun", 2), label(cv, "Moon", 2)
 	sl.Visible, ml.Visible = false, false
 	sun.label, moon.label = sl, ml
-	frontLabels = { label(ng, "FarA", 3), label(ng, "FarB", 3) }
+	frontLabels = { label(cv, "FarA", 3), label(cv, "FarB", 3) }
 	local lay = Instance.new("Frame")
 	lay.Name = "Life"
 	lay.BackgroundTransparency = 1
 	lay.BorderSizePixel = 0
 	lay.Size = UDim2.fromScale(1, 1)
 	lay.ZIndex = 5
-	lay.Parent = ng
+	lay.Parent = cv
 	lifeLayer = lay
 	ng.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	gui = ng
@@ -842,12 +856,15 @@ local function rebuild(W: number, H: number, K: number, pal: Pal)
 	local g = buildGeo(W, H)
 	geo = g
 	shown.geos += 1
+	local cv, sc = canvas :: Frame, canvasScale :: UIScale
+	cv.Size = UDim2.fromOffset(W, H)
+	sc.Scale = K
 	local sl = skyLabel :: ImageLabel
 	sl.ImageContent = Content.fromObject(si)
-	sl.Size = UDim2.fromOffset(W * K, H * K)
+	sl.Size = UDim2.fromOffset(W, H)
 	for _, l in frontLabels do
 		l.ImageContent = Content.fromObject(fi)
-		l.Size = UDim2.fromOffset(W * K, H * K)
+		l.Size = UDim2.fromOffset(W, H)
 	end
 	shown.W, shown.H, shown.K, shown.seaOff = W, H, K, -1
 	sun.key, moon.key = "", ""
@@ -859,7 +876,7 @@ end
 
 -- The sun or the moon at u on its arc (hidden when it is well below the horizon), its picture painted again when its
 -- colour or phase moves on.
-local function placeBody(b: Body, isSun: boolean, u: number, phase: number, veil: number, W: number, H: number, K: number)
+local function placeBody(b: Body, isSun: boolean, u: number, phase: number, veil: number, W: number, H: number)
 	local l = b.label
 	if l == nil then
 		return
@@ -901,14 +918,14 @@ local function placeBody(b: Body, isSun: boolean, u: number, phase: number, veil
 			(im :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(S, S), buf)
 		end)
 		b.key, b.S = k, S
-		l.Size = UDim2.fromOffset(S * K, S * K)
+		l.Size = UDim2.fromOffset(S, S)
 		b.x = -1e9
 	end
 	local cx, cy = arc(u, W, H, r)
 	local x, y = math.floor(cx - b.S / 2 + 0.5), math.floor(cy - b.S / 2 + 0.5)
 	if x ~= b.x or y ~= b.y then
 		b.x, b.y = x, y
-		l.Position = UDim2.fromOffset(x * K, y * K)
+		l.Position = UDim2.fromOffset(x, y)
 	end
 	l.ImageTransparency = veil
 	if not b.shown then
@@ -922,13 +939,13 @@ local function pixel(c: number): Frame
 	local f = Instance.new("Frame")
 	f.BorderSizePixel = 0
 	f.BackgroundColor3 = Color3.fromRGB(rgb(c))
-	f.Size = UDim2.fromOffset(shown.K, shown.K)
+	f.Size = UDim2.fromOffset(1, 1)
 	f.ZIndex = 5
 	f.Parent = lifeLayer
 	return f
 end
 local function put(f: Frame, x: number, y: number)
-	f.Position = UDim2.fromOffset(math.floor(x) * shown.K, math.floor(y) * shown.K)
+	f.Position = UDim2.fromOffset(math.floor(x), math.floor(y))
 end
 local WINGS: { { { number } } } = {
 	{ { 0, 0 }, { 4, 0 }, { 1, 1 }, { 3, 1 }, { 2, 2 } },
@@ -1077,8 +1094,8 @@ local function step(dt: number)
 	end
 	-- the sun and the moon
 	local day = SUNSET - SUNRISE
-	placeBody(sun, true, (hour - SUNRISE) / day, 0, wx.veil, W, H, K)
-	placeBody(moon, false, ((hour - SUNSET) % 1) / (1 - day), (DayLight.skyNight() % 8) + 1, wx.veil, W, H, K)
+	placeBody(sun, true, (hour - SUNRISE) / day, 0, wx.veil, W, H)
+	placeBody(moon, false, ((hour - SUNSET) % 1) / (1 - day), (DayLight.skyNight() % 8) + 1, wx.veil, W, H)
 	-- the sea of clouds and the far islets drifting, sliding with the view
 	local panX = CameraController.pan()
 	local now = os.clock()
@@ -1087,8 +1104,8 @@ local function step(dt: number)
 		shown.seaOff = seaOff
 		local a, b = frontLabels[1], frontLabels[2]
 		if a and b then
-			a.Position = UDim2.fromOffset((seaOff - W) * K, 0)
-			b.Position = UDim2.fromOffset(seaOff * K, 0)
+			a.Position = UDim2.fromOffset(seaOff - W, 0)
+			b.Position = UDim2.fromOffset(seaOff, 0)
 		end
 	end
 	stepLife(dt, W, H, wx)
