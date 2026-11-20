@@ -16,8 +16,8 @@
 --   right, one flat tone with anti-aliased edges in a halo of dithered rings (the sun a big pale disc near the
 --   horizon); the moon has craters and a phase that changes every night (full, gibbous, half and a crescent, waning
 --   then waxing; never dark);
--- * far islets as silhouettes in the haze and the sea of clouds along the bottom: five ridges of billowing cloud, flat
---   colour, a lighter edge along each ridge's top; it repeats across, drifts slowly and slides a sixteenth of the view's
+-- * far islets as silhouettes in the haze and the sea of clouds along the bottom: five ridges of billowing cloud, each
+--   one flat colour, the farther ones fainter; it repeats across, drifts slowly and slides a sixteenth of the view's
 --   pan (no clouds drift across the sky since the request above);
 -- * the sky's life: little flocks of birds flapping across by day, stars twinkling and now and then a shooting star at
 --   night (whole art px, solid colours).
@@ -275,7 +275,7 @@ end
 -- 1 dim, 2 bright, 3 a cross's white middle, 4 its white arm, 5 a blue arm, 6 a warm arm, 7 a warm middle) and the
 -- star's threshold (`thr`: it shows once the night's 0 .. 255 passes it).
 -- The front's: 0 clear; 1 .. 10 islet j's silhouette, (j - 1) * 2 + (1 its body, 2 the rim along its top);
--- 64 + ridge * 8 + (1 the edge along its top, 2 body, 3 the underside, 4 the nearest ridge's foot): the sea of clouds.
+-- 64 + ridge * 8 + 2: the sea of clouds (one flat colour a ridge).
 type Geo = {
 	W: number,
 	H: number,
@@ -470,14 +470,11 @@ end
 -- The sea of clouds (the request of 2026-11-20: "make the sea of clouds a more fluffy connected mass of clouds that
 -- arent just circles"): SEA_LAYERS ridges of cloud along the bottom, far to near, each one connected mass whose top
 -- edge billows: a slow swell, rounded domes of every width and squash meeting in soft notches, smaller domes heaped on
--- them, so it puffs like a cumulus instead of running in rows of circles. Every lobe wraps round the picture's width, so the picture tiles. Flat
--- colour: the edge along each ridge's top and the left of each billow (lit from the top left; where it stands against
--- the sky or the ridge behind) a step lighter, the body, and the underside a step darker deeper down (a checker row where they meet), the nearest ridge's foot darker
--- still; the farther ridges fade into the sky's last colour.
+-- them, so it puffs like a cumulus instead of running in rows of circles. Every lobe wraps round the picture's width,
+-- so the picture tiles. Each ridge is one flat colour, the farther ones faded further into the sky's last colour.
 local function seaShapes(g: Geo)
 	local W, H = g.W, g.H
 	local front = g.front
-	local inside = buffer.create(W * H) -- (this ridge's pixels, for its edge)
 	for l = 0, SEA_LAYERS - 1 do
 		local base = H * SEA_BASE[l + 1]
 		-- the ridge's height above its base at each column: a slow swell, then rounded domes of every width and squash
@@ -531,42 +528,13 @@ local function seaShapes(g: Geo)
 			y0 = math.min(y0, t)
 		end
 		y0 = math.max(0, y0)
-		local cls = 64 + l * 8
-		local rimD = if l <= 1 then 1 else 2
-		local near = l == SEA_LAYERS - 1
-		buffer.fill(inside, 0, 0)
+		-- (one flat colour a ridge: no edge along its top and no shading under it since the requests of 2026-11-20, "no
+		-- need to make the outlines on top of each layer" and "remove the dark shading at the bottom of the sea of
+		-- clouds"; the ridges part by their fade alone)
+		local v = 64 + l * 8 + 2
 		for x = 0, W - 1 do
 			for y = math.max(0, top[x + 1]), H - 1 do
-				buffer.writeu8(inside, y * W + x, 1)
-			end
-		end
-		local function isIn(x: number, y: number): boolean
-			return y >= 0 and y < H and buffer.readu8(inside, y * W + (x % W)) == 1
-		end
-		for x = 0, W - 1 do
-			local t0 = top[x + 1]
-			-- (under a tall billow there is more body before the underside)
-			local shadeAt = t0 + math.max(3, (base - t0) * 0.6 + H * 0.02)
-			for y = math.max(0, t0), H - 1 do
-				local t = 2
-				if y - t0 < rimD * 3 then
-					for d = 1, rimD do
-						if not isIn(x, y - d) or (d == 1 and not isIn(x - 1, y)) then
-							t = 1
-							break
-						end
-					end
-				end
-				if t ~= 1 then
-					if near and y > base + H * 0.035 then
-						t = 4
-					elseif y > shadeAt then
-						t = 3
-					elseif y > shadeAt - 2 and (x + y) % 2 == 0 then
-						t = 3
-					end
-				end
-				buffer.writeu8(front, y * W + x, cls + t)
+				buffer.writeu8(front, y * W + x, v)
 			end
 		end
 	end

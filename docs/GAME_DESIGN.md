@@ -1085,6 +1085,10 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > billows with lower ones rounding off the notches between them and small puffs on top, bigger toward the front, a lit
 > edge along each ridge's top and the left of each billow. Nothing drifts across the sky above it any more.
 
+> Then: "keep the sea of clouds. However, no need to make the outlines on top of each layer" and "remove the dark
+> shading at the bottom of the sea of clouds". So each ridge is one flat colour, the farther ones fainter, with no
+> lit edge and no darker underside.
+
 The island floats in the sky and grows with its tier: tier 1 a small oval about 30 by 24 studs round the Tree of Life,
 then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
 its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
@@ -1115,8 +1119,8 @@ little blue, gold or white crosses), the band of the galaxy, twinkles and now an
 little flock of birds now and then. In front of it far islets float in the haze as silhouettes (a flat grass top with
 little trees and a pine, a round belly narrowing to ragged points, stones floating under it; one colour leaning from
 the sky's toward the hour's dark, its top edge a step lighter), then the sea of clouds along the bottom: five ridges of one heaped, billowing
-mass (big round billows, lower ones rounding off the notches, small puffs on top, bigger toward the front), flat
-colour with a lit edge along each ridge's top and the left of each billow, the farther ridges fading into the sky. No
+mass (big round billows, lower ones rounding off the notches, small puffs on top, bigger toward the front), each
+ridge one flat colour, the farther ones fading into the sky. No
 clouds drift across the sky since 2026-11-20. Each weather pulls the colours toward its own grey, hides the stars in
 rain, storm and fog and veils the sun and moon. The island keeps its bright
 light at every hour. (From 2026-11-20 the island was whole from the start
