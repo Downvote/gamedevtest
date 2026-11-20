@@ -8,7 +8,9 @@
 --   "Glyphs"      the letters, a white mask tinted with ImageColor3 (the face colour);
 --   "GlyphUnder"  the layer under them, tinted with the under colour: the 1 px drop shadow (style "shadow"), the
 --                 bold outline (style "outline": 1 px all round plus the shadow), the paper weight (style "weight":
---                 1 px under), the title's outline and 2 px of depth (style "title") - none for style "plain". On the
+--                 1 px under), the title's outline and 2 px of depth (style "title") - none for style "plain". An
+--                 outline or a title given the ink (or nothing) is drawn in a darker step of the face colour instead
+--                 (selective outlining since 2026-11-20: 0.3 of the face plus 0.3 of the ink). On the
 --                 big face a title's layer holds its own colours instead: the under colour, and pixel-art
 --                 anti-aliasing in the elbows of the steps (PixelFont.smooth) in Ramp's shadow tone of the face (its
 --                 hue turned toward blue-violet), so a new face or under colour draws it again.
@@ -60,6 +62,7 @@ local RunService = game:GetService("RunService")
 local PixelFont = require(ReplicatedStorage.Shared.Render.PixelFont)
 local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local Ramp = require(ReplicatedStorage.Shared.Render.Ramp)
+local Palette = require(ReplicatedStorage.Shared.Data.Palette)
 local PixelRenderer = require(script.Parent.PixelRenderer)
 local ImageMemory = require(script.Parent.ImageMemory)
 
@@ -116,6 +119,7 @@ type Rec = {
 	color: Color3,
 	underColor: Color3,
 	underShade: number?,
+	selUnder: boolean, -- an outline or a title drawn in a darker step of the face colour (it was given the ink)
 	alpha: number,
 	entry: Entry?,
 	underEntry: Entry?,
@@ -596,12 +600,31 @@ local function applyAlpha(rec: Rec)
 	end
 end
 
-local function applyColors(rec: Rec)
+-- Selective outlines on words (the request of 2026-11-20: "For outlines everywhere, no longer use pure black, but a
+-- darker version of suitable neighbouring pixels instead"): an outline or a title given the ink is drawn in a darker
+-- step of its own face colour instead, SEL_KEEP of the face plus SEL_INK of the ink. A stronger step than the world's
+-- edges (Render/Shading inkOf keeps 0.45), so white words keep a grey line and stay readable on a light sky.
+local INK = Palette.colors.ink or 0x2B1E2E
+local INK_R, INK_G, INK_B = bit32.rshift(INK, 16) / 255, bit32.band(bit32.rshift(INK, 8), 0xFF) / 255, bit32.band(INK, 0xFF) / 255
+local SEL_KEEP, SEL_INK = 0.3, 0.3
+local function isInkish(c: Color3): boolean
+	return math.max(c.R, c.G, c.B) < 0.25
+end
+
+-- the under colour when it follows the face colour (underShade, or the selective step)
+local function followFace(rec: Rec)
 	local k = rec.underShade
 	if k then
 		local c = rec.color
 		rec.underColor = Color3.new(math.clamp(c.R * k, 0, 1), math.clamp(c.G * k, 0, 1), math.clamp(c.B * k, 0, 1))
+	elseif rec.selUnder then
+		local c = rec.color
+		rec.underColor = Color3.new(c.R * SEL_KEEP + INK_R * SEL_INK, c.G * SEL_KEEP + INK_G * SEL_INK, c.B * SEL_KEEP + INK_B * SEL_INK)
 	end
+end
+
+local function applyColors(rec: Rec)
+	followFace(rec)
 	rec.glyphs.ImageColor3 = if rec.rich then Color3.new(1, 1, 1) else rec.color
 	local u = rec.under
 	if u then
@@ -829,6 +852,7 @@ local function draw(rec: Rec)
 	if rec.under and rec.kind == "title" and f == PixelFont.BIG and palette == nil then
 		-- the big words: the outline and depth with pixel-art anti-aliasing in the elbows of the steps, in a tone
 		-- between the face and the outline turned toward blue-violet (Ramp's shadow tone of the face), baked in
+		followFace(rec)
 		local c = rec.color
 		local tones = Ramp.rgb(c.R, c.G, c.B)
 		local aa = tones[2]
@@ -1042,6 +1066,7 @@ function PixelText.bind(label: TextLabel, style: Style?): boolean
 		color = label.TextColor3,
 		underColor = s.under or Color3.new(0, 0, 0),
 		underShade = s.underShade,
+		selUnder = (kind == "outline" or kind == "title") and s.underShade == nil and isInkish(s.under or Color3.new(0, 0, 0)),
 		alpha = if label.TextTransparency < 1 then label.TextTransparency else 0,
 		entry = nil,
 		underEntry = nil,
@@ -1086,7 +1111,7 @@ function PixelText.bind(label: TextLabel, style: Style?): boolean
 		local c = label.TextColor3
 		if c ~= rec.color then
 			rec.color = c
-			if rec.rich then
+			if rec.rich or rec.underBaked then
 				markDirty(rec)
 			else
 				applyColors(rec)
@@ -1172,6 +1197,7 @@ function PixelText.setUnder(label: TextLabel, c: Color3)
 	local rec = recs[label]
 	if rec then
 		rec.underColor = c
+		rec.selUnder = false
 		if rec.underBaked then
 			markDirty(rec)
 		else

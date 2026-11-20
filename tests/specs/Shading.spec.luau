@@ -197,17 +197,30 @@ return function()
 			end
 		end
 		Shading.outline(f, 0, 0, 5, 2)
-		local ink = Shading.pack(
-			bit32.rshift(Palette.colors.ink, 16),
-			bit32.band(bit32.rshift(Palette.colors.ink, 8), 0xFF),
-			bit32.band(Palette.colors.ink, 0xFF)
-		)
+		-- (selective outlining since 2026-11-20: the edge is a darker step of the pixel's own colour, never flat ink)
+		local ink = Shading.inkOf(0xFFFFFFFF)
+		T.truthy(Shading.isInk(ink), "an edge colour")
+		T.truthy(ink ~= Shading.INK_PIXEL, "not the flat ink")
 		for y = 0, 2 do
 			for x = 0, 5 do
 				local want = if x == 2 then ink else 0xFFFFFFFF
 				T.eq(px(f, x, y), want, string.format("pixel %d,%d", x, y))
 			end
 		end
+		-- the step: 0.45 of the colour plus 0.3 of the palette's ink, channel by channel
+		local k = Palette.colors.ink
+		local kr, kg, kb = bit32.rshift(k, 16), bit32.band(bit32.rshift(k, 8), 0xFF), bit32.band(k, 0xFF)
+		T.eq(ink, Shading.pack(math.floor(255 * 0.45 + kr * 0.3 + 0.5), math.floor(255 * 0.45 + kg * 0.3 + 0.5), math.floor(255 * 0.45 + kb * 0.3 + 0.5)))
+		-- and the flat ink for the preview tools that redraw an outline themselves
+		local g = frame(6, 1, 0xFFFFFFFF)
+		for x = 0, 5 do
+			buffer.writeu16(g.id, x * 2, if x < 3 then 1 else 2)
+			buffer.writef32(g.depth, x * 4, if x < 3 then 10 else 20)
+		end
+		Shading.setFlatInk(true)
+		Shading.outline(g, 0, 0, 5, 0)
+		Shading.setFlatInk(false)
+		T.eq(px(g, 2, 0), Shading.INK_PIXEL, "flat ink while asked for")
 	end)
 
 	T.it("outline ignores same id and shallow steps", function()
@@ -354,11 +367,7 @@ return function()
 			buffer.writef32(f.depth, x * 4, if x < 3 then 10 else 20)
 		end
 		Shading.outline(f, 0, 0, 5, 0, base)
-		local ink = Shading.pack(
-			bit32.rshift(Palette.colors.ink, 16),
-			bit32.band(bit32.rshift(Palette.colors.ink, 8), 0xFF),
-			bit32.band(Palette.colors.ink, 0xFF)
-		)
+		local ink = Shading.inkOf(0xFF00FF00) -- (the base's colour a darker step: selective outlining)
 		for x = 0, 5 do
 			T.eq(px(f, x, 0), if x == 2 then ink else 0xFF00FF00, "pixel " .. x)
 		end

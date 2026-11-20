@@ -4,13 +4,16 @@
 # and show the gameplay well, along with an icon? use creature models, dont need to show the player".
 #
 # Every picture is pixel art on one grid, scaled up whole (nearest) to the size Roblox takes (the pixel art rule: one
-# pixel size, a 1 px ink outline, clean steps, no mixels):
+# pixel size, a 1 px outline, clean steps, no mixels; every outline a darker step of the colour beside it, never
+# flat ink, since the request of 2026-11-20: "For outlines everywhere, no longer use pure black, but a darker version
+# of suitable neighbouring pixels instead"):
 #   * a thumbnail is 480 x 270 art px, 4x: 1920 x 1080. Its scene is a frame of the game as it draws itself (the
 #     pixel filter at 4 screen px an art px, read back onto the art grid), the HUD off and the founder out of it; over
 #     it the driftlings drawn alone through the game's picture path (Pixel/Snapshot) at their own bigger sizes (a
 #     bigger thing is its own picture, never one scaled), a shadow under each, and the words in the game's pixel faces:
 #     the title in HUGE (the BIG face doubled the way BIG doubles SMALL: every diagonal step kept to a 1 px stair) and
-#     the captions in BIG (scripts/gen_pixelfont.py), each in a ramp with the 1 px ink outline and ink depth under it.
+#     the captions in BIG (scripts/gen_pixelfont.py), each in a ramp with a 1 px outline and depth under it in a
+#     darker step of its face.
 #   * the icon is 128 x 128 art px, 4x: 512 x 512: a driftling cheering on a little floating island in the sky, the
 #     rarest egg beside it.
 #
@@ -24,7 +27,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 from gen_portraits import parse  # noqa: E402
-from product_icons import PAL, INK, WHITE, mix, dark, light  # noqa: E402
+from product_icons import PAL, WHITE, mix, dark, light, ink_of, pick_beside, TEXT_KEEP, TEXT_ADD  # noqa: E402
 import gen_pixelfont  # noqa: E402
 
 K = 4
@@ -149,8 +152,8 @@ def text_mask(s, face="big"):
 
 def words(cv, s, cx, by, fill, face="big", depth=2, x0=None):
     """`s` centred on x `cx` (or from `x0`), its last row at y `by`: the face in a ramp of `fill` (its top rows lit,
-    its lower rows in the shade, a lit pixel on every top edge), a 1 px ink outline and `depth` px of ink under it.
-    Returns the words' box."""
+    its lower rows in the shade, a lit pixel on every top edge), a 1 px outline and `depth` px of depth under it, both
+    a darker step of the face (selective outlining: the game's words, Pixel/PixelText). Returns the words' box."""
     mask, w, h = text_mask(s, face)
     ox = x0 if x0 is not None else cx - w // 2
     oy = by - h + 1
@@ -166,8 +169,9 @@ def words(cv, s, cx, by, fill, face="big", depth=2, x0=None):
                 q = (x + dx, y + dy)
                 if q not in deep:
                     ring.add(q)
+    edge_c = ink_of(fill, TEXT_KEEP, TEXT_ADD)
     for x, y in ring | deep:
-        cv.put(x, y, INK)
+        cv.put(x, y, edge_c)
     hi, lo = light(fill, 0.45), dark(fill, 0.78)
     top_rows = max(1, h // 4)
     low_rows = max(2, (h * 2) // 5)
@@ -182,7 +186,7 @@ def words(cv, s, cx, by, fill, face="big", depth=2, x0=None):
 
 # ---------------------------------------------------------------- small things drawn here
 def sparkle(cv, x, y, big=False, c=WHITE):
-    """A four-pointed twinkle with its ink."""
+    """A four-pointed twinkle with its outline (a darker step of its colour)."""
     arm = 3 if big else 2
     pts = {(x, y)}
     for d in range(1, arm + 1):
@@ -190,7 +194,7 @@ def sparkle(cv, x, y, big=False, c=WHITE):
     for px, py in pts:
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             if (px + dx, py + dy) not in pts:
-                cv.put(px + dx, py + dy, INK)
+                cv.put(px + dx, py + dy, ink_of(c))
     for px, py in pts:
         cv.put(px, py, c)
     cv.put(x, y, WHITE)
@@ -338,10 +342,14 @@ def icon(pics):
                     continue
                 cv.put(x, y, rock if x + 0.5 < cx else rock_dark)
             land.add((x, y))
+    # the outline: each pixel a darker step of the land beside it (the commonest there, the darker on a tie)
+    beside = {}
     for (x, y) in list(land):
         for (nx, ny) in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
             if (nx, ny) not in land and 0 <= nx < IW and 0 <= ny < IW:
-                cv.put(nx, ny, INK)
+                beside.setdefault((nx, ny), []).append(cv.get(x, y))
+    for (nx, ny), cols in beside.items():
+        cv.put(nx, ny, ink_of(pick_beside([c for c in cols if c is not None])))
     stand(cv, pics["icon_egg"], 100, 90)
     for (x, y, big) in ((90, 60, True), (118, 72, False), (114, 52, False)):
         sparkle(cv, x, y, big, light(PAL["accent"], 0.5))

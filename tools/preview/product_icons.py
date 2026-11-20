@@ -2,7 +2,12 @@
 # The game passes' and developer products' icons, part 2 (part 1: tools/preview/product_icons.luau draws the subjects
 # from the game's own models; sh tools/preview/product_icons.sh runs both). Each icon is pixel art on a 64 x 64 grid,
 # scaled 8x (nearest) to the 512 x 512 PNG the Creator Dashboard takes, one pixel size throughout (the pixel art
-# rule: no mixels, a 1 px ink outline, clean steps, ramps lit from the top left):
+# rule: no mixels, a 1 px outline, clean steps, ramps lit from the top left). Every outline is a darker step of the
+# colour inside it, never flat ink (selective outlining, the request of 2026-11-20: "For outlines everywhere, no longer
+# use pure black, but a darker version of suitable neighbouring pixels instead"): the shapes draw their outlines in ink
+# as before (Canvas.edge, Canvas.outline) and Canvas.finish gives each the step of the colour it rings, the one
+# Render/Shading's inkOf takes in the world; the words' outline and depth a stronger step of their face, as the game's
+# words (Pixel/PixelText). Lines drawn on a thing (the clock's hands) stay ink:
 #   * a game pass is a round badge (Roblox shows passes cut to a circle): a bevelled rim in the pass's colour round a
 #     sunburst, the dark backdrop beyond it only in the corners the circle cuts away;
 #   * a developer product is a rounded square badge, its corners left clear;
@@ -37,6 +42,20 @@ def palette():
 PAL = palette()
 INK = (0x2B, 0x1E, 0x2E)
 WHITE = (255, 255, 255)
+INK_KEEP, INK_ADD = 0.45, 0.3  # an outline: this much of the colour inside it, plus this much of the ink
+TEXT_KEEP, TEXT_ADD = 0.3, 0.3  # the words' outline and depth (the game's words: Pixel/PixelText)
+
+
+def ink_of(c, keep=INK_KEEP, add=INK_ADD):
+    return tuple(min(255, int(c[i] * keep + INK[i] * add + 0.5)) for i in range(3))
+
+
+def lum(c):
+    return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]
+
+
+def pick_beside(cols):  # the commonest of the colours beside a pixel, the darker on a tie
+    return max(cols, key=lambda c: (sum(1 for d in cols if d == c), -lum(c)))
 
 
 def mix(a, b, t):
@@ -69,6 +88,30 @@ def ramp(base):
 class Canvas:
     def __init__(self):
         self.px = [[None] * N for _ in range(N)]
+        self.edges = {}  # (x, y) -> the points it rings (None: whatever is beside it): outlines drawn in ink for now
+
+    def edge(self, x, y, inside=None):
+        """An outline pixel: ink until `finish` makes it a darker step of the colour of `inside` (its neighbours)."""
+        if 0 <= x < N and 0 <= y < N:
+            self.px[y][x] = INK
+            self.edges[(x, y)] = inside
+
+    def finish(self):
+        """Every outline pixel still showing (not drawn over since) a darker step of the colour it rings: the commonest of
+        the colours at its `inside` points (else of its 4-neighbours, else its 8), the darker on a tie, never ink."""
+        out = {}
+        for (x, y), inside in self.edges.items():
+            if self.px[y][x] != INK:
+                continue
+            cols = [self.get(*q) for q in (inside or [])]
+            cols = [c for c in cols if c is not None and c != INK]
+            for steps in (((1, 0), (-1, 0), (0, 1), (0, -1)), ((1, 1), (1, -1), (-1, 1), (-1, -1))):
+                if not cols:
+                    cols = [c for c in (self.get(x + dx, y + dy) for dx, dy in steps) if c is not None and c != INK]
+            if cols:
+                out[(x, y)] = ink_of(pick_beside(cols))
+        for (x, y), c in out.items():
+            self.px[y][x] = c
 
     def put(self, x, y, c):
         if 0 <= x < N and 0 <= y < N and c is not None:
@@ -78,10 +121,19 @@ class Canvas:
         return self.px[y][x] if 0 <= x < N and 0 <= y < N else None
 
     def sprite(self, rows, keys, ox, oy):
+        # (a key drawn in ink is the sprite's outline: it rings the sprite's other pixels beside it)
+        def at(x, y):
+            return rows[y][x] if 0 <= y < len(rows) and 0 <= x < len(rows[y]) else "."
+
         for y, r in enumerate(rows):
             for x, ch in enumerate(r):
                 if ch in keys:
-                    self.put(ox + x, oy + y, keys[ch])
+                    if keys[ch] == INK:
+                        inside = [(ox + x + dx, oy + y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                                  if at(x + dx, y + dy) in keys and keys[at(x + dx, y + dy)] != INK]
+                        self.edge(ox + x, oy + y, inside)
+                    else:
+                        self.put(ox + x, oy + y, keys[ch])
 
     def picture(self, px, ox, oy):
         for y, row in enumerate(px):
@@ -90,16 +142,20 @@ class Canvas:
                     self.put(ox + x, oy + y, c)
 
     def outline(self, mask, c=INK, diag=True):
-        """A 1 px ring of `c` round the set of points `mask` (on pixels not in it)."""
-        ring = set()
+        """A 1 px ring of `c` round the set of points `mask` (on pixels not in it); in ink, an outline `finish` makes a
+        darker step of the colours inside it."""
+        ring = {}
         steps = [(1, 0), (-1, 0), (0, 1), (0, -1)] + ([(1, 1), (1, -1), (-1, 1), (-1, -1)] if diag else [])
         for x, y in mask:
             for dx, dy in steps:
                 q = (x + dx, y + dy)
                 if q not in mask:
-                    ring.add(q)
-        for x, y in ring:
-            self.put(x, y, c)
+                    ring.setdefault(q, []).append((x, y))
+        for (x, y), inside in ring.items():
+            if c == INK:
+                self.edge(x, y, inside)
+            else:
+                self.put(x, y, c)
 
 
 # ---------------------------------------------------------------- badges
@@ -142,7 +198,8 @@ def badge(cv, shape, t, rim):
                     cv.put(x, y, t["back"])
                 continue
             if d < 1.0:
-                cv.put(x, y, INK)
+                # (the badge's outline: a darker step of the rim inside it)
+                cv.edge(x, y, [(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if dep(x + dx, y + dy) >= 1.0])
             elif d < 4.0:
                 # the rim, lit from the top left: the lit side's light tone, the shaded side's dark, a band of the
                 # mid tone between (by where the pixel lies round the badge)
@@ -157,7 +214,7 @@ def badge(cv, shape, t, rim):
                     c = rim["rim"]
                 cv.put(x, y, c)
             elif d < 5.0:
-                cv.put(x, y, INK)
+                cv.edge(x, y)
             else:
                 r = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
                 c = t["ray"] if ray_of(x, y, cx, cy) == 0 else t["ray_d"]
@@ -200,16 +257,17 @@ def text_mask(s):
 
 def words(cv, s, cx, by, fill, shade_c):
     """`s` centred on x `cx`, its baseline (last row) at y `by`: the face in `fill`, its lower rows in `shade_c`, a 1 px
-    ink outline and 2 px of ink depth below (the game's titles)."""
+    outline and 2 px of depth below in a darker step of the face (the game's titles)."""
     mask, w, h = text_mask(s)
     ox, oy = cx - w // 2, by - h + 1
     pts = {(x + ox, y + oy) for x, y in mask}
     deep = set(pts)
     for x, y in pts:
         deep |= {(x, y + 1), (x, y + 2)}
-    cv.outline(deep, INK)
+    edge_c = ink_of(fill, TEXT_KEEP, TEXT_ADD)
+    cv.outline(deep, edge_c)
     for x, y in deep:
-        cv.put(x, y, INK)
+        cv.put(x, y, edge_c)
     for x, y in pts:
         cv.put(x, y, shade_c if y - oy >= h - 4 else fill)
         if y - oy <= 1 and (x, y - 1) not in pts:
@@ -296,16 +354,18 @@ def clock(cv, cx, cy):
     for row, ln in ((iy - 3, 4), (iy, 6), (iy + 3, 4)):
         for x in range(int(cx - 8.5) - ln, int(cx - 8.5)):
             cv.put(x, row, WHITE)
-        cv.put(int(cx - 8.5) - ln - 1, row, INK)
+        # (their outline a darker step of the white)
+        line_ink = ink_of(WHITE)
+        cv.put(int(cx - 8.5) - ln - 1, row, line_ink)
         for x in range(int(cx - 8.5) - ln - 1, int(cx - 8.5)):
             if cv.get(x, row - 1) not in (WHITE,):
-                cv.put(x, row - 1, INK) if (x, row - 1) not in face else None
+                cv.put(x, row - 1, line_ink) if (x, row - 1) not in face else None
             if cv.get(x, row + 1) not in (WHITE,):
-                cv.put(x, row + 1, INK) if (x, row + 1) not in face else None
+                cv.put(x, row + 1, line_ink) if (x, row + 1) not in face else None
 
 
 def chip(cv, cx, cy, r, fill, rim=None):
-    """A round chip for a symbol: an ink edge, a rim a tone darker on its lower right."""
+    """A round chip for a symbol: an outline a darker step of it, a rim a tone darker on its lower right."""
     disc = disc_pts(cx, cy, r)
     cv.outline(disc, INK)
     for x, y in disc:
@@ -469,6 +529,7 @@ def build_icon(spec, pics):
     if word:
         s, fill = word
         words(cv, s, 32, 53, fill, dark(fill, 0.8))
+    cv.finish()
     return cv
 
 

@@ -9,8 +9,12 @@
 #
 # What the tidying does to a picture (one picture pixel = one art pixel already: nothing is scaled, so no mixels):
 #   * every pixel fully there or not at all (the outline and the model's edge never half see-through);
-#   * the outline made again, 1 px of ink round the silhouette on its 4 sides only, so a convex corner comes out cut
-#     and a turn never has a doubled pixel (the picture's own outline is taken off first);
+#   * the outline made again, 1 px round the silhouette on its 4 sides only, so a convex corner comes out cut and a
+#     turn never has a doubled pixel (the picture's own outline is taken off first); each outline pixel a darker step of
+#     the body's colour beside it, never flat ink (selective outlining, the request of 2026-11-20: "For outlines
+#     everywhere, no longer use pure black, but a darker version of suitable neighbouring pixels instead"; the same
+#     step as Render/Shading inkOf and scripts/gen_art.py ink_of; the scenario draws its pictures in flat ink so the
+#     outline and the creases can be found by colour here);
 #   * jaggies: a lone pixel sticking out of the silhouette (one neighbour) goes, a one-pixel notch is filled;
 #   * the toon bands' dither at band edges (a checkerboard of two tones) settled to the nearer tone where a pixel stands
 #     alone against four neighbours of one other tone: no grain at this size (the eyes' glints and the glow stay);
@@ -19,11 +23,12 @@
 #     lines hides the creature); a body too dark to read against the outline lifted (the eyes stay dark); tones
 #     closer than a step made one (the request: "most of those sprites look unreadable. try to tweak them so they look
 #     more readable");
-#   * the curves softened inside the outline: a pixel that meets the outline only at a corner goes a step toward the
-#     ink (anti-aliasing on the inside, never outside the outline).
+#   * the curves softened inside the outline: a pixel that meets the outline only at a corner goes a step toward that
+#     outline pixel's colour (anti-aliasing on the inside, never outside the outline).
 import argparse, os, sys
 
 INK = (0x2B, 0x1E, 0x2E)  # the renderer's outline and creases, drawn flat (Data/Palette "ink")
+INK_KEEP, INK_ADD = 0.45, 0.3  # an outline pixel: this much of the colour beside it, plus this much of the ink
 BLACK = (0x3B, 0x34, 0x42)  # the models' eyes and mouths (Data/Palette "black"), shaded by the toon bands
 
 
@@ -62,6 +67,14 @@ def is_ink(c):  # exactly the renderer's ink (an eye's darkest band is a few ste
 
 def is_eye(c):  # an eye's or a mouth's dark, any of its bands (never lifted, never merged away)
     return c is not None and not is_ink(c) and lum(c) < 64 and max(c) - min(c) < 30
+
+
+def ink_of(c):  # the outline's darker step of a colour (Render/Shading inkOf)
+    return tuple(min(255, int(c[k] * INK_KEEP + INK[k] * INK_ADD + 0.5)) for k in range(3))
+
+
+def pick_beside(cols):  # the commonest of the colours beside a pixel, the darker on a tie
+    return max(cols, key=lambda c: (sum(1 for d in cols if d == c), -lum(c)))
 
 
 def shade(c, k):  # a step darker, a little cooler (the ramps' own way: GAME_DESIGN 2)
@@ -153,6 +166,9 @@ def tidy(px, thin=False):
                 continue
             n8 = [gb(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))]
             near = [d for d in n8 if d is not None and not is_ink(d) and not is_eye(d)]
+            if not near:
+                # (a crease among dark parts only: a step darker than the dark beside it, never flat ink)
+                near = [d for d in n8 if d is not None and not is_ink(d)]
             if near:
                 base = max(near, key=lambda d: (sum(1 for e in near if e == d), -lum(d)))
                 nb[y][x] = shade(base, 0.62)
@@ -191,24 +207,31 @@ def tidy(px, thin=False):
             remap[c] = to
     body = [[None if c is None else remap[c] for c in r] for r in body]
     gb = lambda x, y: body[y][x] if 0 <= x < w and 0 <= y < h else None
-    # 4. the outline again: 1 px of ink on the 4 sides of the silhouette (convex corners cut)
+    # 4. the outline again: 1 px on the 4 sides of the silhouette (convex corners cut), a darker step of the body's
+    # colour beside it (the commonest of its neighbours there, the darker on a tie)
     out = [[body[y][x] for x in range(w)] for y in range(h)]
+    ring = [[False] * w for _ in range(h)]
     for y in range(h):
         for x in range(w):
-            if body[y][x] is None and any(gb(x + dx, y + dy) is not None for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                out[y][x] = INK
-    go = lambda x, y: out[y][x] if 0 <= x < w and 0 <= y < h else None
-    # 5. softened curves inside it: a pixel that meets the outline only at a corner a step toward the ink
+            if body[y][x] is None:
+                beside = [gb(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+                beside = [c for c in beside if c is not None]
+                if beside:
+                    out[y][x] = ink_of(pick_beside(beside))
+                    ring[y][x] = True
+    on_ring = lambda x, y: 0 <= x < w and 0 <= y < h and ring[y][x]
+    # 5. softened curves inside it: a pixel that meets the outline only at a corner a step toward that outline pixel
     final = [[out[y][x] for x in range(w)] for y in range(h)]
     for y in range(h):
         for x in range(w):
             c = body[y][x]
             if c is None or is_ink(c):
                 continue
-            side = any(go(x + dx, y + dy) == INK and body[y + dy][x + dx] is None for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if 0 <= x + dx < w and 0 <= y + dy < h)
-            corner = sum(1 for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)) if 0 <= x + dx < w and 0 <= y + dy < h and out[y + dy][x + dx] == INK and body[y + dy][x + dx] is None)
-            if not side and corner >= 1:
-                final[y][x] = tuple(int(c[k] * 0.78 + INK[k] * 0.22) for k in range(3))
+            side = any(on_ring(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+            corners = [out[y + dy][x + dx] for dx, dy in ((1, 1), (1, -1), (-1, 1), (-1, -1)) if on_ring(x + dx, y + dy)]
+            if not side and corners:
+                o = pick_beside(corners)
+                final[y][x] = tuple(int(c[k] * 0.78 + o[k] * 0.22) for k in range(3))
     return final
 
 

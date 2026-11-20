@@ -444,16 +444,16 @@ return function()
 				end
 			end
 			T.eq(bad, 0, "a " .. a .. ": both back edges climb exactly one row every two columns (2-2-2 steps)")
-			-- the ink line: one pixel a column on the edge itself, 8-connected, never doubled
+			-- the ink line: one pixel a column on the edge itself, 8-connected, never doubled (an edge pixel is a darker
+			-- step of its own colour since 2026-11-20: `Shading.isInk` tells one)
 			Shading.outline(f, 0, 0, f.W - 1, f.H - 1)
-			local INK = Shading.pack(0x2B, 0x1E, 0x2E)
 			local gaps, doubled = 0, 0
 			for _, i in cols do
 				local j = top[i]
-				if buffer.readu32(f.color, (j * f.W + i) * 4) ~= INK then
+				if not Shading.isInk(buffer.readu32(f.color, (j * f.W + i) * 4)) then
 					gaps += 1
 				end
-				if j + 1 < f.H and buffer.readu16(f.id, ((j + 1) * f.W + i) * 2) == 1 and buffer.readu32(f.color, ((j + 1) * f.W + i) * 4) == INK and i ~= cols[1] and i ~= cols[#cols] then
+				if j + 1 < f.H and buffer.readu16(f.id, ((j + 1) * f.W + i) * 2) == 1 and Shading.isInk(buffer.readu32(f.color, ((j + 1) * f.W + i) * 4)) and i ~= cols[1] and i ~= cols[#cols] then
 					-- a second ink pixel under the edge one: only where the outline turns down a vertical side
 					local left, right = top[i - 1], top[i + 1]
 					if left ~= nil and right ~= nil and math.abs(left - j) <= 1 and math.abs(right - j) <= 1 then
@@ -1176,7 +1176,7 @@ return function()
 	end)
 
 	------------------------------------------------------------------ pictures (Snapshot)
-	local INK = Shading.pack(0x2B, 0x1E, 0x2E)
+	-- (an outline pixel: a darker step of the colour beside it since 2026-11-20, `Shading.isInk` tells one)
 	local function alphaAt(px: buffer, W: number, x: number, y: number): number
 		return bit32.rshift(buffer.readu32(px, (y * W + x) * 4), 24)
 	end
@@ -1204,7 +1204,7 @@ return function()
 				if a == 255 then
 					opaque += 1
 					minX, maxX, minY, maxY = math.min(minX, x), math.max(maxX, x), math.min(minY, y), math.max(maxY, y)
-					if c == INK then
+					if Shading.isInk(c) then
 						ink += 1
 					end
 				end
@@ -1220,7 +1220,7 @@ return function()
 				if alphaAt(px, W, x, y) == 255 then
 					local edge = x == 0 or y == 0 or x == W - 1 or y == H - 1 or alphaAt(px, W, x - 1, y) == 0 or alphaAt(px, W, x + 1, y) == 0 or alphaAt(px, W, x, y - 1) == 0 or alphaAt(px, W, x, y + 1) == 0
 					if edge then
-						T.eq(buffer.readu32(px, (y * W + x) * 4), INK, "silhouette pixel " .. x .. "," .. y .. " is ink")
+						T.truthy(Shading.isInk(buffer.readu32(px, (y * W + x) * 4)), "silhouette pixel " .. x .. "," .. y .. " is ink")
 					end
 				end
 			end

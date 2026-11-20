@@ -15,6 +15,11 @@ return function(env)
 	local Vector3 = E.types.Vector3
 	local p = env.join(7304, "Tailor")
 	local Snapshot = env.modOr(p, "Pixel.Snapshot")
+	-- (flat ink: the tidying finds the outline and the creases by the ink's colour, then gives each its darker step)
+	local ShadingMod = env.cshared(p, "Render.Shading")
+	if ShadingMod and ShadingMod.setFlatInk then
+		ShadingMod.setFlatInk(true)
+	end
 	if Snapshot == nil then
 		log("cthumbs: this tree has no Pixel/Snapshot")
 		return p

@@ -1,8 +1,8 @@
 -- The loading card's scene art (src/first/LoadingCard, docs/ARCHITECTURE.md 8.0), drawn ahead of time for the preview
 -- scenario "ploadingart" (tools/README.md). The card goes up before the game has arrived and the client is busy
 -- loading, so its island is not built and drawn live: it is drawn here, piece by piece and frame by frame, through the
--- game's own picture path (Pixel/Snapshot: the world's palette, toon bands, dither, sun shadows and the 1 px ink
--- outline), and tools/preview/gen_loading_art.py packs the frames into src/first/LoadingArt.luau.
+-- game's own picture path (Pixel/Snapshot: the world's palette, toon bands, dither, sun shadows and the 1 px outline,
+-- a darker step of the colour beside it), and tools/preview/gen_loading_art.py packs the frames into src/first/LoadingArt.luau.
 --
 -- What is drawn (art px; SCALE art px a stud, the world's own size on a 1080p screen):
 --   * five driftlings of the beach and the meadow (MicroModels.driftling: Frondle, Pebblit, Clawdle, Mossbun, Gullfin)
@@ -203,13 +203,14 @@ return function(env)
 
 	------------------------------------------------------------------ the hand-made bits
 	local C3 = Color3.fromRGB
-	-- a gull: wings up, level, down, level (ink outline, white body)
+	-- a gull: wings up, level, down, level (white wings, the outline and the body a darker step of the white: selective
+	-- outlining, 0.45 of it plus 0.3 of the ink)
 	flat("gull", {
 		{ "k.......k", "wk.....kw", ".wk...kw.", "..wkkkw..", "...kkk...", "........." },
 		{ ".........", "kk.....kk", "wwk...kww", "..wkkkw..", "...kkk...", "........." },
 		{ ".........", ".........", "kkk...kkk", "wwwkkkwww", "..kkkkk..", "........." },
 		{ ".........", "kk.....kk", "wwk...kww", "..wkkkw..", "...kkk...", "........." },
-	}, { k = C3(43, 30, 46), w = C3(244, 240, 232) }, 0.14, 4, 3)
+	}, { k = C3(123, 117, 118), w = C3(244, 240, 232) }, 0.14, 4, 3)
 	-- a star: a dot, a cross, a sparkle, a cross
 	flat("star", {
 		{ ".....", ".....", "..y..", ".....", "....." },

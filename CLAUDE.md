@@ -41,7 +41,12 @@ scene and effect (GAME_DESIGN 2 has the rules): never drawn scaled (a smaller or
 driftling's model, run `sh tools/preview/portraits.sh`; a build catalog card's picture is 24x24, drawn from the piece's
 model: after changing a piece's model, run `sh tools/preview/thumbs.sh`; a cosmetic's picture is 24x24 too, drawn
 from `Models/CosmeticModels`: after changing one, run `sh tools/preview/cosmetic_thumbs.sh`), at whole UI px (tweens snap, particles are
-1 px), a 1 px ink outline, anti-aliased steps, shaded ramps lit from the top left. New sprites go in `scripts/gen_art.py`
+1 px), a 1 px outline, anti-aliased steps, shaded ramps lit from the top left. The outline is never pure black: the
+user's request (2026-11-20), "For outlines everywhere, no longer use pure black, but a darker version of suitable
+neighbouring pixels instead". Each outline pixel is 0.45 of the colour it borders plus 0.3 of the ink 0x2B1E2E
+(`Render/Shading.inkOf` in the world, `UIKit.inkOf` in the interface, `ink_of` in `scripts/gen_art.py` and the
+preview tools); outlined words take 0.3 of their face plus 0.3 of the ink (`Pixel/PixelText`). Lines drawn on a thing
+(pupils, brows), drop shadows and the painted skies keep their own colours. New sprites go in `scripts/gen_art.py`
 (run it; `--png <file>` for a contact sheet to look at) and are drawn with `UI/PixelSprites.image` / `anim`. The world
 is 3D: the islands, the buildings (the Tree of Life among them), the build catalog's pieces, the tree's eggs and the
 driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,

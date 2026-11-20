@@ -10,7 +10,7 @@
 #                                       [--raw-sheet raw.png] [--zoom 6] [--no-out]
 #
 # The tidying is the portraits' (no half see-through pixels, the outline made again 1 px on the four sides with cut
-# corners, the bands' dither settled, creases 1 px and a shade of the colour beside them, dark parts lifted, near tones
+# corners, each outline pixel a darker step of the colour beside it, the bands' dither settled, creases 1 px and a shade of the colour beside them, dark parts lifted, near tones
 # merged, curves softened inside the outline) with `thin` on: a pole, a spire or a rope keeps its tip and a gap between
 # pickets stays open, since a building's thin parts are there on purpose. Each piece comes drawn on a few canvases a
 # pixel apart, each at its own scale (thumbs.luau): the biggest drawing that fits the square is kept, cut out round its
@@ -24,6 +24,34 @@ from gen_portraits import parse, tidy  # noqa: E402
 
 PLATE = (0x54, 0x3A, 0x2C)  # the panels' brown plate, as the portraits' sheet
 CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*+-/:;<=>?@^_~"  # (scripts/gen_art.py's)
+
+
+def fit_colours(px, n):
+    # at most n colours (a picture's palette is one character a colour): the two closest merged, the rarer into the
+    # commoner, until it fits (the outline's darker steps are close together, so they go first)
+    counts = {}
+    for r in px:
+        for c in r:
+            if c is not None:
+                counts[c] = counts.get(c, 0) + 1
+    remap = {c: c for c in counts}
+    cols = list(counts)
+    while len(cols) > n:
+        best = None
+        for i in range(len(cols)):
+            for j in range(i + 1, len(cols)):
+                a, b = cols[i], cols[j]
+                d = sum((a[k] - b[k]) ** 2 for k in range(3))
+                if best is None or d < best[0]:
+                    best = (d, a, b)
+        _, a, b = best
+        keep, drop = (a, b) if counts[a] >= counts[b] else (b, a)
+        counts[keep] += counts.pop(drop)
+        cols.remove(drop)
+        for c, to in remap.items():
+            if to == drop:
+                remap[c] = keep
+    return [[None if c is None else remap[c] for c in r] for r in px]
 
 
 def bbox(px):
@@ -142,7 +170,7 @@ def main():
         sys.exit("no picture of %d pieces (%s): %s left as it was" % (len(missing), " ".join(missing[:20]), a.out))
     names = sorted(raw, key=lambda n: (rank.get(n, len(rank)), n))
     raw = {n: raw[n] for n in names}
-    pics = {n: centre(tidy(p, thin=True)) for n, p in raw.items()}
+    pics = {n: fit_colours(centre(tidy(p, thin=True)), len(CHARS)) for n, p in raw.items()}
     if a.sheet:
         sheet(pics, a.sheet, a.zoom)
     if a.raw_sheet:
