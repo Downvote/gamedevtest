@@ -30,50 +30,42 @@ local function spot(p: any, id: string): (number, number)
 end
 
 return function()
-	T.it("the dark over the land not open yet: from the open ground's edge to the beach, retreating tier by tier", function()
-		-- (the request of 2026-11-20: "Remove the rocks and make it a gradient dark filter instead, with the darkness
-		-- retreating as it expands")
-		local c = Street.CENTER
-		T.eq(Street.darkness(1, c.x, c.z), 0, "the island's heart is lit")
-		local land = Street.cellBounds(1)
-		local deep, lit, beach = 0, 0, 0
-		for z = land.z0, land.z1 do
-			for x = land.x0, land.x1 do
-				local d = Street.darkness(1, x + 0.5, z + 0.5)
-				T.truthy(d >= 0 and d <= 1, "in range")
-				local l = Street.layer(1, x, z)
-				if Street.buildable(1, x, z) then
-					T.truthy(d < 0.2, string.format("open ground barely dark at %d,%d (%.2f)", x, z, d))
-					lit += 1
+	T.it("a floating island grows with its tier: walked on and built on only on its grass, the wall just past it", function()
+		-- (the request of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes
+		-- the island bigger.")
+		for tier = 1, Street.TOP do
+			local b = Street.cellBounds(tier)
+			local grass, wall = 0, 0
+			for z = b.z0, b.z1 do
+				for x = b.x0, b.x1 do
+					local l = Street.layer(tier, x, z)
+					local d = Street.cellDist(tier, x, z)
+					T.truthy(Street.walkable(tier, x, z) == (l == Street.GRASS), "walked on only on the grass")
+					if Street.buildable(tier, x, z) then
+						T.truthy(l == Street.GRASS and d <= -1, "built on a stud in from the edge")
+					end
+					if l == Street.GRASS then
+						grass += 1
+						T.truthy(d <= 0, "the grass inside the edge")
+					elseif d > 0 and d <= Street.WALL then
+						wall += 1
+					end
 				end
-				if l ~= Street.GRASS then
-					-- (a hair at most where the grass ends: the radii are kept in direction bins)
-					T.truthy(d < 0.03, string.format("no dark past the grass at %d,%d (%.3f)", x, z, d))
-					beach += 1
-				elseif Street.openDist(1, x, z) > Street.DARK_RAMP + 1 and Street.cellDist(1, x, z) < -Street.DARK_COAST - 1 then
-					T.truthy(d == 1, string.format("deep in the dark at %d,%d (%.2f)", x, z, d))
-					deep += 1
+			end
+			T.truthy(grass > 400 and wall > 60, string.format("tier %d: %d grass cells, %d wall cells", tier, grass, wall))
+			if tier > 1 then
+				-- nothing that was grass stops being grass
+				local lb = Street.cellBounds(tier - 1)
+				for z = lb.z0, lb.z1 do
+					for x = lb.x0, lb.x1 do
+						if Street.layer(tier - 1, x, z) == Street.GRASS then
+							T.truthy(Street.layer(tier, x, z) == Street.GRASS, string.format("%d,%d still grass at tier %d", x, z, tier))
+						end
+					end
 				end
-				T.truthy(Street.walkable(1, x, z) == (l == Street.GRASS or l == Street.SAND or l == Street.WET), "walked on anywhere on the island")
 			end
 		end
-		T.truthy(deep > 1000 and lit > 100 and beach > 500, string.format("%d deep, %d lit, %d past the grass", deep, lit, beach))
-		-- a point in the dark gets lighter (never darker) as the island grows, and at the top tier none is left
-		for _, pt in { { 30, 6 }, { 0, -30 }, { -40, 20 }, { 50, 6 } } do
-			local last = 2
-			for tier = 1, Street.TOP do
-				local d = Street.darkness(tier, pt[1], pt[2])
-				T.truthy(d <= last + 1e-9, string.format("(%d, %d) lighter at tier %d", pt[1], pt[2], tier))
-				last = d
-			end
-			T.eq(last, 0, "all lit at the top tier")
-		end
-		-- the radii the pixel filter keeps agree with openDist (the distance from the heart less the open radius)
-		for _, pt in { { 10, 3 }, { -20, 30 }, { 33, -12 } } do
-			local b, rho = Street.darkBin(pt[1] + 0.5, pt[2] + 0.5)
-			T.near(rho - Street.openRadii(5)[b], Street.openDist(5, pt[1], pt[2]), 0.6, "a bin's radius")
-		end
-		T.truthy(not Plot.fits(1, {}, "torch", 30, 6, 0), "nothing built in the dark")
+		T.truthy(not Plot.fits(1, {}, "torch", 30, 6, 0), "nothing built past the edge")
 	end)
 	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
 	T.it("the tips' snack stall: free while the tips ask for a shop, full price before and after", function()

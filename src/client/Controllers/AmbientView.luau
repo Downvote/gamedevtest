@@ -4,8 +4,8 @@
 -- "like the bakery game, you can use 2d details to add to the athmosphere, such as grass, wood detail, birds and other
 -- details". Every island near the view (a claimed plot whose land the screen shows) has:
 -- * birds: teal pips and sandy wrens alight on the lawns, the fences' rails, the roofs' ridges, the island's sign and
---   the beach, hop, peck and look round, and fly off when anyone walks within a few studs (a founder, a driftling),
---   coming back a while later; a gull glides in to the beach now and then. They leave at dusk and come back at dawn;
+--   the lawn, hop, peck and look round, and fly off when anyone walks within a few studs (a founder, a driftling),
+--   coming back a while later; a gull glides in to the lawn now and then. They leave at dusk and come back at dawn;
 -- * grass tufts and little flowers on the lawn, swaying as gusts roll across it (Fx.gust), each in the lawn's own green
 --   (a tinted sprite: the colour of the lawn under it) and only where the lawn itself shows;
 -- * butterflies flitting between the flowers by day (the decor's and the lawn's), fireflies drifting over the lawn at
@@ -16,8 +16,8 @@
 --   ("detail all decor more, some having animations, as much as in the bakery game") sparks rising off the decor's
 --   flames (Flame), spray thrown up from its fountains' jets (Spray) and a twinkle now and then on its crystals and
 --   magic things (Sparkle);
--- * glints of light on the sea now and then, and a fish jumping out of the water near the shore once in a while, a
---   splash and a ring where it goes out and back in.
+-- * glints of light now and then on the rivers and ponds laid on the islands. (The sea's glints and the fish jumping
+--   out of it went with the sea on 2026-11-20, when the islands took to the sky.)
 -- Everything is culled to the screen (an island off it is let go after a while), scaled by the renderer's tier (low
 -- half, medium three quarters), paused with the renderer (no tick, no drawing) and drawn on whole art pixels, the
 -- creatures with their ink outline (UI/ArtData's "fx_" sprites, scripts/gen_art.py). A screen that shows the island
@@ -51,7 +51,7 @@ local SCAN_DEBOUNCE = 0.6 -- s after a change to an island's pieces before they 
 local RIGS_EVERY = 0.15 -- s between looks at where everyone walking stands
 local SCARE_R2, SCARE_DY = 3.5 * 3.5, 5
 local GULL_R2 = 5 * 5
-local LAWN_Y, SAND_Y = Street.LAWN_Y, Street.SAND_Y
+local LAWN_Y = Street.LAWN_Y
 local LAWN_RGB: { [number]: boolean } = { [Palette.colors.grass] = true, [Palette.colors.grass_dark] = true }
 -- (the palette's own pastels: pink, yellow, cream, crystal, coral; the butterflies sky blue among them)
 local PC = Palette.colors
@@ -103,20 +103,16 @@ type Deco = { x: number, z: number, flower: boolean, tint: { number }?, phase: n
 type Chunk = { x: number, z: number, list: { Deco } }
 type Puff = { x: number, y: number, z: number, kind: string, every: number, life: number, nextAt: number, phase: number, hx: number, hy: number, hz: number }
 type Canopy = { x: number, y: number, z: number, hx: number, hy: number, hz: number, tint: { number }, petal: boolean, nextAt: number }
-type Fish = { x0: number, z0: number, x1: number, z1: number, y: number, t0: number, dur: number, h: number }
-type Ripple = { x: number, y: number, z: number, t0: number }
 type Glint = { x: number, y: number, z: number, t0: number, life: number }
 type Isle = {
 	plot: number,
 	tier: number,
 	ox: number,
 	oz: number,
-	box: { x0: number, z0: number, x1: number, z1: number }, -- world: the island and its shallows
+	box: { x0: number, z0: number, x1: number, z1: number }, -- world: the island
 	visible: boolean,
 	seenAt: number,
 	lawn: { number }, -- flat x, z (world): grass cells a bird may stand on (off the pieces)
-	sand: { number }, -- flat x, z: the dry beach
-	shore: { number }, -- flat x, z, y: water near the shore (a fish jumps there)
 	chunks: { Chunk },
 	flowers: { number }, -- flat x, y, z: flowers the butterflies visit
 	perches: { Perch }, -- rails, ridges, flat roofs, the sign
@@ -125,8 +121,6 @@ type Isle = {
 	birds: { Bird },
 	gull: Bird,
 	bflies: { Bfly },
-	fish: Fish?,
-	fishAt: number,
 	decor: Instance?,
 	landModel: Instance?, -- the island's land model (its chunks and sign: StreetModels.land)
 	seen: { [Instance]: any }, -- each model's spots (Spots), looked at once
@@ -146,12 +140,11 @@ local rigsAt = -math.huge
 local drift = Fx.newSystem(80) -- leaves and petals
 local wisps = Fx.newSystem(260) -- smoke and steam
 local bugs = Fx.newSystem(64) -- fireflies
-local drops = Fx.newSystem(48) -- a fish's splash
+local drops = Fx.newSystem(48) -- (nothing splashes into it since the sea went: kept for the counts)
 local glints: { Glint } = {}
-local ripples: { Ripple } = {}
 local lastStep = os.clock()
 local onStage = false
-local drawn = { decos = 0, birds = 0, bflies = 0, fish = 0, glints = 0, particles = 0 }
+local drawn = { decos = 0, birds = 0, bflies = 0, glints = 0, particles = 0 }
 local cost = { life = 0, decos = 0, particles = 0, creatures = 0 } -- ms of the last tick's parts
 local sprites: { [string]: Fx.Sprite } = {}
 
@@ -327,13 +320,10 @@ local function buildLand(I: Isle)
 	I.box = { x0 = ox + b.x0, z0 = oz + b.z0, x1 = ox + b.x1 + 1, z1 = oz + b.z1 + 1 }
 	local r = Random.new(I.plot * 7919 + tier * 104729)
 	local chunks: { [number]: Chunk } = {}
-	table.clear(I.sand)
-	table.clear(I.shore)
 	for z = b.z0, b.z1 do
 		for x = b.x0, b.x1 do
 			local l = Street.layer(tier, x, z)
-			if l == Street.GRASS and Street.openDist(tier, x, z) <= 0 then
-				-- (the open ground's: none out in the dark, where nobody looks)
+			if l == Street.GRASS then
 				local key = (x // 8) * 1000 + z // 8
 				local ch = chunks[key]
 				if ch == nil then
@@ -350,20 +340,6 @@ local function buildLand(I: Isle)
 					for _ = 1, r:NextInteger(2, 3) do
 						table.insert(ch.list, { x = ox + x + r:NextNumber(-0.6, 1.6), z = oz + z + r:NextNumber(-0.6, 1.6), flower = true, tint = tint, phase = r:NextNumber() * 6.28, ver = -1, i = 0, j = 0, d = 0, ok = false, px = {}, pf = 0 })
 					end
-				end
-			elseif l == Street.SAND then
-				-- (a perch on the beach only where the cells round it are beach too: a bird hops up to 0.7 studs from
-				-- its spot, and must not hop down onto the wet sand or up into the grass)
-				if Street.layer(tier, x - 1, z) == Street.SAND and Street.layer(tier, x + 1, z) == Street.SAND and Street.layer(tier, x, z - 1) == Street.SAND and Street.layer(tier, x, z + 1) == Street.SAND then
-					table.insert(I.sand, ox + x + 0.5)
-					table.insert(I.sand, oz + z + 0.5)
-				end
-			elseif l == Street.SHALLOW or l == Street.SEA_CELL then
-				local d = Street.cellDist(tier, x, z)
-				if d > Street.BANDS.foam + 0.8 and d < Street.BANDS.shallow + 3 and x % 2 == 0 and z % 2 == 0 then
-					table.insert(I.shore, ox + x + 0.5)
-					table.insert(I.shore, oz + z + 0.5)
-					table.insert(I.shore, if l == Street.SHALLOW then Street.SHALLOW_Y else Street.WATER_Y)
 				end
 			end
 		end
@@ -609,8 +585,6 @@ local function newIsle(i: number, tier: number): Isle
 		visible = true,
 		seenAt = os.clock(),
 		lawn = {},
-		sand = {},
-		shore = {},
 		chunks = {},
 		flowers = {},
 		perches = {},
@@ -619,8 +593,6 @@ local function newIsle(i: number, tier: number): Isle
 		birds = {},
 		gull = newBird("gull", 4),
 		bflies = {},
-		fish = nil,
-		fishAt = os.clock() + rand(4, 12),
 		decor = nil,
 		landModel = nil,
 		seen = {},
@@ -681,7 +653,7 @@ local function updateIsles(cam: Raster.Cam, W: number, H: number, now: number)
 		local inView = x1 >= -40 and y1 >= -40 and x0 <= W + 40 and y0 <= H + 40
 		if inView then
 			if I and I.tier ~= tier then
-				-- the island grew: its land's tufts and shores are sown again for the new shape, but what its pieces
+				-- the island grew: its land's tufts are sown again for the new shape, but what its pieces
 				-- and kept chunks hold stays looked at (`seen`), so the scan after it looks at the new chunks alone.
 				-- (It used to start the island over: every piece looked at again in one frame, 117 ms at tier 15.)
 				I.tier = tier
@@ -705,7 +677,7 @@ end
 
 ------------------------------------------------------------------ birds
 -- A perch for a bird on screen with nobody near and no other bird on it (nil when none): a rail, a ridge or the sign
--- now and then, else a spot on the lawn or (a gull, sometimes a pip) the beach.
+-- now and then, else a spot on the lawn.
 local function pickPerch(I: Isle, b: Bird, cam: Raster.Cam, W: number, H: number): Perch?
 	local gull = b.sp == "gull"
 	for _ = 1, 12 do
@@ -713,9 +685,6 @@ local function pickPerch(I: Isle, b: Bird, cam: Raster.Cam, W: number, H: number
 		local roll = rng:NextNumber()
 		if not gull and roll < 0.45 and #I.perches > 0 then
 			p = I.perches[rng:NextInteger(1, #I.perches)]
-		elseif (gull or roll > 0.88) and #I.sand > 0 then
-			local k = rng:NextInteger(1, #I.sand // 2)
-			p = { x = I.sand[k * 2 - 1] + rand(-0.3, 0.3), y = SAND_Y, z = I.sand[k * 2] + rand(-0.3, 0.3), ax = 1, az = 0, r = 0.8, kind = "sand" }
 		elseif #I.lawn > 0 then
 			local k = rng:NextInteger(1, #I.lawn // 2)
 			p = { x = I.lawn[k * 2 - 1] + rand(-0.3, 0.3), y = LAWN_Y, z = I.lawn[k * 2] + rand(-0.3, 0.3), ax = 1, az = 0, r = 0.8, kind = "lawn" }
@@ -1107,10 +1076,10 @@ local function stepPuffs(I: Isle, cam: Raster.Cam, W: number, H: number, now: nu
 	end
 end
 
------------------------------------------------------------------- the sea: glints, a fish
+------------------------------------------------------------------ the water: glints
 local function stepGlints(ctx: Fx.Ctx, now: number, dt: number, scale: number, day: boolean)
 	local W, H = ctx.W, ctx.H
-	-- a few a second over a screen of sea, fewer by night
+	-- a few a second over a screen of water, fewer by night
 	local rate = (if day then 3 else 1) * scale * (W * H) / (640 * 360)
 	local tries = 0
 	local want = rate * dt
@@ -1150,87 +1119,6 @@ local function stepGlints(ctx: Fx.Ctx, now: number, dt: number, scale: number, d
 			Fx.drawSprite(ctx, s, frame, px, py, d, false, 0.7)
 			drawn.glints += 1
 		end
-		k += 1
-	end
-end
-
-local function splash(x: number, y: number, z: number, now: number)
-	table.insert(ripples, { x = x, y = y, z = z, t0 = now })
-	for _ = 1, 5 do
-		local a = rand(0, 6.28)
-		local out = rand(0.4, 1.1)
-		Fx.spawn(drops, Fx.KINDS.drop, x, y + 0.05, z, 0.9, math.cos(a) * out, math.sin(a) * out, rand(2.6, 4.2))
-	end
-end
-
-local function stepFish(I: Isle, cam: Raster.Cam, W: number, H: number, now: number, scale: number)
-	local f = I.fish
-	if f == nil then
-		if now >= I.fishAt and #I.shore > 0 then
-			I.fishAt = now + rand(9, 22) / scale
-			for _ = 1, 8 do
-				local k = rng:NextInteger(1, #I.shore // 3)
-				local x, z, y = I.shore[k * 3 - 2], I.shore[k * 3 - 1], I.shore[k * 3]
-				-- (where the player looks: not under the HUD's cards)
-				local ok, px, py = onLayer(cam, W, H, x, y, z, 0)
-				local ex, ey = (px - W / 2) / (W * 0.42), (py - H / 2) / (H * 0.4)
-				if ok and ex * ex + ey * ey < 1 then
-					-- along the shore, a little out to sea (never into the foam)
-					local isle = Street.isle(I.tier)
-					local ux, uz = x - (I.ox + isle.cx), z - (I.oz + isle.cz)
-					local ul = math.max(1e-3, math.sqrt(ux * ux + uz * uz))
-					ux, uz = ux / ul, uz / ul
-					local side = if rng:NextNumber() < 0.5 then -1 else 1
-					local dx, dz = -uz * side * 0.85 + ux * 0.5, ux * side * 0.85 + uz * 0.5
-					local dl = math.sqrt(dx * dx + dz * dz)
-					I.fish = { x0 = x, z0 = z, x1 = x + dx / dl * 1.7, z1 = z + dz / dl * 1.7, y = y, t0 = now, dur = rand(0.75, 0.95), h = rand(1, 1.5) }
-					splash(x, y, z, now)
-					break
-				end
-			end
-		end
-		return
-	end
-	if now - f.t0 >= f.dur then
-		splash(f.x1, f.y, f.z1, now)
-		I.fish = nil
-	end
-end
-
-local function drawFish(ctx: Fx.Ctx, I: Isle, now: number)
-	local f = I.fish
-	local s = spriteFor("fish", ctx.ppu)
-	if f == nil or s == nil then
-		return
-	end
-	local t = math.clamp((now - f.t0) / f.dur, 0, 1)
-	local x, z = f.x0 + (f.x1 - f.x0) * t, f.z0 + (f.z1 - f.z0) * t
-	local y = f.y + 4 * f.h * t * (1 - t)
-	local ok, px, py, d = onLayer(ctx.cam, ctx.W, ctx.H, x, y, z, 6)
-	if ok then
-		local ax = Raster.project(ctx.cam, f.x0, f.y, f.z0)
-		local bx = Raster.project(ctx.cam, f.x1, f.y, f.z1)
-		local frame = if t < 0.38 then 1 elseif t < 0.62 then 2 else 3
-		if Fx.drawSprite(ctx, s, frame, px, py, d, bx < ax, 0.3) then
-			drawn.fish += 1
-		end
-	end
-end
-
-local function drawRipples(ctx: Fx.Ctx, now: number)
-	local s = sprites.ripple
-	local k = 1
-	while k <= #ripples do
-		local r = ripples[k]
-		local t = now - r.t0
-		if t >= 0.7 or s == nil then
-			ripples[k] = ripples[#ripples]
-			ripples[#ripples] = nil
-			continue
-		end
-		local px, py, d = Raster.project(ctx.cam, r.x, r.y, r.z)
-		-- (flat on the water: its lower rows are nearer than its middle, so a wider tolerance)
-		Fx.drawSprite(ctx, s :: Fx.Sprite, if t < 0.3 then 1 else 2, px, py, d, false, 0.7, nil, if t < 0.45 then 1 else (0.7 - t) / 0.25)
 		k += 1
 	end
 end
@@ -1275,7 +1163,6 @@ local function stepLife(cam: Raster.Cam, W: number, H: number, now: number, dt: 
 			end
 			stepCanopies(I, cam, W, H, now, scale)
 			stepPuffs(I, cam, W, H, now, scale)
-			stepFish(I, cam, W, H, now, scale)
 			if night then
 				spawnFireflies(I, cam, W, H, math.floor(22 * scale + 0.5))
 			end
@@ -1285,7 +1172,7 @@ end
 
 -- The effect layer: a tick of the life, then everything drawn, the ground first.
 local function draw(ctx: Fx.Ctx)
-	drawn.decos, drawn.birds, drawn.bflies, drawn.fish, drawn.glints, drawn.particles = 0, 0, 0, 0, 0, 0
+	drawn.decos, drawn.birds, drawn.bflies, drawn.glints, drawn.particles = 0, 0, 0, 0, 0
 	local stage = CameraController.view().stage
 	if stage then
 		-- the hatch scene's stage: nothing of the islands
@@ -1296,7 +1183,6 @@ local function draw(ctx: Fx.Ctx)
 			Fx.clear(bugs)
 			Fx.clear(drops)
 			table.clear(glints)
-			table.clear(ripples)
 		end
 		return
 	end
@@ -1317,12 +1203,6 @@ local function draw(ctx: Fx.Ctx)
 	local c2 = os.clock()
 	if not quiet then
 		stepGlints(ctx, now, dt, scale, day)
-		drawRipples(ctx, now)
-	end
-	for _, I in isles do
-		if I.visible then
-			drawFish(ctx, I, now)
-		end
 	end
 	local n = 0
 	if quiet then
@@ -1400,14 +1280,6 @@ end
 
 -- What is alive now (previews and sims).
 function AmbientView.stats(): { [string]: any }
-	local fishAt: { number }? = nil
-	for _, I in isles do
-		local f = I.fish
-		if f then
-			local t = math.clamp((os.clock() - f.t0) / f.dur, 0, 1)
-			fishAt = { f.x0 + (f.x1 - f.x0) * t, f.y + 4 * f.h * t * (1 - t), f.z0 + (f.z1 - f.z0) * t }
-		end
-	end
 	local nIsles, nVisible, perched, flying, gulls, decos, perches, puffs, canopies = 0, 0, 0, 0, 0, 0, 0, 0, 0
 	for _, I in isles do
 		nIsles += 1
@@ -1450,14 +1322,12 @@ function AmbientView.stats(): { [string]: any }
 		drawnDecos = drawn.decos,
 		drawnBirds = drawn.birds,
 		drawnButterflies = drawn.bflies,
-		drawnFish = drawn.fish,
 		drawnGlints = drawn.glints,
 		drawnParticles = drawn.particles,
 		msLife = cost.life,
 		msDecos = cost.decos,
 		msParticles = cost.particles,
 		msCreatures = cost.creatures,
-		fishAt = fishAt, -- a fish in the air now (world: x, y, z), else nil
 	}
 end
 
@@ -1498,7 +1368,7 @@ function AmbientView.debugScan(): (number, number, number)
 	return (t1 - t0) * 1000, (os.clock() - t1) * 1000, n
 end
 
--- Previews and sims: every bird away, the gull, the next fish and every falling leaf due now.
+-- Previews and sims: every bird away, the gull and every falling leaf due now.
 function AmbientView.debugHurry()
 	local now = os.clock()
 	for _, I in isles do
@@ -1510,7 +1380,6 @@ function AmbientView.debugHurry()
 		if I.gull.state == "away" then
 			I.gull.untilT = now
 		end
-		I.fishAt = now
 		for _, c in I.canopies do
 			c.nextAt = math.min(c.nextAt, now + rand(0, 2))
 		end

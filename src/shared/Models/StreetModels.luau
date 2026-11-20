@@ -1,39 +1,29 @@
 --!strict
--- The sea from parts (GAME_DESIGN 8; docs/ARCHITECTURE.md 6; Data/Street). Roblox module (server: PlotService builds
--- every plot's water at start and each plot's island as players come and go).
---   road(parent, origin)          a plot's water: its lot's and the open sea's, and the invisible seabed under it
---                                 (every plot, occupied or not)
---   land(parent, origin, tier)    an occupied plot: the island (Data/Street's coast: grass in two tones, the sand
---                                 beach, the wet sand at the waterline, a ring of foam, the light shallows), the
---                                 island's sign on its south beach (its board named "SignBoard"), palms, rocks, shells,
---                                 starfish, driftwood, seaweed and flowers round the coast (never where a building may
---                                 stand). The same on every tier: the land not open yet is dark in the pixel filter
---                                 (Data/Street.darkness), not covered (no rocks, no plaza since 2026-11-20)
---   emptyLot(parent, origin)      an unclaimed plot: open water and a little sandbar with a palm and a sign
---   ends(parent)                  the sea at both ends of the row and the invisible walls round the world
--- The island's layers are whole-stud cells merged into as few boxes as they make (greedy rectangles), each layer a
--- little lower than the one inside it, so the coast steps down to the sea. Their outlines are bevelled (the request of
--- 2026-11-13: "could you bevel these to make them smoother, with rounded corners?"): every notch of a layer's stairs is
--- half filled by a flat triangle (a wedge on its side) and a square corner cut back, so each edge runs straight, on a
--- diagonal or along the grid, and turns in 45 degree steps (`bevelled`). The palms'
--- trunks are smooth curves of round segments with a ring at each joint. The sea, the shallows and the foam carry a
--- "PixelWater" attribute (1, 2, 3): the pixel filter animates them. There are no docks: each island stands alone in
--- the sea (the request of 2026-11-13: "remove the docks area, it should just be an island. players can swim around
--- in water to reach other player islands"). The water lets the founders through to the seabed (Street.SEABED_Y), an
--- invisible floor under the whole sea, and an invisible shelf under the foam is the step up to the wet sand, so they
--- swim off any beach and climb out on any other. The seabed, the shelves and the world's walls are invisible and in
--- the "Bounds" collision group (the pixel filter's rays pass through them).
+-- The floating islands from parts (GAME_DESIGN 8; docs/ARCHITECTURE.md 6; Data/Street). Roblox module (server:
+-- PlotService builds each plot's island as players come and go, and a little islet on each free plot).
+--   land(parent, origin, tier)    an occupied plot: the island at its tier (Data/Street's coast: the lawn in two tones,
+--                                 the earth lip under its edge, the rock stepping in and down under that, stones and
+--                                 roots hanging, tufts and flowers on the grass's rim, never where a building may stand),
+--                                 an invisible wall just past the grass, and the island's sign on its south rim (its
+--                                 board named "SignBoard"); built in chunks (landPlan, landChunk, landSign) so an
+--                                 expansion changes only the chunks along the edge
+--   emptyLot(parent, origin)      an unclaimed plot: a little islet with a sign
+-- The request of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the
+-- island bigger." (the sea, the beaches, the swimming and the boats went with it; UI/SkyBackdrop paints the sky). The
+-- layers are whole-stud cells merged into as few boxes as they make (greedy rectangles). Their outlines are bevelled
+-- (the request of 2026-11-13: "could you bevel these to make them smoother, with rounded corners?"): every notch of a
+-- layer's stairs is half filled by a flat triangle (a wedge on its side) and a square corner cut back, so each edge runs
+-- straight, on a diagonal or along the grid, and turns in 45 degree steps (`bevelled`). The wall and the parts that
+-- keep a bevel's cut corner solid are invisible and in the "Bounds" collision group (the pixel filter's rays pass
+-- through them).
 local Street = require(script.Parent.Parent.Data.Street)
-local Util = require(script.Parent.Parent.Logic.Util)
-local Types = require(script.Parent.Parent.Types)
 local Blocks = require(script.Parent.Blocks)
 
 local StreetModels = {}
 
-local WALL_H = 40 -- the world's edge: far over a jump (Tuning.JumpHeight)
+local WALL_H = 14 -- the wall round an island's grass: far over a jump (Tuning.JumpHeight)
 
 type Rect = Street.Rect
-type Rng = Types.Rng
 
 local function box(parent: Instance, frame: CFrame, x: number, y: number, z: number, w: number, h: number, d: number, color: string, name: string?, neon: boolean?): BasePart
 	return Blocks.part(parent, { size = Vector3.new(w, h, d), cf = frame * CFrame.new(x, y, z), color = color, name = name, neon = neon })
@@ -42,32 +32,6 @@ end
 -- A box by its top: x0..x1, z0..z1 plot-local, its top at `top`, `h` deep.
 local function slab(parent: Instance, o: CFrame, x0: number, z0: number, x1: number, z1: number, top: number, h: number, color: string, name: string): BasePart
 	return box(parent, o, (x0 + x1) / 2, top - h / 2, (z0 + z1) / 2, x1 - x0, h, z1 - z0, color, name)
-end
-
-local function ball(parent: Instance, frame: CFrame, x: number, y: number, z: number, dia: number, color: string): BasePart
-	return Blocks.part(parent, { size = Vector3.new(dia, dia, dia), cf = frame * CFrame.new(x, y, z), color = color, shape = "Ball" })
-end
-
--- Water (animated by the pixel filter: kind 1 the sea, 2 the shallows, 3 the foam): the founders swim through it.
-local function water(p: BasePart, kind: number): BasePart
-	p:SetAttribute("PixelWater", kind)
-	p.CanCollide = false
-	return p
-end
-
--- An invisible floor (plot-local x0..x1, z0..z1, its top at `top`): the seabed the founders swim on, or the shelf under
--- the foam that steps up to the wet sand. Never in the pixel filter's rays ("Bounds").
-local function floor(parent: Instance, o: CFrame, x0: number, z0: number, x1: number, z1: number, top: number, name: string)
-	local f = Blocks.part(parent, {
-		size = Vector3.new(math.max(0.5, x1 - x0), 1, math.max(0.5, z1 - z0)),
-		cf = o * CFrame.new((x0 + x1) / 2, top - 0.5, (z0 + z1) / 2),
-		color = "white",
-		name = name,
-		transparency = 1,
-		query = false,
-	})
-	f.CastShadow = false
-	f.CollisionGroup = "Bounds"
 end
 
 ------------------------------------------------------------------ cells to boxes
@@ -132,7 +96,6 @@ local function greedy(b: Rect, want: (x: number, z: number) -> boolean): { Rect 
 	end
 	return out
 end
-
 ------------------------------------------------------------------ bevelled outlines
 -- Each layer is a region of whole-stud cells, its outline bevelled so the coast reads round, not as stairs (the
 -- request of 2026-11-13). A cell is four quarters (the triangles between its centre and its sides: 1 north (-z),
@@ -157,9 +120,9 @@ local SUBQ = {
 	{ { 0, 0, 3 }, { 0, 0.5, 4 } },
 }
 
--- A layer as drawn: its top and depth (as `slab` takes them), its parts' name, a colour a label, the PixelWater kind
--- of a water layer, and whether the founders stand on it.
-type Level = { top: number, h: number, name: string, colors: { string }, kind: number?, solid: boolean }
+-- A layer as drawn: its top and depth (as `slab` takes them), its parts' name, a colour a label, and whether the
+-- founders stand on it.
+type Level = { top: number, h: number, name: string, colors: { string }, solid: boolean }
 
 -- Cell (x, z) under `lab` (the labels by cell): its own label, and its four quarters' labels when a bevel changes any
 -- of them (nil: the cell is wholly its own).
@@ -207,18 +170,17 @@ local function flat(parent: Instance, o: CFrame, lv: Level, x0: number, z0: numb
 		name = lv.name,
 		collide = solid,
 	})
-	if lv.kind then
-		water(p, lv.kind)
-	end
 	return p
 end
 
 -- A layer over the cells of b, bevelled: the cells wholly its own merged into boxes (greedy), the bevelled ones as
 -- triangles, and a run of half cells along a diagonal as one big triangle where every cell it covers past the run is
--- the layer's own in the same label. The founders walk and swim as they did on the cells: a filled notch never
--- collides, a cell of a solid layer still wholly covered (in two tones) does, and one cut back keeps an invisible part
--- where it stood (out of the pixel filter's rays, like the shelf).
-local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: number, z: number) -> number)
+-- the layer's own in the same label. The founders walk as they did on the cells: a filled notch never collides, a
+-- cell of a solid layer still wholly covered (in two tones) does, and one cut back keeps an invisible part where it
+-- stood (out of the pixel filter's rays: "Bounds"). With `keep`, only the cells it says yes to are drawn: a ring along
+-- the outline (the lip, the rock under the edge), its outline bevelled as the whole region's, so it meets the layer
+-- above with no seam, and nothing under the island's middle, where no ray ever reaches.
+local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: number, z: number) -> number, keep: ((x: number, z: number) -> boolean)?)
 	local key = Street.cellKey
 	local full: { [number]: { [number]: boolean } } = {}
 	local cut: { [number]: boolean } = {}
@@ -229,6 +191,9 @@ local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: num
 	local list: { { number } } = {}
 	for z = b.z0, b.z1 do
 		for x = b.x0, b.x1 do
+			if keep and not keep(x, z) then
+				continue
+			end
 			local l, q = quarters(x, z, lab)
 			if q == nil then
 				if l ~= 0 then
@@ -270,9 +235,6 @@ local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: num
 				if n == 4 then
 					local p = slab(m, o, x, z, x + 1, z + 1, lv.top, lv.h, lv.colors[label], lv.name)
 					p.CanCollide = solid
-					if lv.kind then
-						water(p, lv.kind)
-					end
 				elseif n > 0 then
 					-- the halves it fills whole, then any quarter left as two small triangles
 					local done = { false, false, false, false }
@@ -336,9 +298,7 @@ local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: num
 			return set[key(x, z)] == true
 		end) do
 			local p = slab(m, o, r.x0, r.z0, r.x1, r.z1, lv.top, lv.h, lv.colors[label], lv.name)
-			if lv.kind then
-				water(p, lv.kind)
-			end
+			p.CanCollide = lv.solid
 		end
 	end
 	if anyCut then
@@ -360,164 +320,20 @@ local function bevelled(m: Instance, o: CFrame, b: Rect, lv: Level, lab: (x: num
 end
 
 ------------------------------------------------------------------ small things
--- A palm's trunk: one smooth curve from its foot up into the crown at (tx, ty) (f's frame), leaning out from the foot
--- and coming upright under the crown. Round `Trunk` segments joined end to end, with a dark ring at each joint a little
--- wider than the bark (the scars old fronds leave), so it bends with no gap and no step; it swells a little low down
--- and narrows going up (widths on the 1/8-stud grid: an art pixel; lengths exact, so the joints meet). Its foot
--- spreads into the sand. DecorModels' Palm Tree is built the same way.
-local TRUNK_W = { 1.17, 1, 1, 0.95, 0.88, 0.82, 0.77 } -- (each segment's width from the foot up, a share of w0)
-local function palmTrunk(m: Instance, f: CFrame, tx: number, ty: number, w0: number)
-	local n = #TRUNK_W
-	local pts: { Vector3 } = {}
-	for j = 0, n do
-		local t = j / n
-		table.insert(pts, Vector3.new(tx * (t + t * t - t * t * t), ty * t, 0))
-	end
-	for i = 1, n do
-		local a, b = pts[i], pts[i + 1]
-		local d = math.max(0.25, math.floor(w0 * TRUNK_W[i] * 8 + 0.5) / 8)
-		local seg = Blocks.part(m, { size = Vector3.one, cf = f * CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), color = "wood", shape = "Cylinder", name = "Trunk" })
-		seg.Size = Vector3.new((b - a).Magnitude, d, d) -- (exact: the joints meet)
-		if i < n then
-			-- (the ring: a thin round band across the joint, turned halfway between the two segments, so it closes the
-			-- bend too)
-			local c = pts[i + 2]
-			local ring = Blocks.part(m, { size = Vector3.one, cf = f * CFrame.lookAt(b, b + (b - a).Unit + (c - b).Unit) * CFrame.Angles(0, math.pi / 2, 0), color = "wood_dark", shape = "Cylinder", name = "Trunk" })
-			ring.Size = Vector3.new(0.19, d + 0.125, d + 0.125)
-		end
-	end
-	-- the foot, spreading into the sand
-	local foot = Blocks.part(m, { size = Vector3.one, cf = f * CFrame.new(0.04, -0.1, 0), color = "wood", shape = "Ball", name = "Trunk" })
-	local fd = math.floor(w0 * 1.45 * 8 + 0.5) / 8
-	foot.Size = Vector3.new(fd, fd, fd)
+-- A number in [0, 1) from a cell and a salt, the same every time (no random state).
+local function hash01(x: number, z: number, salt: number): number
+	local h = (x * 73856093 + z * 19349663 + salt * 83492791) % 4294967296
+	h = bit32.bxor(h, bit32.rshift(h, 13))
+	local lo, hi = h % 65536, h // 65536
+	h = (lo * 1274126177 + ((hi * 1274126177) % 65536) * 65536) % 4294967296
+	h = bit32.bxor(h, bit32.rshift(h, 16))
+	return h / 4294967296
 end
 
--- One palm frond from the crown's heart c (f's frame) out toward yaw `a` (radians about Y; 0 is +X): its midrib in
--- segments that rise, arch over and droop, each { length, pitch in degrees, width, fold }. A fold (1) is a pair of
--- leaflet blades hanging `hang` degrees either side of the midrib, the way a frond folds like a roof, swept a little
--- toward the tip so the pair's outer corners stand out (the frond's edge goes in teeth, leaflets); otherwise (0) one
--- blade: the bare stalk near the heart, the tip. Lengths and widths times s; each blade a little longer than its
--- segment so the bends close.
-local SWEEP = math.rad(16)
-local function frond(m: Instance, f: CFrame, c: Vector3, a: number, segs: { { number } }, s: number, hang: number, color: string)
-	local dir = Vector3.new(math.cos(a), 0, -math.sin(a))
-	local h = math.rad(hang)
-	local p = c
-	for _, sg in segs do
-		local len = sg[1] * s
-		local pitch = math.rad(sg[2])
-		local hw = math.max(0.25, Blocks.snap(sg[3] * s))
-		local q = p + dir * (math.cos(pitch) * len) + Vector3.new(0, math.sin(pitch) * len, 0)
-		local cf = f * CFrame.lookAt((p + q) / 2, q)
-		local L = Blocks.snap(len + 0.25)
-		local size = Vector3.new(hw, 0.25, L)
-		if sg[4] == 1 then
-			for _, side in { 1, -1 } do
-				-- (turned about the corner at the midrib's start, so the pair stays closed there)
-				local cfh = cf * CFrame.new(0, 0, L / 2) * CFrame.Angles(0, 0, -side * h) * CFrame.Angles(0, side * SWEEP, 0) * CFrame.new(side * hw / 2, 0, -L / 2)
-				Blocks.part(m, { size = size, cf = cfh, color = color, name = "Frond", collide = false })
-			end
-		else
-			Blocks.part(m, { size = size, cf = cf, color = color, name = "Frond", collide = false })
-		end
-		p = q
-	end
-end
-
--- The fronds' shapes: two folds of leaflets and the tip. The upper ones rise and arch, the lower ones droop.
-local FROND_UP = { { 1, 28, 0.5, 1 }, { 1, 0, 0.5, 1 }, { 0.75, -38, 0.5, 0 } }
-local FROND_LOW = { { 0.9, 8, 0.5, 1 }, { 1, -24, 0.5, 1 }, { 0.75, -58, 0.5, 0 } }
-local FROND_YOUNG = { { 0.85, 66, 0.25, 0 } }
-local FROND_DEAD = { { 0.45, -40, 0.25, 0 }, { 0.9, -78, 0.5, 1 } }
-
--- The yaw (about f's Y, 0 along its +X) that faces the view: the camera looks from +X +Z (Tuning.CamYaw 45) and never
--- turns, so a palm keeps a gap between two fronds on that side, its coconuts and dead fronds hanging there in sight.
-local function viewYaw(f: CFrame): number
-	local v = f:VectorToObjectSpace(Vector3.new(1, 0, 1))
-	return math.atan2(-v.Z, v.X)
-end
-
--- A palm on the shore: the crown 1.8 studs out (at s 1, leaning toward +X after `lean`) and 5.4 up. Seven fronds round
--- the heart in two greens (the upper ones lighter), two young ones spearing up from the middle, a dead one or two
--- hanging under them, a fibrous boot where the fronds join the trunk, and a bunch of coconuts.
-local function palm(parent: Instance, at: CFrame, s: number, lean: number?)
-	local m = Blocks.model(nil, "Palm")
-	local f = at * CFrame.Angles(0, lean or 0, 0)
-	local x = 1.8 * s
-	local top = 5.4 * s
-	-- (a number from the palm's place: which fronds rise, its dead fronds and nuts)
-	local pp = at.Position
-	local hsh = (math.floor(pp.X * 3 + 0.5) * 7919 + math.floor(pp.Z * 3 + 0.5) * 104729) % 360
-	palmTrunk(m, f, x, top - 0.15 * s, 0.75 * s)
-	local heart = Vector3.new(x, top, 0)
-	local boot = ball(m, f, x, top - 0.3 * s, 0, 0.75 * s, "hair_brown")
-	boot.Name = "Boot"
-	local core = ball(m, f, x, top + 0.05 * s, 0, 0.5 * s, "leaf_dark")
-	core.Name = "Heart"
-	core.CanCollide = false
-	local va = viewYaw(f)
-	local turn = ((hsh % 7) - 3) * 0.06 -- (each crown turned a little its own way, the gap still in view)
-	for k = 0, 6 do
-		local a = va + turn + (k + 0.5) * math.pi * 2 / 7 + (((hsh + k * 37) % 5) - 2) * 0.05
-		-- (the two either side of the gap rise, so the nuts under them stay in sight)
-		local up = k % 2 == 0
-		local s2 = s * (0.92 + ((hsh + k * 53) % 4) * 0.05)
-		frond(m, f, heart + Vector3.new(math.cos(a), 0, -math.sin(a)) * 0.15 * s, a, if up then FROND_UP else FROND_LOW, s2, if up then 28 else 36, if up then "leaf" else "leaf_dark")
-	end
-	-- the young fronds, still furled, spearing up
-	for k = 0, 1 do
-		frond(m, f, heart + Vector3.new(0, 0.1 * s, 0), va + 0.9 + k * math.pi, FROND_YOUNG, s, 0, "leaf")
-	end
-	-- dead fronds hanging under the crown (one or two), folded shut, their tips near the trunk
-	for k = 0, if hsh % 3 == 0 then 0 else 1 do
-		local a = va + (if k == 0 then 1.6 else -1.7)
-		frond(m, f, heart + Vector3.new(math.cos(a) * 0.2 * s, -0.3 * s, -math.sin(a) * 0.2 * s), a, FROND_DEAD, s, 62, if k == 0 then "straw" else "wood")
-	end
-	-- the coconuts, green and brown, hanging in a bunch under the heart on the side in view (one behind)
-	for k = 0, 3 do
-		local a = va + turn + ({ -0.5, 0, 0.5, math.pi })[k + 1]
-		local r = 0.48 * s
-		local nut = ball(m, f, x + math.cos(a) * r, top - (if k == 1 then 0.8 else 0.6) * s, -math.sin(a) * r, 0.5, if k == 1 or k == 3 then "wood_dark" else "bamboo")
-		nut.Name = "Coconut"
-		nut.CanCollide = false
-	end
-	m.Parent = parent
-end
-
--- A rock cluster half in the water: a big stone and a couple of smaller ones round it.
-local function rocks(parent: Instance, at: CFrame, s: number, rng: Rng)
-	local m = Blocks.model(nil, "Rocks")
-	box(m, at, 0, 0.35 * s, 0, 1.5 * s, 1.0 * s, 1.25 * s, "rock", "Stone")
-	box(m, at, 0.1 * s, 0.9 * s, -0.05 * s, 1.0 * s, 0.25 * s, 0.75 * s, "rock", "Stone")
-	for k = 1, rng:int(1, 3) do
-		local a = rng:next() * math.pi * 2
-		local r = (1.0 + rng:next() * 0.4) * s
-		box(m, at, math.cos(a) * r, 0.15 * s, math.sin(a) * r, (0.5 + rng:next() * 0.5) * s, (0.4 + rng:next() * 0.3) * s, (0.5 + rng:next() * 0.4) * s, if k % 2 == 0 then "rock" else "rock_dark", "Stone")
-	end
-	m.Parent = parent
-end
-
-local function shell(parent: Instance, at: CFrame, kind: number)
-	if kind == 1 then
-		-- a starfish: two crossed bars
-		box(parent, at, 0, 0.06, 0, 0.9, 0.12, 0.25, "orange", "Starfish")
-		box(parent, at * CFrame.Angles(0, math.rad(72), 0), 0, 0.06, 0, 0.9, 0.12, 0.25, "orange", "Starfish")
-	elseif kind == 2 then
-		box(parent, at, 0, 0.08, 0, 0.5, 0.16, 0.4, "pink", "Shell")
-		box(parent, at, 0, 0.18, -0.05, 0.25, 0.08, 0.25, "cream", "Shell")
-	else
-		box(parent, at, 0, 0.08, 0, 0.4, 0.16, 0.4, "cream", "Shell")
-	end
-end
-
-local function driftwood(parent: Instance, at: CFrame)
-	box(parent, at, 0, 0.18, 0, 2.5, 0.35, 0.4, "wood", "Driftwood")
-	box(parent, at, 0.9, 0.2, 0.3, 0.75, 0.25, 0.25, "wood_dark", "Branch")
-end
-
-local function seaweed(parent: Instance, at: CFrame)
-	box(parent, at, 0, 0.05, 0, 0.75, 0.1, 0.25, "leaf_dark", "Seaweed")
-	box(parent, at, 0.25, 0.05, 0.25, 0.25, 0.1, 0.5, "leaf_dark", "Seaweed")
+-- Soft patches over the cells (a few sines): above `cut`, a patch.
+local function patch(x: number, z: number, salt: number, cut: number): boolean
+	local n = math.sin(x * 0.31 + z * 0.17 + salt) + math.sin(x * 0.11 - z * 0.29 + 1.3 + salt * 0.7) + math.sin(z * 0.43 + 2.1 + salt * 1.3) * 0.4
+	return n > cut
 end
 
 local function tuft(parent: Instance, at: CFrame, flower: string?)
@@ -529,83 +345,35 @@ local function tuft(parent: Instance, at: CFrame, flower: string?)
 	end
 end
 
------------------------------------------------------------------- a plot's water
-function StreetModels.road(parent: Instance, origin: Vector3): Model
-	local m = Blocks.model(nil, "Road")
-	local o = CFrame.new(origin)
-	local x0, x1 = Street.LOT.x0, Street.LOT.x1
-	-- the water: the lot's and the open sea's (animated by the pixel filter), far past the world's walls
-	water(slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.SEA.z1 + Street.FAR, Street.WATER_Y, 1, "water", "Water"), 1)
-	-- the seabed under it, as far as the world's walls
-	floor(m, o, x0, Street.LOT.z0, x1, Street.SEA.z1, Street.SEABED_Y, "Seabed")
+-- A length on the quarter-stud grid parts snap to (at least a quarter).
+local function q(v: number): number
+	return math.max(0.25, math.floor(v * 4 + 0.5) / 4)
+end
+
+-- A stone hanging under the island: three blocks narrowing down to a point, each a little off the last, `len` long
+-- from `at` (the rock's underside) down.
+local function hanger(parent: Instance, at: CFrame, len: number, h: number)
+	local m = Blocks.model(nil, "Hanger")
+	local a, b, c = q(len * 0.42), q(len * 0.33), q(len * 0.25)
+	local ox = (h - 0.5) * 0.25
+	box(m, at, 0, -a / 2, 0, 1.5, a, 1.5, "rock_dark", "Stone")
+	box(m, at, ox, -a - b / 2, 0.125, 1, b, 1, if h < 0.5 then "slate" else "rock_dark", "Stone")
+	box(m, at, ox * 2, -a - b - c / 2, 0.25, 0.5, c, 0.5, "slate", "Stone")
+	if h > 0.6 then
+		-- (moss on the top block's side)
+		box(m, at, -0.25, -0.35, 0.65, 0.75, 0.5, 0.25, "moss", "Moss")
+	end
 	m.Parent = parent
-	return m
 end
 
------------------------------------------------------------------- the coast
--- An island's layers from a cell source: layer(x, z) (Street's codes) and dist(x, z) (the coast distance at the
--- cell's centre), over the cells of b. Grass in two tones (a darker rim and darker patches), the sand beach, the wet
--- sand, the foam, the shallows; each a step lower than the one inside it and running on under it (the foam too, hidden
--- under the wet sand), each bevelled (`bevelled`). Cells past b are only looked at, so a layer cut off at b's edge (a
--- neighbour's water) ends there straight.
-local function coast(m: Instance, o: CFrame, b: Rect, layer: (x: number, z: number) -> number, dist: (x: number, z: number) -> number)
-	local key = Street.cellKey
-	-- a cell's height among the layers: 5 the grass, 4 the sand, 3 the wet sand, 2 the foam, 1 the shallows, 0 the sea
-	local RANK = { [Street.GRASS] = 5, [Street.SAND] = 4, [Street.WET] = 3, [Street.FOAM] = 2, [Street.SHALLOW] = 1 }
-	local ranks: { [number]: number } = {}
-	local function rank(x: number, z: number): number
-		local k = key(x, z)
-		local r = ranks[k]
-		if r == nil then
-			r = RANK[layer(x, z)] or 0
-			ranks[k] = r
-		end
-		return r
-	end
-	local function from(r: number): (x: number, z: number) -> number
-		return function(x: number, z: number): number
-			return if rank(x, z) >= r then 1 else 0
-		end
-	end
-	-- the grass's tone: 2 dark along its rim (every cell with something else round it among them, so a bevel at the
-	-- coast is all one tone) and in patches, 1 light elsewhere
-	local tones: { [number]: number } = {}
-	local function tone(x: number, z: number): number
-		if rank(x, z) < 5 then
-			return 0
-		end
-		local k = key(x, z)
-		local t = tones[k]
-		if t == nil then
-			local dark = dist(x, z) > -0.9
-			for dz = -1, 1 do
-				for dx = -1, 1 do
-					dark = dark or rank(x + dx, z + dz) < 5
-				end
-			end
-			if not dark then
-				local n = math.sin(x * 0.31 + z * 0.17) + math.sin(x * 0.11 - z * 0.29 + 1.3) + math.sin(z * 0.43 + 2.1) * 0.4
-				dark = n > 1.05
-			end
-			t = if dark then 2 else 1
-			tones[k] = t
-		end
-		return t
-	end
-	bevelled(m, o, b, { top = Street.SHALLOW_Y, h = 0.5, name = "Shallows", colors = { "shallow" }, kind = 2, solid = false }, from(1))
-	bevelled(m, o, b, { top = Street.FOAM_Y, h = 0.2, name = "Foam", colors = { "foam" }, kind = 3, solid = false }, from(2))
-	-- (the step out of the sea under the foam's own cells: halfway from the seabed up to the wet sand)
-	for _, r in greedy(b, function(x, z)
-		return rank(x, z) == 2
-	end) do
-		floor(m, o, r.x0, r.z0, r.x1, r.z1, (Street.SEABED_Y + Street.WET_Y) / 2, "Shelf")
-	end
-	bevelled(m, o, b, { top = Street.WET_Y, h = 0.9, name = "WetSand", colors = { "sand_dark" }, solid = true }, from(3))
-	bevelled(m, o, b, { top = Street.SAND_Y, h = 0.15, name = "Beach", colors = { "sand" }, solid = true }, from(4))
-	bevelled(m, o, b, { top = Street.LAWN_Y, h = 0.12, name = "Lawn", colors = { "grass", "grass_dark" }, solid = true }, tone)
+-- A root hanging from under the earth lip: a thin strand, bending once.
+local function root(parent: Instance, at: CFrame, len: number, h: number)
+	local a = q(len * 0.6)
+	local b = q(len - a)
+	box(parent, at, 0, -a / 2, 0, 0.25, a, 0.25, if h < 0.5 then "hair_brown" else "wood_dark", "Root")
+	box(parent, at, 0.125, -a - b / 2, 0.125, 0.25, b, 0.25, "wood_dark", "Root")
 end
 
------------------------------------------------------------------- an island
 local function sign(m: Instance, at: CFrame, words: string?)
 	local s = Blocks.model(nil, "PlotSign")
 	box(s, at, -1.1, 1.2, 0, 0.25, 2.4, 0.25, "wood_dark", "Post")
@@ -619,131 +387,143 @@ local function sign(m: Instance, at: CFrame, words: string?)
 	s.Parent = m
 end
 
--- Things round the coast, never on a cell a building may use: palms at the grass's edge, rocks in the shallows,
--- shells and starfish on the beach, driftwood, seaweed on the wet sand, tufts and flowers on the grass's rim. Each
--- cell decides for itself from a hash of where it is (no sequence of random draws across the island), so a part of
--- the island that a bigger tier leaves as it was gets the same things in the same places: the land is built in
--- chunks and an expansion keeps every chunk that comes out the same (`StreetModels.landPlan`). A cell holds one of a
--- kind when its hash for that kind is under the kind's share and is the lowest among the kind's cells within `gap`
--- studs of it (so they never crowd).
-type ScatterKind = { id: string, salt: number, p: number, gap: number }
-local SCATTER: { ScatterKind } = {
-	{ id = "palm", salt = 11, p = 0.16, gap = 5 },
-	{ id = "rock", salt = 23, p = 0.045, gap = 5 },
-	{ id = "foamrock", salt = 37, p = 0.05, gap = 4 },
-	{ id = "shell", salt = 41, p = 0.09, gap = 2 },
-	{ id = "drift", salt = 53, p = 0.02, gap = 5 },
-	{ id = "weed", salt = 67, p = 0.16, gap = 2 },
-	{ id = "tuft", salt = 79, p = 0.4, gap = 1.8 },
+------------------------------------------------------------------ the island's layers
+-- A floating island from its coast distance by cell (`dist`: negative on the grass), top down: the lawn (grass in two
+-- tones: a darker rim and darker patches) on the whole grass; under its edge the earth lip, a ring LIP_W wide down to
+-- LIP_BOT; under that the rock in STRATA, each a ring further in and further down than the one above, so the island's
+-- underside steps in toward the middle; every outline bevelled (`bevelled`). Under the island's middle there is
+-- nothing: a ray from the view never gets there (it meets the lawn, or a ring's outer face, or passes under the lowest
+-- ring). Stones hang under the lowest ring, roots under the lip, tufts and flowers on the grass's rim.
+-- (every height on the quarter-stud grid parts snap to: Blocks.part)
+local LAWN_H = 0.5
+local LIP_W = 2
+local LIP_BOT = -3.25
+type Stratum = { inset: number, w: number, top: number, bot: number, colors: { string } }
+local STRATA: { Stratum } = {
+	{ inset = 1.5, w = 2.25, top = LIP_BOT, bot = -5.5, colors = { "rock", "rock_dark" } },
+	{ inset = 3, w = 2.25, top = -5.5, bot = -8, colors = { "rock", "rock_dark" } },
+	{ inset = 4.75, w = 2.5, top = -8, bot = -10.25, colors = { "rock_dark", "rock" } },
+	{ inset = 6.75, w = 2.5, top = -10.25, bot = -12.25, colors = { "rock_dark", "slate" } },
 }
-local SCATTER_REACH = 5 -- the widest gap: how far round a cell its things depend on the cells
+StreetModels.LIP_BOT = LIP_BOT
+StreetModels.BOTTOM = STRATA[#STRATA].bot
 
--- A number in [0, 1) from a cell and a salt, the same every time (no random state).
-local function hash01(x: number, z: number, salt: number): number
-	local h = (x * 73856093 + z * 19349663 + salt * 83492791) % 4294967296
-	h = bit32.bxor(h, bit32.rshift(h, 13))
-	local lo, hi = h % 65536, h // 65536
-	h = (lo * 1274126177 + ((hi * 1274126177) % 65536) * 65536) % 4294967296
-	h = bit32.bxor(h, bit32.rshift(h, 16))
-	return h / 4294967296
-end
-
--- Whether cell (x, z) of the tier's island may hold one of kind k (its layer and coast distance; never by the sign).
-local function scatterOk(k: ScatterKind, tier: number, x: number, z: number, sx: number, sz: number): boolean
-	local cx, cz = x + 0.5 - sx, z + 0.5 - sz
-	-- (clear round the island's sign, wide: no palm leans in front of it)
-	if (math.abs(cx) < 3 and math.abs(cz) < 2.5) or cx * cx + cz * cz < (5 + k.gap / 2) ^ 2 then
-		return false
-	end
-	local l = Street.layer(tier, x, z)
-	local id = k.id
-	if id == "palm" then
-		return l == Street.SAND and Street.cellDist(tier, x, z) < 1.2
-	elseif id == "rock" then
-		return l == Street.SHALLOW
-	elseif id == "foamrock" then
-		return l == Street.FOAM
-	elseif id == "shell" or id == "drift" then
-		return l == Street.SAND
-	elseif id == "weed" then
-		return l == Street.WET
-	end
-	-- (the grass's rim, the stud nearest the beach: the same on every tier)
-	return l == Street.GRASS and Street.cellDist(tier, x, z) > -1
-end
-
--- The way out to sea from cell (x, z) (radians, as a palm leans): down the layers round it, grass to sea.
-local SEA_RANK = { [Street.GRASS] = 5, [Street.SAND] = 4, [Street.WET] = 3, [Street.FOAM] = 2, [Street.SHALLOW] = 1 }
-local function seaward(tier: number, x: number, z: number): number
-	local gx, gz = 0, 0
-	for dz = -1, 1 do
-		for dx = -1, 1 do
-			local r = SEA_RANK[Street.layer(tier, x + dx, z + dz)] or 0
-			gx -= r * dx
-			gz -= r * dz
+local function layers(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: number) -> number)
+	local lawnY = Street.LAWN_Y
+	-- the lawn's tone: 2 dark along its rim (every cell with the air round it among them, so a bevel at the edge is all
+	-- one tone) and in patches, 1 light elsewhere
+	local function lawn(x: number, z: number): number
+		local d = dist(x, z)
+		if d > 0 then
+			return 0
 		end
-	end
-	if gx == 0 and gz == 0 then
-		return hash01(x, z, 5) * math.pi * 2
-	end
-	return math.atan2(-gz, gx)
-end
-
--- The coast's things on the cells of rect b (whole studs, plot-local), from the cells round it too.
-local function scatterIn(m: Instance, o: CFrame, tier: number, b: Rect)
-	local sx, sz = Street.sign(tier)
-	local key = Street.cellKey
-	local blooms = { "pink", "yellow", "white", "purple", "berry_red" }
-	for _, k in SCATTER do
-		local g = math.ceil(k.gap)
-		local cand: { [number]: number } = {}
-		for z = b.z0 - g, b.z1 + g do
-			for x = b.x0 - g, b.x1 + g do
-				local h = hash01(x, z, k.salt)
-				if h < k.p and scatterOk(k, tier, x, z, sx, sz) then
-					cand[key(x, z)] = h
+		local dark = d > -0.9
+		if not dark then
+			for dz = -1, 1 do
+				for dx = -1, 1 do
+					dark = dark or dist(x + dx, z + dz) > 0
 				end
 			end
 		end
-		local g2 = k.gap * k.gap
-		for z = b.z0, b.z1 do
-			for x = b.x0, b.x1 do
-				local h = cand[key(x, z)]
-				if h == nil then
-					continue
-				end
-				local lowest = true
-				for dz = -g, g do
-					for dx = -g, g do
-						if (dx ~= 0 or dz ~= 0) and dx * dx + dz * dz < g2 then
-							local other = cand[key(x + dx, z + dz)]
-							if other and (other < h or (other == h and (dz < 0 or (dz == 0 and dx < 0)))) then
-								lowest = false
-							end
+		if not dark then
+			dark = patch(x, z, 0, 1.05)
+		end
+		return if dark then 2 else 1
+	end
+	bevelled(m, o, b, { top = lawnY, h = LAWN_H, name = "Lawn", colors = { "grass", "grass_dark" }, solid = true }, lawn)
+	-- the earth lip: warm brown with darker streaks
+	bevelled(m, o, b, { top = lawnY - LAWN_H, h = lawnY - LAWN_H - LIP_BOT, name = "Lip", colors = { "chocolate", "hair_brown" }, solid = false }, function(x, z)
+		if dist(x, z) > 0 then
+			return 0
+		end
+		return if patch(x, z, 3, 1.15) then 2 else 1
+	end, function(x, z)
+		return dist(x, z) > -LIP_W
+	end)
+	for k, st in STRATA do
+		bevelled(m, o, b, { top = st.top, h = st.top - st.bot, name = "Rock", colors = st.colors, solid = false }, function(x, z)
+			if dist(x, z) > -st.inset then
+				return 0
+			end
+			return if patch(x, z, 5 + k, 1.0) then 2 else 1
+		end, function(x, z)
+			return dist(x, z) > -(st.inset + st.w)
+		end)
+	end
+end
+
+-- The invisible wall round the grass: the cells just past its edge, far over a jump ("Bounds": the pixel filter's
+-- rays pass through it).
+local function walls(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: number) -> number)
+	for _, r in greedy(b, function(x: number, z: number): boolean
+		local d = dist(x, z)
+		return d > 0 and d <= Street.WALL
+	end) do
+		local w = Blocks.part(m, {
+			size = Vector3.new(r.x1 - r.x0, WALL_H, r.z1 - r.z0),
+			cf = o * CFrame.new((r.x0 + r.x1) / 2, Street.LAWN_Y - 1 + WALL_H / 2, (r.z0 + r.z1) / 2),
+			color = "white",
+			name = "Bound",
+			transparency = 1,
+			query = false,
+		})
+		w.CastShadow = false
+		w.CollisionGroup = "Bounds"
+	end
+end
+
+-- The island's small things, never on a cell a building may use: tufts and flowers on the grass's rim, roots under
+-- the lip's overhang, stones hanging under the lowest ring of rock. Each is picked in its own block of the grid
+-- (BLOCK cells a side, the chunks' size a whole number of them): the block's cell with the lowest hash among those of
+-- its kind's band, kept when a second hash is under the kind's share, so a chunk's things depend on its own cells
+-- alone and a part of the island an expansion leaves as it was keeps the same things in the same places.
+type ScatterKind = { id: string, salt: number, p: number, block: number, lo: number, hi: number }
+local SCATTER: { ScatterKind } = {
+	{ id = "tuft", salt = 79, p = 0.22, block = 2, lo = -0.95, hi = 0 },
+	{ id = "root", salt = 31, p = 0.3, block = 2, lo = -1.4, hi = 0 },
+	{ id = "hanger", salt = 47, p = 0.55, block = 4, lo = -(STRATA[#STRATA].inset + 1.5), hi = -STRATA[#STRATA].inset },
+}
+
+local function scatterIn(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: number) -> number, sx: number?, sz: number?)
+	local blooms = { "pink", "yellow", "white", "purple", "berry_red" }
+	local lawnY = Street.LAWN_Y
+	for _, k in SCATTER do
+		local B = k.block
+		for bz = b.z0 // B, b.z1 // B do
+			for bx = b.x0 // B, b.x1 // B do
+				local best, bestX, bestZ = math.huge, 0, 0
+				for z = bz * B, bz * B + B - 1 do
+					for x = bx * B, bx * B + B - 1 do
+						if x < b.x0 or x > b.x1 or z < b.z0 or z > b.z1 then
+							continue
+						end
+						local d = dist(x, z)
+						if d <= k.lo or d > k.hi then
+							continue
+						end
+						-- (clear round the island's sign: nothing in front of it)
+						if sx and sz and math.abs(x + 0.5 - sx) < 3 and math.abs(z + 0.5 - sz) < 3 then
+							continue
+						end
+						local h = hash01(x, z, k.salt)
+						if h < best then
+							best, bestX, bestZ = h, x, z
 						end
 					end
 				end
-				if not lowest then
+				if best == math.huge or hash01(bestX, bestZ, k.salt + 1) >= k.p then
 					continue
 				end
+				local x, z = bestX, bestZ
 				local px, pz = x + 0.5, z + 0.5
-				local turn = hash01(x, z, k.salt + 1) * 6
-				local id = k.id
-				if id == "palm" then
-					palm(m, o * CFrame.new(px, Street.SAND_Y, pz), 0.9 + hash01(x, z, k.salt + 2) * 0.3, seaward(tier, x, z))
-				elseif id == "rock" then
-					rocks(m, o * CFrame.new(px, Street.SHALLOW_Y - 0.2, pz) * CFrame.Angles(0, turn, 0), 0.8 + hash01(x, z, k.salt + 2) * 0.6, Util.newRng(math.floor(hash01(x, z, k.salt + 3) * 2147483647)))
-				elseif id == "foamrock" then
-					rocks(m, o * CFrame.new(px, Street.FOAM_Y - 0.25, pz) * CFrame.Angles(0, turn, 0), 0.6 + hash01(x, z, k.salt + 2) * 0.3, Util.newRng(math.floor(hash01(x, z, k.salt + 3) * 2147483647)))
-				elseif id == "shell" then
-					shell(m, o * CFrame.new(px, Street.SAND_Y, pz) * CFrame.Angles(0, turn, 0), 1 + math.floor(hash01(x, z, k.salt + 2) * 3))
-				elseif id == "drift" then
-					driftwood(m, o * CFrame.new(px, Street.SAND_Y, pz) * CFrame.Angles(0, turn, 0))
-				elseif id == "weed" then
-					seaweed(m, o * CFrame.new(px, Street.WET_Y, pz) * CFrame.Angles(0, turn, 0))
+				local h2 = hash01(x, z, k.salt + 2)
+				if k.id == "tuft" then
+					local bloom = if h2 < 0.45 then blooms[1 + math.floor(hash01(x, z, k.salt + 3) * #blooms)] else nil
+					tuft(m, o * CFrame.new(px, lawnY, pz), bloom)
+				elseif k.id == "root" then
+					root(m, o * CFrame.new(px, LIP_BOT, pz), 0.5 + h2 * 0.9, hash01(x, z, k.salt + 3))
 				else
-					local bloom = if hash01(x, z, k.salt + 2) < 0.45 then blooms[1 + math.floor(hash01(x, z, k.salt + 3) * #blooms)] else nil
-					tuft(m, o * CFrame.new(px, Street.LAWN_Y, pz), bloom)
+					hanger(m, o * CFrame.new(px, STRATA[#STRATA].bot, pz), 2 + h2 * 4, hash01(x, z, k.salt + 3))
 				end
 			end
 		end
@@ -752,44 +532,63 @@ end
 
 ------------------------------------------------------------------ the land in chunks
 -- The island's land is built in chunks of CHUNK x CHUNK cells (plot-local, on a grid from the plot's origin), each a
--- model of its own named for what it holds: Chunk_<cx>_<cz>_<signature>, the signature a hash of the layer and
--- coast-distance band of every cell in it and LAND_MARGIN cells round it (all its bevels, tones and scatter read), and
--- of the sign's place when it is near. Since 2026-11-20 nothing in them depends on the tier (the land not open yet is
--- the pixel filter's dark, no rock: the request "Remove the rocks and make it a gradient dark filter instead ... This
--- should also make it much less laggy when expanding"), so an expansion keeps every chunk: the server builds, sends
--- and re-draws none of them (PlotService.build; the request of 2026-11-19: "Expansion is very slow and laggy,
--- especially at higher levels" first made it build only the chunks that changed). The sign is a child of its own. Splitting the ground at a chunk's edge draws no line: the pixel filter inks only where
--- the depth jumps.
-StreetModels.CHUNK = 16
-local LAND_MARGIN = SCATTER_REACH + 1
+-- model of its own named for what it holds: Chunk_<cx>_<cz>_<signature>, the signature a hash of the band of the coast
+-- distance (the thresholds every layer, ring and wall reads) of every cell in it and LAND_MARGIN cells round it (its
+-- bevels read two cells out), and of the sign's place when it is near. A cell further in than the lowest ring's inner
+-- edge reads the same on every tier, so an expansion changes only the chunks along the island's edge, old and new:
+-- the server builds those ahead (PlotService), every client draws them ahead (the pixel filter's pre-cast), and the
+-- swap moves them in (the request of 2026-11-19: "Expansion is very slow and laggy, especially at higher levels").
+-- The sign is a model of its own. Splitting the ground at a chunk's edge draws no line: the pixel filter inks only
+-- where the depth jumps.
+StreetModels.CHUNK = 8
+local LAND_MARGIN = 3
 
 export type LandChunk = { name: string, rect: Rect }
-export type LandPlan = { chunks: { LandChunk }, sign: string }
+export type LandPlan = { chunks: { LandChunk }, sign: string, walls: string }
 
--- A cell's code for the signature: 0 the open sea, else its layer and which side of the coast distances read it is.
+-- The coast distances the drawing reads a cell by (each layer's, each ring's inner edge, the rim, the wall), deepest
+-- last.
+local BANDS: { number } = { Street.WALL, 0, -0.9, -0.95, -1, -1.2, -LIP_W }
+for _, st in STRATA do
+	table.insert(BANDS, -st.inset)
+	table.insert(BANDS, -(st.inset + st.w))
+end
+table.insert(BANDS, -(STRATA[#STRATA].inset + 1.5))
+
+-- A cell's code for the signature: 0 the open air, else which of the bands its coast distance is in.
 local function cellCode(tier: number, x: number, z: number): number
-	local l = Street.layer(tier, x, z)
-	if l == Street.SEA_CELL then
+	local d = Street.cellDist(tier, x, z)
+	if d > Street.WALL then
 		return 0
 	end
-	local d = Street.cellDist(tier, x, z)
-	-- (nothing on the land depends on the tier since the dark took the rocks' place: an expansion changes no chunk)
-	return l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
+	local c = 1
+	for _, t in BANDS do
+		if d <= t then
+			c += 1
+		end
+	end
+	return c
 end
 
--- The lot's cells (a neighbour's water is theirs).
+-- The lot's cells.
 local function lotCells(): Rect
 	local lot = Street.LOT
 	return { x0 = math.ceil(lot.x0), z0 = math.ceil(lot.z0), x1 = math.floor(lot.x1) - 1, z1 = math.floor(lot.z1) - 1 }
 end
 
--- The island's sign's name at a tier (by its place on the south beach).
+-- The island's sign's name at a tier (by its place on the south rim).
 function StreetModels.signName(tier: number): string
 	local sx, sz = Street.sign(tier)
 	return string.format("Sign_%d_%d", math.floor(sx * 2), math.floor(sz * 2))
 end
 
--- The island's chunks at a tier (those with any of it in them), named for what they hold, and its sign's name.
+-- The wall's model's name at a tier.
+function StreetModels.wallsName(tier: number): string
+	return "Walls_" .. math.clamp(math.floor(tier), 1, Street.TOP)
+end
+
+-- The island's chunks at a tier (those with any of it in them), named for what they hold, its sign's name and its
+-- wall's.
 function StreetModels.landPlan(tier: number): LandPlan
 	local CH = StreetModels.CHUNK
 	local lc = lotCells()
@@ -819,127 +618,81 @@ function StreetModels.landPlan(tier: number): LandPlan
 				continue
 			end
 			-- (the sign's place, where its clearing reaches the chunk's things)
-			if sx > r.x0 - M - 8 and sx < r.x1 + M + 8 and sz > r.z0 - M - 8 and sz < r.z1 + M + 8 then
+			if sx > r.x0 - 4 and sx < r.x1 + 5 and sz > r.z0 - 4 and sz < r.z1 + 5 then
 				h1 = (h1 * 31 + math.floor(sx * 2) + 4096) % P1
 				h2 = (h2 * 37 + math.floor(sz * 2) + 4096) % P2
 			end
 			table.insert(out, { name = string.format("Chunk_%d_%d_%07x%07x", cx, cz, h1, h2), rect = r })
 		end
 	end
-	return { chunks = out, sign = StreetModels.signName(tier) }
+	return { chunks = out, sign = StreetModels.signName(tier), walls = StreetModels.wallsName(tier) }
 end
 
--- One chunk of the tier's land (StreetModels.landPlan's): its coast and the coast's things, into parent.
+-- One chunk of the tier's land (StreetModels.landPlan's): its layers and its small things, into parent.
 function StreetModels.landChunk(parent: Instance, origin: Vector3, tier: number, c: LandChunk): Model
 	local m = Blocks.model(nil, c.name)
 	local o = CFrame.new(origin)
-	coast(m, o, c.rect, function(x, z)
-		return Street.layer(tier, x, z)
-	end, function(x, z)
+	local function dist(x: number, z: number): number
 		return Street.cellDist(tier, x, z)
-	end)
-	scatterIn(m, o, tier, c.rect)
-	Blocks.windy(m) -- palms and tufts sway
+	end
+	layers(m, o, c.rect, dist)
+	local sx, sz = Street.sign(tier)
+	scatterIn(m, o, c.rect, dist, sx, sz)
+	Blocks.windy(m) -- the tufts sway
 	m.Parent = parent
 	return m
 end
 
--- The island's sign on its south beach (tapped: the island's card; its name floats over it), named by its place.
+-- The wall round the tier's grass, all of it in one model of its own (Walls_<tier>): out of the chunks, so a chunk's
+-- box (what the pixel filter draws again or ahead when the chunk comes or goes) stays as small as what shows of it;
+-- the wall itself is never drawn.
+function StreetModels.landWalls(parent: Instance, origin: Vector3, tier: number): Model
+	local m = Blocks.model(nil, StreetModels.wallsName(tier))
+	walls(m, CFrame.new(origin), Street.cellBounds(tier), function(x: number, z: number): number
+		return Street.cellDist(tier, x, z)
+	end)
+	m.Parent = parent
+	return m
+end
+
+-- The island's sign on its south rim (tapped: the island's card; its name floats over it), named by its place.
 function StreetModels.landSign(parent: Instance, origin: Vector3, tier: number): Model
 	local sx, sz = Street.sign(tier)
 	local m = Blocks.model(nil, StreetModels.signName(tier))
-	sign(m, CFrame.new(origin) * CFrame.new(sx, Street.SAND_Y, sz), "island")
+	sign(m, CFrame.new(origin) * CFrame.new(sx, Street.LAWN_Y, sz), "island")
 	m.Parent = parent
 	return m
 end
 
--- The whole island at a tier: every chunk of its land and the sign, under one model "Land".
+-- The whole island at a tier: every chunk of its land, its wall and the sign, under one model "Land".
 function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Model
 	local m = Blocks.model(nil, "Land")
 	for _, c in StreetModels.landPlan(tier).chunks do
 		StreetModels.landChunk(m, origin, tier, c)
 	end
+	StreetModels.landWalls(m, origin, tier)
 	StreetModels.landSign(m, origin, tier)
 	m.Parent = parent
 	return m
 end
 
 ------------------------------------------------------------------ an unclaimed plot
+-- A little islet floating where an island will be, built as the islands are, with a sign.
 function StreetModels.emptyLot(parent: Instance, origin: Vector3): Model
 	local m = Blocks.model(nil, "EmptyLot")
 	local o = CFrame.new(origin)
-	-- a little sandbar (a wobbly oval of sand, its foam and shallows)
-	local cx, cz, rx, rz = 0, 12, 6, 3.5
+	local cx, cz, rx, rz = Street.CENTER.x, Street.CENTER.z, 7, 5.5
 	local function dist(x: number, z: number): number
 		local dx, dz = x + 0.5 - cx, z + 0.5 - cz
 		local a = math.atan2(dz, dx)
 		local er = 1 / math.sqrt((math.cos(a) / rx) ^ 2 + (math.sin(a) / rz) ^ 2)
 		return math.sqrt(dx * dx + dz * dz) - er * (1 + 0.1 * math.sin(3 * a + 1)) - 0.01
 	end
-	local function layer(x: number, z: number): number
-		local d = dist(x, z)
-		-- no grass on a sandbar: what would be grass is sand
-		local l = Street.layerAt(d)
-		return if l == Street.GRASS then Street.SAND else l
-	end
-	coast(m, o, { x0 = -16, z0 = 0, x1 = 15, z1 = 24 }, layer, dist)
-	palm(m, o * CFrame.new(-2.5, Street.SAND_Y, 12), 1, 2.6)
-	sign(m, o * CFrame.new(1.5, Street.SAND_Y, 13.5), "empty")
-	rocks(m, o * CFrame.new(5, Street.SHALLOW_Y - 0.2, 10), 0.9, Util.newRng(3))
-	shell(m, o * CFrame.new(3, Street.SAND_Y, 11.5), 1)
-	shell(m, o * CFrame.new(-0.5, Street.SAND_Y, 13.8), 2)
-	m.Parent = parent
-	return m
-end
-
------------------------------------------------------------------- the sea's ends and the world's walls
--- The sea past the row's ends (the seabed under it as far as the walls), a sandbar with a palm beyond each wall, and
--- the invisible walls round the world.
-function StreetModels.ends(parent: Instance): Model
-	local m = Blocks.model(nil, "StreetEnds")
-	local b = Street.bounds()
-	local o = CFrame.new()
-	local first = Street.origin(1) + Street.LOT.x0
-	local last = Street.origin(Street.MAX) + Street.LOT.x1
-	for _, e in { { b.x0, first }, { last, b.x1 } } do
-		local west = e[1] == b.x0
-		local x0 = if west then e[1] - Street.END_FAR else e[1]
-		local x1 = if west then e[2] else e[2] + Street.END_FAR
-		water(slab(m, o, x0, Street.LOT.z0 - Street.FAR, x1, Street.SEA.z1 + Street.FAR, Street.WATER_Y, 1, "water", "Water"), 1)
-		-- the seabed from the row's end to the world's wall
-		local bx0 = if west then b.x0 else last
-		local bx1 = if west then first else b.x1
-		floor(m, o, bx0, Street.LOT.z0, bx1, Street.SEA.z1, Street.SEABED_Y, "Seabed")
-		local hx = if west then b.x0 + 1 else b.x1 - 1
-		local sx = if west then hx - 12 else hx + 12
-		local function dist(x: number, z: number): number
-			local dx, dz = x + 0.5 - sx, z + 0.5 - 6
-			return math.sqrt((dx / 1.6) ^ 2 + dz * dz) - 3
-		end
-		local function layer(x: number, z: number): number
-			local l = Street.layerAt(dist(x, z))
-			return if l == Street.GRASS then Street.SAND else l
-		end
-		coast(m, o, { x0 = math.floor(sx) - 16, z0 = -8, x1 = math.floor(sx) + 15, z1 = 20 }, layer, dist)
-		palm(m, o * CFrame.new(sx, Street.SAND_Y, 6), 1.2, if west then 3.1 else 0)
-	end
-	-- the world's outer walls
-	local function outer(wx0: number, z0: number, wx1: number, z1: number)
-		local w = Blocks.part(m, {
-			size = Vector3.new(math.max(1, wx1 - wx0), WALL_H, math.max(1, z1 - z0)),
-			cf = CFrame.new((wx0 + wx1) / 2, WALL_H / 2 - 1, (z0 + z1) / 2),
-			color = "white",
-			name = "Bound",
-			transparency = 1,
-			query = false,
-		})
-		w.CastShadow = false
-		w.CollisionGroup = "Bounds"
-	end
-	outer(b.x0 - 1, b.z0 - 1, b.x1 + 1, b.z0)
-	outer(b.x0 - 1, b.z1, b.x1 + 1, b.z1 + 1)
-	outer(b.x0 - 1, b.z0, b.x0, b.z1)
-	outer(b.x1, b.z0, b.x1 + 1, b.z1)
+	local b = { x0 = cx - 10, z0 = cz - 9, x1 = cx + 9, z1 = cz + 8 }
+	layers(m, o, b, dist)
+	scatterIn(m, o, b, dist, 0.5, cz + 2.5)
+	sign(m, o * CFrame.new(0.5, Street.LAWN_Y, cz + 2.5), "empty")
+	Blocks.windy(m)
 	m.Parent = parent
 	return m
 end

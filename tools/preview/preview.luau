@@ -307,21 +307,22 @@ function SCEN.island()
 	settle(p)
 	E.run(1)
 	capture(p, "island")
-	-- the founder out in the dark west of the open ground (the request of 2026-11-20: "make it a gradient dark filter
-	-- instead"): island_dark
+	-- the founder on the island's south rim, the rock under its edge and the painted sky in view (the request of
+	-- 2026-11-20: "make it a floating island instead, with a 2d skybox"): island_edge
 	local Street = H.sharedServer("Data.Street")
 	local ox, oz = Street.origin(H.session(p).plot)
+	local sx, sz = Street.sign(1)
 	if p.Character then
-		p.Character:PivotTo(E.cf.new(ox - 24, 3, oz + 6))
+		p.Character:PivotTo(E.cf.new(ox + sx + 4, 3, oz + sz - 0.5))
 		E.run(2)
 		settle(p, 30, 1)
 		E.run(1)
-		capture(p, "island_dark")
+		capture(p, "island_edge")
 	end
-	local PR = modOr(p, "Pixel.PixelRenderer")
-	if PR and PR.debugDark then
-		local d = H.inClient(p, PR.debugDark)
-		log("island dark: %d keyed pixels, %d dark, %d off the rule, version %d", d.keyed, d.dark, d.off, d.ver)
+	local SB = modOr(p, "UI.SkyBackdrop")
+	if SB then
+		local d = H.inClient(p, SB.debugState)
+		log("island sky: %s, %dx%d art px, painted %d times, clouds at %d", d.kind, d.W, d.H, d.paints, d.off)
 	end
 	return p
 end
@@ -1078,7 +1079,7 @@ function SCEN.idle()
 	local CC = H.cmod(p, "Controllers.CameraController")
 	local hidden = {}
 	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "World" and g.Enabled then
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" and g.Name ~= "World" and g.Enabled then
 			g.Enabled = false
 			table.insert(hidden, g)
 		end
@@ -1256,8 +1257,8 @@ function SCEN.ambient()
 			table.insert(parts, string.format("%s %s%s at %d,%d", b.sp, b.state, if b.on ~= "" then " on " .. b.on else "", sx, sy))
 		end
 		local st = H.inClient(p, AV.stats)
-		log("ambient %s: birds [%s]; %d decos (%d drawn), %d perches, %d smoke spots (%d wisps), %d leafy crowns (%d leaves), %d glints, butterflies drawn %d, fish drawn %d, fireflies %d",
-			label, table.concat(parts, ", "), st.decos, st.drawnDecos, st.perches, st.puffs, st.wisps, st.canopies, st.leaves, st.glints, st.drawnButterflies, st.drawnFish, st.fireflies)
+		log("ambient %s: birds [%s]; %d decos (%d drawn), %d perches, %d smoke spots (%d wisps), %d leafy crowns (%d leaves), %d glints, butterflies drawn %d, fireflies %d",
+			label, table.concat(parts, ", "), st.decos, st.drawnDecos, st.perches, st.puffs, st.wisps, st.canopies, st.leaves, st.glints, st.drawnButterflies, st.fireflies)
 	end
 	H.inClient(p, AV.debugHurry)
 	E.run(4)
@@ -1268,15 +1269,7 @@ function SCEN.ambient()
 	for k = 0, 15 do
 		capture(p, string.format("ambient_%03d", k))
 		local st = H.inClient(p, AV.stats)
-		local fishOn = ""
-		if st.fishAt then
-			local fx, fy = H.inClient(p, function()
-				local pos = PR.project(E.v3(st.fishAt[1], st.fishAt[2], st.fishAt[3]))
-				return pos.X, pos.Y
-			end)
-			fishOn = string.format(" at %d,%d", fx, fy)
-		end
-		table.insert(seen, string.format("%03d: fish %d%s glints %d butterflies %d leaves %d decos %d", k, st.drawnFish, fishOn, st.drawnGlints, st.drawnButterflies, st.leaves, st.drawnDecos))
+		table.insert(seen, string.format("%03d: glints %d butterflies %d leaves %d decos %d", k, st.drawnGlints, st.drawnButterflies, st.leaves, st.drawnDecos))
 		E.run(1 / 8)
 	end
 	log("ambient frames: %s", table.concat(seen, "; "))
@@ -2095,39 +2088,53 @@ local function walkTo(p, x, z)
 	settle(p, 30, 1)
 end
 
--- The founder swimming in the sea between two islands (no docks since 2026-11-13: the neighbour's village at work,
--- boats out at sea); then the same pan baked from scratch, to compare a scrolled picture with a fresh one.
-function SCEN.sea()
+-- The founder on their island's east rim with the neighbour's island floating off in the sky (the request of
+-- 2026-11-20: "make it a floating island instead, with a 2d skybox"), the view at its farthest notch; then the same
+-- pan baked from scratch, to compare a scrolled picture with a fresh one.
+function SCEN.sky()
 	local p = join(50, "Walker")
 	seedProfile(51, 2, { pieces = VILLAGE, pals = PALS})
 	join(51, "Neighbour", { client = false })
 	settle(p)
 	local Street = H.sharedServer("Data.Street")
-	local x1 = Street.origin(1)
-	local x2 = Street.origin(2)
-	walkTo(p, (x1 + x2) / 2 + 2, 16)
+	local x1, z1 = Street.origin(1)
+	local b = Street.plot(1)
+	local SU = modOr(p, "UI.SettingsUI")
+	if SU then
+		H.inClient(p, SU.setZoom, 1)
+	end
+	walkTo(p, x1 + b.x1 - 2, z1 + Street.CENTER.z)
 	E.run(0.5)
 	settle(p, 10, 0.5)
-	capture(p, "sea")
+	capture(p, "sky")
 	local PR = modOr(p, "Pixel.PixelRenderer")
 	if PR and PR.isActive() then
 		H.inClient(p, function()
 			PR.rebake()
 		end)
 		settle(p, 40, 1)
-		capture(p, "sea_fresh")
+		capture(p, "sky_fresh")
 	end
 	return p
 end
 
--- The founder on the neighbour's island while their driftlings work.
+-- Visit: the HUD's Visit button, the list of the other islands (visit_list), then Visit on the neighbour's: the
+-- founder there while its driftlings work (visit), Home showing.
 function SCEN.visit()
 	local p = join(52, "Visitor")
 	seedProfile(53, 1, { pieces = VILLAGE, pals = { "frondle", "gullfin" } })
 	join(53, "Host", { client = false })
 	settle(p)
-	local x2, z2 = H.sharedServer("Data.Street").origin(2)
-	walkTo(p, x2 + 6, z2 + 12)
+	E.run(1)
+	if H.clickNamed(p, "Visit", { optional = true }) then
+		E.run(0.5)
+		capture(p, "visit_list")
+		H.clickNamed(p, "Visit_2", { optional = true })
+		E.run(1)
+	else
+		log("visit: no Visit button")
+	end
+	settle(p, 30, 1)
 	capture(p, "visit")
 	return p
 end
@@ -2551,7 +2558,7 @@ function SCEN.zoo()
 	local Creatures = H.sharedServer("Data.Creatures")
 	-- (the HUD off: the creatures alone on the lawn)
 	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 			g.Enabled = false
 		end
 	end
@@ -2942,17 +2949,7 @@ local function expandPerf(tier: number)
 		local cc = H.inClient(p, PR.debugCastCheck)
 		log("expandperf swap check: %d of %d layer pixels differ from a fresh cast (%d part ids, %d of them two faces at one depth, %d sun, %d shades); others: %s", cc.off, cc.checked, cc.ids, cc.ties or 0, cc.lits, cc.shades, tostring(cc.ex))
 	end
-	if PR and PR.debugDark then
-		local d = H.inClient(p, PR.debugDark)
-		local isl = d.islands[1]
-		log("expandperf dark after the expansion: island 1 at tier %s, %s; %d keyed pixels, %d dark, %d off the rule, %s rows left to grade", tostring(isl and isl.tier), if isl and isl.moving then "its edge moving" else "still", d.keyed, d.dark, d.off, tostring(d.left))
-	end
 	run("standing after", 120)
-	if PR and PR.debugDark then
-		local d = H.inClient(p, PR.debugDark)
-		local isl = d.islands[1]
-		log("expandperf dark at the end: island 1 at tier %s, %s; %d dark, %d off the rule, %s rows left to grade", tostring(isl and isl.tier), if isl and isl.moving then "its edge moving" else "still", d.dark, d.off, tostring(d.left))
-	end
 	E.coTime = nil
 	E.simClock = sim0
 	settle(p, 20, 1)
@@ -3085,7 +3082,7 @@ SCEN.picons = piconsScenario
 -- lays them out with the title and the captions)
 local function gthumbsScenario(arg: string?)
 	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile, harbor = HARBOR, pals = PALS }
-	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "dark") then
+	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "sky") then
 		env.mode = arg
 	elseif arg then
 		env.only = {}
@@ -3757,7 +3754,7 @@ local function palsScenario(arg, lod)
 	local PR = H.cmod(p, "Pixel.PixelRenderer")
 	local CC = H.cmod(p, "Controllers.CameraController")
 	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 			g.Enabled = false
 		end
 	end
@@ -3898,7 +3895,7 @@ local function looksScenario(arg)
 	local CC = H.cmod(p, "Controllers.CameraController")
 	local NT = H.cmod(p, "Controllers.NameTags")
 	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "World" then
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" and g.Name ~= "World" then
 			g.Enabled = false
 		end
 	end
@@ -4040,7 +4037,7 @@ local function animScenario(arg)
 	local PR = H.cmod(p, "Pixel.PixelRenderer")
 	local CC = H.cmod(p, "Controllers.CameraController")
 	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 			g.Enabled = false
 		end
 	end
@@ -4153,7 +4150,7 @@ local function animScenario(arg)
 end
 
 ------------------------------------------------------------------ run
-local list = if scenario == "all" then { "island", "village", "island3", "city", "sea", "build", "day" } else { scenario }
+local list = if scenario == "all" then { "island", "village", "island3", "city", "sky", "build", "day" } else { scenario }
 for _, name in list do
 	local fn = SCEN[name]
 	local panel = string.match(name, "^panel=([%w:]+)$")

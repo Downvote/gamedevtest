@@ -26,6 +26,7 @@ local DayLight = require(script.Parent.Controllers.DayLight)
 local WeatherView = require(script.Parent.Controllers.WeatherView)
 local Spinners = require(script.Parent.Controllers.Spinners)
 local WeatherChip = require(script.Parent.UI.WeatherChip)
+local SkyBackdrop = require(script.Parent.UI.SkyBackdrop)
 
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
@@ -55,6 +56,8 @@ AmbientView.start()
 Hud.start()
 -- the season and the weather (GAME_DESIGN 13): on the islands, then their lines in the HUD's status panel
 WeatherView.start()
+-- the painted sky round the floating islands (behind the pixel layer; it follows the weather)
+SkyBackdrop.start()
 Spinners.start()
 WeatherChip.start()
 

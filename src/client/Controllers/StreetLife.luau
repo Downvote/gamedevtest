@@ -1,8 +1,8 @@
 --!strict
--- The sea's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): sailboats crossing both ways south of the
--- islands, rocking on the swell (nothing a swimming founder bumps into), and a flock of gulls crossing now and then (no clouds' shadows: the player asked for
--- them gone). Client only, all in
--- Workspace.PixelDynamic, drawn by the pixel filter like the founders. Nothing here is the server's business. (The module keeps its old name: the street it once was.)
+-- The sky's ambient life (GAME_DESIGN 8; docs/ARCHITECTURE.md 10.2): a flock of white birds crossing between the
+-- islands now and then (no clouds' shadows: the player asked for them gone; the sailboats went with the sea on
+-- 2026-11-20, when the islands took to the sky). Client only, all in Workspace.PixelDynamic, drawn by the pixel filter
+-- like the founders. Nothing here is the server's business. (The module keeps its old name: the street it once was.)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -14,16 +14,13 @@ local Audio = require(script.Parent.Audio)
 
 local StreetLife = {}
 
-local BOAT_SPEED = 4 -- studs a second
 local started = false
 
-type Boat = { t: MicroModels.Thing, x: number, z: number, dir: number, speed: number, ph: number, parked: boolean? }
 type Bird = { t: MicroModels.Thing, x: number, z: number, y: number, ph: number, lag: number, parked: boolean? }
 
--- A boat or a gull is moved (its parts, its flags) only while it is near the view: art px past the layer's edge it
--- still counts as near (a ship's half length, and some). Away from the view it sails or flies on as numbers, its model
--- parked once under the sea floor, so no stale picture of it shows if the view turns its way (the four ships' hundreds
--- of parts and the gulls were moved every frame wherever they were: about 3% of a frame's scripts on a full island).
+-- A bird is moved (its parts) only while it is near the view: art px past the layer's edge it still counts as near.
+-- Away from the view it flies on as numbers, its model parked once far below, so no stale picture of it shows if the
+-- view turns its way.
 local NEAR_PX = 64
 local PARK = CFrame.new(0, -400, 0)
 local function nearView(t: MicroModels.Thing, rec: { parked: boolean? }, at: Vector3): boolean
@@ -49,12 +46,8 @@ local function dyn(): Instance
 	return nf
 end
 
-local function adopt(t: MicroModels.Thing, shadow: number?, groundY: number?)
-	if shadow then
-		t.model:SetAttribute("PixelShadow", shadow)
-		t.model:SetAttribute("PixelGroundY", groundY or Street.WATER_Y)
-	end
-	-- (scenery: a founder swimming by passes through it)
+local function adopt(t: MicroModels.Thing)
+	-- (scenery: nothing bumps into it)
 	for _, d in t.model:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.CanCollide = false
@@ -70,17 +63,6 @@ function StreetLife.start()
 	end
 	started = true
 	local b = Street.bounds()
-	-- two lanes out on the open sea, south of the islands' shallows
-	local laneE = Street.SEA.z0 + 17 -- eastbound (+X), the near lane
-	local laneW = Street.SEA.z0 + 23 -- westbound
-	local boats: { Boat } = {}
-	for i = 1, 4 do
-		-- the detailed boats of Models/BoatSpec, of a few sizes, their flags fluttering
-		local t = MicroModels.build("ship", { level = ({ 1, 2, 1, 3 })[i] })
-		local east = i % 2 == 1
-		adopt(t, 2.4)
-		table.insert(boats, { t = t, x = b.x0 + (b.x1 - b.x0) * (i - 1) / 4, z = if east then laneE else laneW, dir = if east then 1 else -1, speed = BOAT_SPEED * (0.8 + 0.12 * i), ph = i * 1.3 })
-	end
 	local birds: { Bird } = {}
 	for i = 1, 3 do
 		local t = MicroModels.build("bird", { color = "white" })
@@ -95,22 +77,6 @@ function StreetLife.start()
 		local now = os.clock()
 		local dt = math.min(0.1, now - last)
 		last = now
-		-- boats: wrap round the sea's ends, rise and roll on the swell (in whole steps: a quarter stud, a few degrees)
-		for _, c in boats do
-			c.x += c.dir * c.speed * dt
-			if c.dir > 0 and c.x > b.x1 + 12 then
-				c.x = b.x0 - 12
-			elseif c.dir < 0 and c.x < b.x0 - 12 then
-				c.x = b.x1 + 12
-			end
-			if nearView(c.t, c, Vector3.new(c.x, Street.WATER_Y, c.z)) then
-				local swell = math.sin(now * 1.6 + c.ph)
-				local bob = if swell > 0.3 then 0.25 elseif swell < -0.3 then 0 else 0.125
-				local roll = math.rad(if swell > 0.5 then 4 elseif swell < -0.5 then -4 else 0)
-				MicroModels.flutter(c.t, now + c.ph)
-				MicroModels.place(c.t, CFrame.new(c.x, Street.WATER_Y - 0.1 + bob, c.z) * CFrame.Angles(0, if c.dir > 0 then math.pi / 2 else -math.pi / 2, 0) * CFrame.Angles(0, 0, roll))
-			end
-		end
 		-- a flock crosses now and then
 		if now >= flockAt then
 			flockAt = now + 14 + math.random() * 10
@@ -122,7 +88,7 @@ function StreetLife.start()
 			-- (somewhere near the view: the lots reach far north since the twenty tiers, and a flock anywhere along them
 			-- would seldom be seen)
 			local cz = CameraController.centerWorld().Z
-			local z = math.clamp(cz + (math.random() - 0.5) * 100, Street.LOT.z0, Street.SEA.z1)
+			local z = math.clamp(cz + (math.random() - 0.5) * 100, Street.LOT.z0, Street.LOT.z1)
 			local y = 13 + math.random() * 6
 			for i, bd in birds do
 				local back = 20 + i * 4 + math.random() * 2
@@ -163,9 +129,9 @@ function StreetLife.start()
 	end)
 end
 
--- CLI checks only: the boats and gulls there are.
+-- CLI checks only: the birds there are.
 function StreetLife.count(): number
-	return if started then 7 else 0
+	return if started then 3 else 0
 end
 
 return StreetLife

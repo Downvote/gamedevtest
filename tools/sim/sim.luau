@@ -63,18 +63,19 @@ H.expect(land1 ~= nil and land1:FindFirstChild("Land") ~= nil and static:FindFir
 H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) == nil and land1:FindFirstChild("Plaza", true) == nil and land1:FindFirstChild("PlotSign", true) ~= nil, "join", "its sign, no campfire or plaza (the Tree of Life in the middle since 2026-11-20)")
 do
 	-- the Tree of Life in the island's middle (the request of 2026-11-20: "Remove the campfire in the middle and put the
-	-- tree in the middle instead"), no rock and no rock wall on the land (the dark is the pixel filter's)
+	-- tree in the middle instead"), no rock wall and no trail on the land (the rock is the floating island's underside)
 	local tq = prof.plot.placed[1]
 	H.expect(tq ~= nil and tq.id == "tree" and tq.x + 4 == Street.CENTER.x and tq.z + 4 == Street.CENTER.z, "join", "the Tree of Life stands in the island's middle", tq and string.format("%d,%d", tq.x, tq.z))
 	local rocky = 0
 	for _, d in (land1 and land1:GetDescendants() or {}) do
-		if d.Name == "Rock" or d.Name == "RockWall" or d.Name == "Trail" then
+		if d.Name == "RockWall" or d.Name == "Trail" then
 			rocky += 1
 		end
 	end
-	H.expect(rocky == 0, "join", "no rock, rock wall or trail on the land", tostring(rocky))
+	H.expect(rocky == 0, "join", "no rock wall or trail on the land", tostring(rocky))
 end
-H.expect(land1 ~= nil and land1:FindFirstChild("JettyPlank", true) == nil and land1:FindFirstChild("Mailbox", true) == nil and land1:FindFirstChild("Bound", true) == nil, "join", "no docks: no jetty, no mailbox, no coast walls (the founders swim)")
+H.expect(land1 ~= nil and land1:FindFirstChild("JettyPlank", true) == nil and land1:FindFirstChild("Mailbox", true) == nil and land1:FindFirstChild("Bound", true) ~= nil, "join", "no jetty, no mailbox; an invisible wall round the grass (a floating island since 2026-11-20)")
+H.expect(land1 ~= nil and land1:FindFirstChild("Lip", true) ~= nil and land1:FindFirstChild("Rock", true) ~= nil and land1:FindFirstChild("Water", true) == nil, "join", "a floating island: the earth lip and the rock under its edge, no sea")
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
 H.expect(dyn ~= nil and dyn:FindFirstChild("Founder_9101") ~= nil, "join", "the founder's chibi is there")

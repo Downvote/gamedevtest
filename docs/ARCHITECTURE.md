@@ -163,8 +163,8 @@ is `DriftlingIsle-<short hash>.rbxl`.)
 - One function stays under 200 locals and upvalues (luau-compile checks it).
 - Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
 - Some modules keep the names of the games before this one (the plots along a "street", the island's tiers an
-  "office"): `Data/Street` is the islands and the sea (no docks since 2026-11-13), `Data/Office` the island's tiers (their names),
-  `Models/DecorModels` builds every building, `Models/StreetModels` the islands and the sea,
+  "office"): `Data/Street` is the islands in the sky (no sea since 2026-11-20), `Data/Office` the island's tiers (their names),
+  `Models/DecorModels` builds every building, `Models/StreetModels` the floating islands,
   `Models/MicroModels` the driftlings and the island's small moving things.
 
 ## 3. Types (`src/shared/Types.luau`)
@@ -274,7 +274,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   count of huts), `HatcheryLimit` (Hatcheries by tier: 0, 0, then 1 from tier 3, 2 from 6, 3 from 10, 4 from 14, 5 from 18), `PathPieces` (path and
   water tiles together: 80, 150, 240, 340, 460, 600, 750, 900, 1,050, 1,200, then 120 more a tier to 2,400),
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
-  `HomeCooldown`, `WalkSpeed`, `SwimSpeed` (11: in the sea), `JumpHeight`), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
+  `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.2: the follow's smooth time), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
@@ -309,7 +309,7 @@ listed price times jobs / 2, so a place costs what it did at 2), charm (a path's
 | `Data/Titles` | the 34 titles (GAME_DESIGN 14) `{ id, name, how ("start" "tier" "taken" "best" "seen" "earned" "hatched" "days" "owned" "vip" "starter" "track"), n, color (a UIKit / Palette key) }`; `list`, `byId` |
 | `Data/Track` | the pass track (GAME_DESIGN 14): `LEVELS` (30), `list` (`{ free, prem }` a level, each a `Reward` `{ kind ("shells" with `mins`, "egg" with `r`, "look" or "title" with `id`) }`), `extra` (the last level's second reward each side: a legendary, a mythic egg) |
 | `Data/Office` | the island's twenty tiers (`plans[tier]`: `{ tier, name }`, Castaway Cay, Palm Isle, Grand Isle, Harbor Town, Coral City, Sunspire Capital, Moonlit Bay, Evergreen Isle, Skyreach Isle, Driftling Haven, Lantern Cove, Saltwind Reach, Kelpwood Isle, Pearlstone Port, Cloudberry Isle, Amberfield, Starfall Atoll, Tidecrown, Farshore, Everdrift: the island card's title and Expand's cheer; as many as `Tuning.TierCost`), `plan(tier)`, `origin(plot)` (Data/Street's). The island has no house (GAME_DESIGN 8) |
-| `Data/Street` | the islands and the sea (GAME_DESIGN 8): `warm(tier)` (works the whole island's cells and a tier's open ground out now: tens of ms, so never at an expansion), `MAX`, `SPACING`; the heights `LAWN_Y` (-0.5: the grass), `SAND_Y`, `WET_Y`, `FOAM_Y`, `SHALLOW_Y`, `WATER_Y` (each band a little lower than the one inside it), `SEABED_Y` (-1.6: the invisible floor under the whole sea the founders swim on, a step below the wet sand); the cell layers `GRASS SAND WET FOAM SHALLOW SEA_CELL` and how far past the coast each reaches, `BANDS` (`sand` 2.5, `wet` 3.5, `foam` 4.5, `shallow` 8 studs); `SEA` (the open sea south of the lots, plot-local z 86 .. 114; no docks since 2026-11-13: "remove the docks area, it should just be an island. players can swim around in water to reach other player islands"), `FAR` / `END_FAR` (water past the world's walls: no sky at the world's edges), `LOT` (a plot's lot: x +-85, z -72 .. 86, room for the whole island's shallows), `CENTER` (the island's heart, where a new island's Tree of Life stands: `Tree.SPOT`; the campfire's `PLAZA` went on 2026-11-20); `TOP` (20). The island is whole from the start (the request of 2026-11-20: "instead of expansion actually expanding the island, make the player start in the middle of the island first, which is surrounded by rocks. expanding removes these rocks to give space to the player to build"): `isle(tier)` (a tier's open ground round the island's heart, centre (0, 6), radii and wobble phases; `ISLES` has twenty, each the area the island had at that tier when islands grew: the first an oval 15 by 12, then circles of radius 19.1 up to 60.1, so it grows outward evenly ("make expansion expand outwards evenly instead of resulting in one long stretch", 2026-11-20); the top tier's is the whole island), `coast(tier, x, z)` (studs from the open ground's edge, below 0 inside: the oval's radius times a wobble of four sines, joined to every smaller tier's (the least distance) so it only grows), `layerAt(d)`, and per whole-stud cell (cached per tier, each tier's worked from its own oval and the tier below's cells; `cellKey`, room for x and z of +-1024): `layer` and `cellDist` (the whole island's, the top tier's, on every tier), `openDist(tier, x, z)` (studs from the open ground's edge), `locked(tier, x, z)` (grass past the open ground: in the dark, never built on), the darkness (the request of 2026-11-20: "Remove the rocks and make it a gradient dark filter instead, with the darkness retreating as it expands"; the rock and the trail through it went): `DARK_RAMP` (6: studs past the open ground's edge from no dark to the darkest), `DARK_COAST` (3: studs before the grass's edge over which it fades again, so the beach and the sea stay lit), `DARK_BINS` (1024 directions), `HEART` (the rings' centre, (0, 6)), `openRadius(tier, a)` (how far the open ground reaches along direction `a` from the heart: the widest of the tier's ring and every smaller one's, so `openDist` is the distance from the heart less it), `openRadii(tier)` (the same in the DARK_BINS directions, cached), `darkBin(x, z) -> (bin, rho)`, `darkAt(rho, open, coast) -> 0..1`, `darkness(tier, x, z)` (the pure picture of what the pixel filter draws), `cellBounds(tier)` (the whole island's), `buildable(tier, x, z)` (grass a stud or more inside the coast and the open ground), `walkable` (the whole island's grass, dark or not, the sand and the wet sand), `plot(tier)` (the open ground's bounding box); `origin(i)` (plots centred on x = 0), `plotAt(x, z)` (the open sea south of a lot counts as that lot's), `bounds()` (every lot and the sea south of them: where a founder can swim), `spawn()` (a new island's: just south of its tree, (0, 11.5); Plot.spawn finds it round the tree where it stands), `sign(tier)` (the island's sign on its south beach, west of the tree: the same on every tier now) |
+| `Data/Street` | the islands in the sky (GAME_DESIGN 8; the request of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the island bigger."): `warm(tier)` (works a tier's cells out now: tens of ms, so never at an expansion), `MAX`, `SPACING`; `LAWN_Y` (-0.5: the top of the grass, where pieces stand); the cell layers `GRASS` and `AIR`; `REACH` (3: how far past the edge a cell's coast distance is kept, for the bevels and the wall), `WALL` (1.5: the invisible wall's cells past the edge); `LOT` (a plot's lot: x +-85, z -72 .. 86, room for the top tier's island and its wall), `CENTER` (the island's heart, where a new island's Tree of Life stands: `Tree.SPOT`); `TOP` (20). `isle(tier)` (a tier's shape round the heart, centre (0, 6), radii and wobble phases; `ISLES` has twenty, each adding the ground the tiers always added: the first an oval 15 by 12, then circles of radius 19.1 up to 60.1, so the island grows outward evenly ("make expansion expand outwards evenly instead of resulting in one long stretch", 2026-11-20)), `coast(tier, x, z)` (studs from the island's edge, below 0 on the grass: the shape's radius times a wobble of four sines, joined to every smaller tier's (the least distance) so the island only grows), and per whole-stud cell (cached per tier, each tier worked from its own shape and the tier below's cells; `cellKey`, room for x and z of +-1024): `layer(tier, x, z)` (`GRASS` or `AIR`), `cellDist(tier, x, z)` (the coast distance, huge past `REACH`), `cellBounds(tier)` (every cell the drawing looks at), `buildable(tier, x, z)` (a stud or more in from the edge), `walkable(tier, x, z)` (the grass), `plot(tier)` (the island's box); `origin(i)` (plot i's world origin: a row along X centred on 0), `plotAt(x, z)` (the lot a world point is in, 0 off the row), `bounds()` (every lot), `spawn()` (just south of a new island's tree), `sign(tier)` (the south rim's last grass cell west of the tree). (The sea round the islands, its beach, wet sand, foam and shallows, the seabed the founders swam on, the darkness over land not open yet and the rock before it went on 2026-11-20.) |
 
 Coordinates in `Data/Street` are studs, plot-local, +Y up. The camera looks from the south-east (+X, +Z), so an
 island's back is its north-west. A piece's `rot` turns its model (built facing +Z: south, toward the viewer).
@@ -362,8 +362,8 @@ Models (`src/shared/Models`, Roblox modules):
   the slot and the seed, none begun before the rig stood still; or the doze: the head nodding down over 85% of
   `NOD_SEC` 3.05 s and back up, the body sagging, the arms hanging, "sleep" and at the bottom "snore"; a landing's
   crouch by `squash`),
-  `poseAction(rig, base, t, speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`, `swim` (in the
-  sea: a crawl when `speed` > 1, the arms turning over in turn and the legs kicking, leaning 30°; else treading
+  `poseAction(rig, base, t, speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`, `swim` (nobody swims since the sea went on
+  2026-11-20; kept: a crawl when `speed` > 1, the arms turning over in turn and the legs kicking, leaning 30°; else treading
   water, the arms sweeping out and back with a slow bob), the
   fights' `windup strike guard throw run victory ko` (nothing plays them now), and the island's work, each a loop with `k` the beat's phase:
   `dig pick fish chop saw sell serve hammer train tend`), `WORK_HIT` (where in a beat a work's blows land:
@@ -398,74 +398,58 @@ Models (`src/shared/Models`, Roblox modules):
   "hood" | nil`, the anchors `HEAD` (0, 3.125, 0), `BODY` (0, 1.875, 0), `HAND` (0.8125, 1.39, 0).
 - `Blocks.windy(root)`: the wind's tags for the pixel filter (§9.3): every part named `Flag...` or `Pennant...` (not
   a `...Pole`) gets `PixelWind` 2, every part in `leaf` or `leaf_dark` `PixelWind` 1 (water parts left alone). Called
-  by `StreetModels.land` and `DecorModels.build` on their models.
-- `BoatSpec` (the boat's plan for the sailboats: GAME_DESIGN 8; the ambient boats are levels 1 to 3; the pier's boat
-  and `moor` went with the docks on 2026-11-13): `MAX` (6), `dims(level) -> { L, W, H }`,
+  by `StreetModels.landChunk` and `DecorModels.build` on their models.
+- `BoatSpec` (the boat's plan: only the loading card's art draws a boat now; the ambient sailboats went with the sea on
+  2026-11-20, the pier's boat and `moor` with the docks on 2026-11-13): `MAX` (6), `dims(level) -> { L, W, H }`,
   `deck(level)` (the four places on deck, founder first: deck-top coordinates, +Z the bow), `deckOverWater(level)`, `parts(level) -> { { name, shape ("Block" "Wedge" "CylY"), size, cf (from the
   deck top's centre; the `Bow` wedge turned over: tall at the hull, its keel sloping up to the point), color, neon?,
   wind? } }` (the hull and every detail of GAME_DESIGN 8 by level; flags named `Flag...`). Every user applies `cf`'s
   rotation (MicroModels.ship, StreetModels.boat).
-- `StreetModels` (no docks since 2026-11-13: no boardwalk, pier, boat, jetty, path, mailbox or coast walls): `road(parent,
-  origin)` (a plot's water, `PixelWater` 1, `CanCollide` false, and the `Seabed` under it: an invisible floor, top at
-  `Street.SEABED_Y`, over the lot and the sea south of it), `land(parent, origin, tier)` (the island, the model "Land":
-  its chunks and the sign, the same on every tier since 2026-11-20: no plaza, no rock; GAME_DESIGN 4.4: "Expansion is very slow and laggy, especially at higher
-  levels", 2026-11-19), `landPlan(tier) -> { chunks = { { name, rect } }, sign }` (the island's chunks of `CHUNK` (16) x
-  16 cells, on a grid from the plot's origin and clipped to the lot, each with any of the island in it; a chunk's name
-  is `Chunk_<cx>_<cz>_<signature>`, two 26-bit hashes of every cell's code (`cellCode`: 0 the open sea, else its layer
-  and whether its coast distance is at most -1, over -0.9 and under 1.2: what the bevels, the grass's tone and the
-  scatter read; nothing that depends on the tier since the rocks went, so an expansion keeps every chunk) in it and
-  `LAND_MARGIN` (6) cells round it, and of the sign's place when it is within reach, so a
-  chunk a bigger tier leaves alone keeps its name), `landChunk(parent, origin, tier, chunk)` (one chunk: its cells
-  meshed into rectangles layer by layer within the chunk (the shallows `PixelWater` 2 and the foam 3, neither colliding,
-  an invisible `Shelf` under the foam halfway between the seabed and the wet sand as the step out of the sea; the wet
-  sand, the beach, the grass in two tones; the bevels read the cells round it, so a chunk's edge shows nothing), then
-  (no rock over the grass past the open ground since the request of 2026-11-20, "Remove the rocks and make it a
-  gradient dark filter instead": the pixel filter darkens it, Pixel/PixelRenderer's darkness), then
-  the coast's things on its cells (`scatterIn`: palms, rocks, shells, starfish, driftwood, seaweed and tufts, the tufts
-  on the grass's rim a stud from the beach; a cell
-  holds one of a kind when `hash01(x, z, salt)` is under the kind's share `p` and lowest among the kind's cells within
-  `gap` studs, never by the sign; turns, sizes, a rock's pebbles and a tuft's bloom from more hashes; a palm leans
-  `seaward` down the layers round it); `Blocks.windy`), `landSign(parent, origin, tier)` (the model
-  `signName(tier)`, "Sign_<2x>_<2z>", holding the `PlotSign` with its `SignBoard` on the south beach, `Street.sign`),
-  `emptyLot(parent, origin)` (open water and a
-  sandbar), `ends(parent)` (the sea past the ends with its seabed, sandbars past the walls, and the walls round the
-  world, 40 studs high). The seabed, the shelves and the walls are invisible, in the collision group `Bounds`, which
-  the pixel filter's rays (group `PixelRays`) pass through; the water lets a founder through, so they swim anywhere
-  inside the world's walls and climb out on any beach.
-  The layers are bevelled (2026-11-13, GAME_DESIGN 8: "could you bevel these to make them smoother, with rounded
-  corners?"; `coast` and `bevelled`). Each layer is a region of cells with a label (the
-  shallows, foam, wet sand and beach each the cells at or inside that band, every one running on under the bands
-  inside it, the foam included; the lawn 1 light, 2 dark, its rim of cells next to anything else always dark), and a
-  cell is four quarters (`quarters`): where both sides of a corner border another label the half at that corner takes
-  it, a higher label filling a notch, a lower one cutting a square corner only where no notch beside it is filled (so
-  the edge never zigzags). Whole cells are merged into boxes as before (`greedy`: by rows or by columns, whichever
-  makes fewer); a half cell is a `WedgePart` lying on its side (`flat`: its triangle flat, the prism's length upright
-  and as deep as the layer, the same name, colour and `PixelWater` kind as the layer's boxes), a run of half cells
-  along a diagonal one big wedge where the cells it also covers are the layer's own in that label, a lone quarter two
-  half-stud wedges. Coplanar parts of different colours never overlap (the lawn's tones split a cell between them).
-  Collision is as it was: a filled notch never collides, a cell still wholly covered does (two wedges), and a cut cell
-  of a solid layer keeps an invisible part where it stood (in `Bounds`, named as its layer). Parts at tiers 1, 5 and 10:
-  462, 1046 and 1517 before, about 660, 1540 and 2280 after (the island model, its props included; a tier-1 island
-  about 950 since the palms and the plaza were rebuilt on 2026-11-15). The palms (`palm(parent, at, s, lean)`,
-  rebuilt on 2026-11-15: "can you also rebuild the tree of life, and palm trees?") have one smooth trunk: seven round
-  `Trunk` segments along a curve from a flared foot into the crown, leaning out and coming upright under it, swelling
-  low down, a thin dark ring band at each joint (it closes the bend), lengths exact so the joints meet; a fibrous
-  boot; seven `Frond`s that rise, arch and droop, each two folds of leaflet blades hanging off its midrib, swept to
-  toothed edges, the upper ones `leaf` and the lower `leaf_dark` (they rustle), with a gap between two rising ones on
-  the side the camera sees (from +X +Z, worked out in the palm's own frame) so its coconuts and dead fronds show; two
-  young spear fronds in the middle, one or two dead fronds hanging, and a bunch of green and brown coconuts. About 60
-  parts. The plaza (`plaza`, the same day: "also, the campfire and seats in the middle"; gone with the campfire on
-  2026-11-20, the Tree of Life in its place): a ring of 11 `FireStone`s of
-  two greys in varied shapes, some mossy, round an ash bed with charcoal and glowing embers; four logs crossed under a
-  stick, their cut ends pale, topping out under the flickering flame (`MicroModels` "flame": an Outer, a Mid and a
-  Tip narrowing up, its yellow Core showing at the front corner); static `Flame` tongues and a glow bed round where it
-  stands; a kettle on the back stone and a marshmallow toasting on a stick. Three log benches where the seats were
-  (radius 2.75, the south open): each a round bark `Seat` log planed flat on top (`SeatTop`), its cut ends ringed, a
-  knot and moss, a blanket, a cushion or mugs on it. A firewood stack, a chopping stump with its axe, a tin bucket,
-  a stump stool with a cushion on a woven mat. The `FlagPole` on a little cairn with a gold `PoleKnob`, its `Pennant`,
-  `PennantTip` and `PennantMark` rippling; the two torches with straw `TorchBinding`s, a `TorchRim` and two
-  `TorchFlame`s each. Flames, fronds, coconuts and small props don't collide; the stones, logs, benches, stumps,
-  bucket, firewood and poles do.
+- `StreetModels` (the floating islands since 2026-11-20: "Never mind, make it a floating island instead, with a 2d
+  skybox. Expanding makes the island bigger."; no sea, beach, seabed, palms, shells or driftwood any more):
+  `land(parent, origin, tier)` (the island, the model "Land": its chunks, its wall and the sign), `landPlan(tier) -> {
+  chunks = { { name, rect } }, sign, walls }` (the island's chunks of `CHUNK` (8) x 8 cells on a grid from the plot's
+  origin and clipped to the lot, each with any of the island in it; a chunk's name is `Chunk_<cx>_<cz>_<signature>`,
+  two 26-bit hashes of every cell's code (`cellCode`: 0 the open air, else which of `BANDS` its coast distance is in:
+  the wall's, the lawn's edge and rim, the lip's and every ring of rock's inner and outer edges, the hangers' band)
+  in it and `LAND_MARGIN` (3) cells round it, and of the sign's place when it is near; a cell further in than the
+  lowest ring's inner edge reads the same on every tier, so an expansion changes only the chunks along the old and
+  the new edge), `landChunk(parent, origin, tier, chunk)` (one chunk's `layers` and `scatterIn`; `Blocks.windy`),
+  `wallsName(tier)` ("Walls_<tier>") and `landWalls(parent, origin, tier)` (the invisible wall round the tier's grass,
+  one model of its own: out of the chunks, so a chunk's box (what the pixel filter draws again or ahead when it comes
+  or goes) is only as big as what shows of it), `landSign(parent, origin, tier)` (the model `signName(tier)`,
+  "Sign_<2x>_<2z>", holding the `PlotSign` with its `SignBoard` on the south rim, `Street.sign`), `emptyLot(parent,
+  origin)` (an unclaimed plot: a little islet built the same way, 14 by 11, with a sign), `LIP_BOT` (-3.25) and
+  `BOTTOM` (-12.25: the lowest ring's underside). `layers(m, o, b, dist)`, top down, every outline bevelled: the
+  `Lawn` (`LAWN_H` 0.5 thick, top at `Street.LAWN_Y`, the founders stand on it; tone 2 dark along its rim and in
+  patches, 1 light elsewhere) on every cell with a coast distance of 0 or less; the `Lip` (`chocolate`, darker
+  `hair_brown` streaks; from under the lawn down to `LIP_BOT`) on the ring of cells within `LIP_W` (2) of the edge; the
+  `Rock` in `STRATA`, four rings, each its outline the island's shape `inset` further in (1.5, 3, 4.75, 6.75 studs)
+  and `w` wide (2.25 to 2.5), the next one's top its bottom (-3.25 .. -5.5 .. -8 .. -10.25 .. -12.25), in `rock` and
+  `rock_dark` patches, the lowest `rock_dark` and `slate`. Nothing is built under the island's middle: a ray from the
+  view meets the lawn, a ring's outer face, or passes under the lowest ring. Heights and lengths are on the quarter-stud
+  grid parts snap to (`Blocks.part`). `scatterIn(m, o, b, dist, sx?, sz?)` picks each kind's thing in its own block of
+  the grid (`block` cells a side, the chunk's size a whole number of them): the block's cell with the lowest
+  `hash01(x, z, salt)` among those in the kind's band of coast distance (`lo` .. `hi`), kept when a second hash is
+  under its share `p`, never within 3 studs of the sign: `tuft`s and flowers on the rim (-0.95 .. 0), `root`s hanging
+  from under the lip's overhang (-1.4 .. 0: two thin bars, 0.5 to 1.4 long), `hanger`s under the lowest ring (three
+  stone blocks narrowing to a point, 2 to 6 long, moss on the bigger ones), so a chunk's things depend on its own cells
+  alone. `walls(m, o, b, dist)`: the cells with a coast distance over 0 and up to `Street.WALL`, merged into boxes
+  `WALL_H` (14) high from a stud under the lawn, invisible, in the collision group `Bounds` (the pixel filter's rays,
+  group `PixelRays`, pass through them, and its redraws leave them out). The layers are bevelled (2026-11-13,
+  GAME_DESIGN 8: "could you bevel these to make them smoother, with rounded corners?"; `bevelled(m, o, b, lv, lab,
+  keep?)`): each layer is a region of cells with a label (the lawn's and the rock's tones), and a cell is four quarters
+  (`quarters`): where both sides of a corner border another label the half at that corner takes it, a higher label
+  filling a notch, a lower one cutting a square corner only where no notch beside it is filled (so the edge never
+  zigzags). With `keep`, only the cells it says yes to are drawn (a ring along the outline: the lip, each ring of
+  rock), the outline bevelled as the whole region's, so it meets the layer above with no seam. Whole cells are merged
+  into boxes (`greedy`: by rows or by columns, whichever makes fewer); a half cell is a `WedgePart` lying on its side
+  (`flat`), a run of half cells along a diagonal one big wedge where the cells it also covers are the layer's own in
+  that label, a lone quarter two half-stud wedges. Only the lawn collides: a filled notch never does, a cell still
+  wholly covered does, and a cut cell keeps an invisible part where it stood (in `Bounds`, named as its layer). Land
+  parts: a first island about 600, a top tier one about 4,500 (the rocks' first island had 8,479). (The palms, the
+  plaza with its campfire, the beach's shells, starfish and driftwood, the sea's water, seabed and shelves and the
+  world's walls went: the plaza on 2026-11-20 with the campfire, the rest the same day with the sea.)
 - `DecorModels.build(id, at, lvl?) -> Model` (its `Decor` attribute the id and `At` the frame it was built at, for
   Controllers/Spinners; every piece in `Data/Buildings`; `lvl` goes to the builder: a level
   kept from an older save, the tree's stage, or a water tile's neighbour mask plus 1; `at`: the footprint's centre on
@@ -905,7 +889,8 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `settings.set` | `k` ("pixel", "music", "sfx" or "zoom"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
-| `char.home` | - | PlotService puts the founder on their path | cooldown (`Tuning.HomeCooldown`), not_ready |
+| `char.home` | - | PlotService puts the founder in front of their own tree | cooldown (`Tuning.HomeCooldown`), not_ready |
+| `char.visit` | plot (small) | PlotService puts the founder in front of that island's tree (the islands float apart since 2026-11-20); data `{ plot }` | not_found (empty, or the own plot), cooldown (shared with Home), not_ready |
 | `look.wear` | `slot id` (a cosmetics slot; id "" takes it off) | `Store.wear` (the `Founder` attribute follows on the next sync) | bad_payload, locked (not owned) |
 | `title.set` | `id` ("" none) | `Store.setTitle` (the `Title` attribute follows) | not_found, locked |
 | `shop.buy` | `id` | `Store.buy` (a piece on sale in the player's rotating shop now, for shells; data `{ id, cost }`) | not_found (not on sale now), full (owned), money |
@@ -946,14 +931,16 @@ step whose task is already done moves on at once, several in a row if need be (a
 sends Fx "hatched"; `island.expand` runs `Tree.fill` and, when it laid any, sends Fx "eggs" with `more` the count. The quest's egg (`questEgg`: `Tree.ensure`) runs after `quest.claim` and `tut.next` and once a second on the clock's tick; when an egg turned it marks the session dirty and sends Fx "eggs" with `more` 0 and `turned` (the rarity), so the HUD says "A rare egg waits at the tree." and EggView, seeing the same egg id with another rarity on the plot's `Eggs` attribute, rebuilds its shell and lets it rise again.
 Nothing happens while the player is away: the tree's clock runs only in a ready session.
 
-### 7.5 `PlotService` (the sea)
-`init()` registers the collision groups `Bounds` (the invisible seabed, shelves and world walls) and `PixelRays` (the
+### 7.5 `PlotService` (the islands)
+`init()` registers the collision groups `Bounds` (the invisible walls round the islands' grass) and `PixelRays` (the
 pixel filter's rays), not colliding with each other, and `Staged`, `StagedBounds` (the next island built ahead, below:
 colliding with nothing) and `PreCast` (the pixel filter's rays that draw it ahead: meeting `Staged` and `Default`, not
-`Bounds` or `StagedBounds`), and builds the whole sea: `Workspace.Plots.Street` (every plot's
-water and seabed, `Road_<i>`, and the sea's ends) and open
-water on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
-free index, 0 when the sea is full: Main kicks), `release(i)` (back to open water, every attribute cleared).
+`Bounds` or `StagedBounds`), puts a little empty islet on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute
+`Owner` 0; no sea since 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes
+the island bigger."), and starts the fall check: every 0.5 s a ready player's character whose root is more than
+`FALL_DEPTH` (30) studs under the grass (fallen off past the wall in a glitch) is put back home (`placeCharacter`).
+`claim(player) -> plot` (the lowest free index, 0 when the server is full: Main kicks), `release(i)` (back to an empty
+islet, every attribute cleared).
 `build(s)`: `Plot_<i>` gets `Owner`, `OwnerName`, `StudioName` ("Name's Isle"); its `Static` gets
 `Land` for the island's tier (rebuilt only when `Static`'s `Built` attribute differs: the island for that tier built
 ahead is swapped in when it is ready, else it is built there and then) and `Decor` by difference
@@ -971,10 +958,13 @@ they were laid: every client draws every island's, `Controllers/EggView`; no `Ti
 went), and the player's `Founder` (`skin.hair.style.shirt`) and `Plot` (Main syncs every dirty session before sending
 its view; only changed values replicate). A player leaving clears every attribute, `Eggs` with them, so their eggs
 go from every client. The founder: `watchCharacters(player)`,
-`placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`).
+`placeCharacter(s)`, `spawnCFrame(s)`, `home(s)` (`char.home`, once every `Tuning.HomeCooldown`), `visit(s, i)`
+(`char.visit`: the founder to plot i's island, `spawnCFrame` of its owner's session 2.5 studs aside; not_found for an
+empty plot or the player's own, cooldown with Home, not_ready; data `{ plot }`).
 **The next island, built ahead** (GAME_DESIGN 4: the lag before an expansion; the request of 2026-11-19, "Expansion
-is very slow and laggy, especially at higher levels"): the land is `StreetModels.landPlan(tier)`'s 16x16-cell chunks,
-each named for its cells (a chunk whose cells and margin did not change keeps its name from one tier to the next).
+is very slow and laggy, especially at higher levels"): the land is `StreetModels.landPlan(tier)`'s 8x8-cell chunks,
+each named for its cells (a chunk whose cells and margin did not change keeps its name from one tier to the next: only
+those along the old and the new edge change).
 After each `build` a plot that can still grow queues its next tier; one background thread builds only the chunks the
 current land lacks (`landModelOf(i)`, `Static.Land.Land`), paced by `Blocks.pace` (60 parts a frame), each out of the
 world, then staged (`stageParts`: every part's group `Staged`, or `StagedBounds` for a `Bounds` one) and put in the
@@ -985,10 +975,10 @@ once all of it is there (`nextLand[i] = { tier, chunks, tree, hold, gen }`, the 
 stage; a newer plan or `release` destroys the hold). The swap `unstage`s each prebuilt chunk (and the tree) before it
 moves it over.
 `planOf(tier)` caches each plan. The expansion's `build` then diffs the land in place: the new chunks go in first
-(prebuilt ones moved over, any missing built then), the sign and the plaza if their names changed, and only then the
-chunks the new plan no longer has are destroyed, so the island never shows a hole. A plot with no land model yet
-builds the whole `StreetModels.land`. At tier 15 to 16 about 25 of 68 chunks change; at the first two tiers all of
-them do. `init` works out every tier's cells first (`Street.warm`). `debugNext(i) -> (tier?, ready, swaps)` (the sims'
+(prebuilt ones moved over, any missing built then), the sign and the wall (`landWalls`, its model named for the
+tier) if their names changed, and only then the chunks, the sign and the wall the new plan no longer has are
+destroyed, so the island never shows a hole and the founder is never unwalled. A plot with no land model yet builds
+the whole `StreetModels.land`. Grand Isle to Harbor Town: 55 chunks in over 43 out. `init` works out every tier's cells first (`Street.warm`). `debugNext(i) -> (tier?, ready, swaps)` (the sims'
 check: `ready` is the hold's chunks built).
 
 ### 7.7 `MonetizationService` (GAME_DESIGN 14)
@@ -1194,7 +1184,7 @@ key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: any
 island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
 the founder's ground point in the middle of the screen across and halfway between the HUD's top and bottom strips
-(and the tips banner), on any island or swimming in the sea. The target is not rounded; the follow's own place
+(and the tips banner), on any island. The target is not rounded; the follow's own place
 (`camX, camY`, art px) chases it on a critically damped spring (Unity's SmoothDamp, smooth time `CamFollowSecs` 0.2 s,
 the frame's dt counted) since 2026-11-18 ("make the camera a smooth lerp follow the player like most top down games
 instead of sharply cutting to the player"): it sets off gently, trails a steady walk by the founder's speed times
@@ -1263,7 +1253,7 @@ when none is coming or the filter is off),
 `afterGrow` and `growStats`, went on 2026-11-19: "Expansion is very slow and laggy, especially at higher levels. Is it
 possible to optimize and speed it up? No need for the transition anymore". The land's chunks that an expansion swaps
 (StreetModels.landPlan) come and go like any part: their rects are re-cast where they show, the whole layer re-baked
-behind the picture only when they cover more than `REBAKE_SHARE` of it.) The sea's wave phase is
+behind the picture only when they cover more than `REBAKE_SHARE` of it.) The water's wave phase is
 `waterPhase(wx, wz)`, shared with the bake. `project(world) -> (Vector2 full-screen px, on)`, `projectPixel(world) -> (i, j, on)`, `pixelAt(pos) -> (i, j)` (the
 art pixel under an InputObject's Position, as `projectPixel` gives them), `screenRay(pos) -> (origin,
 direction * length)` (pos = an InputObject's Position: the pick ray through what the layer shows), `nearScreen(world,
@@ -1285,39 +1275,20 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   with the layer (`SG.panShift`; the sticky pixels come off first, `SG.unstickFrame`, as the pan drops them) and the
   strips, with 3 px round them, go in as the static picture alone (`SG.strips`); otherwise the next compose copies the
   whole static layer and uploads the whole image.
-- **The darkness over the land not open yet** (`SG.DK`; the request of 2026-11-20: "Remove the rocks and make it a
-  gradient dark filter instead, with the darkness retreating as it expands. This should also make it much less laggy
-  when expanding"; Data/Street.darkness the rule). Each static pixel the street's view casts keeps a key in `sDark`
-  (u32, `DK.keyOf` from the hit point: the island (`Street.plotAt`) times 2^26, its direction bin from the island's
-  heart less one times 2^16, its distance in sixteenths of a stud; 0 off every island's reach, and on a stage); the key
-  scrolls, pastes from the pan cache and swaps with a bake like the water's phase. `gradeSpan` darkens a pixel by how
-  dark (0 .. 1) `Street.darkAt` makes its distance against its island's radius in its bin (`DK.cur[plot]`, `DARK_BINS`
-  radii; nil for an empty lot, a whole island open, or nothing known yet) and the coast's (`DK.coast`, the top tier's),
-  worked out inline, then dithered (the request of 2026-11-20, later: "Make the outside fuly black, and use dithering
-  for gradients"): d x `TONES` (3) splits into a flat tone and a fraction, and the pixel takes the next tone where the
-  fraction beats its threshold in the 4 x 4 ordered dither (`DK.BAYER`, (n + 0.5) / 16) at its world pixel (x +
-  `cam.gx`, y + `cam.gy`: the pattern holds still on a pan, since the static layer, its keys and the graded copy shift
-  together). `DK.darken(c, level)` (level 0 .. `SCALE`, 48; a tone is `SCALE` / `TONES`) greys it a little and scales it
-  toward pure black, black at `SCALE`, cached by colour and level. A dynamic model's pixel (a founder, a driftling)
-  takes the ground's key behind it and half the darkness, rounded to a level with no dither, so it stays readable and
-  doesn't shimmer as it walks over the pattern. `DK.step(s)` every frame (the
-  street's view only): each plot's `Owner` and `Tier` attributes ten times a second; an island first seen or gone
-  grades the whole picture again (`SG.ok` false); a new tier starts its edge easing from where it stands to the new
-  tier's radii over `SECS` (1.4 s, eased out). While an edge moves the picture is looked over in sweeps of `ROWS` (30)
-  rows a frame: the edges move on only when a sweep is done (each sweep shows one moment of them), and only the pixels
-  between the old and the new radius plus the ramp (`DK.band`) are graded again (`SG.px`, and `SG.gradePx` for the
-  image's copy), the image uploaded whole by the next compose (`SG.upWhole`, no compose of its own); a pan mid-sweep
-  starts it over. An expansion casts no ray for the land: a tier 3 to 4 expansion went from 22 frames over 4.8 s (33
-  land models built again and cast) to 22 frames over 1.3 s, the island drawing as fast as before a second later.
-  `debugDark() -> { islands = { [plot] = { tier, moving } }, ver, keyed, dark, off, left }` (the picture's keyed and
-  dark pixels, and how many have a level other than `Street.darkness` gives for their island's tier now: none once
-  the edges stopped).
+- **The see-through sky round the islands** (the request of 2026-11-20: "Never mind, make it a floating island instead,
+  with a 2d skybox. Expanding makes the island bigger."): the islands' view is `clear` (CameraController), so a pixel
+  whose ray meets nothing is left empty (alpha 0, never graded), like the hatch scene's stage, and `UI/SkyBackdrop`'s
+  painted sky shows through behind the pixel layer. An island's invisible wall and the parts that keep a bevel's cut
+  corner solid (group `Bounds`, `StagedBounds`, or wholly transparent) are never in the picture, so their coming and
+  going casts nothing (`watchStatic`'s `poke`). The rect a part and its shadow cover runs down to `Street.LAWN_Y` - 0.6
+  (`SG.boxRect`). (The darkness over the land not open yet, `SG.DK` with its `sDark` keys, ran for part of the same
+  day.)
 - **The pan cache** (`Pixel/PanCache`, `SG.Tiles`; the request of 2026-11-16: "is there any way to optimize the camera
   movement? it is still very laggy when moving around"): the view is orthographic and pans by whole art px, so a static
   pixel at a global art px is the same wherever the view stands. The strips a pan is about to scroll off are kept in
   tiles of `PanCache.TILE` (32) x 32 global art px (`save(bufs, gx0, gy0, x0, y0, x1, y1)`: each channel the cast
-  writes, `sShade sAlbedo sDepth sNormal sLit sId sShare sWClass sWave sDark`, in its own plane, a byte a pixel saying it is
-  good; 24 bytes a pixel), all but what a queued or running re-cast still covers (`SG.pendingOver`). A strip coming on
+  writes, `sShade sAlbedo sDepth sNormal sLit sId sShare sWClass sWave`, in its own plane, a byte a pixel saying it is
+  good; 20 bytes a pixel), all but what a queued or running re-cast still covers (`SG.pendingOver`). A strip coming on
   is cut along the tiles (`split`) and each piece the cache holds whole is copied in (`load -> boolean`), the rest
   cast; the ink, the contact shade and the water are drawn again over both. `queueRect` drops the tiles under its rect
   (`drop(gx0, gy0, gx1, gy1)`, on the layer or off it); a bake of the island's own view (not a stage's: the hatch scene
@@ -1474,12 +1445,12 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   back, unless a part under `Workspace.Plots` came or went meanwhile (then it bakes again). `ready()`: the view now has
   its finished picture (always true in the classic style). `setOffset(dx, dy)`: the layer shifted by whole art px
   (a hit's jolt in a minigame).
-- **Water**: a part with a `PixelWater` attribute (1 the sea, 2 the shallows, and the ponds, fountains and the rivers
+- **Water**: a part with a `PixelWater` attribute (1 deep water and 2 the shallows (the sea's, gone since 2026-11-20; 2 now the ponds, fountains and the rivers
   drawn on the island through `Parts.water`, 3 the foam, and a waterfall's white water, 4 falling water: class 6, its
   phase from its height and a little across, so pale streaks (`waterTone`: a crest and a lighter band under it, 14
   phase units a cycle, 3 a frame) run down the little waterfall's and the Spring Grotto's falls; the 2026-11-14
   request, "waterfalls having flowing water"; `waterColor`'s cache keyed `base * 32 + cls * 4 + tone`) marks its pixels in the bake
-  (`sWClass`) with a wave phase from their ground position (`sWave`: bands across the sea, bent by two sines);
+  (`sWClass`) with a wave phase from their ground position (`sWave`: bands across the water, bent by two sines);
   `WATER_HZ` (6) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
   baked tone: crests a light blue (`WATER_CREST`), troughs darker (`mixShaded` mixes in the layer's packed format,
   `Shading.pack`: red in the low byte), the foam's white coming and going (`waterColor`, cached per class, tone
@@ -1737,7 +1708,7 @@ with the campfire). Each island's sign gets a World-root label (its name, the ow
 "Unclaimed isle"; the `SignBoard` is looked up once in `Static.Land` and kept in `signBoards[i]` while it stays in the
 world, looked for again every 0.5 s while missing, so no frame walks the island's thousands of parts); a tap (`onTap`: a press let go within 8 px, not on the interface, not in Build mode) goes to
 `EggView.tapAt` first (an egg under the own tree: the tree panel); otherwise its ray (`PixelRenderer.screenRay` in the
-`PixelRays` collision group, as the picture's, so it passes the invisible seabed, shelves and world walls, which Roblox hits whatever
+`PixelRays` collision group, as the picture's, so it passes the islands' invisible walls, which Roblox hits whatever
 their CanQuery says because they collide) on a Tree of Life (`treeOf`: a model with the `Decor` attribute "tree")
 opens the "tree" panel for the own one, or for a neighbour's says "Not your tree. Yours is at home."; on a Hatchery (`hatcheryOf`: `Decor` "hatchery") the "hatch" panel for the own one, a notice for a
 neighbour's (2026-11-14); on a sign it shows `signCard(i)` (the day, driftlings, charm). Fx "hatched" (`hatchedOne`) bursts
@@ -1836,19 +1807,18 @@ focusX)` (WorldView's Heartbeat: the near islands synced, every egg moved, the t
 (the eggs drawn, not counting ones sinking or cracking: the sims and previews), `where(plot, id) -> Vector3?` (an
 egg's foot now, world; nil when not drawn), `hatchPoint(i) -> (x, z)` (where island i's last hatched egg lay; else in
 front of the tree's hollow, `DecorModels.HOLLOW`; else `Street.spawn`).
-`StreetLife` (client, started after AvatarView): four boats (`MicroModels` "ship" at BoatSpec levels 1, 2, 1, 3, blob shadows; nothing
-in them collides, so a swimmer passes through) crossing both ways on two lanes out at sea (`Street.SEA.z0` + 17 and + 23), rocking on the swell in whole steps, wrapping round the sea's ends; a flock of three
-gulls crossing every 14-24 s, each crossing its own (east or west, a slant, a height, a weave, each gull a little
-behind the next), every gull turned the way it flies (the model's head is +Z) and gliding now and then (no clouds'
-shadows: the player asked for them gone). `count()` for the CLI.
+`StreetLife` (client, started after AvatarView): a flock of three gulls crossing the sky between the islands every 14-24
+s, each crossing its own (east or west, a slant, a height, a weave, each gull a little behind the next), every gull
+turned the way it flies (the model's head is +Z) and gliding now and then (no clouds' shadows: the player asked for
+them gone; the four sailboats went with the sea on 2026-11-20). `count()` for the CLI.
 `AmbientView` (client, started after StreetLife; GAME_DESIGN 8.1): the islands' small lives, one effect layer
 ("ambient", `PixelRenderer.addFxLayer`) drawn with `Render/Fx` and UI/ArtData's `fx_` sprites (`Fx.define`: the frames
 `fx_<group>_1..n`; a group's small sprites `fx_<group>s_*` where the island shows small, `ppu` under `BIG_PPU` 7).
-Every claimed plot whose island's box (its cells and shallows, `Street.cellBounds`) lies on the layer gets an `Isle`
+Every claimed plot whose island's box (its cells and rim, `Street.cellBounds`) lies on the layer gets an `Isle`
 (made when it comes into view, let go `ISLE_KEEP` 10 s after it leaves; looked at every `ISLE_EVERY` 0.5 s): its cells
 by the tier's shape (`buildLand`: tufts sown in patches, `Fx.patch(x, z) * 0.4` a grass cell, kept in 8-stud
-chunks culled to the screen; little flowers in clusters, 2.5 % of the cells; the dry beach; water cells 0.8 to 11 studs
-past the foam), and what its models hold (`scan`, again 0.6 s after a piece comes or goes in its `Static.Decor` or a
+chunks culled to the screen; little flowers in clusters, 2.5 % of the cells; no beach, sea or fish since
+2026-11-20), and what its models hold (`scan`, again 0.6 s after a piece comes or goes in its `Static.Decor` or a
 chunk in its land model, `Isle.landModel`; each of the land's chunks, or the empty lot as one, is looked at as a unit: the
 highest `Post`, `Rail` or `Top` of each fence, each `Ridge`, flat `Roof` and the sign's `Top` to perch on; `Flower`,
 `Bloom`, `Blossom`, `Petals`, `FlowerHeart` parts for the butterflies; `Leaves`, `Blossom` and `Leaf` parts a stud or
@@ -1856,29 +1826,28 @@ more across, their colour, a blossom or a pale pink one dropping petals; `Chimne
 smokehouse's `Vent`) smoking, `Steam`, `Teapot`, `Mug` steaming, and since 2026-11-19 (the request "detail all decor
 more, some having animations") `Flame` throwing up sparks (`Fx.KINDS.ember`: rising, winking), `Spray` throwing drops
 up from a fountain's jet that fall back (`Fx.KINDS.spray`: launched up, falling, gone where they land) and `Sparkle`
-twinkling now and then somewhere on the part (the sea's glint sprite, at most 40 glints at a time); at most 64 such
+twinkling now and then somewhere on the part (the glint sprite, at most 40 glints at a time); at most 64 such
 spots an island; the cells the pieces cover, so no bird stands in a building). A tick (`draw`, nothing while `CameraController.view().stage`): `stepLife` (the birds, the butterflies,
-leaves, wisps, a fish, fireflies), then the tufts and flowers (`drawDecos`: once per `ver`, whether the lawn itself
+leaves, wisps, fireflies), then the tufts and flowers (`drawDecos`: once per `ver`, whether the lawn itself
 shows at the tuft's foot (an up-facing static pixel at its depth whose albedo is the grass or the dark grass) and the
 lawn's tones there (`Fx.tones` of the static colour, pulled toward it: `softTones`, `TUFT_K` 0.38 of each step
 kept, a flower's petals `FLOWER_K` 0.6; whole tones before 2026-11-14); stuck with `Fx.stickSprite` in the frame of the gust passing
-(`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share), the sea's
-glints (a few a second on random sea or shallows pixels, by `sWClass`; fewer at night), splash rings, the fish, the
+(`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share), the
+glints on the rivers and ponds (a few a second on random water pixels, by `sWClass`), the
 particles (`Fx.step`: drops, wisps, leaves), the birds and the butterflies, the fireflies last. Birds (`stepBird`;
 4 an island at high, 3 medium, 2 low, pips and wrens in turn, and a gull): away, then in (flown in from one side of
-the screen over 1.6 s, a gull from the sea over 2.4 s) to a perch picked on screen round its middle (an ellipse
+the screen over 1.6 s, a gull over 2.4 s) to a perch picked on screen round its middle (an ellipse
 0.24 x 0.3 of the screen, a gull's 0.3 x 0.36: never under the HUD's cards), nobody within 3.5 studs (a gull 5) and no
-other bird on it (`pickPerch`: a rail, ridge or the sign 45 %, else a lawn cell, sometimes the beach; a gull the beach
+other bird on it (`pickPerch`: a rail, ridge or the sign 45 %, else a lawn cell; a gull a lawn cell
 only), perched (pecks, hops along the perch, looks round, 20 to 70 s, a gull 12 to 30), then off (`flee`: away from
 whoever came near, or when bored; at dusk) and away 6 to 16 s (a gull 25 to 60). Who walks: every player's character
 and the models in `Workspace.PixelDynamic` on the lawn (`PixelGroundY` the lawn's: the driftlings), every
 `RIGS_EVERY` 0.15 s. Butterflies (3 an island at high) by day (`DayLight.frac` 0.06 to 0.68) between the flowers,
 resting on one now and then; fireflies (22 at high) at night (0.78 to 0.97) over the lawn's spots; birds by day (0.03
-to 0.72). Fish: an island on screen every 9 to 22 s (divided by the tier's scale), a jump of 1.7 studs along the shore
-from a water cell round the screen's middle. Reduced motion (`GuiService.ReducedMotionEnabled`): no particles, flights
+to 0.72). Reduced motion (`GuiService.ReducedMotionEnabled`): no particles, flights
 or sway. `stats()` (what is alive and drawn, and the last tick's parts in ms: `msLife`, `msDecos`, `msParticles`,
 `msCreatures`), `birds(plot)` (`{ sp, state, x, y, z, on }`), `debugRun(on)` (the sims: the lives stepped on
-Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` (every bird, gull, fish and leaf due
+Heartbeat with the view's own camera while no picture is drawn), `debugHurry()` (every bird, gull and leaf due
 now), `setSuspended(on)` (a timing's A/B).
 
 `Spinners` (GAME_DESIGN 11; the request of 2026-11-14, "other models should be animated if possible too, such as
@@ -1949,9 +1918,11 @@ of it. Chips on one line (`Chip_shells`, `Chip_season`, `Chip_weather`; frames i
 `Value`; the shells easing to the store, the number flashing gold when it changes; `Hud.topChip(name, icon?, text?,
 color?)` sets the season's and the weather's icon, words and colour, nil words hiding it; no `Chip_wood` since
 2026-11-14, no `Chip_day` or `DayBar` since the same day: "also, this can be compressed into one line. remove the "day
-1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, sending `char.home` (no `MusicToggle` since 2026-11-14: the music, the sounds and the pixel art are the
+1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, sending `char.home`, and in its place
+while they are home `Visit` (since 2026-11-20, when the islands took to the sky: shown when Build mode is shut and
+`VisitUI.islands()` lists someone, looked at every 0.5 s; it opens the "visit" panel) (no `MusicToggle` since 2026-11-14: the music, the sounds and the pixel art are the
 Settings panel's, `UI/SettingsUI`; the right-hand column's top is `rightTop()`: `CHIP_Y`, level with the top bar, when
-the top bar and Home leave the column room, else `CARD_Y`; the top bar and Home call `restackSoon` when that may change),
+the top bar and Home (or Visit) leave the column room, else `CARD_Y`; the top bar and Home call `restackSoon` when that may change),
 the `Status` panel under the top bar on the left (`Hud.statusLine(name, icon?, text?, color?, onTap?)`: adds, changes
 or, with a nil `text`, removes a line `Status_<name>` (an 11 px `mini_<icon>` and its `Text`; given `onTap`, a ghost
 button `StatusTap_<name>` under them that calls it: the gift's line, `RewardsUI.openWaiting`); hidden while it has no lines and
@@ -2088,7 +2059,7 @@ the rest go to `Words.errText`.
 ### 10.6 `AvatarView`
 A founder per player (`CharacterModels.buildStanding`, look from the player's `Founder` attribute, else one from the
 UserId; drawn at `Tuning.FounderScale` 0.75 by `CharacterModels.setScale(rig, k)`: the parts' sizes once, and every
-pose shrunk about its base, the feet, in `posePose`; the swim depth and the name's height follow it), registered with the renderer and posed every frame at their character: feet on the ground under the
+pose shrunk about its base, the feet, in `posePose`; the name's height follows it), registered with the renderer and posed every frame at their character: feet on the ground under the
 HumanoidRootPart (a raycast down past characters and rigs, `RespectCanCollide`: only what the founder stands on, never
 a building, tree or piece of decor it walks through; a second ray without it finds a river or pond's water no more
 than a stud over that ground, for the wading) while the Humanoid stands (its `FloorMaterial`), in the air
@@ -2098,13 +2069,7 @@ the root moves. The own founder's feet are heard (Roblox's own character sounds 
 step every `5.4 / speed` seconds (0.24 .. 0.5) while it moves faster than 4 studs a second, `step_wood` on a plank,
 beam or edge part, `step_water` on a part with `PixelWater` no lower than 0.3 under the lawn (a river or pond drawn on
 the island, GAME_DESIGN 4.3; walking there kicks up `Puffs` "drop" splashes in place of dust, every 0.24 s, 0.14 s
-running); lower water (the sea, the shallows, the foam) or the `Seabed` / `Shelf` under it means swimming (floor
-"swim", GAME_DESIGN 8): the rig drawn `SWIM_SINK` (1.8) under the water's surface, `poseAction` "swim" (a crawl when
-moving, treading water when still), a `Ripple` (a ring of foam, four flat "foam" strips round them on the water,
-growing and shrinking in two steps; deep under the sea otherwise), a splash going in (`Puffs` "drop" 10 and a loud
-`step_water`), a stroke every 0.55 s while moving (drops ahead and a soft `step_water`), a few drops every 1.2 s when
-still; `swimming()` (the own founder now: the HUD sets `WalkSpeed` to `Tuning.SwimSpeed` and `JumpHeight` 0 while it
-is true); `step_sand` on ground under the lawn's height (the beach),
+running; nobody swims since the sea went on 2026-11-20); `step_sand` on ground under the lawn's height,
 else `step_grass`; `jump` as it leaves the ground, `land` (on the boards a firmer `step_wood`) as it comes down. The Roblox avatar is hidden on every client (`LocalTransparencyModifier` 1 on its parts and decals).
 The look (GAME_DESIGN 14.1): `Data/Looks.decode` of the `Founder` attribute, the indices clamped to the lists and a
 worn piece kept only when it is a known `Data/Cosmetics` id of that slot; the attribute string is the rig's key (a new
@@ -2119,7 +2084,7 @@ hat, worked out once a rig) every frame. `founderPos()`, `count()`, `lookOf(play
 title?, shown)`, `debugRig(player) -> (rig?, outlined)` (CLI checks), `setOverride(fn?)` (a cutscene poses the own rig
 instead: `fn(rig, t, dt)` every frame; nil gives it back).
 Standing about (GAME_DESIGN 9, the request of 2026-11-15): each record counts `idle` (seconds on the ground slower than
-1.5 studs a second; 0 walking, jumping, swimming or in a cutscene) and poses the rig with
+1.5 studs a second; 0 walking, jumping or in a cutscene) and poses the rig with
 `CharacterModels.poseFounder(rig, base, t, speed, idle, dozing, quiet, squash)`: `dozing` once `idle` passes
 `Tuning.DozeSecs` (40) and, for the own founder, nothing touched for as long (`UserInputService` InputBegan or
 InputChanged moves the clock); `quiet` is `GuiService.ReducedMotionEnabled` (no fidgets); `squash` 1 .. 0 over 0.2 s

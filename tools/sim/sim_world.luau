@@ -1,10 +1,12 @@
--- The sea and the islands (GAME_DESIGN 4, 6, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): the whole sea built at
--- start (no docks: open water on every lot with the seabed the founders swim on); two islands on plots 1 and 2 with
--- their lands (no coast walls, the sign on the beach), attributes and founders, each with its Tree of Life (its model
--- by its stage) and its first lot of eggs (the plot's Eggs attribute its session's); each client drawing its own
--- island's hut driftlings, the neighbour's and both founders, no villagers, and both islands' eggs round their trees;
--- the sea between two islands open to swim; a founder going onto the neighbour's island (the camera follows, Home
--- shows) and going home (and its cooldown); the island's small lives (AmbientView: birds alighting on the own island,
+-- The islands in the sky (GAME_DESIGN 4, 6, 8; docs/ARCHITECTURE.md 7.5, 10.2, 10.6, 10.7): a little empty islet on
+-- every plot at start, no sea (the request of 2026-11-20: "Never mind, make it a floating island instead, with a 2d
+-- skybox. Expanding makes the island bigger."); two islands on plots 1 and 2 with their lands (the lawn, the earth lip
+-- and the rock under its edge, an invisible wall just past the grass, the sign on the south rim), attributes and
+-- founders, each with its Tree of Life (its model by its stage) and its first lot of eggs (the plot's Eggs attribute
+-- its session's); each client drawing its own island's hut driftlings, the neighbour's and both founders, no
+-- villagers, and both islands' eggs round their trees; nothing but sky between two islands; a founder who falls off
+-- put back home; Visit (the HUD's button, its list, char.visit) taking a founder onto the neighbour's island (the
+-- camera follows, Home shows) and going home (and its cooldown); the island's small lives (AmbientView: birds alighting on the own island,
 -- flying off when the founder walks up, back later, away at night); placing (paid in shells), moving and clearing
 -- buildings with every refusal (no upgrades, the piece limit with the tree apart, the huts' limit), the server's
 -- Static.Decor following piece by piece; the same through Build mode's catalog (the Work tab's Farms row, a locked card
@@ -16,12 +18,12 @@
 -- on their own while the others still take theirs, Build mode's count on each tab, Remove all on the Inventory tab (a
 -- second tap to be sure, every group into the inventory, the tree staying) and everything back down from it for
 -- nothing; malicious plot payloads (fences and
--- erasers among them); a leaving player's island back to open water with its eggs gone; a full sea kicking the seventh
+-- erasers among them); a leaving player's island back to an empty islet with its eggs gone; a full sky kicking the seventh
 -- player; a newcomer's tree planted and its first lot laid; every claimed island's eggs in its attribute, drawn by the
 -- clients near it, the price tags over the own ones only; the tree fixed (a tap opens its panel; never cleared away,
 -- bought or replaced; it moves like any piece, its eggs with it; Build mode's Clear away off for it) while every other
--- piece clears away; a tier 20 island from a saved profile (its land far north of Driftling Haven's end, no walls up
--- there either and the seabed under the sea there, the founder at home up there, pieces, tiles and fences fitting
+-- piece clears away; a tier 20 island from a saved profile (its land far north of Driftling Haven's end, its wall up
+-- there too, the founder at home up there, pieces, tiles and fences fitting
 -- there, the pieces of tiers 11 to 20 built there, Build mode's button saying Island max).
 local E = require("./loader")
 local I = require("./inst")
@@ -73,44 +75,24 @@ local function rootOf(p)
 	return p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 end
 
------------------------------------------------------------------- 1. the sea before anyone joins
-E.phase = "sea"
+------------------------------------------------------------------ 1. the sky before anyone joins
+E.phase = "sky"
 local plots = E.workspace:FindFirstChild("Plots")
-H.expect(plots ~= nil, "sea", "Workspace.Plots exists")
-local seaFolder = plots and plots:FindFirstChild("Street")
-local stretches, ends = 0, 0
-if seaFolder then
-	for _, c in seaFolder:GetChildren() do
-		if string.match(c.Name, "^Road_%d+$") then
-			stretches += 1
-		elseif c.Name == "StreetEnds" then
-			ends += 1
-		end
-	end
-end
-H.expect(stretches == Street.MAX and ends == 1, "sea", "the water of every plot and the sea's ends", string.format("%d stretches, %d ends", stretches, ends))
--- no docks: no boardwalk, pier or boat; the water lets a founder through, the seabed under it holds them, out of the
--- pixel filter's rays
+H.expect(plots ~= nil, "sky", "Workspace.Plots exists")
+-- no sea: no water, no seabed, no sea's ends (the islands float in the sky since 2026-11-20)
 do
-	local docks, water, bed = {}, 0, 0
-	for _, d in if seaFolder then seaFolder:GetDescendants() else {} do
-		if d:IsA("BasePart") then
-			if d.Name == "Plank" or d.Name == "Boardwalk" or d.Name == "Pier" or d.Name == "Post" or d.Name == "Mailbox" then
-				table.insert(docks, d.Name)
-			elseif d.Name == "Water" then
-				water += if d.CanCollide == false and d:GetAttribute("PixelWater") == 1 then 1 else 0
-			elseif d.Name == "Seabed" then
-				local top = d.Position.Y + d.Size.Y / 2
-				bed += if d.CanCollide and d.Transparency == 1 and d.CollisionGroup == "Bounds" and math.abs(top - Street.SEABED_Y) < 1e-3 then 1 else 0
-			end
+	local sea = {}
+	for _, d in if plots then plots:GetDescendants() else {} do
+		if d.Name == "Street" or d.Name == "StreetEnds" or d.Name == "Seabed" or d.Name == "Shelf" or (d:IsA("BasePart") and d:GetAttribute("PixelWater") == 1) then
+			table.insert(sea, d.Name)
 		end
 	end
-	H.expect(#docks == 0, "sea", "no docks on the sea", table.concat(docks, ", "))
-	H.expect(water >= Street.MAX and bed >= Street.MAX, "sea", "water a founder swims through, an invisible seabed under it for every plot", string.format("%d water, %d seabeds", water, bed))
+	H.expect(#sea == 0, "sky", "no sea, no seabed", table.concat(sea, ", "))
 end
 for i = 1, Street.MAX do
 	local m = plotModel(i)
-	H.expect(m ~= nil and m:GetAttribute("Owner") == 0 and m:FindFirstChild("EmptyLot", true) ~= nil and officeOf(i) == nil, "sea", "plot " .. i .. " is open water")
+	local lot = m and m:FindFirstChild("EmptyLot", true)
+	H.expect(m ~= nil and m:GetAttribute("Owner") == 0 and lot ~= nil and lot:FindFirstChild("Lawn", true) ~= nil and lot:FindFirstChild("Lip", true) ~= nil and lot:FindFirstChild("PlotSign", true) ~= nil and officeOf(i) == nil, "sky", "plot " .. i .. " is a little empty islet with a sign")
 end
 
 ------------------------------------------------------------------ 2. two islands
@@ -249,29 +231,48 @@ for k, p in { a, b } do
 	H.expect(m:GetAttribute("Tier") == 1 and m:GetAttribute("Day") == prof.day and m:GetAttribute("Sailing") == nil, "islands", p.Name .. ": tier 1, the day (no sailing any more)")
 	H.expect(officeOf(k) == nil, "islands", p.Name .. ": no house any more")
 	local land = staticOf(k):FindFirstChild("Land")
-	H.expect(land ~= nil and m:FindFirstChild("EmptyLot", true) == nil, "islands", p.Name .. ": the island replaced the open water")
-	H.expect(land ~= nil and land:FindFirstChild("Foam", true) ~= nil and land:FindFirstChild("Shallows", true) ~= nil and land:FindFirstChild("Lawn", true) ~= nil, "islands", p.Name .. ": its coast (grass, foam, shallows)")
-	local fw = land and land:FindFirstChild("Foam", true)
-	H.expect(fw ~= nil and fw:GetAttribute("PixelWater") == 3, "islands", p.Name .. ": the foam animates (PixelWater)")
-	-- no docks and no coast walls: the founder swims off any beach; the foam and the shallows let them through, an
-	-- invisible shelf under the foam is the step back up to the wet sand
-	H.expect(land ~= nil and land:FindFirstChild("Bound", true) == nil and land:FindFirstChild("JettyPlank", true) == nil and land:FindFirstChild("Mailbox", true) == nil, "islands", p.Name .. ": no coast walls, no jetty, no mailbox")
-	local through, shelf = true, nil :: BasePart?
+	H.expect(land ~= nil and m:FindFirstChild("EmptyLot", true) == nil, "islands", p.Name .. ": the island replaced the empty islet")
+	-- a floating island: the lawn on top (it holds the founder), the earth lip and the rock under its edge (nobody
+	-- touches them), stones hanging under the rock; no water, no jetty, no mailbox
+	local lawnOk, under, hangers, waterParts = false, true, 0, 0
 	for _, d in (land :: Instance):GetDescendants() do
-		if d:IsA("BasePart") and (d.Name == "Foam" or d.Name == "Shallows") and d.CanCollide then
-			through = false
-		elseif d:IsA("BasePart") and d.Name == "Shelf" then
-			shelf = d
+		if d:IsA("BasePart") then
+			if d.Name == "Lawn" and d.CanCollide and math.abs(d.Position.Y + d.Size.Y / 2 - Street.LAWN_Y) < 1e-3 then
+				lawnOk = true
+			elseif (d.Name == "Lip" or d.Name == "Rock") and (d.CanCollide or d.Position.Y > Street.LAWN_Y) then
+				under = false
+			end
+			if d:GetAttribute("PixelWater") ~= nil then
+				waterParts += 1
+			end
+		elseif d:IsA("Model") and d.Name == "Hanger" then
+			hangers += 1
 		end
 	end
-	H.expect(through, "islands", p.Name .. ": the foam and the shallows let a swimmer through")
-	local shelfTop = if shelf then shelf.Position.Y + shelf.Size.Y / 2 else 0
-	H.expect(shelf ~= nil and shelf.CanCollide and shelf.Transparency == 1 and shelf.CollisionGroup == "Bounds" and shelfTop > Street.SEABED_Y and shelfTop < Street.WET_Y, "islands", p.Name .. ": an invisible shelf under the foam, a step between the seabed and the wet sand", tostring(shelfTop))
-	-- the island's sign on its south beach
+	H.expect(lawnOk and land:FindFirstChild("Lip", true) ~= nil and land:FindFirstChild("Rock", true) ~= nil and under, "islands", p.Name .. ": the lawn on top, the earth lip and the rock under its edge", string.format("lawn %s, lip %s, rock %s, under %s", tostring(lawnOk), tostring(land:FindFirstChild("Lip", true) ~= nil), tostring(land:FindFirstChild("Rock", true) ~= nil), tostring(under)))
+	H.expect(hangers > 0 and waterParts == 0, "islands", p.Name .. ": stones hanging under it, no water", string.format("%d hangers, %d water parts", hangers, waterParts))
+	H.expect(land:FindFirstChild("JettyPlank", true) == nil and land:FindFirstChild("Mailbox", true) == nil, "islands", p.Name .. ": no jetty, no mailbox")
+	-- the wall just past the grass, east of the heart: invisible, solid, out of the pixel filter's rays
+	local ox0, oz0 = Street.origin(k)
+	local ex = 0
+	while Street.layer(1, ex + 1, Street.CENTER.z) == Street.GRASS do
+		ex += 1
+	end
+	local wallAt = E.v3(ox0 + ex + 1.5, Street.LAWN_Y + 3, oz0 + Street.CENTER.z + 0.5)
+	local wall: BasePart? = nil
+	for _, d in (land :: Instance):GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Bound" then
+			local c, sz = d.Position, d.Size
+			if math.abs(wallAt.X - c.X) <= sz.X / 2 and math.abs(wallAt.Y - c.Y) <= sz.Y / 2 and math.abs(wallAt.Z - c.Z) <= sz.Z / 2 then
+				wall = d
+			end
+		end
+	end
+	H.expect(wall ~= nil and wall.CanCollide and wall.Transparency == 1 and wall.CollisionGroup == "Bounds" and wall.Size.Y > Tuning.JumpHeight + 2, "islands", p.Name .. ": an invisible wall just past the grass, over a jump", tostring(wallAt))
+	-- the island's sign on its south rim
 	local sign = land and land:FindFirstChild("SignBoard", true)
 	local gx, gz = Street.sign(1)
-	local ox0, oz0 = Street.origin(k)
-	H.expect(sign ~= nil and sign:IsA("BasePart") and math.abs(sign.Position.X - (ox0 + gx)) < 1 and math.abs(sign.Position.Z - (oz0 + gz)) < 1, "islands", p.Name .. ": its sign on the south beach", sign and tostring(sign.Position))
+	H.expect(sign ~= nil and sign:IsA("BasePart") and math.abs(sign.Position.X - (ox0 + gx)) < 1 and math.abs(sign.Position.Z - (oz0 + gz)) < 1, "islands", p.Name .. ": its sign on the south rim", sign and tostring(sign.Position))
 	local f = prof.founder
 	H.expect(p:GetAttribute("Founder") == string.format("%d.%d.%d.%d", f.skin, f.hair, f.style, f.shirt) and p:GetAttribute("Plot") == k, "islands", p.Name .. ": Founder and Plot attributes", tostring(p:GetAttribute("Founder")))
 	local sx, sz = Street.spawn()
@@ -340,7 +341,7 @@ local canvasA = a.PlayerGui:FindFirstChild("World") and a.PlayerGui.World:FindFi
 local s1 = canvasA and canvasA:FindFirstChild("Sign_1")
 local s3 = canvasA and canvasA:FindFirstChild("Sign_3")
 H.expect(s1 ~= nil and s1.Text == "Ava's Isle", "islands", "island 1's sign label", s1 and s1.Text)
-H.expect(s3 ~= nil and s3.Text == "Unclaimed isle", "islands", "open water's sign label", s3 and s3.Text)
+H.expect(s3 ~= nil and s3.Text == "Unclaimed isle", "islands", "an empty islet's sign label", s3 and s3.Text)
 
 -- a founder standing about (the requests of 2026-11-15: "the players eyes look too big, can they be 2 vertical lines
 -- instead? also, add more motion to the player, just like in the bakery game, like dozing off while afk"): thin
@@ -539,103 +540,34 @@ do
 	eyes.model:Destroy()
 end
 
------------------------------------------------------------------- 3. swimming over to the neighbour
+------------------------------------------------------------------ 3. over to the neighbour: Visit, Home
 E.phase = "walk"
--- the sea between island 1 and island 2 is open to swim: across from one's east shallows to the other's west ones,
--- nothing collidable stands between the seabed and a head's height (the islands' land and the sailboats apart), and the
--- seabed runs under all of it
+-- the islands float apart in the sky (the request of 2026-11-20): nothing at all between island 1's wall and island
+-- 2's, so nobody walks or swims over; Visit takes a founder there
 do
-	-- (past every cell of the islands' land and shallows, which are whole from the start)
 	local o1, o2 = Street.origin(1), Street.origin(2)
-	local cb = Street.cellBounds(1)
-	local east, west = 0, 0
-	for z = cb.z0, cb.z1 do
-		for x = cb.x0, cb.x1 do
-			if Street.layer(1, x, z) ~= Street.SEA_CELL then
-				east, west = math.max(east, x + 1), math.min(west, x)
-			end
-		end
-	end
-	local x0, x1 = o1 + east + 1, o2 + west - 1
-	local blockers, holes = {}, 0
-	for _, z in { 0, 12, 24, 40 } do
-		for _, d in plots:GetDescendants() do
-			if d:IsA("BasePart") and d.CanCollide then
-				local c, sz = d.Position, d.Size
-				local y0, y1 = c.Y - sz.Y / 2, c.Y + sz.Y / 2
-				if c.X + sz.X / 2 > x0 and c.X - sz.X / 2 < x1 and c.Z + sz.Z / 2 > z and c.Z - sz.Z / 2 < z and y1 > Street.SEABED_Y + 0.05 and y0 < 3 then
-					table.insert(blockers, string.format("%s (%s) at z %d", d.Name, d.Parent and d.Parent.Name or "?", z))
-				end
-			end
-		end
-		for x = math.ceil(x0), math.floor(x1), 4 do
-			local held = false
-			for _, d in plots:GetDescendants() do
-				if d:IsA("BasePart") and d.Name == "Seabed" then
-					local c, sz = d.Position, d.Size
-					if math.abs(x - c.X) <= sz.X / 2 and math.abs(z - c.Z) <= sz.Z / 2 then
-						held = true
-						break
-					end
-				end
-			end
-			holes += if held then 0 else 1
-		end
-	end
-	H.expect(#blockers == 0, "walk", "the sea between two islands is open to swim", table.concat(blockers, ", "))
-	H.expect(holes == 0, "walk", "the seabed under all of it", tostring(holes))
-end
--- the land not open yet (since 2026-11-20: the island whole from the start, the founder in the middle of it; the
--- request of 2026-11-20: "Remove the rocks and make it a gradient dark filter instead"): no rock, no rock wall and no
--- trail on the land, the dark land walked on like the rest
-do
-	local ox = Street.origin(1)
-	local rocky = 0
+	local b1 = Street.plot(1)
+	local x0, x1 = o1 + b1.x1 + Street.WALL + 1, o2 + b1.x0 - Street.WALL - 1
+	local between = {}
 	for _, d in plots:GetDescendants() do
-		if d:IsA("BasePart") and (d.Name == "Rock" or d.Name == "RockWall" or d.Name == "Trail") and math.abs(d.Position.X - ox) < Street.SPACING / 2 then
-			rocky += 1
+		if d:IsA("BasePart") then
+			local c, sz = d.Position, d.Size
+			if c.X + sz.X / 2 > x0 and c.X - sz.X / 2 < x1 then
+				table.insert(between, string.format("%s (%s)", d.Name, d.Parent and d.Parent.Name or "?"))
+			end
 		end
 	end
-	local walk = 0
-	for x = -40, 40 do
-		if Street.layer(1, x, 6) == Street.GRASS and Street.walkable(1, x, 6) then
-			walk += 1
-		end
-	end
-	H.expect(rocky == 0 and walk > 60, "walk", "no rock, rock wall or trail on a first island; its grass walked on out into the dark", string.format("%d rock parts, %d grass cells walked on along z 6", rocky, walk))
+	H.expect(#between == 0, "walk", "nothing but sky between two islands", table.concat(between, ", "))
 end
--- a founder in that sea swims (AvatarView: the ground under them is the sea, the rig sunk to its chest at the
--- surface, the strokes heard, a ring of foam round them; the HUD holds the jump and slows them to Tuning.SwimSpeed);
--- with E.raycastParts the ground ray hits every part, as in Roblox
+-- a founder who falls off anyway (a glitch past the wall) is put back home by their tree
 do
-	local AV = H.cmod(a, "Controllers.AvatarView")
-	local AudioA = H.cmod(a, "Controllers.Audio")
-	local mid = (Street.origin(1) + Street.origin(2)) / 2
-	local s0 = H.inClient(a, AudioA.playCount, "step_water")
-	E.raycastParts = true
-	for k = 0, 19 do
-		a.Character:PivotTo(E.cf.new(mid + k * 0.6, 3, 16))
-		E.run(0.1)
-	end
-	local swimming = H.inClient(a, AV.swimming)
-	local s1 = H.inClient(a, AudioA.playCount, "step_water")
-	local dynF = E.workspace:FindFirstChild("PixelDynamic")
-	local rig = dynF and dynF:FindFirstChild("Founder_" .. a.UserId)
-	local torso = rig and rig:FindFirstChild("Torso", true)
-	local ring = dynF and dynF:FindFirstChild("Ripple", true)
-	local ringPart = ring and ring:FindFirstChild("Ring1")
-	local hum = a.Character:FindFirstChildOfClass("Humanoid")
-	E.raycastParts = nil
-	H.expect(swimming == true, "walk", "in the sea between two islands the founder swims", tostring(swimming))
-	H.expect(torso ~= nil and torso.Position.Y < Street.WATER_Y + 1 and torso.Position.Y > Street.WATER_Y - 1.5, "walk", "the rig sunk to its chest at the surface", torso and string.format("%.2f", torso.Position.Y))
-	H.expect(ringPart ~= nil and math.abs(ringPart.Position.Y - Street.WATER_Y) < 0.2, "walk", "a ring of foam round them on the water", ringPart and string.format("%.2f", ringPart.Position.Y))
-	H.expect(s1 > s0, "walk", "the strokes heard", string.format("%d -> %d", s0, s1))
-	H.expect(hum ~= nil and hum.WalkSpeed == Tuning.SwimSpeed and hum.JumpHeight == 0, "walk", "slower in the water, and no jump", hum and string.format("speed %s jump %s", tostring(hum.WalkSpeed), tostring(hum.JumpHeight)))
-	-- back home by the tree for the camera's checks
+	local o1, oz1f = Street.origin(1)
+	a.Character:PivotTo(E.cf.new(o1 + 80, Street.LAWN_Y - 45, oz1f + 6))
+	E.run(1.5)
+	local r = rootOf(a)
 	local hx, hz = Street.spawn()
-	local hox, hoz = Street.origin(1)
-	a.Character:PivotTo(E.cf.new(hox + hx, 3, hoz + hz))
-	E.run(1)
+	H.expect(r ~= nil and math.abs(r.Position.X - (o1 + hx)) < 0.5 and math.abs(r.Position.Z - (oz1f + hz)) < 0.5 and r.Position.Y > Street.LAWN_Y, "walk", "fallen off: put back home by the tree", r and tostring(r.Position))
+	E.run(0.5)
 end
 local CCa = H.cmod(a, "Controllers.CameraController")
 local PRa = H.cmod(a, "Pixel.PixelRenderer")
@@ -654,14 +586,35 @@ end
 E.run(1)
 centred("at home the view centres on the founder")
 H.expect(H.buttonNamed(a, "Home") == nil, "walk", "no Home button at home")
+E.run(0.6)
+H.expect(H.buttonNamed(a, "Visit") ~= nil, "walk", "a Visit button at home while Bo is here")
+-- the Visit list: Bo's island (not Ava's own), its Visit takes Ava there, in front of Bo's tree
 local px0, py0 = CCa.pan()
-local ox2 = Street.origin(2)
-a.Character:PivotTo(E.cf.new(ox2 + 6, 3, 12))
+H.clickNamed(a, "Visit", { wait = 0.3 })
+H.expect(H.currentPanel(a) == "visit" and H.buttonNamed(a, "Visit_2", true) ~= nil and H.buttonNamed(a, "Visit_1", true) == nil, "walk", "the Visit list: Bo's island, not Ava's own", tostring(H.currentPanel(a)))
+H.clickNamed(a, "Visit_2", { wait = 0.5 })
 E.run(3)
+do
+	local r = rootOf(a)
+	local bx, bz = Plot.spawn(H.profile(b).tier, H.profile(b).plot.placed)
+	local ox2b, oz2b = Street.origin(2)
+	H.expect(r ~= nil and math.abs(r.Position.X - (ox2b + bx + 2.5)) < 0.5 and math.abs(r.Position.Z - (oz2b + bz)) < 0.5 and Street.plotAt(r.Position.X, r.Position.Z) == 2, "walk", "Visit: on Bo's island, in front of its tree, beside where Bo appears", r and tostring(r.Position))
+	H.expect(H.currentPanel(a) == nil, "walk", "the list closed")
+end
 local px1, py1 = CCa.pan()
 H.expect(px1 ~= px0 or py1 ~= py0, "walk", "the camera follows the founder onto the neighbour's island", string.format("%d,%d", px1, py1))
 centred("and keeps them in the middle there")
-H.expect(H.buttonNamed(a, "Home") ~= nil, "walk", "the Home button shows off the own island")
+H.expect(H.buttonNamed(a, "Home") ~= nil and H.buttonNamed(a, "Visit") == nil, "walk", "the Home button shows off the own island, Visit hides")
+-- the refusals: the own island, an empty plot, a plot past the row, within the cooldown
+do
+	E.run(Tuning.HomeCooldown)
+	local r1 = H.req(a, "char.visit", { plot = 1 })
+	local r2 = H.req(a, "char.visit", { plot = 5 })
+	local r3 = H.req(a, "char.visit", { plot = 0 })
+	local r4 = H.req(a, "char.visit", { plot = "2" })
+	H.expect(not r1.ok and r1.err == "not_found" and not r2.ok and r2.err == "not_found", "walk", "no visit to the own island or an empty plot", string.format("%s / %s", tostring(r1.err), tostring(r2.err)))
+	H.expect(not r3.ok and r3.err == "bad_payload" and not r4.ok and r4.err == "bad_payload", "walk", "a plot that isn't one refused", string.format("%s / %s", tostring(r3.err), tostring(r4.err)))
+end
 -- a tap on one of Bo's driftlings there opens its details, only to look at (the request of 2026-11-14, "allow players
 -- to click on creatures to open up a menu seeing their details"): its mutations come with its island's Pals attribute
 do
@@ -709,6 +662,7 @@ do
 	end
 end
 -- a few steps on the own island: the view moves with every one
+E.run(Tuning.HomeCooldown)
 local res = H.req(a, "char.home", {})
 H.expect(res.ok, "walk", "char.home", tostring(res.err))
 E.run(0.5)
@@ -814,8 +768,8 @@ E.run(2.5)
 
 ------------------------------------------------------------------ 3b. the island's small lives (Controllers/AmbientView)
 -- Drawn in the pixel layer, which the sims have no picture of: AmbientView.debugRun steps the lives with the view's own
--- camera. By day the birds alight on the own island (its grass, its beach, a fence, a roof or the sign, never the
--- water), fly off when the founder walks up to one and come back a while later; they leave for the night.
+-- camera. By day the birds alight on the own island (its grass, a fence, a roof or the sign, never off its edge), fly
+-- off when the founder walks up to one and come back a while later; they leave for the night.
 E.phase = "ambient"
 do
 	local AVa = H.cmod(a, "Controllers.AmbientView")
@@ -839,10 +793,8 @@ do
 		-- (a perched bird hops along its perch, up to 0.35 studs over it: AmbientView)
 		if b.on == "lawn" then
 			return l == Street.GRASS and Street.walkable(tierA, math.floor(b.x - ox), math.floor(b.z - oz)) and b.y > Street.LAWN_Y - 0.01 and b.y < Street.LAWN_Y + 0.36
-		elseif b.on == "sand" then
-			return l == Street.SAND and b.y > Street.SAND_Y - 0.01 and b.y < Street.SAND_Y + 0.36
 		end
-		return (b.on == "roof" or b.on == "fence") and b.y > Street.LAWN_Y and l ~= Street.SEA_CELL and l ~= Street.SHALLOW
+		return (b.on == "roof" or b.on == "fence" or b.on == "sign") and b.y > Street.LAWN_Y and l == Street.GRASS
 	end
 	local function perched()
 		local list, bad = {}, {}
@@ -858,7 +810,7 @@ do
 	end
 	local landed, bad = perched()
 	H.expect(#landed >= 2, "ambient", "birds alight on the own island by day", tostring(#landed))
-	H.expect(#bad == 0, "ambient", "each on its grass, its beach, a fence, a roof or the sign", table.concat(bad, "; "))
+	H.expect(#bad == 0, "ambient", "each on its grass, a fence, a roof or the sign", table.concat(bad, "; "))
 	-- the founder walks up to a perched bird: it flies off (and the island's other birds stay put unless near too)
 	local k = landed[1]
 	local b0 = k and H.inClient(a, AVa.birds, myPlot)[k]
@@ -2270,7 +2222,7 @@ local dropped2 = E.runUntil(function()
 end, 0.55, 0.02)
 E.run(2)
 local m2 = plotModel(2)
-H.expect(m2 and m2:GetAttribute("Owner") == 0 and m2:GetAttribute("StudioName") == nil and m2:FindFirstChild("EmptyLot", true) ~= nil and officeOf(2) == nil, "leave", "their island is open water again")
+H.expect(m2 and m2:GetAttribute("Owner") == 0 and m2:GetAttribute("StudioName") == nil and m2:FindFirstChild("EmptyLot", true) ~= nil and officeOf(2) == nil, "leave", "their island is an empty islet again")
 local WVa = H.cmod(a, "Controllers.WorldView")
 H.expect(WVa.rigCount() == WVa.ownRigCount(), "leave", "Ava no longer draws Bo's islanders", string.format("%d all, %d own", WVa.rigCount(), WVa.ownRigCount()))
 H.expect(H.cmod(a, "Controllers.AvatarView").count() == 1, "leave", "one founder left")
@@ -2311,7 +2263,7 @@ for _, k in E.kicks or {} do
 		kicked = true
 	end
 end
-H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is told the sea is full")
+H.expect(kicked and H.session(seventh) == nil, "full", "the seventh player is told the server is full")
 
 ------------------------------------------------------------------ 11. every island's tree and eggs; the tree fixed (GAME_DESIGN 4, 6)
 E.phase = "eggs"
@@ -2448,7 +2400,7 @@ H.checkMirror(c, "fixed")
 ------------------------------------------------------------------ 12. a big island (GAME_DESIGN 4: "allow the player to expand their land even more")
 -- A tier 20 save (Everdrift, the last of the twenty tiers since the request of 2026-11-14: "allow expansion up to level
 -- 20") joins on the plot the last server-side neighbour leaves: its land reaches far north of where Driftling Haven
--- (tier 10) ended, no coast walls up there and the seabed under the sea past its north shore, the founder walks up
+-- (tier 10) ended, its wall up there too, the founder walks up
 -- there and is still at home with the view on them, pieces, tiles and fences fit up there (the saved oak among them),
 -- the pieces of tiers 11 to 20 build there, and Build mode's button says Island max.
 E.phase = "big-island"
@@ -2494,13 +2446,18 @@ do
 			north = math.min(north, d.Position.Z - d.Size.Z / 2)
 		end
 	end
-	-- (the open ground grows both ways round the plaza since 2026-11-20; at the top tier it is the whole island)
+	-- (the island grows outward every way round the tree, a bigger island each tier)
 	local p10 = Street.plot(10)
 	H.expect(pr.z0 < p10.z0 - 8 and pr.z1 > p10.z1 + 8 and pr.x0 < p10.x0 - 8 and pr.x1 > p10.x1 + 8 and math.abs(north - pr.z0) < 0.01, "big", "its open ground reaches past where Driftling Haven's ended every way (the lawn to its edge)", string.format("lawn to z %.2f, grass x %d .. %d, z %d .. %d (Driftling Haven x %d .. %d, z %d .. %d)", north, pr.x0, pr.x1, pr.z0, pr.z1, p10.x0, p10.x1, p10.z0, p10.z1))
-	-- no walls in the far north either (the founder swims off any beach), and the seabed under the sea up there
-	H.expect(land ~= nil and land:FindFirstChild("Bound", true) == nil, "big", "no coast walls up north either")
-	-- what a whole island costs in parts (every island is whole from the start since 2026-11-20): this one, open to its
-	-- shore, and a first island, rock over all but the middle
+	-- its wall up north too: a Bound part just past the northmost grass
+	local wallNorth = false
+	for _, d in if land then land:GetDescendants() else {} do
+		if d:IsA("BasePart") and d.Name == "Bound" and d.Position.Z < pr.z0 + 1 and d.Position.Z + d.Size.Z / 2 > pr.z0 - 3 then
+			wallNorth = true
+		end
+	end
+	H.expect(wallNorth, "big", "its wall up north too")
+	-- what an island costs in parts: the top tier's and a first island
 	local function landParts(i: number): number
 		local lm = staticOf(i) and staticOf(i):FindFirstChild("Land")
 		local n = 0
@@ -2521,17 +2478,8 @@ do
 	end
 	local bigParts = landParts(bi)
 	H.log("land parts: tier 20 %d, tier 1 %d", bigParts, smallParts)
-	H.expect(bigParts > 0 and bigParts < 9000 and (small == nil or (smallParts > 0 and smallParts < 10000)), "big", "a whole island's land and rocks stay light", string.format("tier 20: %d parts; tier 1 (plot %s): %d parts", bigParts, tostring(small), smallParts))
-	local bedNorth = false
-	for _, d in plots:GetDescendants() do
-		if d:IsA("BasePart") and d.Name == "Seabed" then
-			local c, sz = d.Position, d.Size
-			if math.abs(box - c.X) <= sz.X / 2 and math.abs(Street.plot(TB).z0 - 6 - c.Z) <= sz.Z / 2 then
-				bedNorth = true
-			end
-		end
-	end
-	H.expect(bedNorth, "big", "the seabed reaches past its north shore")
+	H.expect(bigParts > 0 and bigParts < 12000 and (small == nil or (smallParts > 0 and smallParts < 3000)), "big", "an island's land stays light", string.format("tier 20: %d parts; tier 1 (plot %s): %d parts", bigParts, tostring(small), smallParts))
+	local _ = box
 	-- the saved oak stands up there
 	local decorB = decorOf(bi)
 	H.expect(oak ~= nil and decorB ~= nil and decorB:FindFirstChild(keyOf(oak)) ~= nil, "big", "the saved oak far north stands there", oak and keyOf(oak))

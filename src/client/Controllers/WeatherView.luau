@@ -16,7 +16,8 @@
 -- few steps when the weather turns, and its sounds (Audio.ambience "rain", "downpour", "wind"). A new spell fades in
 -- over a few seconds. Nothing shows on the hatch scene's stage, nothing moves with reduced motion (the light stays),
 -- and there is less of it on the lower tiers.
---   start(), debugSet(kind?) (previews and sims: a weather held), debugFlash(secs?) (previews: lightning now), debugState()
+--   start(), kind() (the weather showing now), debugSet(kind?) (previews and sims: a weather held), debugFlash(secs?)
+--   (previews: lightning now), debugState()
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -531,6 +532,11 @@ end
 -- Previews: a storm's lightning now, held `secs` (0.12 s, a real flash's length, when not given).
 function WeatherView.debugFlash(secs: number?)
 	flashUntil = os.clock() + (secs or 0.12)
+end
+
+-- The weather showing now (a Data/Weather.KINDS id): the painted sky follows it (UI/SkyBackdrop).
+function WeatherView.kind(): string
+	return kindNow()
 end
 
 -- What shows now (previews and sims).

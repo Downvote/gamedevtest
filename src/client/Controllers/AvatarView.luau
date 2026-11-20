@@ -9,10 +9,9 @@
 -- "Founder" attribute: the colours, the hair style and a piece in each of Data/Cosmetics' slots, built by
 -- Models/CharacterModels), is outlined in white (PixelRenderer's rim: outline "self" for the player's own, "player" for
 -- the others; a white Highlight in the classic style) and has a name tag over its head with the title it wears
--- (Controllers/NameTags, the "Title" attribute). Walking feet kick up puffs of dust. In the
--- sea (GAME_DESIGN 8: no docks since 2026-11-13, "players can swim around in water to reach other player islands") a
--- founder swims: the rig sinks to its chest at the water's surface and crawls (treads water when still), splashing,
--- the strokes heard; the HUD slows the character to Tuning.SwimSpeed there and holds its jump.
+-- (Controllers/NameTags, the "Title" attribute). Walking feet kick up puffs of dust, and splashes in a river or pond
+-- laid on an island. (The founders swam between the islands from 2026-11-13 until the islands took to the sky on
+-- 2026-11-20: GAME_DESIGN 8.)
 -- Standing about (the request of 2026-11-15: "add more motion to the player, just like in the bakery game, like dozing
 -- off while afk"): a founder breathes, shifts its weight, blinks, and every few seconds still does a fidget
 -- (CharacterModels.poseFounder: a look round, a toe tap, a yawn, a scratch, a hum, rocking, a stretch). Left alone
@@ -32,7 +31,6 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Cosmetics = require(ReplicatedStorage.Shared.Data.Cosmetics)
-local Blocks = require(ReplicatedStorage.Shared.Models.Blocks)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
 local Audio = require(script.Parent.Audio)
@@ -55,30 +53,24 @@ type Rec = {
 	dustAt: number, -- when their feet next kick up a puff of dust (walking)
 	air: boolean, -- in the air (a jump) last frame
 	rest: number?, -- the root's height over the ground as it last stood
-	floor: string, -- what the feet are on: "grass", "sand", "wood", "water" (a river on an island) or "swim" (the sea)
+	floor: string, -- what the feet are on: "grass", "sand", "wood" or "water" (a river or pond on an island)
 	stepAt: number, -- when the own founder's next footstep sounds
-	ripple: Model, -- a ring of foam on the water round them while they swim (deep under the sea otherwise)
-	idle: number, -- seconds standing still on the ground (0 while walking, jumping, swimming or in a cutscene)
+	idle: number, -- seconds standing still on the ground (0 while walking, jumping or in a cutscene)
 	landAt: number, -- when it last landed from a jump (the squash)
 	zAt: number, -- when its next Z floats up while dozing
 	zBig: boolean, -- the next Z the big one
 }
 
--- What a ground hit is, for the footsteps: the sea, its shallows and its foam (or the seabed under them) mean swimming,
--- a river or pond drawn on the island wading, planks and beams wood, the beach (lower than the lawn) sand, everything
--- else (the lawn, a path, a piece) grass.
+-- What a ground hit is, for the footsteps: a river or pond drawn on the island wading, planks and beams wood, anything
+-- lower than the lawn sand, everything else (the lawn, a path, a piece) grass.
 local function floorOf(hit: RaycastResult?): string
 	if hit == nil then
 		return "grass"
 	end
 	local n = hit.Instance.Name
-	-- (a river or pond drawn on the island: the founder wades through it, splashing: GAME_DESIGN 4.3; the sea, lower
-	-- down: it swims)
+	-- (a river or pond drawn on the island: the founder wades through it, splashing: GAME_DESIGN 4.3)
 	if hit.Instance:GetAttribute("PixelWater") ~= nil then
-		return if hit.Position.Y > Street.LAWN_Y - 0.3 then "water" else "swim"
-	end
-	if n == "Seabed" or n == "Shelf" then
-		return "swim"
+		return "water"
 	end
 	if string.find(n, "Plank", 1, true) or string.find(n, "Beam", 1, true) or n == "Pier" or n == "Edge" then
 		return "wood"
@@ -150,37 +142,6 @@ local function stepZeds(t: number)
 		local blink = age > Z_LIFE - Z_BLINK and math.floor((age - (Z_LIFE - Z_BLINK)) / 0.08) % 2 == 1
 		z.img.Visible = on and not blink
 		z.img.Position = UDim2.fromOffset(x0 + dx, y0 + dy - z.h)
-	end
-end
--- (swimming: the rig's feet this far under the water's surface, so it shows from the chest up)
-local SWIM_SINK = 1.8 * Tuning.FounderScale -- (to the chest of a founder drawn at FounderScale)
-local HIDDEN = CFrame.new(0, -60, 0)
-
--- A swimmer's ring of foam: four flat strips round them on the water (it grows and shrinks in two whole steps).
-local function rippleModel(): Model
-	local m = Blocks.model(nil, "Ripple")
-	for k = 1, 4 do
-		local p = Blocks.part(m, { size = Vector3.new(1, 0.05, 0.25), cf = HIDDEN, color = "foam", name = "Ring" .. k })
-		p.CanCollide = false
-		p.CanQuery = false
-		p.CastShadow = false
-	end
-	return m
-end
-
-local function placeRipple(m: Model, at: Vector3?, half: number)
-	for k = 1, 4 do
-		local p = m:FindFirstChild("Ring" .. k) :: BasePart?
-		if p then
-			if at == nil then
-				p.CFrame = HIDDEN
-			else
-				local across = k <= 2
-				local side = if k % 2 == 0 then 1 else -1
-				p.Size = if across then Vector3.new(half * 2 + 0.25, 0.05, 0.25) else Vector3.new(0.25, 0.05, half * 2 + 0.25)
-				p.CFrame = CFrame.new(at + (if across then Vector3.new(0, 0, side * half) else Vector3.new(side * half, 0, 0)))
-			end
-		end
 	end
 end
 -- A cutscene's hold on the own founder (UI/Voyage): it poses the rig instead of the character
@@ -267,8 +228,6 @@ local function drop(pl: Player)
 	if r then
 		PixelRenderer.unregisterDynamic(r.rig.model)
 		r.rig.model:Destroy()
-		PixelRenderer.unregisterDynamic(r.ripple)
-		r.ripple:Destroy()
 		NameTags.drop(r.tag)
 		recs[pl] = nil
 	end
@@ -309,12 +268,10 @@ local function feetY(rec: Rec, char: Model, root: BasePart): (number, boolean)
 	local hit = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), groundParams)
 	if hit then
 		rec.floor = floorOf(hit)
-		if rec.floor ~= "swim" then
-			-- (a river, pond or pool laid on the ground doesn't collide either: wading in it splashes)
-			local wet = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), wetParams)
-			if wet and wet.Instance:GetAttribute("PixelWater") ~= nil and wet.Position.Y <= hit.Position.Y + 1 then
-				rec.floor = floorOf(wet)
-			end
+		-- (a river, pond or pool laid on the ground doesn't collide either: wading in it splashes)
+		local wet = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), wetParams)
+		if wet and wet.Instance:GetAttribute("PixelWater") ~= nil and wet.Position.Y <= hit.Position.Y + 1 then
+			rec.floor = floorOf(wet)
 		end
 	end
 	if hit and not inAir then
@@ -350,10 +307,7 @@ local function step(dt: number)
 			rig.model.Parent = dyn()
 			-- (outlined in white: the player's own "self", everyone else's "player")
 			PixelRenderer.registerDynamic(rig.model, if pl == me then "self" else "player")
-			local ripple = rippleModel()
-			ripple.Parent = dyn()
-			PixelRenderer.registerDynamic(ripple)
-			r = { rig = rig, sig = sig, last = nil, speed = 0, tag = NameTags.make(pl), char = nil, dustAt = 0, air = false, floor = "grass", stepAt = 0, ripple = ripple, idle = 0, landAt = -1, zAt = 0, zBig = false }
+			r = { rig = rig, sig = sig, last = nil, speed = 0, tag = NameTags.make(pl), char = nil, dustAt = 0, air = false, floor = "grass", stepAt = 0, idle = 0, landAt = -1, zAt = 0, zBig = false }
 			recs[pl] = r
 		end
 		local rec = r :: Rec
@@ -397,38 +351,11 @@ local function step(dt: number)
 		local fwd = root.CFrame.LookVector
 		local flat = Vector3.new(fwd.X, 0, fwd.Z)
 		local yaw = if flat.Magnitude > 1e-3 then math.atan2(flat.X, flat.Z) else 0
-		local wasFloor = rec.floor
 		local fy, airborne = feetY(rec, char, root)
 		local base = CFrame.new(pos.X, fy, pos.Z) * CFrame.Angles(0, yaw, 0)
 		-- (the own founder's feet are heard: library sounds in place of Roblox's own, which RbxCharacterSounds turns off)
 		local mine = pl == me
-		if rec.floor == "swim" and not airborne then
-			-- swimming: sunk to the chest at the surface, a crawl or treading water; a splash going in, the strokes
-			-- heard, drops off the arms
-			base = CFrame.new(pos.X, Street.WATER_Y - SWIM_SINK, pos.Z) * CFrame.Angles(0, yaw, 0)
-			CharacterModels.poseAction(rec.rig, base, t, rec.speed, "swim")
-			rec.idle = 0
-			local surface = Vector3.new(pos.X, Street.WATER_Y + 0.1, pos.Z)
-			placeRipple(rec.ripple, Vector3.new(pos.X, Street.WATER_Y + 0.03, pos.Z), if math.floor(t * 2.5) % 2 == 0 then 1 else 1.25)
-			if wasFloor ~= "swim" then
-				Puffs.burst("drop", surface, 10, 0.6)
-				if mine then
-					Audio.play("step_water", { volume = 1.6 })
-				end
-				rec.stepAt = t + 0.4
-			elseif rec.speed > 2 and t >= rec.stepAt then
-				rec.stepAt = t + 0.55
-				Puffs.burst("drop", surface + (base.LookVector * 0.6), 3, 0.4)
-				if mine then
-					Audio.play("step_water", { volume = 0.8 })
-				end
-			elseif rec.speed <= 2 and t >= rec.dustAt then
-				rec.dustAt = t + 1.2
-				Puffs.burst("drop", surface, 2, 0.5)
-			end
-			rec.air = false
-		elseif airborne then
-			placeRipple(rec.ripple, nil, 1)
+		if airborne then
 			-- a jump: knees up, arms up, off the ground with the character
 			CharacterModels.poseAction(rec.rig, base, t, 0, "jump")
 			rec.idle = 0
@@ -437,7 +364,6 @@ local function step(dt: number)
 			end
 			rec.air = true
 		else
-			placeRipple(rec.ripple, nil, 1)
 			if rec.air then
 				rec.landAt = t
 				-- landing: a puff of dust at the feet (and a thump: on the boards, a firmer step)
@@ -472,10 +398,8 @@ local function step(dt: number)
 				rec.zAt = t + 1
 			end
 		end
-		-- a walk kicks up a puff of dust now and then, a run more often (in water: splashes; swimming has its own)
-		if rec.floor == "swim" then
-			-- (the strokes' drops above)
-		elseif not airborne and rec.speed > 6 and t >= rec.dustAt and rec.floor == "water" then
+		-- a walk kicks up a puff of dust now and then, a run more often (in water: splashes)
+		if not airborne and rec.speed > 6 and t >= rec.dustAt and rec.floor == "water" then
 			rec.dustAt = t + (if rec.speed > 14 then 0.14 else 0.24)
 			Puffs.burst("drop", (base * CFrame.new(0, 0.1, -0.3)).Position, 3, 0.3)
 		elseif not airborne and rec.speed > 6 and t >= rec.dustAt then
@@ -500,12 +424,6 @@ function AvatarView.founderPos(): Vector3?
 	local r = recs[Players.LocalPlayer]
 	local torso = if r then r.rig.parts.Torso else nil
 	return if torso then torso.Position else nil
-end
-
--- Whether the own founder is swimming in the sea now (the HUD slows it to Tuning.SwimSpeed and holds its jump).
-function AvatarView.swimming(): boolean
-	local r = recs[Players.LocalPlayer]
-	return r ~= nil and r.floor == "swim" and not r.air
 end
 
 -- A cutscene poses the own founder (nil: back to following the character).

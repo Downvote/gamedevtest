@@ -11,7 +11,8 @@
 #     bigger thing is its own picture, never one scaled), a shadow under each, and the words in the game's pixel faces:
 #     the title in HUGE (the BIG face doubled the way BIG doubles SMALL: every diagonal step kept to a 1 px stair) and
 #     the captions in BIG (scripts/gen_pixelfont.py), each in a ramp with the 1 px ink outline and ink depth under it.
-#   * the icon is 128 x 128 art px, 4x: 512 x 512: a driftling cheering on a hill by the sea, the rarest egg beside it.
+#   * the icon is 128 x 128 art px, 4x: 512 x 512: a driftling cheering on a little floating island in the sky, the
+#     rarest egg beside it.
 #
 # Usage: python3 tools/preview/game_thumbs.py <scenes dir> <cast log> <out dir> [--sheet sheet.png]
 #   scenes dir: the PNGs of the "gthumbs" and "gthumbs=hatch" runs (gth_<name>_desktop.png)
@@ -271,9 +272,9 @@ def thumb_build(sc, pics):
     return cv
 
 
-def thumb_dark(sc, pics):
-    cv = sc["dark"]
-    thumb_caption(cv, "Light up more of your island", top=True)
+def thumb_sky(sc, pics):
+    cv = sc["sky"]
+    thumb_caption(cv, "Grow your island in the sky", top=True)
     return cv
 
 
@@ -296,11 +297,6 @@ def icon(pics):
                 c = bc
         for x in range(IW):
             cv.put(x, y, c)
-    # the sea along the horizon, its far edge lighter
-    sea = PAL.get("sea", (60, 170, 210))
-    for y in range(84, 96):
-        for x in range(IW):
-            cv.put(x, y, light(sea, 0.3) if y == 84 else (sea if y < 90 else dark(sea, 0.88)))
     # clouds: puffs of circles, flat, a shade on their undersides
     def cloud(cx, cy, r):
         pts = set()
@@ -314,38 +310,43 @@ def icon(pics):
 
     cloud(22, 22, 7)
     cloud(96, 14, 6)
-    cloud(70, 44, 4)
-    # the hill: an ellipse of grass, its rim a step lighter, a band of sand where it meets the sea
+    cloud(14, 118, 5)
+    cloud(104, 122, 4)
+    # the floating island: a lawn (an ellipse, its rim a step lighter, a darker patch in the middle), the earth lip
+    # under its front edge, the rock under that stepping in every 4 px to a point (lit on the left), a 1 px ink outline
+    # round it all
     grass = PAL.get("grass", (110, 200, 90))
-    sand = PAL.get("sand", (240, 210, 170))
-    cx, cy, rx, ry = 64, 132, 92, 44
-    for y in range(80, IW):
+    earth = PAL.get("chocolate", (142, 92, 62))
+    rock, rock_dark = PAL.get("rock", (158, 150, 146)), PAL.get("rock_dark", (110, 102, 100))
+    cx, cy, rx, ry, lip = 64, 92, 58, 13, 6
+
+    def lawn_d(x, y):
+        return ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2
+
+    land = set()
+    for y in range(cy - ry - 1, IW):
         for x in range(IW):
-            d = ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2
-            d2 = ((x + 0.5 - cx) / (rx + 4)) ** 2 + ((y + 0.5 - cy) / (ry + 3)) ** 2
+            d = lawn_d(x, y)
             if d <= 1:
-                cv.put(x, y, light(grass, 0.25) if d > 0.9 else (grass if d > 0.35 else dark(grass, 0.92)))
-            elif d2 <= 1:
-                cv.put(x, y, sand)
-    # an ink line where the hill meets the sky and the sea
-    edge = []
-    for y in range(80, IW):
-        for x in range(IW):
-            c = cv.get(x, y)
-            up = cv.get(x, y - 1)
-            if c in (sand,) and up is not None and up not in (sand,) and not _is_land(up, grass, sand):
-                edge.append((x, y - 1))
-    for x, y in edge:
-        cv.put(x, y, dark(sea, 0.6))
-    stand(cv, pics["icon_egg"], 102, 112)
+                cv.put(x, y, light(grass, 0.25) if d > 0.86 and y < cy else (grass if d > 0.3 else dark(grass, 0.92)))
+            elif y > cy and any(lawn_d(x, y - t) <= 1 for t in range(1, lip + 1)):
+                cv.put(x, y, earth if lawn_d(x, y - lip + 1) <= 1 else dark(earth, 0.8))
+            else:
+                k = (y - (cy + 4)) // 4
+                w = (rx - 5) - k * 8
+                if y < cy + 4 or w <= 0 or abs(x + 0.5 - cx) > w:
+                    continue
+                cv.put(x, y, rock if x + 0.5 < cx else rock_dark)
+            land.add((x, y))
+    for (x, y) in list(land):
+        for (nx, ny) in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if (nx, ny) not in land and 0 <= nx < IW and 0 <= ny < IW:
+                cv.put(nx, ny, INK)
+    stand(cv, pics["icon_egg"], 100, 90)
     for (x, y, big) in ((90, 60, True), (118, 72, False), (114, 52, False)):
         sparkle(cv, x, y, big, light(PAL["accent"], 0.5))
-    stand(cv, pics["icon_main"], 52, 122)
+    stand(cv, pics["icon_main"], 52, 100)
     return cv
-
-
-def _is_land(c, grass, sand):
-    return c == sand or c == grass or c == light(grass, 0.25) or c == dark(grass, 0.92)
 
 
 # ---------------------------------------------------------------- main
@@ -375,7 +376,7 @@ def main():
             sys.exit("no scene " + p)
         return load_scene(p)
 
-    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "dark")}
+    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "sky")}
     os.makedirs(a.out, exist_ok=True)
     made = [
         ("thumb_1_title", thumb_title(sc, pics)),
@@ -383,7 +384,7 @@ def main():
         ("thumb_3_collect", thumb_collect(sc, pics, kinds)),
         ("thumb_4_build", thumb_build(sc, pics)),
         ("thumb_5_eggs", thumb_eggs(sc, pics)),
-        ("thumb_6_dark", thumb_dark(sc, pics)),
+        ("thumb_6_sky", thumb_sky(sc, pics)),
     ]
     imgs = []
     for name, cv in made:

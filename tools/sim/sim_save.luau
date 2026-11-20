@@ -175,7 +175,7 @@ local savedC = rec and rec.value.data.clutch
 local savedLeft = if type(savedC) == "table" then savedC.left else nil
 H.expect(type(savedC) == "table" and eggsOf(savedC) == eggs0 and savedC.next == next0 and type(savedLeft) == "number" and math.abs(savedLeft - before.clutch.left) < 0.25, "save", "the tree's eggs saved with their ids and their clock", string.format("%s, next %s, %s s", eggsOf(savedC), tostring(type(savedC) == "table" and savedC.next), tostring(savedLeft)))
 local freed = E.workspace.Plots:FindFirstChild("Plot_1")
-H.expect(freed ~= nil and freed:GetAttribute("Owner") == 0 and freed:FindFirstChild("EmptyLot", true) ~= nil and freed:GetAttribute("Eggs") == nil, "save", "the island is freed: open water again, no eggs listed")
+H.expect(freed ~= nil and freed:GetAttribute("Owner") == 0 and freed:FindFirstChild("EmptyLot", true) ~= nil and freed:GetAttribute("Eggs") == nil, "save", "the island is freed: an empty islet again, no eggs listed")
 E.phase = "rejoin"
 local p2 = H.addPlayer({ userId = 9201, name = "Saver" })
 E.run(2)

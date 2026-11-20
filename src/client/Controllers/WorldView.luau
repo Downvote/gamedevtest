@@ -233,7 +233,7 @@ local function stepBits(dt: number)
 			else
 				b.vel += Vector3.new(0, -b.grav * dt, 0)
 				b.pos += b.vel * dt
-				local floor = Street.WATER_Y
+				local floor = Street.LAWN_Y - 0.6
 				if b.pos.Y < floor then
 					b.age = b.life
 				end

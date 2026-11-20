@@ -1,15 +1,16 @@
 --!strict
--- The islands on the sea (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 8). At start the whole sea is built: every island
--- plot's water and the seabed the founders swim on (Workspace.Plots.Street) and an empty sandbar on every plot; no
--- docks (2026-11-13): each island stands alone and the founders swim between them. A player who joins takes the
--- lowest free plot: Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its grass and coast, the sign on
--- its beach: the same on every tier since the dark took the rocks' place, 2026-11-20) and their buildings and decor
--- (Static.Decor, one model a piece, named by its uid, kind, place and level); the island is rebuilt only when its tier
--- changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
--- goes up before an old one comes down. A player who leaves leaves an empty sandbar. Plot_<i>'s attributes tell every
--- client who is there and who lives there (WorldView draws every island's driftlings from them):
--- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Pals (the driftlings in its huts). The founder (the player's
--- character) appears in front of their own island's Tree of Life (Plot.spawn).
+-- The islands in the sky (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 8). Each plot holds a floating island (the request of
+-- 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the island bigger."):
+-- at start every plot gets a little empty islet; a player who joins takes the lowest free plot:
+-- Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its land in chunks at its tier, the sign on its rim)
+-- and their buildings and decor (Static.Decor, one model a piece, named by its uid, kind, place and level); an
+-- expansion swaps in only the chunks the bigger island changes (built ahead, below), the pieces by difference, so a
+-- client's renderer re-casts as little as possible. A new part goes up before an old one comes down. A player who
+-- leaves leaves an empty islet. Plot_<i>'s attributes tell every client who is there and who lives there (WorldView
+-- draws every island's driftlings from them): Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm,
+-- Pals (the driftlings in its huts). The founder (the player's character) appears in front of their own island's Tree
+-- of Life (Plot.spawn); an invisible wall round the grass keeps them on it, Visit takes them to another player's
+-- island and Home back (char.visit, char.home), and one who falls off anyway (a glitch) is put back home.
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -44,6 +45,7 @@ type TreeSpot = { uid: number, x: number, z: number, rot: number }
 local prebuildQueue: { { plot: number, tier: number, gen: number, tree: TreeSpot? } } = {}
 local prebuilding = false
 local swaps = 0 -- expansions that swapped in an island built ahead (the sim checks it)
+local FALL_DEPTH = 30 -- (studs under the grass: a founder this far down has fallen off)
 local plotsFolder: Folder? = nil
 local homeAt: { [Player]: number } = {}
 
@@ -140,8 +142,8 @@ end
 -- The next island stands in the world before it is wanted (the request of 2026-11-20: "Is there a way to make island
 -- expansion seamless, with no lag? Could you pre render max expansion floors so that expanding simply switches to that
 -- expansion level?"): its parts go to every client ahead of time, in collision groups that nothing collides with and
--- no ray meets but the pixel filter's pre-cast ("Staged", and "StagedBounds" for the invisible walls and shelves that
--- are "Bounds" on the island), so the clients can draw it before the expansion. `unstage` gives them their groups back.
+-- no ray meets but the pixel filter's pre-cast ("Staged", and "StagedBounds" for the invisible walls that are "Bounds"
+-- on the island), so the clients can draw it before the expansion. `unstage` gives them their groups back.
 local function stageParts(root: Instance)
 	for _, d in root:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -289,14 +291,14 @@ function PlotService.init()
 	for t = 1, most do
 		Street.warm(t)
 	end
-	-- the invisible seabed, shelves and world walls ("Bounds") hold the founders but are never in the pixel filter's
-	-- rays ("PixelRays")
+	-- the invisible walls round the islands' grass ("Bounds") hold the founders but are never in the pixel filter's rays
+	-- ("PixelRays")
 	pcall(function()
 		PhysicsService:RegisterCollisionGroup("Bounds")
 		PhysicsService:RegisterCollisionGroup("PixelRays")
 		PhysicsService:CollisionGroupSetCollidable("PixelRays", "Bounds", false)
 		-- the next island, built ahead (stageParts): it collides with nothing and only the pixel filter's pre-cast
-		-- ("PreCast") meets it, its walls and shelves not even that (the island's "Bounds" never meet a ray)
+		-- ("PreCast") meets it, its walls not even that (the island's "Bounds" never meet a ray)
 		for _, g in { "Staged", "StagedBounds", "PreCast" } do
 			PhysicsService:RegisterCollisionGroup(g)
 		end
@@ -309,17 +311,26 @@ function PlotService.init()
 		PhysicsService:CollisionGroupSetCollidable("PreCast", "Bounds", false)
 	end)
 	stagedRoot()
-	local root = folder()
-	local street = Instance.new("Folder")
-	street.Name = "Street"
-	for i = 1, Street.MAX do
-		StreetModels.road(street, originOf(i)).Name = "Road_" .. i
-	end
-	StreetModels.ends(street)
-	street.Parent = root
+	folder()
 	for i = 1, Street.MAX do
 		emptyLot(i)
 	end
+	-- (a founder who falls off an island anyway, past its wall in a glitch, is put back by their tree)
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			for _, player in Players:GetPlayers() do
+				local char = player.Character
+				local root = if char then char:FindFirstChild("HumanoidRootPart") else nil
+				if root and root:IsA("BasePart") and root.Position.Y < Street.LAWN_Y - FALL_DEPTH then
+					local s = Session.get(player)
+					if s and s.ready then
+						PlotService.placeCharacter(s)
+					end
+				end
+			end
+		end
+	end)
 end
 
 -- The lowest free plot for a player (0 when the street is full: Main kicks then; the server's size is MaxPlots).
@@ -469,7 +480,7 @@ function PlotService.build(s: S)
 				ahead[t.Name] = t
 				ready.tree = nil
 			end
-			local want: { [string]: boolean } = { [plan.sign] = true }
+			local want: { [string]: boolean } = { [plan.sign] = true, [plan.walls] = true }
 			for _, c in plan.chunks do
 				want[c.name] = true
 				if lm:FindFirstChild(c.name) == nil then
@@ -485,6 +496,10 @@ function PlotService.build(s: S)
 			end
 			if lm:FindFirstChild(plan.sign) == nil then
 				StreetModels.landSign(lm, o, tier)
+			end
+			-- (the wall round the bigger grass, before the old one comes down)
+			if lm:FindFirstChild(plan.walls) == nil then
+				StreetModels.landWalls(lm, o, tier)
 			end
 			for _, ch in lm:GetChildren() do
 				if not want[ch.Name] then
@@ -567,8 +582,8 @@ function PlotService.placeCharacter(s: S)
 	end
 end
 
--- "Go home" (char.home): the founder back by their own island's tree (from a swim, a neighbour's island), at most
--- once every Tuning.HomeCooldown seconds.
+-- "Go home" (char.home): the founder back by their own island's tree (from a visit), at most once every
+-- Tuning.HomeCooldown seconds.
 function PlotService.home(s: S): (boolean, any)
 	local now = os.clock()
 	if now - (homeAt[s.player] or -math.huge) < Tuning.HomeCooldown then
@@ -580,6 +595,32 @@ function PlotService.home(s: S): (boolean, any)
 	homeAt[s.player] = now
 	PlotService.placeCharacter(s)
 	return true, nil
+end
+
+-- "Visit" (char.visit { plot }): the founder over to another player's island, in front of its Tree of Life (the
+-- islands float apart in the sky since 2026-11-20, nobody walks between them), at most once every Tuning.HomeCooldown
+-- seconds with Home. not_found: nobody lives on that plot (or it is the player's own: Home takes them there).
+function PlotService.visit(s: S, i: number): (boolean, any)
+	local owner: Player? = taken[i]
+	if owner == nil or owner == s.player then
+		return false, "not_found"
+	end
+	local os2 = Session.get(owner :: Player)
+	if os2 == nil or not os2.ready then
+		return false, "not_found"
+	end
+	local now = os.clock()
+	if now - (homeAt[s.player] or -math.huge) < Tuning.HomeCooldown then
+		return false, "cooldown"
+	end
+	local char = s.player.Character
+	if char == nil or char.Parent == nil then
+		return false, "not_ready"
+	end
+	homeAt[s.player] = now
+	-- (a couple of studs aside from where the owner appears, so the two don't stand in one spot)
+	char:PivotTo(PlotService.spawnCFrame(os2) * CFrame.new(2.5, 0, 0))
+	return true, { plot = i }
 end
 
 -- A new character goes home once it has a root (Roblox drops it at the world's origin first).

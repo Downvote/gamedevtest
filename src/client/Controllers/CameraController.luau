@@ -52,7 +52,7 @@ export type View = {
 	room: Room, -- an inside lit as indoors (none any more: kept for the renderer)
 	box: Raster.Rect, -- the framing box on screen at the home pan (full-screen px)
 	stage: boolean, -- a microgame's stage (setStage), not the street
-	clear: boolean, -- the stage's sky see-through (Stage.clear)
+	clear: boolean, -- the sky see-through: the islands' (a painted sky behind, UI/SkyBackdrop) or a stage's (Stage.clear)
 	empty: boolean, -- a see-through stage with nothing static on it (Stage.empty): the renderer shows it at once, no bake
 }
 
@@ -202,7 +202,8 @@ local function build(): View
 		room = room,
 		box = { x0 = (bx0 - g.px) * K, y0 = (by0 - g.py) * K, x1 = (bx1 - g.px) * K, y1 = (by1 - g.py) * K },
 		stage = st ~= nil,
-		clear = st ~= nil and st.clear == true,
+		-- (the islands' sky is see-through too: UI/SkyBackdrop's painted sky shows round them, since 2026-11-20)
+		clear = st == nil or st.clear == true,
 		empty = st ~= nil and st.clear == true and st.empty == true,
 	}
 end

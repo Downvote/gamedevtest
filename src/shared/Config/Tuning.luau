@@ -248,10 +248,9 @@ local Tuning = {
 	StepHz = 10,
 	RateLimitPerSec = 12, -- requests per player per second (more are refused with "rate")
 
-	-- the sea and the islands (GAME_DESIGN 8; Data/Street)
-	MaxPlots = 6, -- islands in a row on the sea (the server's size)
-	-- (170 since 2026-11-20: every island is whole and round from the start, about 150 studs across with its shallows,
-	-- so a channel of open sea stays between two neighbours)
+	-- the islands in the sky (GAME_DESIGN 8; Data/Street)
+	MaxPlots = 6, -- floating islands in a row (the server's size)
+	-- (170 since 2026-11-20: the top tier's island is about 125 studs across, so open sky stays between two neighbours)
 	PlotSpacing = 170, -- studs between island origins along X
 	-- buildings and decor standing on an island, by its tier (more room since the build catalog grew: GAME_DESIGN 4)
 	PlotPieces = { 36, 60, 90, 130, 180, 240, 300, 370, 450, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140 },
@@ -273,7 +272,6 @@ local Tuning = {
 	FencePieces = { 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200 },
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
-	SwimSpeed = 11, -- studs a second in the sea (the founders swim between the islands)
 	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode)
 
 	-- camera and pixel filter (Random Bakery's values; ARCHITECTURE 9)

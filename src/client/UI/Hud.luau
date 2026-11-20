@@ -39,6 +39,7 @@ local StoreUI = require(script.Parent.StoreUI)
 local FounderUI = require(script.Parent.FounderUI)
 local RewardsUI = require(script.Parent.RewardsUI)
 local SettingsUI = require(script.Parent.SettingsUI)
+local VisitUI = require(script.Parent.VisitUI)
 local WelcomeUI = require(script.Parent.WelcomeUI)
 local BuildUI = require(script.Parent.BuildUI)
 
@@ -82,6 +83,8 @@ local status: Frame? = nil -- the status panel under the top bar (Hud.statusLine
 local statusLines: { [string]: Frame } = {}
 local statusOrder: { string } = {}
 local homeButton: TextButton? = nil
+local visitButton: TextButton? = nil -- (Visit: beside the top bar while the founder is home and someone else is here)
+local visitLook = 0 -- (when the other islands were last counted for it)
 -- (the HUD's blocks laid out again: set once `stack` is defined below; the top bar and Home call it when the
 -- right-hand column may move between the top row and under the top bar)
 local restackSoon: () -> () = function() end
@@ -126,9 +129,10 @@ local function rightTop(): number
 	if tb then
 		right = EDGE + tb.Size.X.Offset
 	end
-	local hb = homeButton
-	if hb and hb.Visible then
-		right = math.max(right, hb.Position.X.Offset + hb.Size.X.Offset)
+	for _, b in { homeButton, visitButton } :: { TextButton? } do
+		if b and b.Visible then
+			right = math.max(right, b.Position.X.Offset + b.Size.X.Offset)
+		end
 	end
 	return if right + GAP <= s.X - CARD_W - EDGE then CHIP_Y else CARD_Y
 end
@@ -192,9 +196,10 @@ local function layoutTop()
 	if tb.Size.X.Offset ~= w then
 		tb.Size = UDim2.fromOffset(w, TOP_H)
 	end
-	local hb = homeButton
-	if hb then
-		hb.Position = UDim2.fromOffset(EDGE + w + GAP, CHIP_Y)
+	for _, b in { homeButton, visitButton } :: { TextButton? } do
+		if b then
+			b.Position = UDim2.fromOffset(EDGE + w + GAP, CHIP_Y)
+		end
 	end
 	-- (the top bar grew or shrank: the right-hand column may move between the top row and under it)
 	local c = card
@@ -237,6 +242,13 @@ local function buildTop()
 	end, { name = "Home", color = UIKit.color("button_warn") })
 	hb.Visible = false
 	homeButton = hb
+	-- Visit: shown in its place while the founder is home and another player's island is here (the islands float
+	-- apart in the sky since 2026-11-20: UI/VisitUI lists them, each with a way over)
+	local vb = UIKit.button(canvas, "Visit", UDim2.fromOffset(UIKit.buttonWidth("Visit", 5), TOP_H), UDim2.fromOffset(EDGE + w + GAP, CHIP_Y), function()
+		UIKit.openPanel("visit")
+	end, { name = "Visit", color = UIKit.color("button") })
+	vb.Visible = false
+	visitButton = vb
 	-- (the music switch that sat in the top right corner moved into the Settings panel: UI/SettingsUI, the menu bar's
 	-- Settings, 2026-11-14)
 end
@@ -1103,13 +1115,13 @@ local function rebuild()
 	table.clear(chipFrames)
 	table.clear(chipIcons)
 	table.clear(last)
-	for _, f in { card, treeCard, tips, quest, homeButton, topBar, offers } :: { Instance? } do
+	for _, f in { card, treeCard, tips, quest, homeButton, visitButton, topBar, offers } :: { Instance? } do
 		if f then
 			f:Destroy()
 		end
 	end
 	offers, offerKey = nil, nil
-	card, treeCard, tips, quest, homeButton, topBar = nil, nil, nil, nil, nil, nil
+	card, treeCard, tips, quest, homeButton, visitButton, topBar = nil, nil, nil, nil, nil, nil, nil
 	CARD_W = if UIKit.phone() then 104 else 116
 	buildTop()
 	for name, said in chipSaid do
@@ -1137,6 +1149,7 @@ function Hud.start()
 	FounderUI.init()
 	RewardsUI.init()
 	SettingsUI.init()
+	VisitUI.init()
 	WelcomeUI.init()
 	rebuild()
 	StateClient.Changed:Connect(refresh)
@@ -1254,25 +1267,39 @@ function Hud.start()
 			RewardsUI.status(rv, Hud.statusLine)
 		end
 		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
-		-- clear of the tray's and the panels' buttons) and while swimming; in the sea the founder swims slower
+		-- clear of the tray's and the panels' buttons)
 		local char = Players.LocalPlayer.Character
 		local hum = if char then char:FindFirstChildOfClass("Humanoid") else nil
 		if hum then
-			local swimming = AvatarView.swimming()
-			local want = if BuildUI.isOpen() or UIKit.currentPanel() ~= nil or swimming then 0 else Tuning.JumpHeight
+			local want = if BuildUI.isOpen() or UIKit.currentPanel() ~= nil then 0 else Tuning.JumpHeight
 			if hum.JumpHeight ~= want then
 				hum.JumpHeight = want
 			end
-			local pace = if swimming then Tuning.SwimSpeed else Tuning.WalkSpeed
+			local pace = Tuning.WalkSpeed
 			if hum.WalkSpeed ~= pace then
 				hum.WalkSpeed = pace
 			end
 		end
 		local hb = homeButton
+		local home = atHome()
 		if hb then
-			local show = not atHome() and not BuildUI.isOpen()
+			local show = not home and not BuildUI.isOpen()
 			if hb.Visible ~= show then
 				hb.Visible = show
+				restackSoon()
+			end
+		end
+		local vb = visitButton
+		if vb then
+			local show = vb.Visible
+			if os.clock() - visitLook >= 0.5 then
+				visitLook = os.clock()
+				show = home and not BuildUI.isOpen() and #VisitUI.islands() > 0
+			elseif not home or BuildUI.isOpen() then
+				show = false
+			end
+			if vb.Visible ~= show then
+				vb.Visible = show
 				restackSoon()
 			end
 		end

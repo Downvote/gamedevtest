@@ -338,15 +338,15 @@ from kariosoft and make a simplified version of it in gamedevtest. dont touch th
 reference"), the pixel art rules (§2) and the polish requests (§11). The game studio of the earlier versions is gone
 (§10: an old save starts a fresh island).
 
-Driftling Isle is a small island-village management game for Roblox. You wash up in the middle of an island, by the
-Tree of Life, with the rest of the island in the dark round you and the sea all round. Every few minutes the tree lays **eggs**
+Driftling Isle is a small island-village management game for Roblox. You wake up on a little island floating in the
+sky, by the Tree of Life in its middle, with clouds drifting past below. Every few minutes the tree lays **eggs**
 round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
 then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build lumber camps, farms and shops,
 which all sell for shells, and huts for the driftlings you hatch; each one works wherever you send it, a little faster at
 the kind of building it's good at, more the rarer it is. Paths, fences, rivers and decor in 13 themes give it a look of its own. The driftlings do all the work: there are
 no villagers. Shells pay for the eggs, every building and growing the island, decor's charm brings in more of them,
-and once the huts are full a better hatchling can take a weak one's place. The islands of everyone on the server sit side by side on a shared sea, and
-you swim from one to the next. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
+and once the huts are full a better hatchling can take a weak one's place. Growing the island makes it bigger. The
+islands of everyone on the server float side by side in a shared sky, and Visit takes you from one to the next. The look, the build system and the file formats come from our own Random Bakery (`Downvote/test`): the
 2:1 pixel-art isometric diorama seen through the pixel filter, the pixel font, Rojo with strict Luau, a server that
 decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
@@ -367,8 +367,9 @@ offline progress).
 
 ## 2. Look and feel
 
-- **World:** one island per player in a row on the open sea (no docks: you swim between them), each with the Tree of Life at
-  its heart, its grass, a sand beach and a shore stepping down into a moving sea (§8), seen from the Random Bakery
+- **World:** one floating island per player in a row in the sky (Visit takes you between them), each with the Tree of
+  Life at its heart, its grass, an earth lip under its edge and rock stepping in under that, in front of a painted 2D
+  sky (§8), seen from the Random Bakery
   camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
 - **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
@@ -561,7 +562,7 @@ floor, it just looks noisy", 2026-11-14),
   names on planks; the chips, the notices and the tip (a parchment note) thin frames; the chips and the rows in the
   panels are carved boards (a lit top row, a shaded bottom one); the menu bar stands on a wooden dock; the build tray is
   a workbench with its tabs on a plank. The loading card is the island at dusk (§11).
-- **The founder:** you walk your island and swim the sea as a chibi founder (§9).
+- **The founder:** you walk your island and visit the others as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
 
@@ -1043,23 +1044,34 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > goes all the way to black, and the ramp into it is three flat tones with an ordered dither between each pair, the
 > pattern fixed to the world's pixels so it doesn't crawl when the view moves.
 
-The island is whole from the first day and round: about 132 studs across, its beaches, palms and shallows all round.
-The founder starts in the middle of it, by the Tree of Life, on a meadow round it, and the rest of the grass lies in
-the dark: the pixel filter darkens the land past the open ground to pure black, from nothing at the meadow's edge to
-black six studs out (`Street.DARK_RAMP`), and lighter again over the last three studs before the beach, so the beach and
-the sea stay lit (`Street.darkness`). The ramp is drawn the pixel art way: three flat tones between lit and black, each
-blending into the next by a 4 x 4 ordered dither fixed to the world's pixel grid, so it holds still while the view pans.
-A founder or a driftling out there is half as dark, in plain steps with no dither, so it stays readable and doesn't
-shimmer as it walks. Anyone may walk out into the dark; nobody builds there. Each tier opens a wider ring round the tree
-(`Data/Street`'s isles: the first a small oval, then circles from 19 studs across the radius to 60, each edge with its
-own wobble), so the open ground grows outward evenly every way, and growing to a tier pushes the dark back off its
-ring: the edge eases out over about a second and a half while the picture is graded again a band at a time. The land
-itself is the same on every tier, so an expansion builds, sends and draws no land at all. (Until the same day the
-grass past the open ground was under rock, shelves of stone with invisible walls, and a trail ran through it from beach
-to beach; both went with the request above.) The rings open as
-much ground as the islands used to gain (the table's grass), so the limits and prices still fit. The ring reaches the
-beaches about Sunspire Capital and the whole island is open at Everdrift: 12,193 cells. The islands stand 170 studs
-apart (80 before, when a new island was small), so open sea still runs between two neighbours. A piece may stand
+> The request (2026-11-20, later again): "Never mind, make it a floating island instead, with a 2d skybox. Expanding
+> makes the island bigger." So the dark and the beach and the sea round it went, and with them the swimming, the
+> sailboats and the fish: each island floats alone in the sky in front of a painted sky, and each expansion pushes its
+> edge outward. The island's middle never changes when it grows, so an expansion builds and draws again only the
+> chunks along the old and the new edge, ahead of time where it can (§4.5). Measured in the simulator on a full Grand
+> Isle growing to Harbor Town: the server's answer 453 ms, the new edge drawn in 90 frames over 6.5 s, 2.6 s of it
+> the simulator's own raycast index rebuilding (Roblox has none), the worst frame 547 ms; the darkness took 22 frames
+> over 1.2 s, the rocks 22 over 4.8 s. A top tier island is 4,457 land parts and a first one 607 (the rocks had 8,479
+> on a first island). The islands are too far apart to walk between, so the HUD has a **Visit** button beside its top
+> bar: it lists the other players' islands (name, owner, tier), and Visit puts you in front of that island's Tree of
+> Life. Home brings you back.
+
+The island floats in the sky and grows with its tier: tier 1 a small oval about 30 by 24 studs round the Tree of Life,
+then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
+its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
+built near the old edge has to move. On top is the lawn (two greens, a darker rim, darker patches), tufts and flowers
+along the rim. Under its edge hangs a warm brown earth lip about two studs deep, roots dangling from under it, then
+grey rock in four steps, each a stud or two further in and two studs further down, and stones hanging from the lowest
+one, so from the camera the island reads as a floating chunk of land tapering down into the sky. Under the middle
+there is nothing: no ray from the view ever reaches it. An invisible wall just past the grass keeps the founders on it;
+one who falls off anyway (a glitch) is put back by their tree. Buildings stand a stud or more in from the edge. The
+sky behind everything is painted pixel by pixel (§2): bands of blue paling toward the bottom, each meeting the next in
+an ordered dither, a few far islets floating in the haze, and puffy clouds in front of them that drift slowly and
+slide a little with the view; each weather has its own sky. (From 2026-11-20 the island was whole from the start
+with the land not yet open under rock, then in a dithered dark, the beach and sea round it; both went with the request
+above.) The islands grow by as
+much ground as the islands always gained (the table's grass), so the limits and prices still fit. The islands stand
+170 studs apart, so open sky runs between two neighbours even at Everdrift. A piece may stand
 anywhere from 240 studs north to 160 south (`Validate`'s `coord`, `Schema`). An older save's pieces past the open ground move to the nearest
 free spot inside it when it loads, or come up with their whole price back (`Plot.refit`), as after any change of shape. Since 2026-11-14 they cost
 shells: `TierCost`'s wood at `Tuning.WoodShells` (5) a wood, times `WoodTierUp` (1.8) for each tier past the second up to
@@ -2211,17 +2223,17 @@ What stayed: the nine kinds of island (`Data/Islets`) name the driftlings' famil
 the driftlings' models, moving parts and work moods; the day and night on the islands (§8). This section's earlier
 text (the requests and how each was met) is in the history of this file, up to commit f667462.
 
-## 8. The islands and the sea (`Data/Street`, `Models/StreetModels`, `Models/DecorModels`)
+## 8. The islands in the sky (`Data/Street`, `Models/StreetModels`, `Models/DecorModels`, `UI/SkyBackdrop`)
 
 > The request (2026-11-10): "make islands more irregular like actual islands, add shorelines, animated water,much
 > much more detail and polish to all models and islands, no need for the house. in the main island, make the camera
 > always center to the player."
 
-- **Islands like islands:** each island's coast is a wobbly oval of whole-stud cells (four sine wobbles), with its
-  bays and points. From the coast inward is the grass; outward a sand beach, wet sand, the foam line and the shallows,
-  each a little lower than the one inside it, so the shore steps down into the sea. Since 2026-11-20 the whole island
-  is there from the start, the grass past the open ground round the island's heart in the dark (4.4; rock until the
-  same day's later request); buildings stand on the open grass a stud or more in from the sand and from the dark.
+- **Islands like islands:** each island's edge is a wobbly oval of whole-stud cells (four sine wobbles), with its
+  bays and points. Since 2026-11-20 ("Never mind, make it a floating island instead, with a 2d skybox. Expanding makes
+  the island bigger.") the island floats in the sky: the grass on top, the earth lip under its edge, the rock stepping
+  in and down under that, stones hanging below (4.4), a painted sky behind (§2), and every tier a bigger island; the
+  beach, wet sand, foam and shallows round it went with the sea. Buildings stand a stud or more in from the edge.
 - **Rounded shores** (the request of 2026-11-13, with a picture of the stepped shore and a palm's trunk of stacked
   boxes):
 
@@ -2231,17 +2243,17 @@ text (the requests and how each was met) is in the history of this file, up to c
   Each band's edge was a staircase of whole studs. Now every inner corner of the stairs is filled with a flat
   triangle of that band, and a square outer corner is cut back the same way, so each edge runs straight along the
   grid or on a diagonal and turns in 45 degree steps: the island reads round, and a stretch at 45 degrees is one clean
-  line. The lawn's dark rim and darker patches, the shallows and the foam are bevelled the
-  same way, and the moving water runs over the new corners like the rest of it. You walk and swim exactly where you
-  did: the triangles are only looked at. The palms' trunks are one smooth curve of round rings joined end to end,
+  line. The lawn's dark rim and darker patches, the earth lip and each step of rock are bevelled the same way. You walk
+  exactly where you did: the triangles are only looked at. The palms' trunks are one smooth curve of round rings joined end to end,
   rising from the sand, leaning out and straightening under the crown, the rings in two woods in turn and a little
   narrower going up; the catalog's trees lost their steps too (§4).
 - **No house:** the island's heart is the Tree of Life (a plaza round a campfire, with fire stones, logs, a flame with
   smoke, seats, a flag and torches, until the request of 2026-11-20: "Remove the campfire in the middle and put the
-  tree in the middle instead"). Your sign stands on the south beach with the island's name over it. There are no docks (2026-11-13): the island stands alone in the sea.
-- **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
-  roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
-  pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) move the same way.
+  tree in the middle instead"). Your sign stands on the south rim with the island's name over it. There are no docks
+  (2026-11-13) and no sea (2026-11-20): the island floats alone in the sky.
+- **The water moves:** the fishing pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) are
+  redrawn a few times a second by the pixel filter, crests catching the light. (The sea moved the same way until it
+  went on 2026-11-20.)
 - **One bright day, no night** (the request of 2026-11-14: "remove the day night cycle, and make everything
   brighter"): the light no longer follows a clock. It is the same clear day all the time, a little brighter than the
   plain baked picture (`Controllers/DayLight`'s `BRIGHT` grade: the colours 3.5% lighter, 2.5% in the blue, the shadows
@@ -2280,7 +2292,8 @@ text (the requests and how each was met) is in the history of this file, up to c
   the loft is a striped lighthouse with a cottage, the palace has onion domes and a moat. The tool shed has tools on a
   board and a grindstone, the market stalls under striped awnings, the town hall a clock in its pediment, the tide
   bell a pool with glowing crests. Pictures in the build catalog are drawn again from the new models.
-- **Boats** (`Models/BoatSpec`: one plan for the sailboats crossing the sea), bigger and finer with each boat level: a planked hull with
+- **Boats** (`Models/BoatSpec`: one plan for the sailboats that crossed the sea until it went on 2026-11-20; the plan
+  stays for the catalog's boats), bigger and finer with each boat level: a planked hull with
   seams, a painted band (gold trim from level 4), a rim, a bow (tall against the hull, flush with the rim, its keel
   sloping up to the stem's point), a stern with its rudder and tiller and a planked deck;
   a rowboat's oars at level 1; a cabin with a door, windows and a life ring from 2; a bowsprit and jib from 3; a
@@ -2351,14 +2364,14 @@ text (the requests and how each was met) is in the history of this file, up to c
   than the frame taking longer. No driftling ever blinks out in a crowd: each keeps its last picture until its turn
   to be drawn again comes round. Campfire smoke and the lights round a rare egg move ten or twelve times a second,
   like hand-drawn sprites.
-- Up to `MaxPlots` (6) islands sit in a row on the sea, 80 studs apart; an unclaimed lot is open water with a sandbar
-  and a sign. Sailboats cross the sea, gulls fly over and cloud shadows drift across. **Swimming:** you walk off any
-  beach into the sea and swim to anyone's island (the water lets you through to an invisible seabed under the whole
-  sea, an invisible shelf under the foam is the step back up onto the wet sand, and only the world's edge stops you).
-  In the water the founder shows from the chest up with a ring of foam round them, crawls when moving and treads water
-  when still, splashing, the strokes heard; they swim at `SwimSpeed` (11, against 16 on land) and can't jump. Home
-  sends you back to your own tree. A tap on a sign shows that island's
-  day, driftlings at home and charm.
+- Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
+  with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
+  between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are
+  home and someone else is on the server, opens the list of their islands, each with its name, its owner and its
+  tier's name; Visit puts you in front of that island's Tree of Life, a couple of studs aside from where its owner
+  appears. Home sends you back to your own tree. Visit and Home share one cooldown (`Tuning.HomeCooldown`, 3 s). An
+  invisible wall round each island's grass keeps you on it, and a founder who falls off anyway is put back home. A tap
+  on a sign shows that island's day, driftlings at home and charm.
 
 ### 8.1 The island's small lives (`Controllers/AmbientView`, `Render/Fx`)
 
@@ -2371,10 +2384,10 @@ drawn as pixel-art sprites in the pixel layer itself (like Random Bakery's garde
 behind what stands in front of them and are drawn on whole art pixels like everything else.
 
 - **Birds:** little island birds of our own, a teal pip with a crest and a cream breast and a sandy wren with a coral
-  breast and a cocked tail, fly in and alight on the lawn, a fence post, a roof's ridge, the island's sign or the
-  beach, near the middle of the view. They hop along their perch, peck and look round, and fly off when you (or a
-  driftling) come within a few studs, coming back a while later. Now and then a gull glides in from the sea and
-  stands on the beach. They go at dusk and come back at dawn.
+  breast and a cocked tail, fly in and alight on the lawn, a fence post, a roof's ridge or the island's sign, near the
+  middle of the view. They hop along their perch, peck and look round, and fly off when you (or a driftling) come
+  within a few studs, coming back a while later. Now and then a gull glides in out of the sky and lands on the lawn.
+  They go at dusk and come back at dawn.
 - **Grass and flowers:** tufts of grass in patches (a lush stretch here, bare grass there) and little flowers in
   clusters on the lawn, in the lawn's own green, leaning as gusts roll across the island. They show only where the
   lawn itself shows: never on a path, a building or anything in front.
@@ -2383,8 +2396,8 @@ behind what stands in front of them and are drawn on whole art pixels like every
 - **Trees** let a leaf or a petal go now and then, in their own colour; it drifts down, lands on what is under it and
   fades. **Smoke** curls from the chimneys, the smokehouse's vent and the grills, **steam** from the hot springs and
   the teapots.
-- **The sea:** glints of light on the water now and then (fewer at night), and once in a while a fish jumps out of
-  the water near the shore with a splash and a ring where it goes in.
+- **The water:** glints of light now and then on the rivers and ponds laid on the island (fewer at night). (The sea's
+  glints and the fish jumping out of it went with the sea on 2026-11-20.)
 - None of it shows on the hatch scene's stage, and it stops with the picture. A lower graphics setting has fewer of
   everything (birds, tufts, smoke); a phone, where the island shows small, gets smaller sprites. Roblox's reduced
   motion setting keeps the birds still and leaves out what flies, falls and sways.
@@ -2778,15 +2791,14 @@ reason.
   A driftling pecks at the ground in the fields,
   dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stand along the
   building's front, apart, turned three-quarters to the view so the work reads.
-- **The sea lives:** the water rolls and the foam laps the shore (§8; the crests a light blue, as asked on 2026-11-10: "can the green lines of the sea be more of a light
-  blue instead?"), leaves
-  sway and flags ripple in the wind, sailboats (the boats of §8, their flags fluttering) rock on the swell as they
-  cross both ways, gulls cross now and then (from either side, at their own height, weaving and gliding, a
-  different crossing each time). (No campfire flickers since 2026-11-20, and no clouds' shadows: the player asked for the "random
-  shadow that appears sometimes" gone.)
-- **Small lives** (§8.1): birds alight, peck and fly off as you come near, a gull lands on the beach, tufts and
+- **The sky lives:** clouds drift past behind the islands, leaves sway and flags ripple in the wind, and flocks of
+  white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
+  time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
+  rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no
+  clouds' shadows: the player asked for the "random shadow that appears sometimes" gone.)
+- **Small lives** (§8.1): birds alight, peck and fly off as you come near, a gull lands on the lawn, tufts and
   flowers lean in the gusts, butterflies by day and fireflies at night, leaves drift down from the trees, chimneys
-  smoke, the sea glints and a fish jumps now and then.
+  smoke, the ponds glint now and then.
 - **Night falls** and the lamps light up (§8).
 - **Sounds** (`Controllers/Audio`): every event plays a free Creator Store sound from Roblox's licensed libraries
   (ProSoundEffects, and APM Music's stingers), none of Random Bakery's, its pitch varied a little, repeats inside a

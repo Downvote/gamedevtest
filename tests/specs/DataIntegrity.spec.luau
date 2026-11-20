@@ -164,13 +164,14 @@ return function()
 			T.eq(lost, 0, "cells lost going to tier " .. (tier + 1))
 		end
 	end)
-	T.it("the sea: islands alone inside their lots, growing by tier, the tree's spot and the spawn on the grass, the sign on the beach", function()
+	T.it("the sky: floating islands alone inside their lots, growing by tier, the tree's spot and the spawn on the grass, the sign on the rim", function()
 		T.eq(Street.MAX, Tuning.MaxPlots)
 		local lot = Street.LOT
 		local prevCells = 0
+		local prevArea = 0
 		for tier = 1, #Office.plans do
 			local p = Street.plot(tier)
-			T.truthy(p.x0 > lot.x0 + 4 and p.x1 < lot.x1 - 4 and p.z0 > lot.z0 and p.z1 < lot.z1 - 4, "island " .. tier .. " inside its lot, water all round")
+			T.truthy(p.x0 > lot.x0 + 4 and p.x1 < lot.x1 - 4 and p.z0 > lot.z0 and p.z1 < lot.z1 - 4, "island " .. tier .. " inside its lot, sky all round")
 			local cells = 0
 			for z = p.z0, p.z1 do
 				for x = p.x0, p.x1 do
@@ -182,8 +183,12 @@ return function()
 			end
 			T.truthy(cells > prevCells + 200, string.format("island %d grows: %d buildable cells", tier, cells))
 			prevCells = cells
+			-- (the request of 2026-11-20: "Expanding makes the island bigger": the island's box grows with its tier)
+			local area = (p.x1 - p.x0) * (p.z1 - p.z0)
+			T.truthy(area > prevArea, string.format("island %d bigger than the tier before", tier))
+			prevArea = area
 			-- the Tree of Life's spot in the middle is open ground on every tier (a new island's tree fits there), the
-			-- spawn just south of it on the grass; the sign stands on the south beach
+			-- spawn just south of it on the grass; the sign stands on the south rim, a stud nobody builds on
 			for z = 2, 9 do
 				for x = -4, 3 do
 					T.truthy(Street.buildable(tier, x, z), string.format("the tree's spot open at %d,%d (tier %d)", x, z, tier))
@@ -192,28 +197,31 @@ return function()
 			local sx, sz = Street.spawn()
 			T.truthy(Street.layer(tier, math.floor(sx), math.floor(sz)) == Street.GRASS and sz > 10, "the spawn on the grass south of the tree (tier " .. tier .. ")")
 			local gx, gz = Street.sign(tier)
-			T.truthy(Street.layer(tier, math.floor(gx), math.floor(gz)) == Street.SAND and gz > 10, "the sign on the south beach (tier " .. tier .. ")")
-			-- the coast's layers go outward in order along any ray from the centre
+			T.truthy(Street.layer(tier, math.floor(gx), math.floor(gz)) == Street.GRASS and gz > 10, "the sign on the grass (tier " .. tier .. ")")
+			T.truthy(Street.layer(tier, math.floor(gx), math.floor(gz) + 1) == Street.AIR, "the sign on the south rim (tier " .. tier .. ")")
+			T.truthy(not Street.buildable(tier, math.floor(gx), math.floor(gz)), "nobody builds under the sign (tier " .. tier .. ")")
+			-- along any ray from the centre: grass, then the air, never grass again
 			local c = Street.CENTER
 			for k = 0, 15 do
 				local ang = k * math.pi / 8
-				local last = 1
-				for d = 0, 60 do
+				local out = false
+				for d = 0, 80 do
 					local l = Street.layer(tier, math.floor(c.x + math.cos(ang) * d), math.floor(c.z + math.sin(ang) * d))
-					local rank = if l == Street.SEA_CELL then 6 else l
-					T.truthy(rank >= last - 1, "layers outward")
-					last = math.max(last, rank)
+					if l == Street.AIR then
+						out = true
+					else
+						T.truthy(not out, "no grass past the edge")
+					end
 				end
+				T.truthy(out, "the edge reached")
 			end
 		end
-		-- no docks: the lots meet the open sea; the water lies under the grass; the seabed the founders swim on is under
-		-- the water and a step below the wet sand
-		T.truthy(Street.LOT.z1 == Street.SEA.z0)
+		-- no docks, no sea: the lots hold the islands, nothing walks between them
 		T.eq((Street :: any).BOARD, nil, "no boardwalk")
 		T.eq((Street :: any).pier, nil, "no pier")
-		T.truthy(Street.SEABED_Y < Street.WATER_Y and Street.WET_Y - Street.SEABED_Y < 1.5, "the seabed: under the water, a step from the wet sand")
-		T.eq(Street.plotAt(Street.origin(2), Street.SEA.z0 + 10), 2, "the sea south of a lot is that lot's")
-		T.truthy(Street.WATER_Y < Street.SHALLOW_Y and Street.SHALLOW_Y < Street.FOAM_Y and Street.FOAM_Y < Street.WET_Y and Street.WET_Y < Street.SAND_Y and Street.SAND_Y < Street.LAWN_Y)
+		T.eq((Street :: any).SEA, nil, "no sea")
+		T.eq((Street :: any).SEABED_Y, nil, "no seabed")
+		T.eq(Street.plotAt(Street.origin(2), Street.CENTER.z), 2, "the middle of a lot is that lot's")
 		-- neighbouring lots meet edge to edge, plot origins in a row centred on x = 0
 		local a = Street.origin(1)
 		local b = Street.origin(2)

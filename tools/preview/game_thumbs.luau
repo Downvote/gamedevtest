@@ -156,7 +156,7 @@ return function(env)
 		return p
 	end
 
-	-- the lawn: a patch of island far from the others (grass on a sand rim in the sea, palms, bushes and flowers at the
+	-- the lawn: a little floating islet far from the others (grass over an earth lip and rock, palms, bushes and flowers at the
 	-- back, two rare eggs in front), a crowd of driftlings on it cheering, framed close by a stage view (the pals'
 	-- way): frame gth_lawn
 	if mode == "lawn" then
@@ -164,7 +164,7 @@ return function(env)
 		local p = env.join(7309, "Keeper")
 		env.settle(p, 30, 1)
 		for _, g in p.PlayerGui:GetChildren() do
-			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 				g.Enabled = false
 			end
 		end
@@ -193,10 +193,10 @@ return function(env)
 		local things = {}
 		H.inClient(p, function()
 			local m = Blocks.model(E.workspace, "ThumbLawn")
-			-- (round: discs standing on their axis, the shallows round the sand round the grass)
+			-- (round: discs standing on their axis, a little floating islet: the grass, its earth lip, the rock under it)
 			local up = CFrame.Angles(0, 0, math.rad(90))
-			Blocks.part(m, { shape = "Cylinder", size = Vector3.new(1, 50, 50), cf = CFrame.new(OX, -1.52, OZ) * up, color = "shallow" })
-			Blocks.part(m, { shape = "Cylinder", size = Vector3.new(1, 38, 38), cf = CFrame.new(OX, -0.66, OZ) * up, color = "sand" })
+			Blocks.part(m, { shape = "Cylinder", size = Vector3.new(3, 29, 29), cf = CFrame.new(OX, -4.75, OZ) * up, color = "rock" })
+			Blocks.part(m, { shape = "Cylinder", size = Vector3.new(2.25, 33, 33), cf = CFrame.new(OX, -2.125, OZ) * up, color = "chocolate" })
 			Blocks.part(m, { shape = "Cylinder", size = Vector3.new(1, 33, 33), cf = CFrame.new(OX, -0.5, OZ) * up, color = "grass" })
 			local function decor(id: string, u: number, v: number, rot: number?)
 				local x, z = at(u, v)
@@ -265,23 +265,23 @@ return function(env)
 		return p
 	end
 
-	-- the dark: a Grand Isle (tier 3, the harbour island's pieces) with its town in the open ground round the tree and
-	-- the dark all round it, from a little further out: frame gth_dark
-	if mode == "dark" then
+	-- the sky: a Grand Isle (tier 3, the harbour island's pieces) floating in the painted sky, its town round the tree,
+	-- from a little further out: frame gth_sky
+	if mode == "sky" then
 		env.seedProfile(7310, 3, { pieces = env.harbor, pals = env.pals, shells = 65000 })
 		local p = env.join(7310, "Rocky")
 		env.settle(p, 60, 1)
 		local Street = H.sharedServer("Data.Street")
 		local ox = Street.origin(H.session(p).plot)
 		for _, g in p.PlayerGui:GetChildren() do
-			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 				g.Enabled = false
 			end
 		end
-		-- (the founder on the far south beach, out of the frame)
+		-- (the founder on the empty islet of the last plot, out of the frame)
 		if p.Character then
-			local sx, sz = Street.sign(3)
-			p.Character:PivotTo(E.cf.new(ox + sx + 4, 3, sz))
+			local lx, lz = Street.origin(Street.MAX)
+			p.Character:PivotTo(E.cf.new(lx, 3, lz + Street.CENTER.z))
 		end
 		local SU = env.modOr(p, "UI.SettingsUI")
 		H.openPanel(p, "settings")
@@ -293,7 +293,7 @@ return function(env)
 		H.closePanel(p)
 		E.run(0.5)
 		for _, g in p.PlayerGui:GetChildren() do
-			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 				g.Enabled = false
 			end
 		end
@@ -304,7 +304,7 @@ return function(env)
 		E.run(1)
 		env.settle(p, 60, 1)
 		E.run(1.5)
-		capture(p, "gth_dark")
+		capture(p, "gth_sky")
 		return p
 	end
 
@@ -362,9 +362,9 @@ return function(env)
 	local SU = env.modOr(p, "UI.SettingsUI")
 	local PR = H.cmod(p, "Pixel.PixelRenderer")
 	local MM = env.cshared(p, "Models.MicroModels")
-	-- the HUD off, the founder parked out of every frame (on the beach at the island's north end)
+	-- the HUD off, the founder parked out of every frame (on the island's north rim)
 	for _, g in p.PlayerGui:GetChildren() do
-		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+		if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 			g.Enabled = false
 		end
 	end
@@ -387,7 +387,7 @@ return function(env)
 		H.closePanel(p)
 		E.run(0.5)
 		for _, g in p.PlayerGui:GetChildren() do
-			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
 				g.Enabled = false
 			end
 		end
