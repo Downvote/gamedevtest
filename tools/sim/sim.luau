@@ -1566,16 +1566,156 @@ H.checkProfile(p, "pals")
 mirror(p, "pals")
 
 ------------------------------------------------------------------ 6. the founder's looks
+-- The My founder screen (UI/FounderUI; the request of 2026-11-20: "Port the entire character customization menu from
+-- the bakery game to this game, such accessory colors and other features, along with the accessories it has"): a skin
+-- picked and saved (the profile and the Founder attribute, Data/Looks.encode of the look), an apron in a colour, a free
+-- hat tinted, a held piece turned, a locked piece tried on but never saved (and refused when sent by hand), an outfit
+-- saved, worn and deleted, Randomise and Reset, Cancel, and a look left unsaved by the X coming back on the next opening.
 E.phase = "looks"
-local skin0 = prof.founder.skin
-H.openPanel(p, "looks")
-E.run(0.4)
-H.clickNamed(p, "Next_skin", { wait = 0.2 })
-H.clickNamed(p, "SaveLook", { wait = 0.6 })
--- (six skins since 2026-11-14: Data/Looks)
-H.expect(prof.founder.skin == skin0 % #H.sharedServer("Data.Looks").skin + 1, "looks", "the new skin is saved", string.format("%d -> %d", skin0, prof.founder.skin))
-H.expect(p:GetAttribute("Founder") == string.format("%d.%d.%d.%d", prof.founder.skin, prof.founder.hair, prof.founder.style, prof.founder.shirt), "looks", "every client sees the new look (the Founder attribute)", tostring(p:GetAttribute("Founder")))
-H.closePanel(p)
+do
+	local LooksD = H.sharedServer("Data.Looks")
+	local CosD = H.sharedServer("Data.Cosmetics")
+	local FounderP = H.cmod(p, "UI.FounderUI")
+	local function attrIsLook(label)
+		H.expect(p:GetAttribute("Founder") == LooksD.encode(prof.founder), "looks", label .. ": every client sees it (the Founder attribute)", tostring(p:GetAttribute("Founder")))
+	end
+	local function tintOf(id)
+		for i, t in LooksD.tints do
+			if t.id == id then
+				return i
+			end
+		end
+		return 0
+	end
+	-- a skin, saved
+	local skin0 = prof.founder.skin
+	local skin1 = skin0 % #LooksD.skin + 1
+	H.openPanel(p, "looks", "skin")
+	E.run(0.4)
+	H.expect(H.currentPanel(p) == "looks" and H.buttonNamed(p, "Stage", true) ~= nil and H.buttonNamed(p, "TurnLeft") ~= nil, "looks", "the screen opens with its stage and turning arrows")
+	H.expect(H.buttonNamed(p, "LooksTab_titles") ~= nil and H.buttonNamed(p, "LooksTab_outfits") ~= nil and H.buttonNamed(p, "LooksTab_hand") ~= nil, "looks", "its tabs, Outfits and Titles among them")
+	H.clickNamed(p, "Option_" .. skin1, { wait = 0.2 })
+	H.expect(statusSays("Not saved yet"), "looks", "a change says it isn't saved yet")
+	H.clickNamed(p, "TurnRight", { wait = 0.1 })
+	H.clickNamed(p, "SaveLook", { wait = 0.4 })
+	-- (six skins since 2026-11-14, eleven since 2026-11-20: Data/Looks)
+	H.expect(prof.founder.skin == skin1, "looks", "the new skin is saved", string.format("%d -> %d", skin0, prof.founder.skin))
+	attrIsLook("the new skin")
+	E.run(0.8)
+	H.expect(H.currentPanel(p) == nil and FounderP.working() == nil, "looks", "Save closes the screen", tostring(H.currentPanel(p)))
+	-- an apron, and its colour
+	H.openPanel(p, "looks", "apron")
+	E.run(0.3)
+	H.clickNamed(p, "Option_3", { wait = 0.1 })
+	H.clickNamed(p, "Tint_sky", { wait = 0.1 })
+	H.clickNamed(p, "SaveLook", { wait = 0.4 })
+	H.expect(prof.founder.apron == 3 and prof.founder.apronTint == tintOf("sky"), "looks", "an apron in a colour is saved", string.format("%s %s", tostring(prof.founder.apron), tostring(prof.founder.apronTint)))
+	attrIsLook("the apron")
+	E.run(0.8)
+	-- a free hat in blue (the bakery's own beret)
+	H.openPanel(p, "looks", "hat")
+	E.run(0.3)
+	H.expect(H.buttonNamed(p, "ShopCell") ~= nil, "looks", "a piece tab ends with the shop's cell")
+	H.clickNamed(p, "Option_beret", { wait = 0.1 })
+	H.clickNamed(p, "Tint_blue", { wait = 0.1 })
+	H.clickNamed(p, "SaveLook", { wait = 0.4 })
+	H.expect(prof.founder.hat == "beret" and prof.founder.hatTint == tintOf("blue"), "looks", "a hat tinted blue is saved", string.format("%s %s", tostring(prof.founder.hat), tostring(prof.founder.hatTint)))
+	attrIsLook("the tinted hat")
+	E.run(0.8)
+	-- a held piece, turned (one owned for the test)
+	prof.owned.magic_wand = true
+	H.push(p, 0.3)
+	H.openPanel(p, "looks", "hand")
+	E.run(0.3)
+	H.clickNamed(p, "Option_magic_wand", { wait = 0.1 })
+	H.clickNamed(p, "TurnHeld", { wait = 0.1 })
+	local w = FounderP.working()
+	H.expect(w ~= nil and w.hand == "magic_wand" and w.turn == 2, "looks", "Turn turns what is in the hand", w and tostring(w.turn))
+	H.clickNamed(p, "SaveLook", { wait = 0.4 })
+	H.expect(prof.founder.hand == "magic_wand" and prof.founder.turn == 2, "looks", "the held piece and its turn are saved", string.format("%s %s", tostring(prof.founder.hand), tostring(prof.founder.turn)))
+	attrIsLook("the turned wand")
+	E.run(0.8)
+	-- a locked piece: tried on, never saved
+	local lockedHat = nil
+	for _, c in CosD.bySlot.hat do
+		if not CosD.owns(prof.owned, c.id) then
+			lockedHat = c.id
+			break
+		end
+	end
+	H.openPanel(p, "looks", "hat")
+	E.run(0.3)
+	local lockedCell = lockedHat and H.buttonNamed(p, "Option_" .. lockedHat)
+	H.expect(lockedCell ~= nil and lockedCell:GetAttribute("Owned") == false and lockedCell:FindFirstChild("Lock", true) ~= nil, "looks", "a piece not owned shows, padlocked", tostring(lockedHat))
+	H.clickNamed(p, "Option_" .. tostring(lockedHat), { wait = 0.1 })
+	w = FounderP.working()
+	H.expect(w ~= nil and w.hat == lockedHat, "looks", "a locked piece can be tried on", w and tostring(w.hat))
+	local founder0 = LooksD.encode(prof.founder)
+	H.clickNamed(p, "SaveLook", { wait = 0.4 })
+	H.expect(LooksD.encode(prof.founder) == founder0 and prof.founder.hat == "beret", "looks", "Save never saves a piece not owned", LooksD.encode(prof.founder))
+	H.expect(H.currentPanel(p) == "looks", "looks", "and the screen stays open to say so")
+	local tried = table.clone(prof.founder)
+	tried.hat = lockedHat
+	res = H.req(p, "look.set", { look = LooksD.encode(tried) })
+	H.expect(not res.ok and res.err == "locked" and prof.founder.hat == "beret", "looks", "look.set with a piece not owned is refused", tostring(res.err))
+	-- Randomise wears only pieces owned; Reset takes everything off; Cancel drops it all
+	H.clickNamed(p, "Randomise", { wait = 0.1 })
+	w = FounderP.working()
+	local onlyOwned = w ~= nil
+	for _, slot in LooksD.worn do
+		local id = w and w[slot]
+		if type(id) == "string" and id ~= "" and not CosD.owns(prof.owned, id) then
+			onlyOwned = false
+		end
+	end
+	H.expect(onlyOwned, "looks", "Randomise wears only pieces owned", w and LooksD.encode(w))
+	H.clickNamed(p, "ResetLook", { wait = 0.1 })
+	w = FounderP.working()
+	local bare = w ~= nil and (w.apron or 1) == 1
+	for _, slot in LooksD.worn do
+		if w and w[slot] ~= nil and w[slot] ~= "" then
+			bare = false
+		end
+	end
+	H.expect(bare, "looks", "Reset takes everything worn off", w and LooksD.encode(w))
+	H.clickNamed(p, "CancelLook", { wait = 0.3 })
+	H.expect(H.currentPanel(p) == nil and LooksD.encode(prof.founder) == founder0, "looks", "Cancel closes and saves nothing", LooksD.encode(prof.founder))
+	-- an outfit: saved, worn after a change, deleted with two taps
+	local n0 = #prof.outfits
+	H.openPanel(p, "looks", "outfits")
+	E.run(0.3)
+	H.clickNamed(p, "SaveOutfit", { wait = 0.4 })
+	H.expect(#prof.outfits == n0 + 1 and prof.outfits[#prof.outfits] == LooksD.encode(prof.founder), "looks", "the look on show saved as an outfit", string.format("%d -> %d", n0, #prof.outfits))
+	H.clickNamed(p, "SaveOutfit", { wait = 0.3 })
+	H.expect(#prof.outfits == n0 + 1, "looks", "and not twice")
+	local n1 = #prof.outfits
+	H.clickNamed(p, "LooksTab_skin", { wait = 0.2 })
+	H.clickNamed(p, "Option_" .. skin0, { wait = 0.1 })
+	H.clickNamed(p, "LooksTab_outfits", { wait = 0.2 })
+	H.clickNamed(p, "Outfit_" .. n1, { wait = 0.1 })
+	w = FounderP.working()
+	H.expect(w ~= nil and w.skin == skin1 and w.hat == "beret", "looks", "a tap on an outfit puts it on", w and LooksD.encode(w))
+	H.expect(H.buttonNamed(p, "DeleteOutfit_" .. n1) ~= nil, "looks", "the outfit worn has its X")
+	H.clickNamed(p, "DeleteOutfit_" .. n1, { wait = 0.2 })
+	H.expect(#prof.outfits == n1, "looks", "one tap on the X only arms it")
+	H.clickNamed(p, "DeleteOutfit_" .. n1, { wait = 0.4 })
+	H.expect(#prof.outfits == n1 - 1, "looks", "a second tap deletes the outfit", tostring(#prof.outfits))
+	-- the X with a change unsaved: it waits for the next opening
+	H.clickNamed(p, "LooksTab_skin", { wait = 0.2 })
+	H.clickNamed(p, "Option_" .. skin0, { wait = 0.1 })
+	H.clickNamed(p, "Close", { wait = 0.3 })
+	H.expect(H.currentPanel(p) == nil and prof.founder.skin == skin1, "looks", "the X closes without saving")
+	H.openPanel(p, "looks")
+	E.run(0.3)
+	w = FounderP.working()
+	H.expect(w ~= nil and w.skin == skin0 and statusSays("Not saved yet"), "looks", "the unsaved look comes back on the next opening", w and tostring(w.skin))
+	H.clickNamed(p, "CancelLook", { wait = 0.3 })
+	H.openPanel(p, "looks")
+	E.run(0.3)
+	w = FounderP.working()
+	H.expect(w ~= nil and w.skin == skin1, "looks", "and Cancel drops it for good", w and tostring(w.skin))
+	H.closePanel(p)
+end
 
 ------------------------------------------------------------------ 7. the other panels, settings, tips, expanding
 E.phase = "panels"
@@ -3039,7 +3179,7 @@ do
 	ok, out = H.raw(p, "plot.paint", { id = "stream", cells = string.format("%d,%d,0", fx0, fz0) })
 	expectRefused("a cell with an edge's turn", ok, out, "bad_payload")
 end
-ok, out = H.raw(p, "founder.set", { skin = 9, hair = 1, style = 1, shirt = 1 })
+ok, out = H.raw(p, "founder.set", { skin = #H.sharedServer("Data.Looks").skin + 1, hair = 1, style = 1, shirt = 1 })
 expectRefused("a skin that does not exist", ok, out, "bad_payload")
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
@@ -3322,12 +3462,12 @@ do
 	H.expect(own ~= nil and table.find(H.textsOf(own), "Owned") ~= nil, "store", "a pass owned says Owned", own and table.concat(H.textsOf(own), "/"))
 	H.expect(math.abs(Island.rates(prof).shells - 2 * r0) < 1e-6 * math.max(1, r0) and H.view(p).incomeMult == 2, "store", "Double Income: every shell x2", string.format("%.1f -> %.1f", r0, Island.rates(prof).shells))
 	StoreL.setPass(prof, "DoubleIncome", false)
-	-- the rotating shop: six pieces, one bought for shells, then worn
+	-- the rotating shop: its pieces (Tuning.ShopSize: eight since 2026-11-20), one bought for shells, then worn
 	prof.shells = math.max(prof.shells, 1e9)
 	H.push(p, 0.3)
 	H.clickNamed(p, "Tab_shop", { wait = 0.3 })
 	local v = H.view(p)
-	H.expect(#v.shopList == 6 and p.PlayerGui:FindFirstChild("Piece_" .. v.shopList[1], true) ~= nil, "store", "the shop shows its six pieces", tostring(#v.shopList))
+	H.expect(#v.shopList == Tuning.ShopSize and p.PlayerGui:FindFirstChild("Piece_" .. v.shopList[1], true) ~= nil, "store", "the shop shows its pieces", tostring(#v.shopList))
 	local id = nil
 	for _, x in v.shopList do
 		if not prof.owned[x] then
@@ -3471,7 +3611,7 @@ do
 	E.run(0.4)
 	H.clickNamed(p, "WearTitle_settler", { wait = 0.4 })
 	H.expect(prof.title == "settler" and p:GetAttribute("Title") == "settler", "store", "a title worn from Looks (the Title attribute)", tostring(p:GetAttribute("Title")))
-	H.expect(H.buttonNamed(p, "LooksTab_pieces") ~= nil, "store", "Looks has its pieces too")
+	H.expect(H.buttonNamed(p, "LooksTab_hat") ~= nil, "store", "Looks has its pieces too")
 	H.closePanel(p)
 	prof.shells = sh0
 	H.push(p, 0.3)

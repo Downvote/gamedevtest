@@ -2222,7 +2222,7 @@ behind what stands in front of them and are drawn on whole art pixels like every
 
 ## 9. Your founder, settings and the tips
 
-The Looks panel sets the founder's skin, hair, style and shirt (every client sees it). The founder walks and jumps
+The My founder screen (§14.4) sets the founder's whole look (every client sees it). The founder walks and jumps
 (`JumpHeight`) on the islands; jumping is held in Build mode (the phone's jump button hides with it).
 The founder is drawn at three quarters of their old size (the request of 2026-11-14: "make the chacter smaller, about
 75% the original size"; `Tuning.FounderScale`), shrunk about their feet; how far they walk and jump is the same.
@@ -2841,7 +2841,7 @@ and a balloon are held up over the head, a kite and a surfboard stick up behind.
 colours, ten hair styles (short, long, bun, spiky, curly, ponytail, twin tails, mohawk, bob, braid) and fifteen shirt
 colours.
 
-**The pictures.** Each piece has a 24 x 24 picture for the Store and the Looks panel, drawn from its own model by the
+**The pictures.** Each piece has a 24 x 24 picture for the Store, drawn from its own model by the
 game's picture path (a top on a little body, a back piece turned to show its back) and tidied to the pixel art rules:
 a 1 px ink outline, no half see-through pixels, the outline made again on the four sides. After changing a piece's
 model, `sh tools/preview/cosmetic_thumbs.sh` draws them again.
@@ -2901,12 +2901,9 @@ yet." What a purchase gives is told in a notice when it arrives ("Starter Pack: 
 title."), as are a pass bought ("Thanks! Shells count double now."), the track's rewards ("Pass track: a rare
 egg.") and a title earned ("New title: Egg Hunter. Wear it in Looks.").
 
-**Looks.** The founder's portrait with the title they wear under it, the free colours and hair style (Skin 6, Hair 10,
-Style 10, Shirt 15, then Save look), how many of the 83 pieces they own and "Shop" (the Store's Shop). On the
-right two tabs: **Pieces**, the six slots (Hat, Face, Neck, Back, Hand, Top) and the pieces owned in the one picked, the
-rarest first, each with Wear or Take off (a piece goes on at once; the colours wait for Save look); and **Titles**, "No
-title", then every title earned with what earned it and Wear (or Worn), then the ones still to earn, greyed, each with
-what earns it ("Reach island level 7.", "Have a mythic driftling.", "Comes with VIP.").
+**Looks.** The menu bar's Looks opens the My founder screen (§14.4). Until 2026-11-20 it was a smaller panel here:
+the portrait, the four free colours with Save look, the pieces owned slot by slot with Wear and Take off, and the
+titles.
 
 **The bag in the Tree panel.** Over the eggs under the tree, "Your eggs: 2" and a row each, the rarest first, "Free to
 hatch" with Hatch. A bag egg hatches in the same hatch scene as the tree's; with every hut full the swap picker opens
@@ -2930,6 +2927,52 @@ info plate, they go down for no shells, a replacement among them costs nothing, 
 more), under it "Join the group" while the player isn't in the group and "Group gift Ready" once they are and the gift
 waits (a tap opens the Store's Passes tab), and "VIP gift Ready" on a day VIP's gift waits (a tap claims it). On a phone the chip drops
 the price when it would not fit.
+
+### 14.4 My founder (`UI/FounderUI`)
+
+> The request (2026-11-20): "Port the entire character customization menu from the bakery game to this game, such
+> accessory colors and other features, along with the accessories it has"
+
+Random Bakery's "My baker" screen, rebuilt in this game's sheets and words, with its accessories (§14 and §14.1) and
+without its pets and staff, which this game doesn't have. The menu bar's Looks opens it; its title is "My founder".
+
+**The stage.** On the left, the founder as they will look, in a driftwood window onto the beach: sky, two clouds, the
+sea and the sand, with their name and title over them as everyone sees them in the world. It is drawn the way the world
+is (pixel art from the founder's own model, the 1 px outline, the world's palette) at eight angles: the arrows either
+side, or a drag across the window, turn it 45 degrees at a time. Every change shows at once and the founder hops a
+little when it does. With the pixel filter off the stage and the pictures are smooth 3D views of the same models.
+
+**The tabs.** Skin, Hair style, Bangs, Hair colour (with a second colour for a streak in the fringe), Eyes (with a
+colour for the other eye), Shirt, Top, Apron, Hat, Face, Neck, Back, Hand, Outfits and Titles. Under them the option
+picked ("Beret, Blue"), and "Not saved yet" while the look differs from the one worn. The options are a grid: colours as
+swatches, everything else as a picture of your own founder wearing it, a back piece seen from behind. The one picked
+is gold. A mouse over an option names it.
+
+**Pieces you don't have.** Every piece of a slot is in its tab: the ones you own first, the rarest first, then the rest,
+dimmed with a padlock. Each piece has a thin bar in its rarity's colour. A locked piece can still be tried on: the stage
+wears it and a notice says where it comes from ("Sold in the shop now and then. It won't save till it's yours.").
+Saving keeps the piece you wore there before. Each piece tab ends with a Shop cell that opens the Store's shop, and the
+look you were working on waits for you when you come back.
+
+**Colours for pieces.** The Top, Apron, Hat, Face, Neck, Back and Hand tabs have a colour row over the grid: Original
+(the piece's own colours) and 20 colours, red to black. A colour changes the piece's main colour and keeps its gems
+and shine. The rainbow pieces keep their colours, and the row says so. With nothing worn the row asks you to pick
+one first. The Hand tab adds Turn, which tips what you hold forward or back (straight, tipped forward, flat forward,
+flat back, tipped back).
+
+**Outfits.** Up to 10 saved looks (`Tuning.MaxOutfits`). The + cell saves the look on the stage (not twice), a tap on
+an outfit puts it on, and the outfit you are wearing shows an X: tap it once and it turns red, tap again to delete.
+
+**Titles.** No title, then the titles you have with what earned them and Wear, then the ones still to earn, greyed,
+with what earns them. A title is worn at once.
+
+**The buttons.** Randomise (a die) dresses the founder at random from what you own, mostly in the pieces' own colours.
+Reset leaves the skin, hair, eyes and shirt and takes everything else off. Cancel closes and forgets the changes. Save
+wears the look: everyone sees it at once, the founder hops in a puff of confetti and the screen closes. Closed with the
+X, an unsaved look comes back next time you open it, and a notice says so.
+
+**On a phone** the screen fills the display. The stage stays on the left, the tabs scroll sideways, and "Not saved yet"
+and the option's name sit on the stage. A narrow portrait screen puts the stage over the options.
 
 ## 15. Rewards for coming back and for playing (`Logic/Rewards`, `Data/Rewards`, `Config/Codes`, `UI/RewardsUI`)
 

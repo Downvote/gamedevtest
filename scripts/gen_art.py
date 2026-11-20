@@ -251,6 +251,18 @@ HAND("mini_check", [
     ".343...",
     "..3....",
 ], ["G"])
+# Randomise on the My founder screen: a white die, three pips across it, lit from the top left
+HAND("mini_dice", [
+    ".4444433.",
+    "444443332",
+    "44x433332",
+    "444433322",
+    "4433x3322",
+    "433333322",
+    "433333x22",
+    "333332221",
+    ".3222211.",
+], ["W"])
 # spring: a pink blossom with a gold heart on a green stem and leaf
 HAND("mini_season_spring", [
     "..44433..",
