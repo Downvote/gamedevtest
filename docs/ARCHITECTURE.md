@@ -515,7 +515,8 @@ Models (`src/shared/Models`, Roblox modules):
   `Root`s flaring from about 1.8 studs up the trunk, the big ones dipping into the ground and coming up again past the
   stones, with rootlets (simpler behind the trunk); a `Trunk` core and three braided `Strand`s (each a `tube`, one
   facing the camera, the other two ending either side of the doorway; one wood each, the roots too: two woods by turns
-  and `Knot`s drew as light and dark chunks, 2026-11-20), `BarkMoss` on the camera's side (no `Rune`s or `Glyph`s since
+  and `Knot`s drew as light and dark chunks, 2026-11-20; the `Trunk`, `Strand`, `Root` and `Branch` parts "PixelOwn",
+  lit by their own shapes, not blended across the balls), `BarkMoss` on the camera's side (no `Rune`s or `Glyph`s since
   2026-11-20: they drew as blue rectangles); the `Hollow` at the front
   with its glowing `Pod` (Neon) in an arched frame (`Lintel`, `Jamb`s), a stone `Step` and a `Lantern` on a `Post` either side (from stage 1); a
   `BirdHouse` (`BirdRoof`, `BirdHole`, `Perch`) on the trunk; round `Branch` limbs (tubes) out to the leaf clouds,
@@ -1177,8 +1178,9 @@ corner: one art pixel is K × K screen px. K is the game's one pixel size (2 on 
 lays the interface out in density-independent units and draws them at the display's scale) `Pixel/DisplayScale`
 fits it to a whole number of the screen's own pixels, so K may be a fraction of a unit (2.4, 3.2): `DisplayScale.start()`
 (CameraController.start) watches mouse and touch positions and the camera's ViewportSize; `DisplayScale.observe(v)`
-keeps the last 32 distinct values; the scale is the smallest of `1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.625, 2.75, 3,
-3.5, 4` that makes every one a whole number of pixels (within 0.02; nothing other than 1 before 6 samples), or the
+keeps the last 32 distinct values with a fraction (a whole one fits any screen and is dropped: Roblox may round a
+mouse position to whole units); the scale is the smallest of `1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.625, 2.75, 3, 3.5, 4`
+that makes every one a whole number of pixels (within 0.02), 1 with fewer than 2 or none fitting, or the
 Settings choice (`setChoice(c)`, `Tuning.ScreenScales`: "auto" 0, "100" 1 .. "200" 2); `factor()`; `fit(K)` = K at a
 whole scale, else `round(K * s) / s`; `Changed` (the camera refits: `CameraController.pixelK` returns `fit` of
 `Raster.pixelScale`); `found()` (what Auto found, whatever the choice: Settings shows it); `debugState()`,
@@ -1633,7 +1635,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `Smooth.onSolids` gives the nearest one's gradient there and a weight (1 on its surface, 0 `SOLID_REACH` 0.12 studs
   off it), blended into the normal in `shadeTex`. A smooth solid itself keeps its own normal (`SmoothParts.role`: its
   "PixelShape" set). The static bake (`castSample`): a hit on a smooth model's part asks
-  `SmoothParts.staticNormal` (the model's balls gathered the first time one of its parts is hit; `SmoothParts.reset` at
+  `SmoothParts.staticNormal` (a part of a smooth model takes no surface texture, `texInfoOf`: per-piece wood grain
+  read as a dither on the tree's trunk, 2026-11-20; the model's balls gathered the first time one of its parts is hit; `SmoothParts.reset` at
   `startBake`; `SmoothParts.changed(part)` when a part comes to or leaves a smooth model under Workspace.Plots drops
   that model's balls and the renderer casts the model's whole box again once that frame, since in the game the tree's
   parts reach the client over several frames) and stores

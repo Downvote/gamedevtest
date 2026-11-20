@@ -1551,6 +1551,15 @@ renderer also gathers a smooth model's balls again whenever a part of it comes o
 reach the client over several frames. The preview `treesplit` hands them over in batches and checks the picture
 against a fresh cast.)
 
+**Wood without grain, lit by its own shape** (the report of 2026-11-20: "its still uneven. do you think it might be
+because of the dithering shading it uses?"). The shading bands have no dither, but the wood had grain: every small
+piece of the tree took its own pattern, so each slanted segment of a strand had grain running its own way, and its
+lighter marks, which show only in full light, broke the trunk's sunny side into speckled patches that read like a
+dither. A model lit as one smooth surface now takes no surface pattern at all. And the wood (the core, the strands,
+the roots and the limbs) is lit by its own round shapes like any log, the way a cylinder is shaded in pixel art: a
+clean light band down each strand's sunny side. Blended across the balls at its joints, a lit band's edge wavered from
+one joint to the next. The leaf clouds keep the blended light.
+
 **It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4 from the capital, 5 from Lantern Cove,
 6 from Amberfield): stage 2 on a Palm Isle and a Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital to
 Driftling Haven. Each stage the trunk thickens, the crown spreads wider (half as wide again at the last) and climbs (the
@@ -2617,6 +2626,11 @@ longer matched the grid it was drawn for. Now each is laid out in art pixels and
 keeps its fraction), and a canvas's shift goes in as a share of its root's height. The previews' harness keeps an
 Offset whole the way Roblox does, so a fractional offset shows there too. Beside "Screen" the panel says what Auto
 found ("Found 125%"): if it says 100% on a screen at 125%, Auto could not tell, and the 125% button sets it by hand.
+
+Auto also counted whole numbers as evidence: a mouse position Roblox hands over in whole units fits any screen, but
+a whole number of units times 1.25 is rarely whole, so those kept Auto at 100% on a screen at 125% (the next
+screenshot of the same day still had every pixel 2.5 of the screen's). Now only a value with a fraction counts (a
+window 1534.4 units wide says 125%); with none, Auto stays at 100%.
 
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and

@@ -586,6 +586,13 @@ local function texInfoOf(s: Surf, part: BasePart, rgb: number, wcls: number): Te
 	if kind == 0 then
 		return NO_TEX
 	end
+	-- (a model lit as one smooth surface, the Tree of Life, takes no pattern: each of its many small pieces, a strand's
+	-- every slanted segment among them, had grain of its own running its own way, and the lighter marks showing only in
+	-- full light broke the trunk's lit side into speckled patches like a dither, the report of 2026-11-20, "its still
+	-- uneven. do you think it might be because of the dithering shading it uses?")
+	if SmoothParts.model(part) ~= nil then
+		return NO_TEX
+	end
 	if kind == TEX_BRICK and not (part:IsA("WedgePart") or (part:IsA("Part") and (part :: Part).Shape == Enum.PartType.Block)) then
 		return NO_TEX -- (a round thing in brick red is a berry, a pot or a crown of leaves, not a wall)
 	end

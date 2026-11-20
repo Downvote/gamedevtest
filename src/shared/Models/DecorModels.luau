@@ -2227,6 +2227,12 @@ function DecorModels.build(id: string, at: CFrame, lvl: number?): Model
 			if d:IsA("BasePart") and (d.Name == "Lawn" or d.Name == "EggLawn" or d.Name == "Moss") then
 				d:SetAttribute("PixelOwn", true)
 			end
+			-- (the wood, its trunk, strands, roots and limbs, lit by its own round shapes like any log: blended across the
+			-- balls at every joint, a lit band's edge wavered from one joint to the next and broke into ragged patches;
+			-- the report of 2026-11-20, "its still uneven")
+			if d:IsA("BasePart") and (d.Name == "Trunk" or d.Name == "Strand" or d.Name == "Root" or d.Name == "Branch") then
+				d:SetAttribute("PixelOwn", true)
+			end
 		end
 	end
 	-- (the tree's lvl is its stage, a water tile's its neighbours: no pennant; nor on a path or a fence)

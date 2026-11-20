@@ -161,14 +161,23 @@ do
 	local fl = spg and spg:FindFirstChild("Found_screen", true)
 	H.expect(fl ~= nil and (fl :: any).Text == "Found 100%", "settings", "beside Screen, what Auto found (the sim's screen: 100%)", if fl then (fl :: any).Text else "none")
 	H.expect(H.clickNamed(p, "Set_screen_auto", { wait = 0.6 }) and prof.settings.screen == "auto" and math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "and Auto again: back as it was", string.format("%g", H.inClient(p, PRs.pixelScale)))
-	-- (Auto finds a screen at 125% from what Roblox reports there: positions and sizes 0.8 of a unit apart)
+	-- (Auto finds a screen at 125% from what Roblox reports there: sizes 0.8 of a unit apart, among whole mouse
+	-- positions that say nothing; the report of 2026-11-20, "its still uneven", Auto left at 100% by them)
 	local found = H.inClient(p, function()
-		for _, v in { 100.8, 205.6, 63.2, 1092.8, 614.4, 333.6 } do
+		for _, v in { 100, 205, 63, 640, 1092.8, 412, 614.4, 333 } do
 			DS.observe(v)
 		end
 		return DS.factor()
 	end)
-	H.expect(found == 1.25, "settings", "Auto finds a screen at 125% from the mouse and the screen's size", tostring(found))
+	H.expect(found == 1.25, "settings", "Auto finds a screen at 125% from the sizes with a fraction, whole mouse positions among them", tostring(found))
+	H.inClient(p, DS.debugReset)
+	local whole = H.inClient(p, function()
+		for _, v in { 100, 205, 63, 640, 1280, 720 } do
+			DS.observe(v)
+		end
+		return DS.factor()
+	end)
+	H.expect(whole == 1, "settings", "and stays at 100% when every value is whole", tostring(whole))
 	H.inClient(p, DS.debugReset)
 	E.run(0.3)
 	H.expect(math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "(and the sim's screen back at 100%)", string.format("%g", H.inClient(p, PRs.pixelScale)))
