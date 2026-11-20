@@ -1,34 +1,34 @@
 --!strict
 --!native
--- The sky round the floating islands (GAME_DESIGN 2 and 8; docs/ARCHITECTURE.md 10.19): the request of 2026-11-20,
--- "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the island bigger.", then the
--- same day "polish the skybox more. it should be of the same quality as the ones in the egg hatching screen, with day
--- and night cycles with moon and sun rising". Painted pixel by pixel at the world's art grid (each art pixel K x K
--- screen px, like the pixel layer) on a ScreenGui behind the pixel layer: the islands' sky is see-through
+-- The sky round the floating islands (GAME_DESIGN 2 and 8; docs/ARCHITECTURE.md 10.19): the requests of 2026-11-20,
+-- "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the island bigger.", "polish the
+-- skybox more. it should be of the same quality as the ones in the egg hatching screen, with day and night cycles with
+-- moon and sun rising", then with two reference pictures "no need to make the clouds so detailed with outlines, just
+-- simple shapes and color is enough. make variations to them as well", "same with the floating islands, they should be
+-- sillouhetted instead" and "make the sea of clouds a more fluffy connected mass of clouds that arent just circles.
+-- Remove the clouds that appear in the background". Painted pixel by pixel at the world's art grid (each art pixel
+-- K x K screen px, like the pixel layer) on a ScreenGui behind the pixel layer: the islands' sky is see-through
 -- (CameraController's view `clear`), so they float in front of it. Back to front:
--- * the sky: bands of colour from the top down, each meeting the next in an ordered dither (never a smear); at night
---   stars (single pixels in two strengths and little crosses, coming out one by one as it darkens, the brightest
---   first) and the band of the galaxy slanting across, a darker lane down its middle;
+-- * the sky: bands of colour from the top down, each blending into the next in a wide ordered dither; at night stars
+--   (single pixels in two strengths and little blue, gold or white crosses, coming out one by one as it darkens, the
+--   brightest first) and the band of the galaxy slanting across, a lane of dust down its middle;
 -- * the sun and the moon on their arcs: each rises from behind the sea of clouds on the left, climbs and sets on the
---   right, one flat tone with anti-aliased edges in a halo of dithered rings (the sun's halo wider and warmer near the
+--   right, one flat tone with anti-aliased edges in a halo of dithered rings (the sun a big pale disc near the
 --   horizon); the moon has craters and a phase that changes every night (full, gibbous, half and a crescent, waning
 --   then waxing; never dark);
--- * far islets floating in the haze (a grass cap over a stony point, a little tree on the bigger ones, faded toward the
---   sky, a 1 px outline) and the sea of clouds along the bottom: three ranges of puffs going brighter toward the front,
---   each puff's top lit from the top left, shaded under it and on the seam where one stands in front of another, a
---   1 px outline along each range's top; it repeats across, drifts slowly and slides a sixteenth of the view's pan;
--- * the clouds: puffy, a row of round puffs each, lit and shaded the same way, outlined a step darker than the sky
---   behind, corners anti-aliased; they drift right and slide an eighth of the pan;
+-- * far islets as silhouettes in the haze and the sea of clouds along the bottom: five ridges of billowing cloud, flat
+--   colour, a lighter edge along each ridge's top; it repeats across, drifts slowly and slides a sixteenth of the view's
+--   pan (no clouds drift across the sky since the request above);
 -- * the sky's life: little flocks of birds flapping across by day, stars twinkling and now and then a shooting star at
 --   night (whole art px, solid colours).
--- The time of day (`DayLight.skyHour`, the sea's clock round `Tuning.SkyDaySecs`) picks the colours from KEYS (night,
--- the first light, sunrise, morning, day, the afternoon, sunset, dusk), stepped NOTCHES times between two keys; the
--- weather (WX) pulls them toward its own grey, adds clouds, hides the stars and veils the sun and the moon in rain,
--- storm and fog. The shapes are worked out once for a screen size and a weather's clouds (`buildGeo`: a class a
--- pixel); a new notch only colours them again from small tables, a few rows a frame, and uploads the three pictures
--- once done, so the sky never stalls a frame.
---   start(), paint(kind, W, H, hour?) -> (sky, front, clouds)  the three pictures (RGBA, W x H; front and clouds
---       clear where empty), debugState(), debugHour(h?, night?) (hold the sky at an hour: DayLight.debugSky)
+-- The time of day (`DayLight.skyHour`, the sea's clock round `Tuning.SkyDaySecs`) picks the colours from the day's keys
+-- (night, the first light, sunrise, morning, day, the afternoon, sunset, dusk; the night, dawn and sunset in one of
+-- three VARIANTS a day), stepped NOTCHES times between two keys; the weather (WX) pulls them toward its own grey, hides
+-- the stars and veils the sun and the moon in rain, storm and fog. The shapes are worked out once for a screen size
+-- (`buildGeo`: a class a pixel); a new notch only colours them again from small tables, a few rows a frame, and uploads
+-- the two pictures once done, so the sky never stalls a frame.
+--   start(), paint(kind, W, H, hour?, variant?) -> (sky, front)  the two pictures (RGBA, W x H; the front clear where
+--       empty), debugState(), debugHour(h?, night?) (hold the sky at an hour: DayLight.debugSky), debugTimes(W, H, clock?)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -42,10 +42,8 @@ local ImageMemory = require(script.Parent.Parent.Pixel.ImageMemory)
 
 local SkyBackdrop = {}
 
-local DRIFT = 1.6 -- s a pixel the clouds drift right
 local SEA_DRIFT = 6 -- s a pixel the sea of clouds and the far islets drift right
-local PARALLAX = 1 / 8 -- of the view's pan the clouds slide with
-local FAR_PARALLAX = 1 / 16 -- and the sea of clouds
+local FAR_PARALLAX = 1 / 16 -- of the view's pan the sea of clouds and the far islets slide with
 local NOTCHES = 10 -- colour steps between two keys
 local SUNRISE, SUNSET = 0.23, 0.77 -- (the sky's hour the sun's middle crosses the horizon)
 local HORIZON = 0.77 -- (share of the height: the sun's or the moon's middle when it rises or sets, half behind the sea of clouds)
@@ -183,22 +181,20 @@ type Wx = {
 	tint: number, -- the grey it pulls every colour toward (at the colour's own lightness)
 	k: number, -- how far
 	dark: number, -- that grey's lightness times this
-	clouds: number, -- clouds for every 100,000 px
-	streaks: number, -- the share of them that are long thin streaks (the rest puffs)
 	veil: number, -- how veiled the sun and the moon are (their transparency)
-	fade: number, -- how much further the far islets and the far clouds fade into the sky
+	fade: number, -- how much further the far islets and the far ridges of cloud fade into the sky
 }
-local CLEAR: Wx = { tint = 0xFFFFFF, k = 0, dark = 1, clouds = 6, streaks = 0.55, veil = 0, fade = 0 }
+local CLEAR: Wx = { tint = 0xFFFFFF, k = 0, dark = 1, veil = 0, fade = 0 }
 local WX: { [string]: Wx } = {
 	sunny = CLEAR,
 	blossom = CLEAR,
 	leaves = CLEAR,
-	breezy = { tint = 0xFFFFFF, k = 0, dark = 1, clouds = 8, streaks = 0.65, veil = 0, fade = 0 },
-	rain = { tint = 0x8C9AAE, k = 0.55, dark = 0.9, clouds = 10, streaks = 0.25, veil = 0.55, fade = 0.1 },
-	storm = { tint = 0x58627C, k = 0.72, dark = 0.72, clouds = 13, streaks = 0.15, veil = 0.85, fade = 0.15 },
-	fog = { tint = 0xC6D0DA, k = 0.62, dark = 1.08, clouds = 5, streaks = 0.5, veil = 0.6, fade = 0.25 },
-	snow = { tint = 0xBCCCDE, k = 0.45, dark = 1.04, clouds = 8, streaks = 0.35, veil = 0.4, fade = 0.1 },
-	haze = { tint = 0xEED8B0, k = 0.3, dark = 1, clouds = 4, streaks = 0.75, veil = 0.15, fade = 0.1 },
+	breezy = { tint = 0xFFFFFF, k = 0, dark = 1, veil = 0, fade = 0 },
+	rain = { tint = 0x8C9AAE, k = 0.55, dark = 0.9, veil = 0.55, fade = 0.1 },
+	storm = { tint = 0x58627C, k = 0.72, dark = 0.72, veil = 0.85, fade = 0.15 },
+	fog = { tint = 0xC6D0DA, k = 0.62, dark = 1.08, veil = 0.6, fade = 0.25 },
+	snow = { tint = 0xBCCCDE, k = 0.45, dark = 1.04, veil = 0.4, fade = 0.1 },
+	haze = { tint = 0xEED8B0, k = 0.3, dark = 1, veil = 0.15, fade = 0.1 },
 }
 
 local function weathered(c: number, wx: Wx): number
@@ -274,13 +270,12 @@ local function meanAt(pal: Pal, y: number, H: number): number
 	return mix(pal.stops[i + 1], pal.stops[i + 2], k)
 end
 
------------------------------------------------------------------- the shapes (once a screen size, the clouds once a weather)
+------------------------------------------------------------------ the shapes (once a screen size)
 -- The sky's class a pixel: the band (bits 0-2, 0 .. 5), the galaxy's strength (bits 3-4, 0 .. 3), a star (bits 5-7:
 -- 1 dim, 2 bright, 3 a cross's white middle, 4 its white arm, 5 a blue arm, 6 a warm arm, 7 a warm middle) and the
 -- star's threshold (`thr`: it shows once the night's 0 .. 255 passes it).
 -- The front's: 0 clear; 1 .. 10 islet j's silhouette, (j - 1) * 2 + (1 its body, 2 the rim along its top);
--- 64 + range * 16 + (1 the rim along a heap's top, 2 body, 3 the underside, 4 the deep underside): the sea of clouds.
--- The clouds': 0 clear, 1 the rim along the top, 2 body, 3 the underside.
+-- 64 + ridge * 8 + (1 the edge along its top, 2 body, 3 the underside, 4 the nearest ridge's foot): the sea of clouds.
 type Geo = {
 	W: number,
 	H: number,
@@ -289,11 +284,11 @@ type Geo = {
 	front: buffer,
 	isles: { { number } }, -- { cx, cy, w, depth (how far it leans toward the hour's dark) } each
 }
-type CloudGeo = { W: number, H: number, clouds: number, streaks: number, cloud: buffer }
 
 local MILKY = 0xC8D2FF
-local SEA_FADE: { number } = { 0.55, 0.3, 0 } -- how far each range of the sea of clouds fades into the sky, far to near
-local RANGES: { { number } } = { { 0.775, 0.05 }, { 0.845, 0.07 }, { 0.915, 0.1 } } -- base (share of H), puff step
+local SEA_LAYERS = 5 -- the sea of clouds' ridges
+local SEA_BASE: { number } = { 0.79, 0.83, 0.875, 0.92, 0.975 } -- each ridge's foot line (share of H), far to near
+local SEA_FADE: { number } = { 0.6, 0.45, 0.3, 0.15, 0 } -- how far each fades into the sky's last colour
 
 local function skyShapes(g: Geo)
 	local W, H = g.W, g.H
@@ -472,172 +467,109 @@ local function islet(g: Geo, j: number, cx: number, cy: number, w: number, seed:
 end
 
 ------------------------------------------------------------------ the sea of clouds
--- Three ranges of heaped puffs along the bottom, far to near, each repeating across exactly (a whole number of puffs a
--- width) so the picture tiles: big round puffs in a row, smaller ones heaped behind and above some of them, solid
--- below. Flat colour: the body, a rim a step lighter along the top of every puff that shows above the one behind it
--- (so the heaps read without an outline), the underside a step darker toward the range's foot (a checker row where
--- the two meet), the nearest range's foot darker still.
+-- The sea of clouds (the request of 2026-11-20: "make the sea of clouds a more fluffy connected mass of clouds that
+-- arent just circles"): SEA_LAYERS ridges of cloud along the bottom, far to near, each one connected mass whose top
+-- edge billows: a slow swell, rounded domes of every width and squash meeting in soft notches, smaller domes heaped on
+-- them, so it puffs like a cumulus instead of running in rows of circles. Every lobe wraps round the picture's width, so the picture tiles. Flat
+-- colour: the edge along each ridge's top and the left of each billow (lit from the top left; where it stands against
+-- the sky or the ridge behind) a step lighter, the body, and the underside a step darker deeper down (a checker row where they meet), the nearest ridge's foot darker
+-- still; the farther ridges fade into the sky's last colour.
 local function seaShapes(g: Geo)
 	local W, H = g.W, g.H
 	local front = g.front
-	local own = buffer.create(W * H * 2) -- the frontmost puff holding a pixel (its index)
-	for r = 0, 2 do
-		local spec = RANGES[r + 1]
-		local base = H * spec[1]
-		local n = math.max(3, math.floor(W / math.max(8, H * spec[2]) + 0.5))
-		local sp = W / n
-		local puffs: { { number } } = {}
-		local top = H
-		for i = 0, n - 1 do
-			local s = r * 97 + i * 13 + 7
-			local rad = sp * (0.42 + hash(s) * 0.7)
-			local cx = (i + 0.5) * sp + (hash(s + 1) - 0.5) * sp * 0.6
-			local cy = base + rad * 0.4 + (hash(s + 2) - 0.4) * sp * 0.35
-			table.insert(puffs, { cx, cy, rad })
-			top = math.min(top, cy - rad)
-			if hash(s + 5) > 0.4 then
-				-- (a smaller heap behind and above it)
-				local r2 = rad * (0.35 + hash(s + 6) * 0.3)
-				local c2 = cy - rad * (0.45 + hash(s + 8) * 0.2)
-				table.insert(puffs, { cx + (hash(s + 7) - 0.5) * rad * 1.2, c2, r2 })
-				top = math.min(top, c2 - r2)
-			end
-		end
-		local flat = base + sp * 0.5
-		local y0 = math.max(0, math.floor(top) - 1)
-		buffer.fill(own, 0, 0)
-		for k, p in puffs do
-			local cx, cy, rad = p[1], p[2], p[3]
-			for y = math.max(y0, math.floor(cy - rad)), math.min(H - 1, math.ceil(cy + rad)) do
-				local dy = y + 0.5 - cy
-				if dy * dy <= rad * rad then
-					local span = math.sqrt(rad * rad - dy * dy)
-					for xx = math.floor(cx - span + 0.5), math.floor(cx + span - 0.5) do
-						local i = y * W + (xx % W)
-						local cur = buffer.readu16(own, i * 2)
-						if cur == 0 or puffs[cur][2] < cy then
-							buffer.writeu16(own, i * 2, k)
+	local inside = buffer.create(W * H) -- (this ridge's pixels, for its edge)
+	for l = 0, SEA_LAYERS - 1 do
+		local base = H * SEA_BASE[l + 1]
+		-- the ridge's height above its base at each column: a slow swell, then rounded domes of every width and squash
+		-- (the highest at each column wins, so they meet in soft notches like a cumulus), then smaller domes heaped on
+		-- top of those for the fluffy edge
+		local swell = table.create(W, 0)
+		local big = table.create(W, 0)
+		local small = table.create(W, 0)
+		local function spread(into: { number }, count: number, wMin: number, wMax: number, aMin: number, aMax: number, seed: number, dome: boolean, phase: number?)
+			for i = 1, count do
+				local c = (i - 1 + (phase or 0) + (hash(seed + i * 3) - 0.5) * 0.7) / count * W
+				local w = (wMin + hash(seed + i * 3 + 1) * (wMax - wMin)) * H
+				local a = if dome then w * (aMin + hash(seed + i * 3 + 2) * (aMax - aMin)) else (aMin + hash(seed + i * 3 + 2) * (aMax - aMin)) * H
+				for xx = math.floor(c - w), math.ceil(c + w) do
+					local t = (xx + 0.5 - c) / w
+					if t > -1 and t < 1 then
+						local x = xx % W + 1
+						if dome then
+							into[x] = math.max(into[x], a * math.sqrt(1 - t * t))
+						else
+							into[x] += a * (1 - t * t) ^ 2
 						end
 					end
 				end
 			end
 		end
-		local function ownAt(x: number, y: number): number
-			if y < y0 or y >= H then
-				return 0
+		local s0 = 400 + l * 97
+		local k = 0.6 + 0.25 * l -- (nearer ridges, bigger billows)
+		spread(swell, math.max(3, math.floor(W / (H * 0.3) + 0.5)), 0.12, 0.25, 0.005, 0.02, s0, false)
+		local nBig = math.max(5, math.floor(W / (H * 0.085 * k) + 0.5))
+		spread(big, nBig, 0.05 * k, 0.1 * k, 0.8, 1, s0 + 1000, true)
+		-- (a second row of lower billows between the big ones: the notches' bottoms stay rounded and never cut deep)
+		local mid = table.create(W, 0)
+		spread(mid, nBig, 0.03 * k, 0.05 * k, 0.55, 0.75, s0 + 3000, true, 0.5)
+		spread(small, math.max(8, math.floor(W / (H * 0.034 * k) + 0.5)), 0.015 * k, 0.03 * k, 0.8, 1, s0 + 2000, true)
+		-- (and a floor at three tenths of the nearest peak, so no notch cuts down to the ridge's foot)
+		local reach = math.max(2, math.floor(H * 0.045 * k))
+		local hgt = table.create(W, 0)
+		for x = 1, W do
+			local peak = 0
+			for d = -reach, reach do
+				peak = math.max(peak, big[((x - 1 + d) % W) + 1])
 			end
-			return buffer.readu16(own, (y * W + (x % W)) * 2)
+			hgt[x] = swell[x] + math.max(big[x], mid[x], small[x] * 0.6 + big[x] * 0.85, peak * 0.3)
 		end
-		local cls = 64 + r * 16
-		local rimD = if r == 0 then 1 else 2
-		local shadeAt = flat + sp * 0.25
-		for y = y0, H - 1 do
-			for x = 0, W - 1 do
-				local k = ownAt(x, y)
-				if k ~= 0 or y >= flat then
-					local t = 2
-					if k ~= 0 then
-						-- (the rim only along the upper part of a puff: its top against the sky or a farther range, a
-						-- shorter cap where it stands in front of the heap behind it)
-						local p = puffs[k]
-						local ny = (y + 0.5 - p[2]) / p[3]
-						if ny < -0.2 then
-							for d = 1, rimD do
-								local u = ownAt(x, y - d)
-								local open = if u == 0 then y - d < flat else (ny < -0.6 and u ~= k and puffs[u][2] < p[2])
-								if open then
-									t = 1
-									break
-								end
-							end
+		local top = table.create(W, 0)
+		local y0 = H
+		for x = 0, W - 1 do
+			local t = math.floor(base - hgt[x + 1] + 0.5)
+			top[x + 1] = t
+			y0 = math.min(y0, t)
+		end
+		y0 = math.max(0, y0)
+		local cls = 64 + l * 8
+		local rimD = if l <= 1 then 1 else 2
+		local near = l == SEA_LAYERS - 1
+		buffer.fill(inside, 0, 0)
+		for x = 0, W - 1 do
+			for y = math.max(0, top[x + 1]), H - 1 do
+				buffer.writeu8(inside, y * W + x, 1)
+			end
+		end
+		local function isIn(x: number, y: number): boolean
+			return y >= 0 and y < H and buffer.readu8(inside, y * W + (x % W)) == 1
+		end
+		for x = 0, W - 1 do
+			local t0 = top[x + 1]
+			-- (under a tall billow there is more body before the underside)
+			local shadeAt = t0 + math.max(3, (base - t0) * 0.6 + H * 0.02)
+			for y = math.max(0, t0), H - 1 do
+				local t = 2
+				if y - t0 < rimD * 3 then
+					for d = 1, rimD do
+						if not isIn(x, y - d) or (d == 1 and not isIn(x - 1, y)) then
+							t = 1
+							break
 						end
 					end
-					if y > shadeAt then
-						t = if r == 2 and y > flat + sp * 0.7 then 4 else 3
+				end
+				if t ~= 1 then
+					if near and y > base + H * 0.035 then
+						t = 4
+					elseif y > shadeAt then
+						t = 3
 					elseif y > shadeAt - 2 and (x + y) % 2 == 0 then
 						t = 3
 					end
-					buffer.writeu8(front, y * W + x, cls + t)
 				end
+				buffer.writeu8(front, y * W + x, cls + t)
 			end
 		end
 	end
-end
-
------------------------------------------------------------------- the drifting clouds
--- Flat clouds (the request of 2026-11-20 with two pictures: "no need to make the clouds so detailed with outlines,
--- just simple shapes and color is enough. make variations to them as well"): long thin streaks (a bar with round ends
--- and a shorter one or two along its top, now and then one under it) and puffs (round heaps on a flat bottom), in
--- every size. One body colour, the row along the top a step lighter (on puffs and the thicker streaks), the row along
--- the underside a step darker, a puff's lower part darker too with a checker row where it starts. No outline.
-local function cloudShape(cg: CloudGeo, own: { [number]: boolean }, top: number, shadeFrom: number?, rim: boolean)
-	local W, H = cg.W, cg.H
-	for k in own do
-		local y, x = k // 65536, k % 65536 - 32768
-		if y >= 0 and y < H then
-			local t = 2
-			if own[k + 65536] == nil then
-				t = 3
-			elseif shadeFrom and (y > shadeFrom or (y == shadeFrom and (x + y) % 2 == 0)) then
-				t = 3
-			elseif rim and own[k - 65536] == nil and y < top + 4 then
-				t = 1
-			end
-			buffer.writeu8(cg.cloud, y * W + (x % W), t)
-		end
-	end
-end
-
-local function puffCloud(cg: CloudGeo, cx: number, base: number, scale: number, s: number)
-	local own: { [number]: boolean } = {}
-	local np = 3 + math.floor(hash(s + 2) * 4)
-	local span = (20 + hash(s + 3) * 46) * scale
-	local top = base
-	for p = 1, np do
-		local u = (p - 1) / math.max(1, np - 1) - 0.5
-		local r = (5 + 9 * (1 - math.abs(u) * 1.5) + hash(s + 10 + p) * 4) * scale
-		local px, py = cx + u * span + (hash(s + 20 + p) - 0.5) * 3, base - r * 0.5 - hash(s + 30 + p) * 2 * scale
-		for y = math.floor(py - r), math.min(base, math.ceil(py + r)) do
-			local dy = y + 0.5 - py
-			if dy * dy <= r * r then
-				local ext = math.sqrt(r * r - dy * dy)
-				for x = math.floor(px - ext + 0.5), math.floor(px + ext - 0.5) do
-					own[y * 65536 + x + 32768] = true
-				end
-				top = math.min(top, y)
-			end
-		end
-	end
-	cloudShape(cg, own, top, base - math.max(1, math.floor((base - top) * 0.28)), true)
-end
-
-local function streakCloud(cg: CloudGeo, cx: number, cy: number, len: number, thick: number, s: number)
-	local own: { [number]: boolean } = {}
-	local bars: { { number } } = { { cx - len / 2, cx + len / 2, cy, thick } }
-	for q = 1, 1 + math.floor(hash(s + 4) * 2) do
-		local l2 = len * (0.3 + hash(s + 40 + q) * 0.35)
-		local x0 = cx - len / 2 + hash(s + 50 + q) * (len - l2)
-		table.insert(bars, { x0, x0 + l2, cy - thick * (0.9 + hash(s + 60 + q) * 0.5), thick * (0.6 + hash(s + 70 + q) * 0.4) })
-	end
-	if hash(s + 8) > 0.6 then
-		local x0 = cx - len / 2 + hash(s + 9) * len * 0.5
-		table.insert(bars, { x0, x0 + len * 0.35, cy + thick * 0.8, thick * 0.7 })
-	end
-	local top, bottom = math.huge, -math.huge
-	for _, b in bars do
-		local r = b[4]
-		for y = math.floor(b[3] - r), math.ceil(b[3] + r) do
-			local dy = math.abs(y + 0.5 - b[3])
-			if dy <= r then
-				local ext = math.sqrt(r * r - dy * dy)
-				for x = math.floor(b[1] - ext + 0.5), math.floor(b[2] + ext - 0.5) do
-					own[y * 65536 + x + 32768] = true
-				end
-				top, bottom = math.min(top, y), math.max(bottom, y)
-			end
-		end
-	end
-	cloudShape(cg, own, top, nil, bottom - top >= 4)
 end
 
 local function buildGeo(W: number, H: number): Geo
@@ -676,45 +608,18 @@ local function buildGeo(W: number, H: number): Geo
 	return g
 end
 
--- The drifting clouds for a weather: its count, its share of streaks; the farther (higher) first, so a nearer one
--- stands in front.
-local function buildClouds(W: number, H: number, clouds: number, streaks: number): CloudGeo
-	local cg: CloudGeo = { W = W, H = H, clouds = clouds, streaks = streaks, cloud = buffer.create(W * H) }
-	local many = math.max(4, math.floor(W * H / 100000 * clouds * 1.3 + 0.5))
-	local list: { { number } } = {}
-	for k = 1, many do
-		local s = k * 13 + 101
-		table.insert(list, { hash(s) * W, math.floor(H * 0.06 + hash(s + 1) * H * 0.58), s })
-	end
-	table.sort(list, function(a, b)
-		return a[2] < b[2]
-	end)
-	for _, c in list do
-		local s = c[3]
-		local scale = 0.65 + (c[2] / H) * 0.6
-		if hash(s + 77) < streaks then
-			streakCloud(cg, c[1], c[2], (24 + hash(s + 3) * 84) * scale, (1.2 + hash(s + 5) * 2.4) * scale, s)
-		else
-			puffCloud(cg, c[1], c[2], scale, s)
-		end
-	end
-	return cg
-end
-
 ------------------------------------------------------------------ colouring (a notch)
 type Job = {
 	pal: Pal,
 	y: number, -- the next row to colour
 	sky: buffer,
 	front: buffer,
-	cloud: buffer,
 	lutSky: { number },
 	lutFront: { number },
-	lutCloud: { number },
 	amt: number, -- the night's 0 .. 255 (a star shows once this passes its threshold)
 }
 
-local function newJob(pal: Pal, g: Geo, cg: CloudGeo): Job
+local function newJob(pal: Pal, g: Geo): Job
 	local W, H = g.W, g.H
 	local night = pal.stars
 	local lutSky = table.create(256, 0)
@@ -754,39 +659,33 @@ local function newJob(pal: Pal, g: Geo, cg: CloudGeo): Job
 		lutFront[(j - 1) * 2 + 2 + 1] = packed(mix(body, pal.lit, 0.3))
 	end
 	local bottom = pal.stops[6]
-	for r = 0, 2 do
+	for r = 0, SEA_LAYERS - 1 do
 		local f = math.min(0.85, SEA_FADE[r + 1] + wx.fade * 0.5)
 		local shade = mix(pal.shade, bottom, f)
-		local c = 64 + r * 16
+		local c = 64 + r * 8
 		lutFront[c + 1 + 1] = packed(mix(pal.lit, bottom, f))
 		lutFront[c + 2 + 1] = packed(mix(pal.body, bottom, f))
 		lutFront[c + 3 + 1] = packed(shade)
 		lutFront[c + 4 + 1] = packed(mix(shade, pal.ink, 0.2))
 	end
-	local lutCloud = table.create(4, 0)
-	lutCloud[2] = packed(pal.lit)
-	lutCloud[3] = packed(pal.body)
-	lutCloud[4] = packed(pal.shade)
 	return {
 		pal = pal,
 		y = 0,
 		sky = buffer.create(W * H * 4),
 		front = buffer.create(W * H * 4),
-		cloud = buffer.create(cg.W * cg.H * 4),
 		lutSky = lutSky,
 		lutFront = lutFront,
-		lutCloud = lutCloud,
 		amt = math.floor(night * 255),
 	}
 end
 
 -- Rows y0 .. y1 of the three pictures in the job's colours.
-local function colourRows(job: Job, g: Geo, cg: CloudGeo, y0: number, y1: number)
+local function colourRows(job: Job, g: Geo, y0: number, y1: number)
 	local W = g.W
 	local amt = job.amt
-	local lutSky, lutFront, lutCloud = job.lutSky, job.lutFront, job.lutCloud
-	local gs, gt, gf, gc = g.sky, g.thr, g.front, cg.cloud
-	local os_, of, oc = job.sky, job.front, job.cloud
+	local lutSky, lutFront = job.lutSky, job.lutFront
+	local gs, gt, gf = g.sky, g.thr, g.front
+	local os_, of = job.sky, job.front
 	for y = y0, y1 do
 		local row = y * W
 		for x = 0, W - 1 do
@@ -800,23 +699,18 @@ local function colourRows(job: Job, g: Geo, cg: CloudGeo, y0: number, y1: number
 			if f ~= 0 then
 				buffer.writeu32(of, i * 4, lutFront[f + 1])
 			end
-			local cl = buffer.readu8(gc, i)
-			if cl ~= 0 then
-				buffer.writeu32(oc, i * 4, lutCloud[cl + 1])
-			end
 		end
 	end
 	job.y = y1 + 1
 end
 
--- The three pictures for a weather (Data/Weather id) at W x H art px, the sky's hour (now when nil) and a day's
--- variation (today's when nil): RGBA buffers, the front's and the clouds' empty pixels clear.
-function SkyBackdrop.paint(kind: string, W: number, H: number, hour: number?, variant: number?): (buffer, buffer, buffer)
-	local wx = WX[kind] or CLEAR
-	local g, cg = buildGeo(W, H), buildClouds(W, H, wx.clouds, wx.streaks)
-	local job = newJob(paletteAt(hour or DayLight.skyHour(), kind, variant or variantNow()), g, cg)
-	colourRows(job, g, cg, 0, H - 1)
-	return job.sky, job.front, job.cloud
+-- The two pictures for a weather (Data/Weather id) at W x H art px, the sky's hour (now when nil) and a day's variation
+-- (today's when nil): RGBA buffers, the front's empty pixels clear.
+function SkyBackdrop.paint(kind: string, W: number, H: number, hour: number?, variant: number?): (buffer, buffer)
+	local g = buildGeo(W, H)
+	local job = newJob(paletteAt(hour or DayLight.skyHour(), kind, variant or variantNow()), g)
+	colourRows(job, g, 0, H - 1)
+	return job.sky, job.front
 end
 
 ------------------------------------------------------------------ the sun and the moon
@@ -887,13 +781,10 @@ type Streak = { x: number, y: number, age: number, px: { Frame } }
 local gui: ScreenGui? = nil
 local skyLabel: ImageLabel? = nil
 local frontLabels: { ImageLabel } = {}
-local cloudLabels: { ImageLabel } = {}
 local lifeLayer: Frame? = nil
 local skyImage: EditableImage? = nil
 local frontImage: EditableImage? = nil
-local cloudImage: EditableImage? = nil
 local geo: Geo? = nil
-local cgeo: CloudGeo? = nil
 local job: Job? = nil
 local sun: Body = { key = "", S = 0, x = 0, y = 0, shown = false }
 local moon: Body = { key = "", S = 0, x = 0, y = 0, shown = false }
@@ -902,7 +793,7 @@ local twinkles: { Twinkle } = {}
 local streak: Streak? = nil
 local streakAt, birdsAt = 0, 0
 local lifeClock = 0
-local shown = { kind = "", key = "", W = 0, H = 0, K = 0, off = -1, seaOff = -1, paints = 0, geos = 0, stars = 0, ink = 0x3A5E8C }
+local shown = { kind = "", key = "", W = 0, H = 0, K = 0, seaOff = -1, paints = 0, geos = 0, stars = 0, ink = 0x3A5E8C }
 local started = false
 
 local function label(parent: Instance, name: string, z: number): ImageLabel
@@ -932,7 +823,6 @@ local function ensureGui(): ScreenGui
 	sl.Visible, ml.Visible = false, false
 	sun.label, moon.label = sl, ml
 	frontLabels = { label(ng, "FarA", 3), label(ng, "FarB", 3) }
-	cloudLabels = { label(ng, "CloudsA", 4), label(ng, "CloudsB", 4) }
 	local lay = Instance.new("Frame")
 	lay.Name = "Life"
 	lay.BackgroundTransparency = 1
@@ -956,17 +846,16 @@ local function sized(im: EditableImage?, W: number, H: number, who: string): Edi
 	return ImageMemory.create(W, H, who)
 end
 
--- A finished notch on screen: the three pictures uploaded at once.
+-- A finished notch on screen: the two pictures uploaded at once.
 local function finish(j: Job, g: Geo)
-	local si, fi, ci = skyImage, frontImage, cloudImage
-	if si == nil or fi == nil or ci == nil then
+	local si, fi = skyImage, frontImage
+	if si == nil or fi == nil then
 		return
 	end
 	local size = Vector2.new(g.W, g.H)
 	pcall(function()
 		(si :: EditableImage):WritePixelsBuffer(Vector2.zero, size, j.sky);
-		(fi :: EditableImage):WritePixelsBuffer(Vector2.zero, size, j.front);
-		(ci :: EditableImage):WritePixelsBuffer(Vector2.zero, size, j.cloud)
+		(fi :: EditableImage):WritePixelsBuffer(Vector2.zero, size, j.front)
 	end)
 	shown.key = j.pal.key
 	shown.stars = j.pal.stars
@@ -975,17 +864,16 @@ local function finish(j: Job, g: Geo)
 end
 
 -- New shapes for a screen size: the images sized, the labels laid out, the notch painted now.
-local function rebuild(W: number, H: number, K: number, clouds: number, streaks: number, pal: Pal)
+local function rebuild(W: number, H: number, K: number, pal: Pal)
 	ensureGui()
 	skyImage = sized(skyImage, W, H, "sky")
 	frontImage = sized(frontImage, W, H, "sky far")
-	cloudImage = sized(cloudImage, W, H, "sky clouds")
-	local si, fi, ci = skyImage, frontImage, cloudImage
-	if si == nil or fi == nil or ci == nil then
+	local si, fi = skyImage, frontImage
+	if si == nil or fi == nil then
 		return
 	end
-	local g, cg = buildGeo(W, H), buildClouds(W, H, clouds, streaks)
-	geo, cgeo = g, cg
+	local g = buildGeo(W, H)
+	geo = g
 	shown.geos += 1
 	local sl = skyLabel :: ImageLabel
 	sl.ImageContent = Content.fromObject(si)
@@ -994,14 +882,10 @@ local function rebuild(W: number, H: number, K: number, clouds: number, streaks:
 		l.ImageContent = Content.fromObject(fi)
 		l.Size = UDim2.fromOffset(W * K, H * K)
 	end
-	for _, l in cloudLabels do
-		l.ImageContent = Content.fromObject(ci)
-		l.Size = UDim2.fromOffset(W * K, H * K)
-	end
-	shown.W, shown.H, shown.K, shown.off, shown.seaOff = W, H, K, -1, -1
+	shown.W, shown.H, shown.K, shown.seaOff = W, H, K, -1
 	sun.key, moon.key = "", ""
-	local j = newJob(pal, g, cg)
-	colourRows(j, g, cg, 0, H - 1)
+	local j = newJob(pal, g)
+	colourRows(j, g, 0, H - 1)
 	finish(j, g)
 	job = nil
 end
@@ -1204,28 +1088,20 @@ local function step(dt: number)
 		if K ~= shown.K then
 			clearLife()
 		end
-		rebuild(W, H, K, wx.clouds, wx.streaks, pal)
+		rebuild(W, H, K, pal)
 		g = geo
 		shown.kind = kind
 	end
-	local cg = cgeo
-	if g == nil or cg == nil or shown.paints == 0 then
+	if g == nil or shown.paints == 0 then
 		return
-	end
-	-- another weather's clouds: their shapes now, shown with the next notch (the weather is in its key)
-	if cg.clouds ~= wx.clouds or cg.streaks ~= wx.streaks then
-		cg = buildClouds(W, H, wx.clouds, wx.streaks)
-		cgeo = cg
-		job = nil
-		shown.geos += 1
 	end
 	-- a new notch: coloured a few rows a frame, shown once whole
 	if pal.key ~= shown.key then
 		local cur = job
-		local j: Job = if cur ~= nil and cur.pal.key == pal.key then cur else newJob(pal, g, cg)
+		local j: Job = if cur ~= nil and cur.pal.key == pal.key then cur else newJob(pal, g)
 		job = j
 		local rows = math.max(8, math.floor(ROW_PIXELS / g.W))
-		colourRows(j, g, cg, j.y, math.min(g.H - 1, j.y + rows - 1))
+		colourRows(j, g, j.y, math.min(g.H - 1, j.y + rows - 1))
 		if j.y >= g.H then
 			finish(j, g)
 			job = nil
@@ -1236,18 +1112,9 @@ local function step(dt: number)
 	local day = SUNSET - SUNRISE
 	placeBody(sun, true, (hour - SUNRISE) / day, 0, wx.veil, W, H, K)
 	placeBody(moon, false, ((hour - SUNSET) % 1) / (1 - day), (DayLight.skyNight() % 8) + 1, wx.veil, W, H, K)
-	-- the clouds and the far things drifting, sliding with the view
+	-- the sea of clouds and the far islets drifting, sliding with the view
 	local panX = CameraController.pan()
 	local now = os.clock()
-	local off = math.floor(now / DRIFT - panX * PARALLAX) % W
-	if off ~= shown.off then
-		shown.off = off
-		local a, b = cloudLabels[1], cloudLabels[2]
-		if a and b then
-			a.Position = UDim2.fromOffset((off - W) * K, 0)
-			b.Position = UDim2.fromOffset(off * K, 0)
-		end
-	end
 	local seaOff = math.floor(now / SEA_DRIFT - panX * FAR_PARALLAX) % W
 	if seaOff ~= shown.seaOff then
 		shown.seaOff = seaOff
@@ -1269,19 +1136,16 @@ function SkyBackdrop.start()
 	RunService.Heartbeat:Connect(step)
 end
 
--- What the sky's work costs at W x H (previews, with their own clock): the shapes, a weather's clouds and one notch,
--- in ms.
-function SkyBackdrop.debugTimes(W: number, H: number, clock: (() -> number)?): (number, number, number)
+-- What the sky's work costs at W x H (previews, with their own clock): the shapes and one notch, in ms.
+function SkyBackdrop.debugTimes(W: number, H: number, clock: (() -> number)?): (number, number)
 	local now = clock or os.clock
 	local t0 = now()
 	local g = buildGeo(W, H)
 	local t1 = now()
-	local cg = buildClouds(W, H, CLEAR.clouds, CLEAR.streaks)
+	local j = newJob(paletteAt(0.5, "sunny", 1), g)
+	colourRows(j, g, 0, H - 1)
 	local t2 = now()
-	local j = newJob(paletteAt(0.5, "sunny", 1), g, cg)
-	colourRows(j, g, cg, 0, H - 1)
-	local t3 = now()
-	return (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000
+	return (t1 - t0) * 1000, (t2 - t1) * 1000
 end
 
 -- Hold the sky at an hour and a night (the moon's phase) for the previews and sims; nil: the clock again.
@@ -1298,7 +1162,6 @@ export type DebugState = {
 	paints: number,
 	geos: number,
 	pending: boolean,
-	off: number,
 	seaOff: number,
 	hour: number,
 	stars: number,
@@ -1314,7 +1177,7 @@ export type DebugState = {
 }
 
 -- What shows now (previews and sims): whether it shows (only behind the pixel filter), the weather and notch painted, the picture's size, how many notches were
--- painted and shapes built, a notch under way, the clouds' and the far things' offsets, the hour, how much of the
+-- painted and shapes built, a notch under way, the far things' offset, the hour, how much of the
 -- night shows, the sun and the moon (shown, their top left in art px), the birds, twinkles and a shooting star.
 function SkyBackdrop.debugState(): DebugState
 	local tw = 0
@@ -1333,7 +1196,6 @@ function SkyBackdrop.debugState(): DebugState
 		paints = shown.paints,
 		geos = shown.geos,
 		pending = job ~= nil,
-		off = shown.off,
 		seaOff = shown.seaOff,
 		hour = DayLight.skyHour(),
 		stars = shown.stars,

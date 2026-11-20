@@ -1080,6 +1080,11 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > sunset; a lavender night with a lilac dawn and a pink and violet sunset; a sea-blue night with a golden dawn and an
 > ember-red sunset. The day's own blue is the same every day, and the day changes over at noon, so nothing jumps.
 
+> Then: "make the sea of clouds a more fluffy connected mass of clouds that arent just circles. Remove the clouds that
+> appear in the background". So the sea of clouds is five ridges of one heaped, billowing mass: a slow swell, big round
+> billows with lower ones rounding off the notches between them and small puffs on top, bigger toward the front, a lit
+> edge along each ridge's top and the left of each billow. Nothing drifts across the sky above it any more.
+
 The island floats in the sky and grows with its tier: tier 1 a small oval about 30 by 24 studs round the Tree of Life,
 then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
 its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
@@ -1098,11 +1103,11 @@ horizon, the moon cratered and in a new phase each night); at night the stars co
 little blue, gold or white crosses), the band of the galaxy, twinkles and now and then a shooting star; by day a
 little flock of birds now and then. In front of it far islets float in the haze as silhouettes (a flat grass top with
 little trees and a pine, a round belly narrowing to ragged points, stones floating under it; one colour leaning from
-the sky's toward the hour's dark, its top edge a step lighter), then the sea of clouds in three ranges of heaped
-puffs, then clouds that drift slowly and slide a little with the view, long thin streaks and round puffs in every
-size. Every cloud is a flat shape: one body colour, a lighter row along its top, a darker one underneath, no outline.
-Each weather pulls the colours toward its own grey, adds or takes away clouds (more streaks on fair days, more puffs
-in rain and storms), hides the stars in rain, storm and fog and veils the sun and moon. The island keeps its bright
+the sky's toward the hour's dark, its top edge a step lighter), then the sea of clouds along the bottom: five ridges of one heaped, billowing
+mass (big round billows, lower ones rounding off the notches, small puffs on top, bigger toward the front), flat
+colour with a lit edge along each ridge's top and the left of each billow, the farther ridges fading into the sky. No
+clouds drift across the sky since 2026-11-20. Each weather pulls the colours toward its own grey, hides the stars in
+rain, storm and fog and veils the sun and moon. The island keeps its bright
 light at every hour. (From 2026-11-20 the island was whole from the start
 with the land not yet open under rock, then in a dithered dark, the beach and sea round it; both went with the request
 above.) The islands grow by as
@@ -2827,7 +2832,7 @@ reason.
   A driftling pecks at the ground in the fields,
   dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stand along the
   building's front, apart, turned three-quarters to the view so the work reads.
-- **The sky lives:** the sky runs through its own day and night, clouds drift past behind the islands, leaves sway
+- **The sky lives:** the sky runs through its own day and night, the sea of clouds drifts slowly below, leaves sway
   and flags ripple in the wind, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
   time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
   rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no

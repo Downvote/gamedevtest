@@ -3767,10 +3767,10 @@ do
 	E.run(1)
 	local g = pg and pg:FindFirstChild("SkyBackdrop")
 	local whole = g ~= nil and g.Enabled
-	for _, n in { "Sky", "Sun", "Moon", "FarA", "FarB", "CloudsA", "CloudsB", "Life" } do
+	for _, n in { "Sky", "Sun", "Moon", "FarA", "FarB", "Life" } do
 		whole = whole and g:FindFirstChild(n) ~= nil
 	end
-	H.expect(whole, "sky", "with the pixel filter on, the sky behind the islands: its picture, the sun, the moon, the far islets and the sea of clouds twice, the clouds twice, its life")
+	H.expect(whole and g:FindFirstChild("CloudsA") == nil, "sky", "with the pixel filter on, the sky behind the islands: its picture, the sun, the moon, the far islets and the sea of clouds twice, its life; no clouds drifting across it")
 	local function at(h)
 		H.inClient(p, SBm.debugHour, h, 0)
 		E.run(0.6)

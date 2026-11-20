@@ -2170,10 +2170,10 @@ function SCEN.skies()
 	-- what a new notch and new shapes cost, timed in the client (os.clock)
 	local realClock = os.clock
 	local ms = H.inClient(p, function()
-		local a, b, c = SB.debugTimes(640, 360, realClock)
-		return { a, b, c }
+		local a, b = SB.debugTimes(640, 360, realClock)
+		return { a, b }
 	end)
-	log("skies at 640x360: the shapes %.1f ms, a weather's clouds %.1f ms, a notch %.1f ms (spread over a few frames)", ms[1], ms[2], ms[3])
+	log("skies at 640x360: the shapes %.1f ms, a notch %.1f ms (spread over a few frames)", ms[1], ms[2])
 	if WV then
 		H.inClient(p, WV.debugSet, nil)
 	end
