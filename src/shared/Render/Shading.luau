@@ -172,8 +172,68 @@ end
 local function packRGB(rgb: number): number
 	return bit32.rshift(rgb, 16) + bit32.band(rgb, 0xFF00) + bit32.band(rgb, 0xFF) * 65536 + ALPHA
 end
--- An ink line's pixel as the outline pass writes it (the renderer's wind tells an edge's ink from a leaf by it).
+-- The palette's ink as a pixel (what an outline falls back to when it borders nothing with a colour).
 Shading.INK_PIXEL = packRGB(INK)
+
+-- Selective outlines (the request of 2026-11-20: "For outlines everywhere, no longer use pure black, but a darker
+-- version of suitable neighbouring pixels instead"): an edge pixel takes a darker step of its own colour (or, on a
+-- picture's outer rim, of the coloured pixel beside it), leaning a little toward the ink's hue, so a crown's edge is
+-- a deep green, a stone's a dark stone, a roof's a dark red. `inkOf(p)` gives that colour for a packed pixel (cached);
+-- `isInk(p)` says whether a pixel is one (the renderer's wind tells an edge from a leaf by it; an edge is never
+-- darkened twice).
+local SEL_KEEP = 0.45 -- of the pixel's own colour kept
+local SEL_INK = 0.3 -- of the ink's colour added
+local inkCache: { [number]: number } = {}
+local inkSet: { [number]: boolean } = { [packRGB(INK)] = true }
+local function inkOf(p: number): number
+	local got = inkCache[p]
+	if got then
+		return got
+	end
+	if inkSet[p] then
+		return p
+	end
+	local r, g, b = p % 256, (p // 256) % 256, (p // 65536) % 256
+	local q = math.floor(r * SEL_KEEP + INK_R * SEL_INK + 0.5)
+		+ math.floor(g * SEL_KEEP + INK_G * SEL_INK + 0.5) * 256
+		+ math.floor(b * SEL_KEEP + INK_B * SEL_INK + 0.5) * 65536
+		+ ALPHA
+	inkCache[p] = q
+	inkSet[q] = true
+	return q
+end
+Shading.inkOf = inkOf
+function Shading.isInk(p: number): boolean
+	return inkSet[p] == true
+end
+
+-- Ink pixel i of a colour buffer W x H: its own colour a darker step, or where it has none (alpha 0: a picture's
+-- background on its outer rim) the first coloured 4-neighbour's; a pixel already ink is left as it is.
+local function inkAt(color: buffer, W: number, H: number, i: number)
+	local c = buffer.readu32(color, i * 4)
+	if inkSet[c] then
+		return
+	end
+	if c // 16777216 == 0 then
+		local x = i % W
+		local found = false
+		for _, j in { if x > 0 then i - 1 else -1, if x < W - 1 then i + 1 else -1, i - W, i + W } do
+			if j >= 0 and j < W * H then
+				local c2 = buffer.readu32(color, j * 4)
+				if c2 // 16777216 > 0 and not inkSet[c2] then
+					c = c2
+					found = true
+					break
+				end
+			end
+		end
+		if not found then
+			buffer.writeu32(color, i * 4, packRGB(INK))
+			return
+		end
+	end
+	buffer.writeu32(color, i * 4, inkOf(c))
+end
 
 ------------------------------------------------------------------ API
 function Shading.pack(r: number, g: number, b: number): number
@@ -797,7 +857,6 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 		return
 	end
 	local color, depth, ids = f.color, f.depth, f.id
-	local ink = packRGB(INK)
 	local tol = depthTol or OUTLINE_DEPTH
 	if base then
 		for y = y0, y1 do
@@ -821,7 +880,7 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 				local a = row + ha
 				local idA, idB = buffer.readu16(ids, a * 2), buffer.readu16(ids, (a + 1) * 2)
 				if idB ~= idA and buffer.readf32(depth, a * 4) > buffer.readf32(depth, (a + 1) * 4) + tol then
-					buffer.writeu32(color, (a + 1) * 4, ink)
+					inkAt(color, W, H, a + 1)
 				end
 			end
 			local a = row + x0
@@ -836,10 +895,10 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 						local da, db = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + 1) * 4)
 						dA = da
 						if db > da + tol then
-							buffer.writeu32(color, a * 4, ink)
+							inkAt(color, W, H, a)
 						end
 						if da > db + tol and x < x1 then
-							buffer.writeu32(color, (a + 1) * 4, ink)
+							inkAt(color, W, H, a + 1)
 						end
 					end
 					-- the column pair (y, y + 1)
@@ -848,10 +907,10 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 						local da = dA or buffer.readf32(depth, a * 4)
 						local dd = buffer.readf32(depth, (a + W) * 4)
 						if dd > da + tol then
-							buffer.writeu32(color, a * 4, ink)
+							inkAt(color, W, H, a)
 						end
 						if da > dd + tol and y < y1 then
-							buffer.writeu32(color, (a + W) * 4, ink)
+							inkAt(color, W, H, a + W)
 						end
 					end
 					idA = idB
@@ -860,10 +919,10 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 					if idD ~= idA then
 						local da, dd = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + W) * 4)
 						if dd > da + tol then
-							buffer.writeu32(color, a * 4, ink)
+							inkAt(color, W, H, a)
 						end
 						if da > dd + tol and y < y1 then
-							buffer.writeu32(color, (a + W) * 4, ink)
+							inkAt(color, W, H, a + W)
 						end
 					end
 				end
@@ -877,10 +936,10 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 				if idB ~= idA then
 					local da, db = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + 1) * 4)
 					if db > da + tol and x >= x0 then
-						buffer.writeu32(color, a * 4, ink)
+						inkAt(color, W, H, a)
 					end
 					if da > db + tol and x < x1 then
-						buffer.writeu32(color, (a + 1) * 4, ink)
+						inkAt(color, W, H, a + 1)
 					end
 				end
 				idA = idB
@@ -891,7 +950,7 @@ function Shading.outline(f: FrameLike, x0: number, y0: number, x1: number, y1: n
 				local a = row + x
 				local idA, idD = buffer.readu16(ids, a * 2), buffer.readu16(ids, (a + W) * 2)
 				if idD ~= idA and buffer.readf32(depth, a * 4) > buffer.readf32(depth, (a + W) * 4) + tol then
-					buffer.writeu32(color, (a + W) * 4, ink)
+					inkAt(color, W, H, a + W)
 				end
 			end
 		end
@@ -908,7 +967,6 @@ function Shading.outlineDyn(f: FrameLike, x0: number, y0: number, x1: number, y1
 		return
 	end
 	local color, depth, ids = f.color, f.depth, f.id
-	local ink = packRGB(INK)
 	local tol = depthTol or OUTLINE_DEPTH
 	-- the row pairs (x, x + 1) that touch the rect: x in x0 - 1 .. x1, on its rows
 	local ha, hb = math.max(x0 - 1, 0), math.min(x1, W - 2)
@@ -921,9 +979,9 @@ function Shading.outlineDyn(f: FrameLike, x0: number, y0: number, x1: number, y1
 			if idB ~= idA and (idA >= dynFrom or idB >= dynFrom) then
 				local da, db = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + 1) * 4)
 				if db > da + tol and x >= x0 then
-					buffer.writeu32(color, a * 4, ink)
+					inkAt(color, W, H, a)
 				elseif da > db + tol and x < x1 then
-					buffer.writeu32(color, (a + 1) * 4, ink)
+					inkAt(color, W, H, a + 1)
 				end
 			end
 			idA = idB
@@ -939,9 +997,9 @@ function Shading.outlineDyn(f: FrameLike, x0: number, y0: number, x1: number, y1
 			if idD ~= idA and (idA >= dynFrom or idD >= dynFrom) then
 				local da, dd = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + W) * 4)
 				if dd > da + tol and y >= y0 then
-					buffer.writeu32(color, a * 4, ink)
+					inkAt(color, W, H, a)
 				elseif da > dd + tol and y < y1 then
-					buffer.writeu32(color, (a + W) * 4, ink)
+					inkAt(color, W, H, a + W)
 				end
 			end
 		end
@@ -956,7 +1014,6 @@ end
 function Shading.outlineRows(f: FrameLike, rowMin: { [number]: number }, rowMax: { [number]: number }, y0: number, y1: number, depthTol: number?)
 	local W, H = f.W, f.H
 	local color, depth, ids = f.color, f.depth, f.id
-	local ink = packRGB(INK)
 	local tol = depthTol or OUTLINE_DEPTH
 	if y0 < 0 then
 		y0 = 0
@@ -978,9 +1035,9 @@ function Shading.outlineRows(f: FrameLike, rowMin: { [number]: number }, rowMax:
 					if idB ~= idA then
 						local da, db = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + 1) * 4)
 						if db > da + tol then
-							buffer.writeu32(color, a * 4, ink)
+							inkAt(color, W, H, a)
 						elseif da > db + tol then
-							buffer.writeu32(color, (a + 1) * 4, ink)
+							inkAt(color, W, H, a + 1)
 						end
 					end
 					idA = idB
@@ -1002,9 +1059,9 @@ function Shading.outlineRows(f: FrameLike, rowMin: { [number]: number }, rowMax:
 					if idD ~= idA then
 						local da, dd = buffer.readf32(depth, a * 4), buffer.readf32(depth, (a + W) * 4)
 						if dd > da + tol then
-							buffer.writeu32(color, a * 4, ink)
+							inkAt(color, W, H, a)
 						elseif da > dd + tol then
-							buffer.writeu32(color, (a + W) * 4, ink)
+							inkAt(color, W, H, a + W)
 						end
 					end
 				end

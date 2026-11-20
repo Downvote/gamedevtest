@@ -288,7 +288,6 @@ type Geo = {
 local MILKY = 0xC8D2FF
 local SEA_LAYERS = 5 -- the sea of clouds' ridges
 local SEA_BASE: { number } = { 0.79, 0.83, 0.875, 0.92, 0.975 } -- each ridge's foot line (share of H), far to near
-local SEA_FADE: { number } = { 0.6, 0.45, 0.3, 0.15, 0 } -- how far each fades into the sky's last colour
 
 local function skyShapes(g: Geo)
 	local W, H = g.W, g.H
@@ -471,7 +470,8 @@ end
 -- arent just circles"): SEA_LAYERS ridges of cloud along the bottom, far to near, each one connected mass whose top
 -- edge billows: a slow swell, rounded domes of every width and squash meeting in soft notches, smaller domes heaped on
 -- them, so it puffs like a cumulus instead of running in rows of circles. Every lobe wraps round the picture's width,
--- so the picture tiles. Each ridge is one flat colour, the farther ones faded further into the sky's last colour.
+-- so the picture tiles. Each ridge is one flat colour, in even steps from the farthest (the clouds' shade sunk into
+-- the sky) to the nearest (between the clouds' body and their lit tone).
 local function seaShapes(g: Geo)
 	local W, H = g.W, g.H
 	local front = g.front
@@ -627,14 +627,13 @@ local function newJob(pal: Pal, g: Geo): Job
 		lutFront[(j - 1) * 2 + 2 + 1] = packed(mix(body, pal.lit, 0.3))
 	end
 	local bottom = pal.stops[6]
+	-- the ridges, back to front: the farthest the clouds' shade sunk well into the sky's lower colours, the nearest
+	-- between their body and their lit tone, the ones between in even steps, so each stands apart from the one behind
+	-- it (the request of 2026-11-20: "Increase the contrast between cloud sea layers")
+	local far = mix(mix(pal.shade, pal.stops[4], 0.45), bottom, math.min(0.6, 0.2 + wx.fade))
+	local near = mix(pal.body, pal.lit, 0.6)
 	for r = 0, SEA_LAYERS - 1 do
-		local f = math.min(0.85, SEA_FADE[r + 1] + wx.fade * 0.5)
-		local shade = mix(pal.shade, bottom, f)
-		local c = 64 + r * 8
-		lutFront[c + 1 + 1] = packed(mix(pal.lit, bottom, f))
-		lutFront[c + 2 + 1] = packed(mix(pal.body, bottom, f))
-		lutFront[c + 3 + 1] = packed(shade)
-		lutFront[c + 4 + 1] = packed(mix(shade, pal.ink, 0.2))
+		lutFront[64 + r * 8 + 2 + 1] = packed(mix(far, near, r / (SEA_LAYERS - 1)))
 	end
 	return {
 		pal = pal,

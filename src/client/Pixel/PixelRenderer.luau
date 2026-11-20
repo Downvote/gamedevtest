@@ -2280,7 +2280,7 @@ local RUSTLE_N, RUSTLE_GUST = 6, 14 -- of 64: the edge clumps moving at a time, 
 function SG.windSlice(s: Surf, k: number, j: number)
 	local W, H = s.W, s.H
 	local cls, wave, depth, color = s.sWClass, s.sWave, s.sDepth, s.sColor
-	local INK_PX = Shading.INK_PIXEL -- (an edge's ink, as the outline pass writes it)
+	local isInk = Shading.isInk -- (an edge's ink, as the outline pass writes it: a darker step of the pixel's colour)
 	local pend = SG.windPend
 	-- (the picture without the wind's paint, and as it will stand with this frame's moves worked out so far)
 	local function orig(i: number): number
@@ -2326,12 +2326,12 @@ function SG.windSlice(s: Surf, k: number, j: number)
 						local ci, cb, ct = orig(i), orig(b), orig(t)
 						-- (across the edge: the next pixel along it either side)
 						local side = if dir == 1 or dir == -1 then W else 1
-						if ci == INK_PX and cb ~= INK_PX and ct ~= INK_PX and buffer.readu8(cls, b) == 4 and pend[t] == nil and pend[b] == nil then
+						if isInk(ci) and not isInk(cb) and not isInk(ct) and buffer.readu8(cls, b) == 4 and pend[t] == nil and pend[b] == nil then
 							-- (the neighbours as they stand now, with this frame's earlier moves in: two moves never
 							-- meet side by side)
 							if out then
 								-- (the ink out a pixel, the leaf where it was; never onto a pixel touching other ink)
-								if now(t + dir) ~= INK_PX and now(t + side) ~= INK_PX and now(t - side) ~= INK_PX and pend[t + side] == nil and pend[t - side] == nil then
+								if not isInk(now(t + dir)) and not isInk(now(t + side)) and not isInk(now(t - side)) and pend[t + side] == nil and pend[t - side] == nil then
 									put(t, ci)
 									put(i, cb)
 								end
@@ -2339,7 +2339,7 @@ function SG.windSlice(s: Surf, k: number, j: number)
 								-- (what lay behind where the ink was, the ink a pixel in, a leaf still behind it and no
 								-- other ink beside it)
 								local c2 = b - dir
-								if buffer.readu8(cls, c2) == 4 and now(c2) ~= INK_PX and pend[c2] == nil and now(b + side) ~= INK_PX and now(b - side) ~= INK_PX and pend[b + side] == nil and pend[b - side] == nil then
+								if buffer.readu8(cls, c2) == 4 and not isInk(now(c2)) and pend[c2] == nil and not isInk(now(b + side)) and not isInk(now(b - side)) and pend[b + side] == nil and pend[b - side] == nil then
 									put(i, ct)
 									put(b, ci)
 								end
