@@ -165,7 +165,10 @@ is `DriftlingIsle-<short hash>.rbxl`.)
 ## 3. Types (`src/shared/Types.luau`)
 
 `Look` (`{ skin, hair, style, shirt }` indices into Data/Looks, and `hat? face? neck? back? hand? top?`: a Data/Cosmetics id
-worn in that slot, only an owned one of that slot (`Schema.reconcile`, `Store.wear`); 2026-11-14), `Bagged` (an egg held
+worn in that slot, only an owned one of that slot (`Schema.reconcile`, `Store.wear`); 2026-11-14; since 2026-11-20, the
+bakery's customization screen, `bangs? hair2? eye? eye2? apron? turn?` and `hatTint? faceTint? neckTint? backTint?
+handTint? topTint? apronTint?`, more indices into Data/Looks, kept only when not their default), `Profile.outfits` and
+`ClientView.outfits` (`{ string }`: up to `Tuning.MaxOutfits` saved looks, each `Looks.encode`), `Bagged` (an egg held
 in the bag, `{ id, r }`: Logic/Store's products and rewards, hatched for nothing by `Tree.hatchBag`), `Track` (the pass
 track: `{ s (the season these points are for), xp, got, gotP (the levels whose free / premium reward was claimed) }`),
 `Piece` (`{ uid, id, x, z, rot, lvl }`: anything standing on the island; `uid` stays while it stands; `lvl` a
@@ -294,8 +297,8 @@ listed price times jobs / 2, so a place costs what it did at 2), charm (a path's
 | `Data/Traits` | what makes one driftling unlike another (GAME_DESIGN 6): `MAX` (4 mutations), `KEYS` (the effects: work farm wood shop (shares at work; no fish since 2026-11-14), cost (the eggs' price: below 0 cheaper), sell (the price), charm (whole points), luck (luckier eggs); cost and luck count from a driftling in a hut, for the whole island (no `tree`, the next eggs sooner, since 2026-11-14: the tree keeps its 10 minutes; `renamed` turns a saved "swift<t>", Leafy, into "bright<t>", Lucky, and each passive's tree share became egg luck); 0.1 = +10%; `cost` was `eat` before the tide and the driftling's own price on it, `tree` was `tide` on it), `RARITY` (`{ name, color, weight }` x 7: Common .. Legendary, Mythic (UI colour `mythic`), Celestial (`celestial`); the tree's weights before luck, 100 45 16 5 1.2 0.02 0.002), `RMAX` (7: every table by rarity has this many entries; the bounds of the saves, payloads and clamps), `TIER_COLOR` (a tier's colour; its stars are `star_t<tier>` sprites, `UI/TierStars`, since 2026-11-14), `list`, `byId` (mutations `{ id ("sturdy3"), family, tier (1 .. 4; 0 a flaw), name, blurb, fx }`: nine families x four tiers and five flaws (the Angler family went on 2026-11-14: `renamed(id)` turns a saved "angler<t>" into "grower<t>", and `clean` uses it); the families keep their old ids, "sturdy" now Thrifty .. Selfless (cost) and "swift" Leafy .. Evergreen (tree), so older saves read them), `families`, `at(family, tier)`, `roll(rng, rarity, lean?) -> { id }` (0 .. 3, no family twice, a rarer one rolls fewer flaws and higher tiers; each family by `pickFamily`), `pickFamily(rng, families, lean?) -> family` (all alike with no lean or an empty one, the draws the same as before the lean; else weighted by `lean[family]`, 1 when absent; 2026-11-15), `sum(passive?, muts?) -> Fx`, `workAt(fx, knack)` (work + the knack's share, at least -0.5), `clean(muts)` (known ids, a family once, at most MAX), `describe(fx)` ("+24% at farms, eggs cost 30% less, +2 charm", "+5% egg luck"); `weather` (the seven weather families `{ family, weather, key, names, values }`: rainy (farm), frosty (work: fish until 2026-11-14), sunny (shop), bloomy (charm), autumn (wood), misty (sell: tree until 2026-11-14), stormy (luck), four tiers each in `list` and `byId` like the rest but not in `families`, so `roll` and breeding never give them; only an egg the weather touched does, GAME_DESIGN 13) |
 | `Data/Quests` | the questline (GAME_DESIGN 9) `{ id, title, text (what to do and where), goal { kind, n, of? }, reward { shells? } (wood rewards became shells, one for one, on 2026-11-14), go (its Go: a panel "pals" "index" "hatch" "tree", or "build" / "build:<tab>"), icon (a `mini_` sprite) }`, twenty in order; `list`, `byId`. Goal kinds: helpers (driftlings at work) housed (in huts) built (of a building kind) paths decor taken (eggs hatched from the tree) sold best (the rarest had) tier seen hatched; the tree's `luck`, `speed` and `grown` are gone |
 | `Data/Islets` | the 12 kinds of land the driftlings come from (GAME_DESIGN 6) `{ id, name ("Beach"), plural, tier (the island tier its driftlings start hatching at: Beach, Meadow 1; Snowfield, Mangrove 2; Volcano, Grotto 3; Reef 4; Bluffs 5; Ruins 6; Moonwood 11; Cloudtop 14; Starfall 17), wild (every driftling of its kind, from Data/Creatures, the commonest first), color, blurb }`; `list` |
-| `Data/Looks` | skin (6), hair colour (10), hair style (10: short long bun spiky curly pony twintails mohawk bob braid) and shirt colour (15) lists, all free (`Types.Look` indexes them; new entries only on the end), `worn` (the six cosmetic slots in the attribute's order), `encode(look)` / `decode(s)` (the "Founder" attribute: "skin.hair.style.shirt", then "|hat|face|neck|back|hand|top" when anything is worn; GAME_DESIGN 14) |
-| `Data/Cosmetics` | the 83 pieces a founder can wear (GAME_DESIGN 14) `{ id, slot (hat face neck back hand top), name, rarity (1 .. 5), src ("shop": the rotating shop's pool; "track", "trackp": the pass track's free and premium sides; "vip"; "starter") }`; `SLOTS` (`{ id, name }` x 6), `list`, `byId`, `bySlot`, `from(src) -> { id }`. `Models/CharacterModels` draws each on the founder by its id |
+| `Data/Looks` | skin (11), hair colour (17), hair style (19: short long bun spiky curly pony twintails mohawk bob braid pigtails afro sideswept spacebuns wavy pixie sidepony mullet bald) and shirt colour (18) lists, eye colours (13), `bangs` (10, "auto" the style's own), `aprons` (16, "none" first: `{ id, name, color, accent, pattern }`), `tints` (21, Original then 20: `{ id, name, color, shade, code }`), `turns` (5: degrees forward), all free (`Types.Look` indexes them; new entries only on the end), `names.<list>`, `worn` (the six cosmetic slots in the attribute's order), `extra` / `extraDefault` (the six fields after the first four), `tintFields` / `tintField` (slot -> field), `encode(look)` / `decode(s)` (the "Founder" attribute and a saved outfit: "skin.hair.style.shirt", then ".bangs.hair2.eye.eye2.apron.turn" when one is not its default, "|hat|face|neck|back|hand|top" when anything is worn or tinted, "|<a tint code a slot>" when anything is tinted; GAME_DESIGN 14), `tinted(c, a, t) -> (c, a)` (a piece's two colours under a tint), `tintOf(look, slot) -> key?`, `turnOf(look) -> degrees` |
+| `Data/Cosmetics` | the 276 pieces a founder can wear (GAME_DESIGN 14) `{ id, slot (hat face neck back hand top), name, rarity (1 .. 7), src ("shop": the rotating shop's pool; "track", "trackp": the pass track's free and premium sides; "vip"; "starter"; "free": always owned), kind?, color?, accent?, covers?, bottom?, head?, rainbow? }` (the 193 with a `kind` are Random Bakery's, drawn by `Models/AccessoryModels` / `AccessoryBasics`; `color` and `accent` their two palette keys); `SLOTS` (`{ id, name }` x 6), `list`, `byId`, `bySlot`, `from(src) -> { id }`, `owns(owned, id)`. `Models/WearModels` draws each on the founder |
 | `Data/Titles` | the 34 titles (GAME_DESIGN 14) `{ id, name, how ("start" "tier" "taken" "best" "seen" "earned" "hatched" "days" "owned" "vip" "starter" "track"), n, color (a UIKit / Palette key) }`; `list`, `byId` |
 | `Data/Track` | the pass track (GAME_DESIGN 14): `LEVELS` (30), `list` (`{ free, prem }` a level, each a `Reward` `{ kind ("shells" with `mins`, "egg" with `r`, "look" or "title" with `id`) }`), `extra` (the last level's second reward each side: a legendary, a mythic egg) |
 | `Data/Office` | the island's twenty tiers (`plans[tier]`: `{ tier, name }`, Castaway Cay, Palm Isle, Grand Isle, Harbor Town, Coral City, Sunspire Capital, Moonlit Bay, Evergreen Isle, Skyreach Isle, Driftling Haven, Lantern Cove, Saltwind Reach, Kelpwood Isle, Pearlstone Port, Cloudberry Isle, Amberfield, Starfall Atoll, Tidecrown, Farshore, Everdrift: the island card's title and Expand's cheer; as many as `Tuning.TierCost`), `plan(tier)`, `origin(plot)` (Data/Street's). The island has no house (GAME_DESIGN 8) |
@@ -359,16 +362,33 @@ Models (`src/shared/Models`, Roblox modules):
   fights' `windup strike guard throw run victory ko` (nothing plays them now), and the island's work, each a loop with `k` the beat's phase:
   `dig pick fish chop saw sell serve hammer train tend`), `WORK_HIT` (where in a beat a work's blows land:
   `{ [action]: { phase } }`), `STAND_TOP`, `topOf(rig)` (the top of the head and its hat as drawn: the name tag's
-  height). The hair styles are Data/Looks' ten (`short long bun spiky curly pony twintails mohawk bob braid`, each a few
-  head parts); the pieces worn (GAME_DESIGN 14.1) are built from `Models/CosmeticModels` onto the rig, `Rig.extra =
-  { head, body, hand }` (their part names by the bone they move with: `posePose` moves the head ones with the head, the
-  body ones with the torso, the hand ones with the right forearm (`limb` returns the forearm's frame); the seated rig
-  keeps the head and body ones, moved down to its head and torso, and holds nothing); a hat's `covers` hides the hair it
-  covers ("top": SpikeA..C, Bun, CurlA..C, Mohawk, MohawkB; "hood": all the hair but the Fringe); a top recolours the
-  Torso, the sleeves and the trim and hides the shirt's parts it lists (the Belt and Buckle under a coat).
-- `CosmeticModels.parts(id) -> { Spec }` (each of Data/Cosmetics' 83 pieces: `{ name ("<id>_WearN"), size, at (the
-  standing rig's space), color, shape?, rot?, bone ("head" | "body" | "hand"), neon? }`, a few parts each, cached; the
-  module asserts every piece has its model), `top(id) -> { torso?, arms?, trim?, hide? }?`, `covers(id) -> "top" |
+  height), `preview(look) -> Model` (the standing rig at rest for pictures: the customization screen's stage and
+  thumbnails). The hair styles are Data/Looks' nineteen (each a few head parts, "bald" none), the eyes in the look's
+  colours (EyeR in `eye2`'s when set), a `Streak` down the fringe in `hair2`; the pieces worn, the apron and the bangs
+  (GAME_DESIGN 14.1) come from `Models/WearModels.build(look)` onto the rig, `Rig.extra = { head, body, hand, handL }`
+  (their part names by the bone they move with: `posePose` moves the head ones with the head, the body ones with the
+  torso, the hand ones with each forearm (`limb` returns the forearm's frame); the seated rig keeps the head and body
+  ones, moved down to its head and torso, and holds nothing) and `Rig.moves` (`{ [part]: { CFrame } }`: a moving
+  piece's loop, rig space, stepped 7 a second by `Pose.t`, which `walkPose` sets: still pictures rest); a hat's `covers`
+  hides the hair it covers ("top": what sticks up, the afro and space buns among it; "hood": all the hair but the
+  Fringe), a covering bakery hat's `bottom` stops the HairCap at its edge, a hat that is the head (`head`) hides the
+  head's own parts, bangs take the Fringe's place, an apron hides the shirt's buttons and buckle; a top (in its tint,
+  `WearModels.top`) recolours the Torso, the sleeves and the trim and hides the shirt's parts it lists.
+- `WearModels` (2026-11-20): `build(look) -> { specs, headHat, hatBottom?, covers?, apron, bangs }` (every part worn:
+  this game's pieces from `CosmeticModels`, recoloured by the slot's tint (the colour most of the piece is in takes it,
+  the second its accent: `Looks.tinted`), the bakery's drawn by `AccessoryModels` / `AccessoryBasics` through their
+  Api in the bakery's body space and fitted onto the founder per bone: 0.75 about the anchor, the bakery's head middle
+  (0, 3.5, 0) to (0, 3.125, -0.1), torso (0, 1.75, 0) to (0, 1.875, 0), fists (+-1, 1.25, 0) to (+-0.8125, 1.39, 0),
+  a loop m fitted as A m A^-1; the held piece turned forward about the fist (`AccessoryModels.grip(kind)` for the
+  bakery's) by `Looks.turnOf`, clear of the ground), `piece(id, look?) -> { Spec }` (one piece alone: the cosmetic
+  pictures), `top(look) -> Recolor?`, `covers(id)`.
+- `AccessoryModels` (Random Bakery's file whole, its comments made ours): `build(api, slot, kind, c, a, ctx) ->
+  boolean`, `KINDS`, `grip(kind)`, the `Api` (`add ball cyl glow count anim HEAD ROOT ARM_R ARM_L`). `AccessoryBasics`:
+  the bakery's own free hats, faces and wings (`b_<id>` kinds), `apron(api, option, tint)`, `bangs(api, id, color,
+  streak, top)`, `BOTTOM` (the covering ones' lower edges).
+- `CosmeticModels.parts(id) -> { Spec }` (each of this game's 83 own pieces: `{ name ("<id>_WearN"), size, at (the
+  standing rig's space), color, shape?, rot?, bone ("head" | "body" | "hand" | "handL"), neon?, moves? }`, a few parts
+  each, cached; the module asserts every piece without a `kind` has its model), `top(id) -> { torso?, arms?, trim?, hide? }?`, `covers(id) -> "top" |
   "hood" | nil`, the anchors `HEAD` (0, 3.125, 0), `BODY` (0, 1.875, 0), `HAND` (0.8125, 1.39, 0).
 - `Blocks.windy(root)`: the wind's tags for the pixel filter (§9.3): every part named `Flag...` or `Pennant...` (not
   a `...Pole`) gets `PixelWind` 2, every part in `leaf` or `leaf_dark` `PixelWind` 1 (water parts left alone). Called
@@ -811,6 +831,8 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `pal.sell` | `id` | `Tree.sell` (data `{ shells, sold }`) | not_found |
 | `egg.hatch` | `id swap` (an egg id under the tree; swap 0: none, else a hut driftling sold to make room) | `Tree.hatch`, the tips, Fx hatched (data `{ id, sp, muts, egg, r, hr, cost, sold, swapped, wx, wm, new }`) | not_found (a new lot replaced it), no_hut, money, full (every hut full and no swap: the client opens the swap picker), bad_payload |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
+| `look.set` | `look` (a `Looks.encode` string, at most 200 characters) | `Store.setLook` (`checkLook`: every index in range, every piece owned and of its slot; the whole look replaces the founder's; the `Founder` attribute follows) | bad_payload, locked |
+| `outfit.set` | `i` (1 .. #outfits + 1), `look` ("" deletes outfit i) | `Store.setOutfit` (saves the look's canonical code as outfit i; returns `{ outfits }`) | bad_payload, locked, dup, full |
 | `settings.set` | `k` ("pixel", "music", "sfx" or "zoom"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |

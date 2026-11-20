@@ -2782,11 +2782,19 @@ pack and VIP wait in the bag till the player hatches them, for nothing. One of a
 rarity's kinds from any land (a celestial egg on a new island is a celestial driftling), may turn rarer like any egg,
 and needs a hut with room (or a swap) like the tree's. The bag holds 200; past that an egg pays its worth in shells.
 
-**Cosmetics** (`Data/Cosmetics`, `Data/Looks`). The skin (six), hair colour (ten), hair style (ten) and shirt colour
-(fifteen) are free. 83 pieces go in six slots: a hat (20), the face (12), round the neck (12), the back (14), the hand
-(12) and a top over the shirt (13), each a rarity from common to legendary. 63 of them come round in the shop; the
-rest come from the pass track (6 free, 6 premium), VIP (6) and the starter pack (2). A founder wears one piece a slot
-(`look.wear`), and every client draws it from the "Founder" attribute.
+**Cosmetics** (`Data/Cosmetics`, `Data/Looks`). The skin (eleven), hair colour (seventeen), hair style (nineteen),
+shirt colour (eighteen), eye colours (thirteen, and the other eye's), bangs (ten), a second hair colour, the apron
+(sixteen) and a colour for every piece worn are free. 276 pieces go in six slots, each a rarity from common to
+celestial. Most come round in the shop; the rest come from the pass track, VIP and the starter pack, and Random
+Bakery's own chef hats, beret, cap, glasses and the like are free for everyone. A founder wears one piece a slot, and
+every client draws the whole look from the "Founder" attribute.
+
+The user asked on 2026-11-20: "Port the entire character customization menu from the bakery game to this game, such
+accessory colors and other features, along with the accessories it has". So every hat, face, back, neck and hand piece
+of the bakery came over (193 of them, many moving: wings that flap, flames that flicker, pets that curl up on the
+hair), with its features: bangs, two-tone hair, eye colours and odd eyes, aprons, a tint for each piece (Original or
+twenty colours: the piece's main colour takes it and its accent follows) and a Turn for what is in the hand (straight,
+tipped or flat, forward or back), and up to ten saved outfits.
 
 **The rotating shop** (`Store.shopNow`, `Store.buy`). Six pieces every four hours (`ShopSecs`) on the sea's clock,
 the same for everyone, picked by rarity (`ShopWeight`: commons often, legendaries now and then). A Shop Refresh deals
@@ -2832,14 +2840,18 @@ the same, yours seen through the scenery.
 title's colour (Newcomer in grey, VIP in gold, Star Catcher in its celestial colour), in the pixel font at whole UI
 pixels, over the hat when one is worn. It steps aside in the hatch scene and in a cutscene.
 
-**The pieces.** All 83 pieces of §14 are built from a few parts each on the founder's own rig, and move with it: hats
-and face pieces with the head, neck pieces, back pieces and tops with the body, held pieces in the right hand. A hat that
-sits on the crown hides the hair that would poke through it (spikes, a bun, curls, a mohawk); the frog hood hides all
-the hair but the fringe. A top recolours the shirt and its sleeves under it (a sailor shirt is white with a blue
+**The pieces.** All 276 pieces of §14 are built from parts on the founder's own rig, and move with it: hats and face
+pieces with the head, neck pieces, back pieces and tops with the body, held pieces in the hand. The bakery's are drawn
+from its own models, fitted to our smaller founder bone by bone, and the ones that moved there move here. A hat that
+sits on the crown hides the hair that would poke through it (spikes, a bun, curls, a mohawk, an afro); the frog hood
+hides all the hair but the fringe; a chef hat or a beanie stops the hair at its edge; the Pumpkin Head and Headless
+take the head's place. A top recolours the shirt and its sleeves under it (a sailor shirt is white with a blue
 collar, a raincoat yellow down to the knees) and adds what it has over them. Some reach past the founder: an umbrella
-and a balloon are held up over the head, a kite and a surfboard stick up behind. The free looks are six skins, ten hair
-colours, ten hair styles (short, long, bun, spiky, curly, ponytail, twin tails, mohawk, bob, braid) and fifteen shirt
-colours.
+and a balloon are held up over the head, a kite and a surfboard stick up behind. The free looks are eleven skins,
+seventeen hair colours, nineteen hair styles (short, long, bun, spiky, curly, ponytail, twin tails, mohawk, bob, braid,
+pigtails, afro, side swept, space buns, wavy, pixie, side ponytail, mullet, bald), eighteen shirt colours, thirteen eye
+colours, ten bangs (each hangs from the hair's edge or a hat's and never over the eyes) and sixteen aprons (plain,
+striped, banded, dotted, a tattered cloak and candy corn).
 
 **The pictures.** Each piece has a 24 x 24 picture for the Store and the Looks panel, drawn from its own model by the
 game's picture path (a top on a little body, a back piece turned to show its back) and tidied to the pixel art rules:
