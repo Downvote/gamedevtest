@@ -114,7 +114,8 @@ return function()
 	T.it("replacing: another of its kind where it stands, paying the difference less the old one's refund; its uid kept", function()
 		local p = fresh()
 		p.tier = 2
-		local x, z = spot(p, "nest")
+		-- (a spot with room for the bigger burrow too: the open ground's first row is rock round its corners)
+		local x, z = spot(p, "burrow")
 		Plot.place(p, "nest", x, z, 0)
 		local uid = p.plot.placed[1].uid
 		T.deepEq(Plot.replacements(p.plot.placed[1], 1), {}, "tier 1: no other hut")

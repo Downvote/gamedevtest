@@ -3324,7 +3324,7 @@ do
 	local edge = pr10.z0 -- (z -106)
 	local north = 0
 	for x = math.floor(pr20.x0), math.floor(pr20.x1) do
-		if Street.buildable(20, x, edge - 20) then
+		if Street.buildable(20, x, edge - 8) then
 			north += 1
 		end
 	end
@@ -3332,11 +3332,13 @@ do
 	local landParts = 0
 	local landM = static:FindFirstChild("Land")
 	for _, d in (landM and landM:GetDescendants() or {}) do
-		if d:IsA("BasePart") and d.Position.Z < oz + edge - 20 and math.abs(d.Position.X - ox) < 40 then
+		if d:IsA("BasePart") and d.Position.Z < oz + edge - 8 and math.abs(d.Position.X - ox) < 70 then
 			landParts += 1
 		end
 	end
-	H.expect(pr20.z0 < edge - 60 and north > 0 and landParts > 0, "everdrift", "the land reaches far north of where Driftling Haven ended (grass to build on, the island's model there)", string.format("grass from z %d (Driftling Haven %d), %d cells at z %d, %d parts", pr20.z0, edge, north, edge - 20, landParts))
+	-- (the open ground grows both ways round the plaza since 2026-11-20)
+	-- (the open ground grows outward evenly round the plaza since 2026-11-20: past Driftling Haven's every way)
+	H.expect(pr20.z0 < edge - 8 and pr20.z1 > pr10.z1 + 8 and pr20.x0 < pr10.x0 - 8 and pr20.x1 > pr10.x1 + 8 and north > 0 and landParts > 0, "everdrift", "the open ground reaches past where Driftling Haven's ended every way (grass to build on, the island's model there)", string.format("grass x %d .. %d, z %d .. %d (Driftling Haven x %d .. %d, z %d .. %d), %d cells at z %d, %d parts", pr20.x0, pr20.x1, pr20.z0, pr20.z1, pr10.x0, pr10.x1, edge, pr10.z1, north, edge - 8, landParts))
 	-- every card open now: no level on any of them
 	local locked = {}
 	for _, t in { "work", "nest", "path", "fence", "water", "nature", "decor", "fun" } do

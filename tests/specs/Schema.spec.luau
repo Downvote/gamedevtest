@@ -460,8 +460,8 @@ return function()
 		table.insert(raw.plot.placed, { uid = 903, id = "picket", x = 4, z = 4, rot = 180, lvl = 1 })
 		table.insert(raw.plot.placed, { uid = 904, id = "picket", x = 8, z = -8, rot = 90, lvl = 1 })
 		table.insert(raw.plot.placed, { uid = 905, id = "stream", x = 10, z = -8, rot = 0, lvl = 1 })
-		raw.tier = 10
-		table.insert(raw.plot.placed, { uid = 906, id = "dirtpath", x = 0, z = -100, rot = 0, lvl = 1 })
+		raw.tier = 20
+		table.insert(raw.plot.placed, { uid = 906, id = "dirtpath", x = 0, z = -44, rot = 0, lvl = 1 })
 		local p = Schema.reconcile(raw, 2000, 9) :: any
 		T.eq(p.v, Schema.VERSION)
 		local has: { [number]: boolean } = {}

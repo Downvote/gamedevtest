@@ -997,14 +997,26 @@ Evergreen Isle and up as they were: the table's prices (the ones before in brack
 Twenty tiers. The first six are the old ones with lower walls (Harbor Town was 150,000 wood before the ten tiers, Coral
 City 320,000, Sunspire Capital 800,000), and since the twenty tiers every price from Palm Isle to Driftling Haven is a
 fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, the capital 300,000, Driftling Haven
-4,000,000 (in shells, below). Past the capital the islands grow north, each as wide as the capital and longer than the one before
-(`Data/Street`'s isles 7 to 20): Moonlit Bay, Evergreen Isle, Skyreach Isle and Driftling Haven thirteen studs longer
-each, then ten more ten studs longer each, about 550 more cells to build on every time: Lantern Cove, Saltwind Reach,
-Kelpwood Isle, Pearlstone Port, Cloudberry Isle, Amberfield, Starfall Atoll, Tidecrown, Farshore and Everdrift. Their
-wobbly coasts were picked so the grass stays 35 studs either side of the campfire, inside the plot's 80. The lot
-reaches 232 studs north of the island's origin for Everdrift's shallows, and a piece may stand anywhere from 240 studs
-north to 64 south (`Validate`'s `coord`, `Schema`). On Everdrift the grass reaches 199 studs north of the campfire,
-12,193 cells of it, 1.8 times Driftling Haven's and seven times a Grand Isle's. Since 2026-11-14 they cost
+4,000,000 (in shells, below).
+
+> The request (2026-11-20): "instead of expansion actually expanding the island, make the player start in the middle
+> of the island first, which is surrounded by rocks. expanding removes these rocks to give space to the player to
+> build"
+
+> The request (2026-11-20, after the first rings ran out to the island's sides and then on north and south): "make
+> expansion expand outwards evenly instead of resulting in one long stretch"
+
+The island is whole from the first day and round: about 132 studs across, its beaches, palms and shallows all round.
+The founder starts in the middle of it, on a meadow round the plaza and the Tree of Life, and rock covers the rest of
+the grass: shelves of grey stone that step up the further they are from the meadow, boulders along the edge and on
+top, moss and tufts. Nobody walks or builds on the rock. Each tier opens a wider ring round the plaza (`Data/Street`'s
+isles: the first a small oval, then circles from 19 studs across the radius to 60, each edge with its own wobble), so
+the open ground grows outward evenly every way, and growing to a tier clears the rocks off its ring. The rings open as
+much ground as the islands used to gain (the table's grass), so the limits and prices still fit. The ring reaches the
+beaches about Sunspire Capital and the whole island is open at Everdrift: 12,193 cells. The islands stand 170 studs
+apart (80 before, when a new island was small), so open sea still runs between two neighbours. A piece may stand
+anywhere from 240 studs north to 160 south (`Validate`'s `coord`, `Schema`). An older save's pieces past the open ground move to the nearest
+free spot inside it when it loads, or come up with their whole price back (`Plot.refit`), as after any change of shape. Since 2026-11-14 they cost
 shells: `TierCost`'s wood at `Tuning.WoodShells` (5) a wood, times `WoodTierUp` (1.8) for each tier past the second up to
 Moonlit Bay (`WoodTierTop`, 7; `Island.expandCost`), the table's last column: past it the price rises only as
 `TierCost` does, or Everdrift would cost thousands of times more.
@@ -2065,10 +2077,11 @@ text (the requests and how each was met) is in the history of this file, up to c
 > much more detail and polish to all models and islands, no need for the house. in the main island, make the camera
 > always center to the player."
 
-- **Islands like islands:** each island's coast is a wobbly oval of whole-stud cells (an oval a tier, four sine
-  wobbles of their own phases), with its bays and points. From the coast inward is the grass; outward a sand beach,
-  wet sand, the foam line and the shallows, each a little lower than the one inside it, so the shore steps down into
-  the sea. Buildings stand on the grass a stud or more in from the sand.
+- **Islands like islands:** each island's coast is a wobbly oval of whole-stud cells (four sine wobbles), with its
+  bays and points. From the coast inward is the grass; outward a sand beach, wet sand, the foam line and the shallows,
+  each a little lower than the one inside it, so the shore steps down into the sea. Since 2026-11-20 the whole island
+  is there from the start, rock over the grass past the open ground round the plaza (4.4); buildings stand on the open
+  grass a stud or more in from the sand and from the rock.
 - **Rounded shores** (the request of 2026-11-13, with a picture of the stepped shore and a palm's trunk of stacked
   boxes):
 

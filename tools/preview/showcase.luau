@@ -4,7 +4,8 @@
 -- own rules (Logic/Plot.fits for every piece, tile and fence; the piece, tile and fence limits, the huts' room, the
 -- places at work and the Hatcheries, as Plot.place counts them).
 --
--- The plan, from the plaza north:
+-- The plan, from the plaza out north and south (the open ground grows round the plaza: since 2026-11-20 every tier's
+-- is a ring round the island's heart, the rocks past it):
 -- * The Tree of Life framed by a path round it and the plaza; a main avenue north from it up the island's middle,
 --   cross streets every 20 studs east to west, each a paving of its tier (dirt, cobble, brick, marble).
 -- * The blocks between them, nearest the plaza first, are districts: huts (in rows facing the street, a front garden
@@ -128,20 +129,20 @@ return function(env)
 			return used.piece >= L.piece
 		end
 
-		-- The island: its rows' east and west ends (buildable cells), its north end.
-		local zN = 99
+		-- The open ground: its rows' east and west ends (buildable cells), its north and south ends.
+		local zN, zS = 99, -99
 		local rowX0: { [number]: number } = {}
 		local rowX1: { [number]: number } = {}
-		for z = -260, 30 do
+		for z = -260, 200 do
 			for x = -60, 60 do
 				if Street.buildable(tier, x, z) then
 					rowX0[z] = math.min(rowX0[z] or 999, x)
 					rowX1[z] = math.max(rowX1[z] or -999, x)
 					zN = math.min(zN, z)
+					zS = math.max(zS, z + 1)
 				end
 			end
 		end
-		local zS = 17
 
 		-- The pavings and the street things of this tier.
 		local AVENUE = best({ "dirtpath", "cobble", "brickroad", "marblewalk" })
@@ -204,10 +205,12 @@ return function(env)
 		tileCol(STREET, rx0, rz0, rz1)
 		tileCol(STREET, rx1, rz0, rz1)
 		tileRow(STREET, rz0, rx0, rx1)
-		-- the avenue, up the middle
+		-- the avenue, up the middle and down from the plaza
 		tileCol(AVENUE, -2, zN, -10)
 		tileCol(AVENUE, 0, zN, -10)
-		-- the cross streets, every 20 studs
+		tileCol(AVENUE, -2, Street.PLAZA.z1 + 2, zS)
+		tileCol(AVENUE, 0, Street.PLAZA.z1 + 2, zS)
+		-- the cross streets, every 20 studs north of the tree and south of the plaza
 		local streets: { number } = {}
 		local z = -8
 		while z > zN + 4 do
@@ -220,6 +223,14 @@ return function(env)
 				tileRow(STREET, z, 6, 40)
 			end
 			z -= 20
+		end
+		local southStreets: { number } = {}
+		z = 26
+		while z < zS - 4 do
+			table.insert(southStreets, z)
+			tileRow(STREET, z, -40, -3)
+			tileRow(STREET, z, 2, 40)
+			z += 20
 		end
 
 		------------------------------------------------------------------ the blocks
@@ -238,15 +249,22 @@ return function(env)
 				end
 			end
 		end
-		-- the old town round the plaza (south of the first street)
+		-- the old town round the plaza (between the first streets north and south)
 		local core0 = if #streets > 0 then -6 else zN
-		block(-60, Street.PLAZA.x0 - 1, core0, zS - 1, "west", 0)
-		block(Street.PLAZA.x1 + 2, 60, core0, zS - 1, "east", 0)
+		local core1 = if #southStreets > 0 then southStreets[1] - 1 else zS - 1
+		block(-60, Street.PLAZA.x0 - 1, core0, core1, "west", 0)
+		block(Street.PLAZA.x1 + 2, 60, core0, core1, "east", 0)
 		for i, sz in streets do
 			local north = streets[i + 1]
 			local z0 = if north then north + 2 else zN
 			block(-60, -4, z0, sz, "west", i)
 			block(4, 60, z0, sz, "east", i)
+		end
+		for i, sz in southStreets do
+			local south = southStreets[i + 1]
+			local z1 = if south then south - 1 else zS - 1
+			block(-60, -4, sz + 2, z1, "west", i)
+			block(4, 60, sz + 2, z1, "east", i)
 		end
 
 		------------------------------------------------------------------ what goes where
@@ -726,11 +744,22 @@ return function(env)
 				add(best({ "parkbench", "stonebench" }), if n % 2 == 0 then 2 else -3, zz - 6, 90)
 			end
 		end
-		-- the streets: a smaller lamp every 14 studs on their north side
+		for zz = 16, zS - 2, 10 do
+			n += 1
+			add(LAMP, if n % 2 == 0 then -3 else 2, zz, 0)
+		end
+		-- the streets: a smaller lamp every 14 studs on their side away from the plaza
 		for _, sz in streets do
 			for x = -38, 38, 14 do
 				if math.abs(x) > 8 then
 					add(SLAMP, x, sz - 1, 0)
+				end
+			end
+		end
+		for _, sz in southStreets do
+			for x = -38, 38, 14 do
+				if math.abs(x) > 8 then
+					add(SLAMP, x, sz + 2, 0)
 				end
 			end
 		end
@@ -743,10 +772,10 @@ return function(env)
 			end
 		end
 
-		-- the seafront: beach things on the south shore either side of the plaza
+		-- the seafront: beach things on the south shore either side of the avenue, once the open ground reaches it
 		local BEACH = avail({ "umbrella", "deckchair", "sandcastle", "surfboards", "coconuts", "shellpile", "lifeguard" })
 		local bx = 0
-		for _, side in { -1, 1 } do
+		for _, side in (if Street.layer(tier, 0, zS + 2) ~= Street.GRASS then { -1, 1 } else {}) :: { number } do
 			for x = 8, 34, 3 do
 				local id = BEACH[(bx % math.max(1, #BEACH)) + 1]
 				for zz = zS - 2, zS - 4, -1 do
@@ -832,6 +861,6 @@ return function(env)
 			L.hatch,
 			nTrees
 		)
-		return { used = used, limits = L, zN = zN }
+		return { used = used, limits = L, zN = zN, zS = zS }
 	end
 end

@@ -14,12 +14,17 @@
 -- The founders swim: the water (the sea, the shallows, the foam) lets them through down to an invisible seabed
 -- (SEABED_Y) that runs under the whole sea, so they swim from island to island, and the wet sand steps up out of it.
 --
--- An island is a wobbly ellipse that grows with its tier (ISLES[tier]): its coast is `coast(tier, x, z)`, the signed
+-- An island is whole from the start: the top tier's wobbly ellipse (ISLES[TOP]), its coast `cellDist`, the signed
 -- distance in studs from the grass's edge (negative on the grass). Round the grass, outward: the sand beach, the wet
 -- sand at the waterline, a ring of foam, the light shallows, then the sea. Whole-stud cells (x .. x + 1, z .. z + 1)
--- have a `layer` by their centre's coast distance; buildings stand only on `buildable` cells (a stud in from the grass's
--- edge, off the plaza). The same tier is the same shape on every plot (a save does not depend on where the island is
--- moored).
+-- have a `layer` by their centre's coast distance. The founder starts in the middle of it, on the open ground round
+-- the plaza, and rocks cover the rest of the grass; each tier opens a wider ring (ISLES[tier], all round the island's
+-- heart: `openDist`, the signed distance from the open ground's edge) and an expansion clears the rocks off it (the
+-- request of 2026-11-20: "instead of expansion actually expanding the island, make the player start in the middle of
+-- the island first, which is surrounded by rocks. expanding removes these rocks to give space to the player to
+-- build"). Buildings stand only on `buildable` cells (a stud in from the coast and from the rocks, off the plaza);
+-- the founders walk on the open ground and the beaches, never on the rocks (`walkable`). The same tier is the same
+-- shape on every plot (a save does not depend on where the island is moored).
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 export type Rect = { x0: number, z0: number, x1: number, z1: number }
@@ -43,48 +48,49 @@ Street.GRASS, Street.SAND, Street.WET, Street.FOAM, Street.SHALLOW, Street.SEA_C
 Street.BANDS = { sand = 2.5, wet = 3.5, foam = 4.5, shallow = 8 }
 
 -- The open sea south of the lots, plot-local z (the same for every plot; the sailboats' lanes).
-Street.SEA = { z0 = 30, z1 = 58 }
+Street.SEA = { z0 = 86, z1 = 114 }
 -- Water past the invisible walls (studs): north of the lots, south of the sea and both ends, so no sky shows past the
 -- world's edges wherever the view goes.
 Street.FAR = 120
 Street.END_FAR = 160
 
 -- The lot: the water between two neighbours (plot-local).
--- (north far enough for the biggest island's shallows: ISLES[20])
-Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -232, x1 = Tuning.PlotSpacing / 2, z1 = 30 } :: Rect
+-- (far enough north and south for the whole island's shallows: ISLES[TOP])
+Street.LOT = { x0 = -Tuning.PlotSpacing / 2, z0 = -72, x1 = Tuning.PlotSpacing / 2, z1 = 86 } :: Rect
 
 -- The island's heart: a plaza round the campfire (the same on every tier). (A path ran from it south to a jetty and
 -- the boardwalk until 2026-11-13: that land is the island's to build on now.)
 Street.CENTER = { x = 0, z = 6 }
 Street.PLAZA = { x0 = -4, z0 = 2, x1 = 4, z1 = 10 } :: Rect
 
--- The islands by tier: centre, radii, the coast's wobble phases (four sines round the coast).
+-- The open ground by tier: centre, radii, the edge's wobble phases (four sines round it). Every tier's is round the
+-- island's heart (the plaza), each opening as much ground as that tier's island had when the islands grew (rings the
+-- same area as before, so the limits and the prices still fit), and the top tier's is the whole island. Past the first
+-- they are circles, so the open ground grows outward evenly every way (the request of 2026-11-20: "make expansion expand
+-- outwards evenly instead of resulting in one long stretch"); the wobble keeps each ring's edge its own.
 local ISLES: { Isle } = {
 	{ cx = 0, cz = 6, rx = 15, rz = 12, ph = { 0.6, 2.1, 0.3, 4.0 } },
-	{ cx = 0, cz = 2, rx = 22, rz = 16, ph = { 1.4, 0.4, 2.6, 1.1 } },
-	{ cx = 0, cz = -2, rx = 28, rz = 20, ph = { 2.2, 3.3, 1.7, 5.2 } },
-	-- the town and city tiers grow north (the south shore stays where it is): twice tier 3's grass by tier 6
-	{ cx = 0, cz = -8, rx = 30, rz = 25, ph = { 0.9, 1.8, 4.1, 2.7 } },
-	{ cx = 0, cz = -14, rx = 31, rz = 30, ph = { 3.0, 0.7, 5.5, 1.9 } },
-	{ cx = 0, cz = -20, rx = 31, rz = 35, ph = { 1.7, 2.9, 0.4, 3.6 } },
-	-- and on north past Sunspire Capital ("allow the player to expand their land even more"): as wide, longer each tier
-	{ cx = 0, cz = -27, rx = 31, rz = 41, ph = { 2.5, 1.2, 3.9, 0.8 } },
-	{ cx = 0, cz = -34, rx = 31, rz = 47, ph = { 0.4, 3.6, 2.2, 4.7 } },
-	{ cx = 0, cz = -41, rx = 31, rz = 53, ph = { 3.3, 2.4, 0.9, 2.1 } },
-	{ cx = 0, cz = -48, rx = 31, rz = 59, ph = { 1.1, 0.6, 4.6, 3.3 } },
-	-- and on north again to tier 20 (the request of 2026-11-14: "allow expansion up to level 20"): ten studs longer a
-	-- tier (about 550 more cells to build on each time), the south shore where it was
-	{ cx = 0, cz = -53, rx = 31, rz = 64, ph = { 1.1, 1.2, 2.6, 4.6 } },
-	{ cx = 0, cz = -58, rx = 31, rz = 69, ph = { 0.3, 4.1, 5.6, 1.2 } },
-	{ cx = 0, cz = -63, rx = 31, rz = 74, ph = { 2.1, 3.7, 2.8, 0.7 } },
-	{ cx = 0, cz = -68, rx = 31, rz = 79, ph = { 2.8, 3.5, 1.8, 4.1 } },
-	{ cx = 0, cz = -73, rx = 31, rz = 84, ph = { 1.5, 5.1, 2.2, 1.2 } },
-	{ cx = 0, cz = -78, rx = 31, rz = 89, ph = { 2.5, 1.2, 5.9, 4.7 } },
-	{ cx = 0, cz = -83, rx = 31, rz = 94, ph = { 2.0, 4.2, 2.8, 5.4 } },
-	{ cx = 0, cz = -88, rx = 31, rz = 99, ph = { 1.2, 5.2, 2.2, 2.7 } },
-	{ cx = 0, cz = -93, rx = 31, rz = 104, ph = { 0.5, 4.6, 0.7, 5.8 } },
-	{ cx = 0, cz = -98, rx = 31, rz = 109, ph = { 1.8, 1.7, 4.9, 0.6 } },
+	{ cx = 0, cz = 6, rx = 19.1, rz = 19.1, ph = { 1.4, 0.4, 2.6, 1.1 } },
+	{ cx = 0, cz = 6, rx = 24.2, rz = 24.2, ph = { 2.2, 3.3, 1.7, 5.2 } },
+	{ cx = 0, cz = 6, rx = 28.3, rz = 28.3, ph = { 0.9, 1.8, 4.1, 2.7 } },
+	{ cx = 0, cz = 6, rx = 31.4, rz = 31.4, ph = { 3.0, 0.7, 5.5, 1.9 } },
+	{ cx = 0, cz = 6, rx = 34.6, rz = 34.6, ph = { 1.7, 2.9, 0.4, 3.6 } },
+	{ cx = 0, cz = 6, rx = 37.8, rz = 37.8, ph = { 2.5, 1.2, 3.9, 0.8 } },
+	{ cx = 0, cz = 6, rx = 40, rz = 40, ph = { 0.4, 3.6, 2.2, 4.7 } },
+	{ cx = 0, cz = 6, rx = 43.2, rz = 43.2, ph = { 3.3, 2.4, 0.9, 2.1 } },
+	{ cx = 0, cz = 6, rx = 44.5, rz = 44.5, ph = { 1.1, 0.6, 4.6, 3.3 } },
+	{ cx = 0, cz = 6, rx = 47.3, rz = 47.3, ph = { 1.1, 1.2, 2.6, 4.6 } },
+	{ cx = 0, cz = 6, rx = 48.6, rz = 48.6, ph = { 0.3, 4.1, 5.6, 1.2 } },
+	{ cx = 0, cz = 6, rx = 50.6, rz = 50.6, ph = { 2.1, 3.7, 2.8, 0.7 } },
+	{ cx = 0, cz = 6, rx = 52.2, rz = 52.2, ph = { 2.8, 3.5, 1.8, 4.1 } },
+	{ cx = 0, cz = 6, rx = 53.5, rz = 53.5, ph = { 1.5, 5.1, 2.2, 1.2 } },
+	{ cx = 0, cz = 6, rx = 55, rz = 55, ph = { 2.5, 1.2, 5.9, 4.7 } },
+	{ cx = 0, cz = 6, rx = 57.1, rz = 57.1, ph = { 2.0, 4.2, 2.8, 5.4 } },
+	{ cx = 0, cz = 6, rx = 58.6, rz = 58.6, ph = { 1.2, 5.2, 2.2, 2.7 } },
+	{ cx = 0, cz = 6, rx = 59.1, rz = 59.1, ph = { 0.5, 4.6, 0.7, 5.8 } },
+	{ cx = 0, cz = 6, rx = 60.1, rz = 60.1, ph = { 1.8, 1.7, 4.9, 0.6 } },
 }
+Street.TOP = #ISLES
 local AMP = { 0.09, 0.06, 0.045, 0.025 }
 local FREQ = { 2, 3, 5, 7 }
 
@@ -105,8 +111,8 @@ local function ownCoast(s: Isle, x: number, z: number): number
 	return math.sqrt(dx * dx + dz * dz) - er * w
 end
 
--- The signed distance from the grass's edge (negative on the grass): the tier's own shape and every smaller tier's
--- together, so an island only ever gains land as it grows (nothing built near an old shore has to move).
+-- The signed distance from the open ground's edge at a tier (negative inside): the tier's own shape and every smaller
+-- tier's together, so the open ground only ever grows (nothing built near the old rocks has to move).
 function Street.coast(tier: number, x: number, z: number): number
 	local t = math.clamp(math.floor(tier), 1, #ISLES)
 	local d = ownCoast(ISLES[t], x, z)
@@ -188,40 +194,63 @@ function cellsOf(tier: number): Cells
 	return made
 end
 
+-- The whole island's cells (the top tier's): its layers and coast distances, whatever the tier.
+local function land(): Cells
+	return cellsOf(#ISLES)
+end
+
 -- Works a tier's cells out now (a few ms to tens of ms at the top tiers), so the moment that needs them (an
 -- expansion) doesn't: the server warms every tier at start, the client the next one.
 function Street.warm(tier: number)
+	land()
 	cellsOf(tier)
 end
 
--- The layer of the whole-stud cell x .. x + 1, z .. z + 1 (plot-local).
-function Street.layer(tier: number, x: number, z: number): number
-	return cellsOf(tier).layer[key(x, z)] or Street.SEA_CELL
+-- The layer of the whole-stud cell x .. x + 1, z .. z + 1 (plot-local): the whole island's, on every tier.
+function Street.layer(_tier: number, x: number, z: number): number
+	return land().layer[key(x, z)] or Street.SEA_CELL
 end
 
 -- The coast distance at a cell's centre (huge out at sea).
-function Street.cellDist(tier: number, x: number, z: number): number
+function Street.cellDist(_tier: number, x: number, z: number): number
+	return land().dist[key(x, z)] or math.huge
+end
+
+-- The distance from the open ground's edge at a cell's centre at a tier (negative inside it, huge far out).
+function Street.openDist(tier: number, x: number, z: number): number
 	return cellsOf(tier).dist[key(x, z)] or math.huge
 end
 
+-- Whether rocks cover cell (x, z) at a tier: the island's grass past the open ground.
+function Street.locked(tier: number, x: number, z: number): boolean
+	local k = key(x, z)
+	local d = land().dist[k]
+	return d ~= nil and d <= 0 and (cellsOf(tier).dist[k] or math.huge) > 0
+end
+
 -- Every cell the layers cover (the shallows' outer box) for drawing the island.
-function Street.cellBounds(tier: number): Rect
-	return cellsOf(tier).bounds
+function Street.cellBounds(_tier: number): Rect
+	return land().bounds
 end
 
--- Whether a building may cover cell (x, z): grass a stud in from its edge (the plaza is Logic/Plot's).
+-- Whether a building may cover cell (x, z): grass a stud in from the coast and from the rocks (the plaza is
+-- Logic/Plot's).
 function Street.buildable(tier: number, x: number, z: number): boolean
-	local d = cellsOf(tier).dist[key(x, z)]
-	return d ~= nil and d <= -1
+	local k = key(x, z)
+	local d = land().dist[k]
+	return d ~= nil and d <= -1 and (cellsOf(tier).dist[k] or math.huge) <= -1
 end
 
--- Whether a founder may stand on cell (x, z): the grass, the beach and the wet sand.
+-- Whether a founder may stand on cell (x, z): the open ground, the beach and the wet sand (never on the rocks).
 function Street.walkable(tier: number, x: number, z: number): boolean
 	local l = Street.layer(tier, x, z)
-	return l == Street.GRASS or l == Street.SAND or l == Street.WET
+	if l == Street.GRASS then
+		return (cellsOf(tier).dist[key(x, z)] or math.huge) <= 0
+	end
+	return l == Street.SAND or l == Street.WET
 end
 
--- The island's grass's bounding box (plot-local): the scans for a free spot stay inside it.
+-- The open ground's bounding box (plot-local): the scans for a free spot stay inside it.
 function Street.plot(tier: number): Rect
 	return cellsOf(tier).land
 end

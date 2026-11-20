@@ -545,8 +545,18 @@ E.phase = "walk"
 -- nothing collidable stands between the seabed and a head's height (the islands' land and the sailboats apart), and the
 -- seabed runs under all of it
 do
+	-- (past every cell of the islands' land and shallows, which are whole from the start)
 	local o1, o2 = Street.origin(1), Street.origin(2)
-	local x0, x1 = o1 + Street.isle(1).rx + 10, o2 - Street.isle(1).rx - 10
+	local cb = Street.cellBounds(1)
+	local east, west = 0, 0
+	for z = cb.z0, cb.z1 do
+		for x = cb.x0, cb.x1 do
+			if Street.layer(1, x, z) ~= Street.SEA_CELL then
+				east, west = math.max(east, x + 1), math.min(west, x)
+			end
+		end
+	end
+	local x0, x1 = o1 + east + 1, o2 + west - 1
 	local blockers, holes = {}, 0
 	for _, z in { 0, 12, 24, 40 } do
 		for _, d in plots:GetDescendants() do
@@ -574,6 +584,35 @@ do
 	end
 	H.expect(#blockers == 0, "walk", "the sea between two islands is open to swim", table.concat(blockers, ", "))
 	H.expect(holes == 0, "walk", "the seabed under all of it", tostring(holes))
+end
+-- the rock over the ground not open yet (since 2026-11-20: the island whole from the start, the founder in the middle
+-- of it): invisible walls in the "Bounds" group on the rock, high over a jump, and none on the open ground
+do
+	local ox = Street.origin(1)
+	local walls, open, under = 0, 0, false
+	local lockedX, lockedZ = nil, nil
+	for z = -40, 40, 2 do
+		if Street.locked(1, 0, z) and lockedZ == nil then
+			lockedX, lockedZ = 0, z
+		end
+	end
+	for _, d in plots:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "RockWall" and math.abs(d.Position.X - ox) < Street.SPACING / 2 then
+			if d.CollisionGroup == "Bounds" and d.CanCollide and d.Transparency >= 1 and d.Position.Y + d.Size.Y / 2 > Street.LAWN_Y + 20 then
+				walls += 1
+			end
+			local c, sz = d.Position, d.Size
+			for _, q in { { 0, 6 }, { 3, 12 } } do
+				if math.abs(ox + q[1] + 0.5 - c.X) < sz.X / 2 and math.abs(q[2] + 0.5 - c.Z) < sz.Z / 2 then
+					open += 1
+				end
+			end
+			if lockedZ and math.abs(ox + lockedX + 0.5 - c.X) < sz.X / 2 and math.abs(lockedZ + 0.5 - c.Z) < sz.Z / 2 then
+				under = true
+			end
+		end
+	end
+	H.expect(walls > 0 and under and open == 0, "walk", "rock walls stand on the rock round a first island's open ground, none on the open ground", string.format("%d walls, the rock at z %s under one: %s, %d on the open ground", walls, tostring(lockedZ), tostring(under), open))
 end
 -- a founder in that sea swims (AvatarView: the ground under them is the sea, the rig sunk to its chest at the
 -- surface, the strokes heard, a ring of foam round them; the HUD holds the jump and slows them to Tuning.SwimSpeed);
@@ -807,10 +846,11 @@ do
 			return false
 		end
 		local l = Street.layer(tierA, math.floor(b.x - ox), math.floor(b.z - oz))
+		-- (a perched bird hops along its perch, up to 0.35 studs over it: AmbientView)
 		if b.on == "lawn" then
-			return l == Street.GRASS and math.abs(b.y - Street.LAWN_Y) < 0.01
+			return l == Street.GRASS and Street.walkable(tierA, math.floor(b.x - ox), math.floor(b.z - oz)) and b.y > Street.LAWN_Y - 0.01 and b.y < Street.LAWN_Y + 0.36
 		elseif b.on == "sand" then
-			return l == Street.SAND and math.abs(b.y - Street.SAND_Y) < 0.01
+			return l == Street.SAND and b.y > Street.SAND_Y - 0.01 and b.y < Street.SAND_Y + 0.36
 		end
 		return (b.on == "roof" or b.on == "fence") and b.y > Street.LAWN_Y and l ~= Street.SEA_CELL and l ~= Street.SHALLOW
 	end
@@ -2095,7 +2135,7 @@ end
 local before = snap()
 local storesBefore = { shells = prof.shells }
 refused("a fractional x", "bad_payload", "plot.place", { id = "torch", x = 1.5, z = 20, rot = 0 })
-refused("x out of range", "bad_payload", "plot.place", { id = "torch", x = 100, z = 20, rot = 0 })
+refused("x out of range", "bad_payload", "plot.place", { id = "torch", x = 300, z = 20, rot = 0 })
 refused("a 45 degree turn", "bad_payload", "plot.place", { id = "torch", x = 20, z = 20, rot = 45 })
 refused("NaN", "bad_payload", "plot.place", { id = "torch", x = 0 / 0, z = 20, rot = 0 })
 refused("index 0", "bad_payload", "plot.move", { i = 0, x = 20, z = 20, rot = 0 })
@@ -2432,7 +2472,8 @@ do
 	local treeQ = { uid = 10, id = Tree.ID, x = tx, z = tz, rot = trot, lvl = 1 }
 	local pr = Street.plot(TB)
 	local oak = nil
-	for z = pr.z0, -80 do
+	-- (past where Driftling Haven's open ground ends, z -38: the island is round and opens evenly since 2026-11-20)
+	for z = pr.z0, -40 do
 		for x = pr.x0, pr.x1 do
 			if oak == nil and Plot.fits(TB, { treeQ }, "oak", x, z, 0) then
 				oak = { uid = 11, id = "oak", x = x, z = z, rot = 0, lvl = 1 }
@@ -2463,9 +2504,34 @@ do
 			north = math.min(north, d.Position.Z - d.Size.Z / 2)
 		end
 	end
-	H.expect(pr.z0 < Street.plot(10).z0 - 60 and math.abs(north - pr.z0) < 0.01, "big", "its land reaches far north of where Driftling Haven ended (the lawn to its edge)", string.format("lawn to z %.2f, grass to %d (Driftling Haven %d)", north, pr.z0, Street.plot(10).z0))
+	-- (the open ground grows both ways round the plaza since 2026-11-20; at the top tier it is the whole island)
+	local p10 = Street.plot(10)
+	H.expect(pr.z0 < p10.z0 - 8 and pr.z1 > p10.z1 + 8 and pr.x0 < p10.x0 - 8 and pr.x1 > p10.x1 + 8 and math.abs(north - pr.z0) < 0.01, "big", "its open ground reaches past where Driftling Haven's ended every way (the lawn to its edge)", string.format("lawn to z %.2f, grass x %d .. %d, z %d .. %d (Driftling Haven x %d .. %d, z %d .. %d)", north, pr.x0, pr.x1, pr.z0, pr.z1, p10.x0, p10.x1, p10.z0, p10.z1))
 	-- no walls in the far north either (the founder swims off any beach), and the seabed under the sea up there
 	H.expect(land ~= nil and land:FindFirstChild("Bound", true) == nil, "big", "no coast walls up north either")
+	-- what a whole island costs in parts (every island is whole from the start since 2026-11-20): this one, open to its
+	-- shore, and a first island, rock over all but the middle
+	local function landParts(i: number): number
+		local lm = staticOf(i) and staticOf(i):FindFirstChild("Land")
+		local n = 0
+		for _, d in (if lm then lm:GetDescendants() else {}) do
+			if d:IsA("BasePart") then
+				n += 1
+			end
+		end
+		return n
+	end
+	local small, smallParts = nil, 0
+	for i = 1, Street.MAX do
+		local m = plotModel(i)
+		if i ~= bi and m and m:GetAttribute("Tier") == 1 then
+			small, smallParts = i, landParts(i)
+			break
+		end
+	end
+	local bigParts = landParts(bi)
+	H.log("land parts: tier 20 %d, tier 1 %d", bigParts, smallParts)
+	H.expect(bigParts > 0 and bigParts < 9000 and (small == nil or (smallParts > 0 and smallParts < 10000)), "big", "a whole island's land and rocks stay light", string.format("tier 20: %d parts; tier 1 (plot %s): %d parts", bigParts, tostring(small), smallParts))
 	local bedNorth = false
 	for _, d in plots:GetDescendants() do
 		if d:IsA("BasePart") and d.Name == "Seabed" then
@@ -2481,7 +2547,8 @@ do
 	H.expect(oak ~= nil and decorB ~= nil and decorB:FindFirstChild(keyOf(oak)) ~= nil, "big", "the saved oak far north stands there", oak and keyOf(oak))
 	-- the founder walks up there: still on their own island (no Home button), the view keeping them in the middle
 	local CCb = H.cmod(big, "Controllers.CameraController")
-	local wz = -180
+	-- (the open ground's north end: the island is whole and opens both ways round the plaza since 2026-11-20)
+	local wz = pr.z0 + 4
 	local wxs = nil
 	for x = pr.x0, pr.x1 do
 		if wxs == nil and Street.buildable(TB, x, wz) then
@@ -2500,7 +2567,7 @@ do
 	local gx, gy = RasterW.gridPoint(v.rot12, v.grid, r.Position.X, Street.LAWN_Y + 1.5, r.Position.Z)
 	local sx2, sy2 = (gx - p1x) * v.K, (gy - p1y) * v.K
 	local mid = math.abs(sx2 - v.fullX / 2) <= v.fullX * 0.06 and sy2 >= v.fullY * 0.3 and sy2 <= v.fullY * 0.7
-	H.expect(r ~= nil and r.Position.Z < -170 and (p1x ~= p0x or p1y ~= p0y) and mid, "big", "the founder walks far north, the view following them there", string.format("%d,%d on %dx%d", sx2, sy2, v.fullX, v.fullY))
+	H.expect(r ~= nil and r.Position.Z < pr.z0 + 10 and (p1x ~= p0x or p1y ~= p0y) and mid, "big", "the founder walks far north, the view following them there", string.format("%d,%d on %dx%d", sx2, sy2, v.fullX, v.fullY))
 	H.expect(H.buttonNamed(big, "Home") == nil, "big", "and they are still at home there (no Home button)")
 	-- pieces, tiles and fences fit up there: a torch on the northernmost grass a piece may stand on, a water tile, a
 	-- length of brick wall; past the island's edge refused
@@ -2524,19 +2591,19 @@ do
 		return nil, nil
 	end
 	local ok1 = nx ~= nil and H.req(big, "plot.place", { id = "torch", x = nx, z = nz, rot = 0 }).ok
-	local wx, wz2 = evenFree("stream", 0, -70)
+	local wx, wz2 = evenFree("stream", 0, -40)
 	local ok2 = wx ~= nil and H.req(big, "plot.paint", { id = "stream", cells = string.format("%d,%d", wx, wz2) }).ok
-	local fx, fz = evenFree("brickwall", 0, -76)
+	local fx, fz = evenFree("brickwall", 0, -44)
 	local ok3 = fx ~= nil and H.req(big, "plot.fence", { id = "brickwall", edges = string.format("%d,%d,0", fx, fz) }).ok
 	E.run(0.5)
 	local built = 0
 	for _, q in placed do
 		-- (the lone water tile's mask is 1, its level's place: keyOf's name all the same)
-		if q.z < -64 and decorB and decorB:FindFirstChild(keyOf(q)) then
+		if q.z < -38 and decorB and decorB:FindFirstChild(keyOf(q)) then
 			built += 1
 		end
 	end
-	H.expect(ok1 and ok2 and ok3 and (nz or 0) < -100 and built == 4, "big", "a torch on its northernmost grass, a water tile and a wall up there: placed and built", string.format("torch at %s, %s %s %s, %d built", tostring(nz), tostring(ok1), tostring(ok2), tostring(ok3), built))
+	H.expect(ok1 and ok2 and ok3 and (nz or 0) < -46 and built == 4, "big", "a torch on its northernmost grass, a water tile and a wall up there: placed and built", string.format("torch at %s, %s %s %s, %d built", tostring(nz), tostring(ok1), tostring(ok2), tostring(ok3), built))
 	local off = H.req(big, "plot.place", { id = "oak", x = 0, z = pr.z0 - 12, rot = 0 })
 	H.expect(not off.ok and off.err == "blocked", "big", "past the island's northern edge: refused (blocked)", tostring(off.err))
 	-- the pieces of the tiers past Driftling Haven build up north (a hut, a workplace, a boost and a grand piece of

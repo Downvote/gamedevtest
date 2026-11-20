@@ -19,7 +19,7 @@ if [ -z "$out" ]; then
 fi
 mkdir -p "$out" || exit 1
 out=$(cd "$out" && pwd) || exit 1
-rm -rf "$out/scene" "$out/hatch" "$out/lawn" "$out/cast" "$out/scenes"
+rm -rf "$out/scene" "$out/hatch" "$out/lawn" "$out/cast" "$out/rocks" "$out/scenes"
 run() {
 	PREVIEW_FLAGS="--no-core" PREVIEW_KEEP=1 PREVIEW_JOBS=1 REPO="$REPO" sh "$PREVIEW/render.sh" "$1" "$out/$2" desktop > "$out/$2.txt" 2>&1
 }
@@ -28,8 +28,9 @@ run gthumbs=hatch hatch &
 run gthumbs=lawn lawn &
 run gthumbs=cast cast &
 wait
+run gthumbs=rocks rocks
 mkdir -p "$out/scenes"
-cp "$out"/scene/gth_*_desktop.png "$out"/hatch/gth_*_desktop.png "$out"/lawn/gth_*_desktop.png "$out/scenes/" 2>/dev/null
+cp "$out"/scene/gth_*_desktop.png "$out"/hatch/gth_*_desktop.png "$out"/lawn/gth_*_desktop.png "$out"/rocks/gth_*_desktop.png "$out/scenes/" 2>/dev/null
 log=$(ls "$out"/cast/_logs/dump_*.txt 2>/dev/null | head -1)
 [ -n "$log" ] || { echo "no cast log:" >&2; cat "$out/cast.txt" >&2; exit 1; }
 grep -h "gthumbs\|ERROR\|failed" "$out"/*/_logs/*.txt | grep -v "^@@" | cut -c1-200

@@ -242,7 +242,9 @@ local Tuning = {
 
 	-- the sea and the islands (GAME_DESIGN 8; Data/Street)
 	MaxPlots = 6, -- islands in a row on the sea (the server's size)
-	PlotSpacing = 80, -- studs between island origins along X
+	-- (170 since 2026-11-20: every island is whole and round from the start, about 150 studs across with its shallows,
+	-- so a channel of open sea stays between two neighbours)
+	PlotSpacing = 170, -- studs between island origins along X
 	-- buildings and decor standing on an island, by its tier (more room since the build catalog grew: GAME_DESIGN 4)
 	PlotPieces = { 36, 60, 90, 130, 180, 240, 300, 370, 450, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140 },
 	-- the driftlings an island's huts may house together, by its tier (GAME_DESIGN 4; the request of 2026-11-14:

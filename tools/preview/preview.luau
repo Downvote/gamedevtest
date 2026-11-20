@@ -3011,8 +3011,8 @@ SCEN.picons = piconsScenario
 -- thumbnails' scenes and the driftlings drawn over them (tools/preview/game_thumbs.luau; sh tools/preview/game_thumbs.sh
 -- lays them out with the title and the captions)
 local function gthumbsScenario(arg: string?)
-	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile }
-	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn") then
+	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile, harbor = HARBOR, pals = PALS }
+	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "rocks") then
 		env.mode = arg
 	elseif arg then
 		env.only = {}

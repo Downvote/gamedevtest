@@ -911,7 +911,7 @@ local function scatterOk(k: ScatterKind, tier: number, x: number, z: number, sx:
 	elseif id == "weed" then
 		return l == Street.WET
 	end
-	return l == Street.GRASS and not Street.buildable(tier, x, z)
+	return l == Street.GRASS and not Street.buildable(tier, x, z) and not Street.locked(tier, x, z)
 end
 
 -- The way out to sea from cell (x, z) (radians, as a palm leans): down the layers round it, grass to sea.
@@ -992,6 +992,126 @@ local function scatterIn(m: Instance, o: CFrame, tier: number, b: Rect)
 	end
 end
 
+------------------------------------------------------------------ the rocks over the ground not open yet
+-- The island is whole from the start; the grass past the open ground (Street.locked) lies under rock (the request of
+-- 2026-11-20: "make the player start in the middle of the island first, which is surrounded by rocks. expanding
+-- removes these rocks to give space to the player to build"): shelves of rock stepping up the further they are from
+-- the open ground (ROCK_STEPS: past each distance from its edge, a shelf ROCK_RISE higher, bevelled like the coast,
+-- one tone each, so they merge into few parts), boulders along the edge and fewer, plainer ones on the shelves, moss on
+-- top. (A first island is mostly rock: its parts are kept in check, the world sim's "a whole island's land and rocks
+-- stay light".) Invisible walls in the
+-- "Bounds" group stand on every rock cell, so nobody walks or jumps onto them (the pixel filter's rays pass them).
+-- Every choice comes from the cell (a hash, its distance from the open ground's edge), so a chunk the next tier leaves
+-- as it was comes out the same.
+local ROCK_STEPS = { 0, 2.6, 5.2 } -- (the distances from the open ground's edge past which each shelf starts)
+local ROCK_RISE = 1.3
+-- the openDist bands a chunk's rocks read (its signature: `cellCode`)
+local ROCK_BANDS = { -1, -0.6, 0, 0.5, 1.2, 2.6, 3.5, 5.2 }
+type RockKind = { id: string, salt: number, p: number, gap: number, d0: number, d1: number }
+local ROCK_THINGS: { RockKind } = {
+	-- big boulders astride the edge, a stud either side of it, so the shelves' straight runs break up
+	{ id = "edge", salt = 101, p = 0.42, gap = 2.6, d0 = -0.6, d1 = 1.2 },
+	-- boulders on the shelves, a stone and a cap each
+	{ id = "boulder", salt = 113, p = 0.35, gap = 4.6, d0 = 1.6, d1 = math.huge },
+	-- moss on the rock
+	{ id = "moss", salt = 127, p = 0.25, gap = 3.6, d0 = 0.5, d1 = math.huge },
+}
+
+-- The height of the rock's top over a cell at a distance d from the open ground's edge (the lawn's below the first).
+local function rockTop(d: number): number
+	local top = Street.LAWN_Y
+	for k, edge in ROCK_STEPS do
+		if d > edge then
+			top = Street.LAWN_Y + ROCK_RISE * k
+		end
+	end
+	return top
+end
+
+local function rockCover(m: Instance, o: CFrame, tier: number, b: Rect)
+	local key = Street.cellKey
+	local function open(x: number, z: number): number
+		return Street.openDist(tier, x, z)
+	end
+	local function onRock(x: number, z: number): boolean
+		return Street.locked(tier, x, z)
+	end
+	-- the shelves, each over the cells past its distance, two tones in patches
+	for k, edge in ROCK_STEPS do
+		local top = Street.LAWN_Y + ROCK_RISE * k
+		bevelled(m, o, b, { top = top, h = ROCK_RISE + 0.12, name = "Rock", colors = { "rock" }, solid = true }, function(x: number, z: number): number
+			return if onRock(x, z) and open(x, z) > edge then 1 else 0
+		end)
+	end
+	-- the walls: over every rock cell, from the lawn up past any jump
+	for _, r in greedy(b, onRock) do
+		local f = Blocks.part(m, {
+			size = Vector3.new(r.x1 - r.x0, WALL_H, r.z1 - r.z0),
+			cf = o * CFrame.new((r.x0 + r.x1) / 2, Street.LAWN_Y + WALL_H / 2, (r.z0 + r.z1) / 2),
+			color = "white",
+			name = "RockWall",
+			transparency = 1,
+			query = false,
+		})
+		f.CastShadow = false
+		f.CollisionGroup = "Bounds"
+	end
+	-- boulders, moss and tufts, each where its hash is the lowest of its kind within its gap
+	for _, k in ROCK_THINGS do
+		local g = math.ceil(k.gap)
+		local cand: { [number]: number } = {}
+		for z = b.z0 - g, b.z1 + g do
+			for x = b.x0 - g, b.x1 + g do
+				local d = open(x, z)
+				if d > k.d0 and d <= k.d1 and Street.layer(tier, x, z) == Street.GRASS then
+					local h = hash01(x, z, k.salt)
+					if h < k.p then
+						cand[key(x, z)] = h
+					end
+				end
+			end
+		end
+		local g2 = k.gap * k.gap
+		for z = b.z0, b.z1 do
+			for x = b.x0, b.x1 do
+				local h = cand[key(x, z)]
+				if h == nil then
+					continue
+				end
+				local lowest = true
+				for dz = -g, g do
+					for dx = -g, g do
+						if (dx ~= 0 or dz ~= 0) and dx * dx + dz * dz < g2 then
+							local other = cand[key(x + dx, z + dz)]
+							if other and (other < h or (other == h and (dz < 0 or (dz == 0 and dx < 0)))) then
+								lowest = false
+							end
+						end
+					end
+				end
+				if not lowest then
+					continue
+				end
+				local px, pz = x + 0.5, z + 0.5
+				local top = rockTop(open(x, z))
+				local turn = hash01(x, z, k.salt + 1) * 6
+				local rng = Util.newRng(math.floor(hash01(x, z, k.salt + 3) * 2147483647))
+				if k.id == "edge" then
+					rocks(m, o * CFrame.new(px, top, pz) * CFrame.Angles(0, turn, 0), 1.0 + hash01(x, z, k.salt + 2) * 0.7, rng)
+				elseif k.id == "boulder" then
+					local bs = 1.1 + hash01(x, z, k.salt + 2) * 0.9
+					local at = o * CFrame.new(px, top, pz) * CFrame.Angles(0, turn, 0)
+					box(m, at, 0, 0.35 * bs, 0, 1.5 * bs, 1.0 * bs, 1.25 * bs, if hash01(x, z, k.salt + 4) < 0.5 then "rock" else "rock_dark", "Stone")
+					box(m, at, 0.1 * bs, 0.9 * bs, -0.05 * bs, 1.0 * bs, 0.25 * bs, 0.75 * bs, "rock", "Stone")
+				else
+					local w = 0.75 + math.floor(hash01(x, z, k.salt + 2) * 3) * 0.25
+					box(m, o * CFrame.new(px, top, pz) * CFrame.Angles(0, math.floor(turn) * math.pi / 2, 0), 0, 0.05, 0, w, 0.12, w * 0.75, "moss", "Moss")
+				end
+			end
+		end
+	end
+end
+
 ------------------------------------------------------------------ the land in chunks
 -- The island's land is built in chunks of CHUNK x CHUNK cells (plot-local, on a grid from the plot's origin), each a
 -- model of its own named for what it holds: Chunk_<cx>_<cz>_<signature>, the signature a hash of the layer and
@@ -1015,7 +1135,19 @@ local function cellCode(tier: number, x: number, z: number): number
 		return 0
 	end
 	local d = Street.cellDist(tier, x, z)
-	return l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
+	local code = l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
+	if l == Street.GRASS then
+		-- (and how far from the open ground's edge, in the bands the rocks read: rockCover)
+		local od = Street.openDist(tier, x, z)
+		local band = 0
+		for _, e in ROCK_BANDS do
+			if od > e then
+				band += 1
+			end
+		end
+		code += 64 * band
+	end
+	return code
 end
 
 -- The lot's cells (a neighbour's water is theirs).
@@ -1080,6 +1212,7 @@ function StreetModels.landChunk(parent: Instance, origin: Vector3, tier: number,
 		return Street.cellDist(tier, x, z)
 	end)
 	scatterIn(m, o, tier, c.rect)
+	rockCover(m, o, tier, c.rect)
 	Blocks.windy(m) -- palms and tufts sway
 	m.Parent = parent
 	return m

@@ -6,7 +6,8 @@
 --   "small"  a whole number in [1, 32] (a look index)
 --   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 7)
 --   "key"    a settings key ("pixel", "music", "sfx", "zoom")
---   "coord"  a whole number in [-240, 64] (a plot-local stud: the biggest islands reach far north)
+--   "coord"  a whole number in [-240, 160] (a plot-local stud: the whole island reaches far north and south of the
+--            plaza since 2026-11-20)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
 --   "index"  a whole number in [1, 8192] (a placed piece: pieces, tiles and fences)
 --   "cells"  1 to 40 cells "x,z" joined by ";", each a coord (path or water tiles drawn or erased: Logic/Plot.paint)
@@ -93,7 +94,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "rarity" then
 		return isInt(v, 1, Traits.RMAX)
 	elseif kind == "coord" then
-		return isInt(v, -240, 64)
+		return isInt(v, -240, 160)
 	elseif kind == "cells" or kind == "edges" then
 		if type(v) ~= "string" or #v < 3 or #v > 40 * 13 then
 			return false
@@ -103,12 +104,12 @@ local function check(kind: string, v: any): boolean
 			n += 1
 			if kind == "cells" then
 				local x, z = string.match(part, "^(%-?%d%d?%d?),(%-?%d%d?%d?)$")
-				if x == nil or not isInt(tonumber(x), -240, 64) or not isInt(tonumber(z), -240, 64) then
+				if x == nil or not isInt(tonumber(x), -240, 160) or not isInt(tonumber(z), -240, 160) then
 					return false
 				end
 			else
 				local x, z, r = string.match(part, "^(%-?%d%d?%d?),(%-?%d%d?%d?),(%d%d?)$")
-				if x == nil or not isInt(tonumber(x), -240, 64) or not isInt(tonumber(z), -240, 64) or (r ~= "0" and r ~= "90") then
+				if x == nil or not isInt(tonumber(x), -240, 160) or not isInt(tonumber(z), -240, 160) or (r ~= "0" and r ~= "90") then
 					return false
 				end
 			end

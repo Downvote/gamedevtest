@@ -735,23 +735,24 @@ do
 	end
 end
 
--- the top tier's island (Everdrift, tier 20 since the request of 2026-11-14) reaches far north: pieces past z -160 (the
--- old edge of a plot's coords, before the tiers past Driftling Haven) load where they stood, a tile and a fence too
+-- the top tier's island (Everdrift, tier 20 since the request of 2026-11-14) is open to its ends, far north and south of
+-- the plaza (the island whole and round from the start since 2026-11-20): pieces past z -40, where Driftling Haven's
+-- open ground ends, load where they stood, a tile and a fence too
 E.phase = "tier20"
 do
 	local TOP = #Tuning.TierCost
 	local tq = treePiece(TOP, 10)
 	local list = { tq }
 	local ox, oz = freeAt(TOP, list, "oak", 0, function(_, z)
-		return z <= -170
+		return z <= -42
 	end)
 	table.insert(list, piece(11, "oak", ox :: number, oz :: number, 0))
 	local wx, wz = freeAt(TOP, list, "stream", 0, function(x, z)
-		return z < -160 and x % 2 == 0 and z % 2 == 0
+		return z < -40 and x % 2 == 0 and z % 2 == 0
 	end)
 	table.insert(list, piece(12, "stream", wx :: number, wz :: number, 0))
 	local fx, fz = freeAt(TOP, list, "brickwall", 0, function(x, z)
-		return z < -160 and x % 2 == 0 and z % 2 == 0
+		return z < -40 and x % 2 == 0 and z % 2 == 0
 	end)
 	table.insert(list, piece(13, "brickwall", fx :: number, fz :: number, 0))
 	-- (and a torch on the northernmost grass a piece may stand on)
@@ -765,14 +766,14 @@ do
 		end
 	end
 	table.insert(list, piece(14, "torch", nx :: number, nz :: number, 0))
-	H.expect(oz ~= nil and wz ~= nil and fz ~= nil and nz ~= nil and (nz :: number) < -190, "save", "(a tier 20 island's far north has room: the northmost spot " .. tostring(nz) .. ")")
+	H.expect(oz ~= nil and wz ~= nil and fz ~= nil and nz ~= nil and (nz :: number) < -46, "save", "(a tier 20 island's far north has room: the northmost spot " .. tostring(nz) .. ")")
 	seed(9212, { data = { v = 14, shells = 100000, wood = 50000, tier = TOP, tut = 0, quest = 5, plot = { placed = list }, stats = { built = 4 }, nextId = 30 } })
 	local big = H.addPlayer({ userId = 9212, name = "Farnorth" })
 	E.run(3)
 	local bp = H.profile(big)
 	H.expect(bp ~= nil and bp.tier == TOP and TOP == 20, "save", "a tier 20 save loads", tostring(bp and bp.tier))
 	if bp then
-		H.expect(pieceList(bp.plot.placed) == pieceList(list), "save", "its far-north pieces kept where they stood (z below -160), the tile and the fence too", pieceList(bp.plot.placed))
+		H.expect(pieceList(bp.plot.placed) == pieceList(list), "save", "its far-north pieces kept where they stood (z below -40), the tile and the fence too", pieceList(bp.plot.placed))
 		H.expect(bp.wood == nil and bp.shells >= 150000, "save", "its 50,000 wood added to its 100,000 shells", string.format("%s %s", tostring(bp.shells), tostring(bp.wood)))
 		H.checkProfile(big, "tier20")
 		settled(big)

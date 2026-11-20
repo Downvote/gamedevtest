@@ -271,6 +271,12 @@ def thumb_build(sc, pics):
     return cv
 
 
+def thumb_rocks(sc, pics):
+    cv = sc["rocks"]
+    thumb_caption(cv, "Clear the rocks to grow your island", top=True)
+    return cv
+
+
 def thumb_collect(sc, pics, kinds):
     cv = sc["lawn"]
     thumb_caption(cv, "%d driftlings to find" % kinds, top=True)
@@ -369,7 +375,7 @@ def main():
             sys.exit("no scene " + p)
         return load_scene(p)
 
-    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze")}
+    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "rocks")}
     os.makedirs(a.out, exist_ok=True)
     made = [
         ("thumb_1_title", thumb_title(sc, pics)),
@@ -377,6 +383,7 @@ def main():
         ("thumb_3_collect", thumb_collect(sc, pics, kinds)),
         ("thumb_4_build", thumb_build(sc, pics)),
         ("thumb_5_eggs", thumb_eggs(sc, pics)),
+        ("thumb_6_rocks", thumb_rocks(sc, pics)),
     ]
     imgs = []
     for name, cv in made:
@@ -390,10 +397,10 @@ def main():
         from PIL import Image
 
         sw, sh = 960, 540
-        sheet = Image.new("RGB", (2 * sw + 48, 3 * sh + 64), (40, 34, 48))
+        sheet = Image.new("RGB", (2 * sw + 48, 4 * sh + 80), (40, 34, 48))
         for i, img in enumerate(imgs):
             sheet.paste(img.resize((sw, sh), Image.NEAREST), (16 + (i % 2) * (sw + 16), 16 + (i // 2) * (sh + 16)))
-        sheet.paste(ic.image(4), (16 + sw + 16 + (sw - 512) // 2, 16 + 2 * (sh + 16) + (sh - 512) // 2))
+        sheet.paste(ic.image(4), (16 + sw + 16 + (sw - 512) // 2, 16 + 3 * (sh + 16) + (sh - 512) // 2))
         sheet.save(a.sheet)
         print("sheet:", a.sheet)
 

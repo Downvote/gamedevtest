@@ -70,7 +70,9 @@ local eggs: { [string]: Egg } = {}
 local hatching: { [number]: number } = {} -- own egg ids just hatched (they crack instead of sinking)
 local lastHatch: { [number]: Vector3 } = {} -- each island's egg that hatched last: where its driftling stands
 local myPlot = 0
-local NEAR = 100 -- studs from the view's centre an island's eggs are drawn within
+-- studs from the view's centre an island's eggs are drawn within: the next island either side (100 when they were 80
+-- apart)
+local NEAR = Tuning.PlotSpacing + 20
 local RISE = 0.6 -- seconds an egg takes to rise out of the lawn (one after another, STAGGER apart)
 local STAGGER = 0.12
 local SINK = 0.5 -- seconds an old one takes to sink back

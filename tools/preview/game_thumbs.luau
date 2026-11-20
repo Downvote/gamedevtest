@@ -265,6 +265,49 @@ return function(env)
 		return p
 	end
 
+	-- the rocks: a Grand Isle (tier 3, the harbour island's pieces) with its town in the open ground round the plaza and
+	-- the rock all round it, from a little further out: frame gth_rocks
+	if mode == "rocks" then
+		env.seedProfile(7310, 3, { pieces = env.harbor, pals = env.pals, shells = 65000 })
+		local p = env.join(7310, "Rocky")
+		env.settle(p, 60, 1)
+		local Street = H.sharedServer("Data.Street")
+		local ox = Street.origin(H.session(p).plot)
+		for _, g in p.PlayerGui:GetChildren() do
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+				g.Enabled = false
+			end
+		end
+		-- (the founder on the far south beach, out of the frame)
+		if p.Character then
+			local sx, sz = Street.sign(3)
+			p.Character:PivotTo(E.cf.new(ox + sx + 4, 3, sz))
+		end
+		local SU = env.modOr(p, "UI.SettingsUI")
+		H.openPanel(p, "settings")
+		E.run(0.4)
+		if SU then
+			H.inClient(p, SU.setZoom, 3)
+		end
+		E.run(0.8)
+		H.closePanel(p)
+		E.run(0.5)
+		for _, g in p.PlayerGui:GetChildren() do
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" then
+				g.Enabled = false
+			end
+		end
+		local CC = env.modOr(p, "Controllers.CameraController")
+		if CC then
+			H.inClient(p, CC.setFocus, Vector3.new(ox + 2, Street.LAWN_Y, 4), true)
+		end
+		E.run(1)
+		env.settle(p, 60, 1)
+		E.run(1.5)
+		capture(p, "gth_rocks")
+		return p
+	end
+
 	-- the scenes: a decorated tier 8 town (tools/preview/showcase.luau), rare eggs under the tree
 	local TIER = 8
 	local Plot = H.sharedServer("Logic.Plot")

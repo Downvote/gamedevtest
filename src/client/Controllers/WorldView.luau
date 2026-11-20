@@ -18,6 +18,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
@@ -73,7 +74,8 @@ type Fire = { flame: MicroModels.Thing, smoke: Model, puffs: { BasePart }, x: nu
 local fires: { [number]: Fire } = {}
 local signLabels: { [number]: TextLabel } = {}
 local myPlot = 0
-local NEAR = 100 -- studs from the view's centre an island is peopled within
+-- studs from the view's centre an island is peopled within: the next island either side (100 when they were 80 apart)
+local NEAR = Tuning.PlotSpacing + 20
 -- studs a second a driftling walks (2026-11-15: a walk, not a bounce; at 4 its short legs could not keep up with
 -- the ground and it hopped along, now it steps at Models/DriftMotion's WALK rate)
 local WALK = 2.6
