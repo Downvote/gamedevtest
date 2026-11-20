@@ -2914,6 +2914,19 @@ local function cthumbsScenario(arg: string?)
 	return require("./cosmetic_thumbs")(env)
 end
 SCEN.cthumbs = cthumbsScenario
+-- "picons" / "picons=<id>,<id>": the game passes' and developer products' icons' subjects
+-- (tools/preview/product_icons.luau; sh tools/preview/product_icons.sh lays them on their badges)
+local function piconsScenario(arg: string?)
+	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr }
+	if arg then
+		env.only = {}
+		for id in string.gmatch(arg, "[^,]+") do
+			table.insert(env.only, id)
+		end
+	end
+	return require("./product_icons")(env)
+end
+SCEN.picons = piconsScenario
 -- "showcase=<tier>": a well decorated town on an island of that tier (the request of 2026-11-19: "could you make an
 -- example of a well decorated town across all expansions?"), laid out by tools/preview/showcase.luau within the game's
 -- rules and limits, its huts full of driftlings. Frames: showcase<tier>_far_1 .. (the View slider all the way out,
@@ -4052,6 +4065,12 @@ for _, name in list do
 	if hatch then
 		fn = function()
 			return hatchScenario(hatch)
+		end
+	end
+	local picons = string.match(name, "^picons=([%w_,]+)$")
+	if picons then
+		fn = function()
+			return piconsScenario(picons)
 		end
 	end
 	local cthumbs = string.match(name, "^cthumbs=([%w_,]+)$")

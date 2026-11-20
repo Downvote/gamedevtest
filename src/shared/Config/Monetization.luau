@@ -2,7 +2,8 @@
 -- Every Roblox id (game passes, developer products, badges, sounds). Pure. 0 = not created yet: every call site
 -- checks that an id is set before using it (Monetization.isEnabled). The store (GAME_DESIGN 14): create each pass and
 -- product on the Creator Dashboard (Monetization > Passes / Developer Products) and put its id here; until then the
--- Store shows it with its suggested price and says it isn't on sale yet.
+-- Store shows it with its suggested price and says it isn't on sale yet. Each one's icon to upload with it is
+-- art/products/<key>.png (512 x 512, pixel art from the game's own models: sh tools/preview/product_icons.sh).
 local Monetization = {
 	-- the game passes (Logic/Store.owns reads Profile.passes, set from these at every join and on a purchase)
 	GamePasses = {

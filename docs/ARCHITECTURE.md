@@ -154,7 +154,9 @@ is `DriftlingIsle-<short hash>.rbxl`.)
   touch no Roblox API.
 - The server decides everything. A client action is one Router request (a name and a payload) checked by
   `Logic/Validate`, answered `{ ok = true, data }` or `{ ok = false, err = ErrCode }`.
-- Every number is in `Config/Tuning.luau`; every Roblox id is in `Config/Monetization.luau` (0 = not made yet).
+- Every number is in `Config/Tuning.luau`; every Roblox id is in `Config/Monetization.luau` (0 = not made yet). Each
+  pass's and product's icon to upload is `art/products/<key>.png` (512 x 512 pixel art drawn from the game's models by
+  `tools/preview/product_icons.sh`: a round badge for a pass, a rounded square for a product).
 - One function stays under 200 locals and upvalues (luau-compile checks it).
 - Player-visible text goes through `Locale/Lang.t` (English only for now; GAME_DESIGN 12).
 - Some modules keep the names of the games before this one (the plots along a "street", the island's tiers an
