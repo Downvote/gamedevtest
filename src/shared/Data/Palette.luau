@@ -106,6 +106,12 @@ local ORDER: { string } = {
 	"r_legend",
 	"sponge",
 	"street",
+	-- the rock under the floating islands, light warm stone at the top to a dusky violet at the bottom (Models/StreetModels:
+	-- the request of 2026-11-20, "detail and polish the edges and the bottom of the island more")
+	"cliff",
+	"cliff_dark",
+	"cliff_deep",
+	"cliff_base",
 }
 
 -- Rich, warm colours (the request of 2026-11-14: "when i meant pastel color, i didnt mean desaturated it, i meant use
@@ -212,6 +218,10 @@ local COLORS: { [string]: number } = {
 	r_legend = 0xFFB238,
 	sponge = 0xF4D488,
 	street = 0x6D6878,
+	cliff = 0xCDBCB0,
+	cliff_dark = 0xAE9DA0,
+	cliff_deep = 0x8D7F96,
+	cliff_base = 0x6C6283,
 }
 
 -- The office tiers' surfaces (Data/Office: theme per tier). floor_a / floor_b: the two floor tile tones, wall /

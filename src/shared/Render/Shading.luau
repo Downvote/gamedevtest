@@ -497,6 +497,10 @@ local TEX_KEYS: { [string]: number } = {
 	slate = Shading.TEX_STONE,
 	basalt = Shading.TEX_STONE,
 	pavement = Shading.TEX_STONE,
+	cliff = Shading.TEX_STONE,
+	cliff_dark = Shading.TEX_STONE,
+	cliff_deep = Shading.TEX_STONE,
+	cliff_base = Shading.TEX_STONE,
 	straw = Shading.TEX_THATCH,
 	brick = Shading.TEX_BRICK,
 }
