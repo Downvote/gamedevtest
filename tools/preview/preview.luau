@@ -1937,7 +1937,8 @@ end
 
 -- "treeink": the Tree of Life's edges pixel by pixel (the request of 2026-11-20: "the tree has alot of jaggied
 -- outlines, and stray pixels around the outline, especially near the fruits"). The village's tree at the default
--- zoom (treeink=<n>: on the View slider's notch n), then every pixel round it printed (TREEPX rows: colour, the
+-- zoom (treeink=<n>: on the View slider's notch n; treeink=<n>,<tier>: on an island of that tier, the tree at its
+-- stage), held at midday, then every pixel round it printed (TREEPX rows: colour, the
 -- part's name, its depth, its id) for tools/preview/tree_ink.py.
 local function treeModelOf(p)
 	local s = H.session(p)
@@ -1954,10 +1955,16 @@ local function treeModelOf(p)
 	return nil
 end
 
-function SCEN.treeink(zoomTo: number?)
-	seedProfile(21, 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7, 8, 9 } })
+function SCEN.treeink(zoomTo: number?, tier: number?)
+	seedProfile(21, tier or 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7, 8, 9 } })
 	local p = join(21, "Grove")
 	settle(p)
+	-- (in daylight, as the island is seen most: the night's low contrast hid the outline's shades)
+	local DLt = modOr(p, "Controllers.DayLight")
+	if DLt and DLt.debugSky then
+		H.inClient(p, DLt.debugSky, 0.45)
+		E.run(0.5)
+	end
 	local s = H.session(p)
 	local Street = H.sharedServer("Data.Street")
 	local Tree = H.sharedServer("Logic.Tree")
@@ -4646,10 +4653,10 @@ for _, name in list do
 			return showcaseScenario(tonumber(showArg) :: number)
 		end
 	end
-	local tiArg = string.match(name, "^treeink=(%d+)$")
+	local tiArg, tiTier = string.match(name, "^treeink=(%d+),?(%d*)$")
 	if tiArg then
 		fn = function()
-			return SCEN.treeink(tonumber(tiArg))
+			return SCEN.treeink(tonumber(tiArg), tonumber(tiTier))
 		end
 	end
 	local zoomArg = string.match(name, "^zoom=(%d+)$")
