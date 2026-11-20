@@ -3396,6 +3396,234 @@ local function expandPerf(tier: number)
 end
 SCEN.expandperf = expandPerf
 
+-- "expandrim=<tier>" (or "expandrim=<tier>:ui", through Build mode's Expand and its loading card): the report of
+-- 2026-11-20, "there are artifacts that appear around after expanding" (a dark row across the rim into the sky, and
+-- square blocks of night sky cut into the rim's rocks). An island at that tier, at night in the rain, in Build mode:
+-- the view dragged round the whole island first (so the pan cache holds the island as it was), the next island built
+-- ahead and its picture cast ahead, then Expand, and the view dragged round again, the layer checked against a fresh
+-- cast at every step (PixelRenderer.debugCastCheck with the ink: the pixels off, sorted into sky where a part is,
+-- a part where there is sky, and ink alone, with the 32 px tiles they fall in). Frames expandrim_before,
+-- expandrim_after and expandrim_worst (the step with the most pixels off, if any).
+local function expandRim(arg: string)
+	local tier = tonumber(string.match(arg, "^(%d+)")) or 1
+	local viaUi = string.find(arg, ":ui", 1, true) ~= nil
+	local times = tonumber(string.match(arg, ":x(%d+)")) or 1
+	local quick = string.find(arg, ":quick", 1, true) ~= nil
+	-- (":replica": the tree swapped in is replaced by a copy of itself the moment it lands, the way a client receives
+	-- a model the server parented to nil on the way)
+	local replica = string.find(arg, ":replica", 1, true) ~= nil
+	-- (":midbake": a whole bake is under way, behind the picture, when the expansion lands)
+	local midbake = string.find(arg, ":midbake", 1, true) ~= nil
+	seedProfile(59, tier, { pieces = VILLAGE, pals = { "mossbun" }, shells = 9e9 })
+	local p = join(59, "Rimmer")
+	settle(p, 60, 2)
+	local PS = H.smod("PlotService")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local CC = modOr(p, "Controllers.CameraController")
+	local WV = modOr(p, "Controllers.WeatherView")
+	local DL = modOr(p, "Controllers.DayLight")
+	if PR == nil or CC == nil then
+		log("expandrim: no pixel filter")
+		return p
+	end
+	if WV then
+		H.inClient(p, WV.debugSet, "rain")
+	end
+	if DL and DL.debugSky then
+		H.inClient(p, DL.debugSky, 0.02)
+	end
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 20, 1)
+	local st0 = H.inClient(p, PR.debugStatic)
+	local K = st0.K
+	local STEP = 40 * K -- screen px a step of the drag (40 art px)
+	-- the drag round the island: a ring out to the drag's limit and back to the middle
+	local path = {}
+	local function go(dx, dy, n)
+		for _ = 1, n do
+			table.insert(path, { dx, dy })
+		end
+	end
+	if quick then
+		-- (out to the side and back: the layer's strips cast and taken back from the pan cache)
+		go(1, 0, 4)
+		go(-1, 0, 4)
+	else
+		go(1, 0, 7)
+		go(0, 1, 5)
+		go(-1, 0, 14)
+		go(0, -1, 10)
+		go(1, 0, 14)
+		go(0, 1, 5)
+		go(-1, 0, 7)
+	end
+	-- the Tree of Life's box on the layer (layer px), and the pixels off a fresh cast inside it
+	local Street = H.sharedServer("Data.Street")
+	local function treeModel(): Instance?
+		local plots = E.workspace:FindFirstChild("Plots")
+		local pm = plots and plots:FindFirstChild("Plot_1")
+		local st = pm and pm:FindFirstChild("Static")
+		local decor = st and st:FindFirstChild("Decor")
+		if decor then
+			for _, c in decor:GetChildren() do
+				if string.find(c.Name, ":tree:", 1, true) then
+					return c
+				end
+			end
+		end
+		return nil
+	end
+	local function treeOff(cc): (number, number, number)
+		local m = treeModel()
+		local mk = cc.mask
+		if m == nil or mk == nil then
+			return -1, 0, 0
+		end
+		local cf, size = (m :: any):GetBoundingBox()
+		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		for _, sx in { -0.5, 0.5 } do
+			for _, sy in { -0.5, 0.5 } do
+				for _, sz in { -0.5, 0.5 } do
+					local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
+					local sp = H.inClient(p, PR.project, w.Position)
+					x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
+					x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+				end
+			end
+		end
+		local W, Hh = st0.W, st0.H
+		x0, y0 = math.max(0, math.floor(x0) - 2), math.max(0, math.floor(y0) - 2)
+		x1, y1 = math.min(W - 1, math.ceil(x1) + 2), math.min(Hh - 1, math.ceil(y1) + 2)
+		local off, ties, area = 0, 0, 0
+		for y = y0, y1 do
+			for x = x0, x1 do
+				area += 1
+				local c = buffer.readu8(mk, y * W + x)
+				if c == 5 then
+					ties += 1
+				elseif c ~= 0 then
+					off += 1
+				end
+			end
+		end
+		return off, ties, area
+	end
+	local treeTotal = 0
+	local function sweep(label: string, check: boolean): (number, number)
+		local worst, worstAt, total = 0, -1, 0
+		local x, y = 0, 0
+		for i, d in path do
+			-- (a drag of the pointer by d: the world follows it, so the view goes the other way)
+			H.inClient(p, CC.panBy, -d[1] * STEP, -d[2] * STEP)
+			x += d[1]
+			y += d[2]
+			settle(p, 10, 0.1)
+			if check then
+				local cc = H.inClient(p, PR.debugCastCheck, true, true)
+				-- (two faces at one depth are the ray index's to pick between: not counted)
+				local bad = (cc.off or 0) - (cc.ties or 0) + (cc.inkOff or 0)
+				total += bad
+				local tOff, tTies, tArea = treeOff(cc)
+				if tOff > 0 then
+					treeTotal += tOff
+					log("expandrim %s step %d: the tree's box (%d px) has %d off a fresh cast and %d ties", label, i, tArea, tOff, tTies)
+				end
+				if bad > 0 then
+					log("expandrim %s step %d (%d,%d): %d off (%d sky over a part, %d a part over sky, %d ink alone, %d ties) in %d tiles, box %s; %s", label, i, x, y, bad, cc.skyOver or 0, cc.ghost or 0, cc.inkOff or 0, cc.ties or 0, cc.tiles or 0, if cc.box then table.concat(cc.box, ",") else "-", tostring(cc.ex))
+				end
+				if bad > worst then
+					worst, worstAt = bad, i
+					capture(p, "expandrim_worst")
+				end
+			end
+		end
+		log("expandrim %s: %d steps, %d pixels off in all, the most at one step %d (step %d)", label, #path, total, worst, worstAt)
+		return total, worst
+	end
+	-- the island as it is, all round (the pan cache fills with it), and checked once
+	sweep("before", true)
+	capture(p, "expandrim_before")
+	local grand = 0
+	for round = 1, times do
+	-- the next island built ahead and its picture cast ahead
+	local guard = 0
+	while not select(2, PS.debugNext(1)) and guard < 4000 do
+		guard += 1
+		E.step(E.dt)
+	end
+	local preFrames, preJob = 0, nil
+	if PR.debugPre then
+		while preFrames < 1500 do
+			E.step(E.dt)
+			preFrames += 1
+			local now = H.inClient(p, PR.debugPre)
+			preJob = now.job
+			if now.job and not now.job.switched and now.job.done > 0 and now.job.queued == 0 then
+				break
+			end
+		end
+	end
+	log("expandrim round %d pre-cast: after %d frames the job is %s", round, preFrames, if preJob then string.format("tier %d, %d of %d tiles done, %d queued, switched %s", preJob.tier, preJob.done, preJob.region, preJob.queued, tostring(preJob.switched)) else "none")
+	local tier0 = H.profile(p).tier
+	if midbake then
+		H.inClient(p, PR.rebake)
+		for _ = 1, 6 do
+			E.step(E.dt)
+		end
+		log("expandrim round %d: a bake under way when it expands: %s", round, tostring(H.inClient(p, PR.debugStatic).baking))
+	end
+	if viaUi then
+		H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+		local LCm = nil
+		do
+			local ctx = E.clientCtx(p)
+			local inst = E.find("ReplicatedFirst.Loading.LoadingCard")
+			local e = ctx and inst and ctx.modules[inst]
+			LCm = e and e.value
+		end
+		local n = 0
+		while n < 4000 do
+			E.step(E.dt)
+			n += 1
+			local st = LCm and H.inClient(p, LCm.state)
+			if H.profile(p).tier > tier0 and (st == nil or not st.up) then
+				break
+			end
+		end
+	else
+		H.req(p, "island.expand", {})
+	end
+	if replica then
+		local t = treeModel()
+		if t then
+			local c = (t :: any):Clone()
+			local par = (t :: any).Parent
+			t:Destroy()
+			c.Parent = par
+			log("expandrim round %d: the tree %s came in again as a copy of itself", round, c.Name)
+		end
+	end
+	settle(p, 30, 1)
+	local pre = H.inClient(p, PR.debugPre)
+	log("expandrim round %d: tier %d -> %d; the swap pasted %d tiles, cast %d the old way, skipped %d parts' comings and goings", round, tier0, H.profile(p).tier, pre.pasted or 0, pre.cast or 0, pre.skipped or 0)
+	local cc = H.inClient(p, PR.debugCastCheck, true, true)
+	local tOff, tTies, tArea = treeOff(cc)
+	treeTotal += math.max(0, tOff)
+	log("expandrim round %d: the tree's box (%d px) right after the swap: %d off a fresh cast, %d ties", round, tArea, tOff, tTies)
+	log("expandrim round %d after the swap, where it stood: %d off (%d sky over a part, %d a part over sky, %d ink alone, %d ties) in %d tiles; %s; ties: %s", round, (cc.off or 0) + (cc.inkOff or 0), cc.skyOver or 0, cc.ghost or 0, cc.inkOff or 0, cc.ties or 0, cc.tiles or 0, tostring(cc.ex), tostring(cc.tieEx))
+	if round == 1 then
+		capture(p, "expandrim_after")
+	end
+	local total, worst = sweep("after " .. round, true)
+	grand += total
+	end
+	log("expandrim: %d pixels off a fresh cast after the expansions, %d of them over the tree", grand, treeTotal)
+	if grand > 0 or treeTotal > 0 then
+		table.insert(E.warnings, { ctx = "preview", text = string.format("EXPANDRIM: %d pixels off a fresh cast after the expansions, %d over the tree", grand, treeTotal), t = 0, phase = "expandrim" })
+	end
+	return p
+end
+
 -- "late": the screen's size settles after the HUD is built, the two ways Roblox does it: (1) the top bar's inset
 -- arrives with no ViewportSize event (the roots shrink by it on their own), (2) a phone turns and the camera's
 -- ViewportSize event comes before the roots are laid out again. The menu bar must stay wholly on screen, at the
@@ -4639,6 +4867,12 @@ for _, name in list do
 	if stressLegs then
 		fn = function()
 			return SCEN.stress(tonumber(stressLegs))
+		end
+	end
+	local erArg = string.match(name, "^expandrim=([%d:%a]+)$")
+	if erArg then
+		fn = function()
+			return expandRim(erArg)
 		end
 	end
 	local epArg = string.match(name, "^expandperf=(%d+)$")

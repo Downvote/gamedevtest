@@ -1517,6 +1517,21 @@ do
 		waited += 0.05
 	end
 	H.expect(blank == 0 and not H.inClient(p, PR.debugStatic).baking, "expand+hatch", "then the bigger island's picture, no moment without one", string.format("after %.2f s, %d frames with nothing behind the bake", waited, blank))
+	-- the pre-cast lets go of the swap once it has landed, and the island after the next is cast ahead in its turn (the
+	-- report of 2026-11-20, "there are artifacts that appear around after expanding": the landed swap's job stayed for
+	-- good, so the next expansion was never cast ahead and the models it had swapped in counted as drawn whenever they
+	-- changed again)
+	if Island.expandCost(prof.tier) ~= nil then
+		E.runUntil(function()
+			return select(2, PS.debugNext(s.plot)) == true
+		end, 30, 0.2)
+		local job = nil
+		E.runUntil(function()
+			job = H.inClient(p, PR.debugPre).job
+			return job ~= nil and not job.switched and job.tier == prof.tier + 1 and job.done > 0
+		end, 30, 0.25)
+		H.expect(job ~= nil and not job.switched and job.tier == prof.tier + 1 and job.done > 0, "expand+hatch", "the next island is cast ahead again after the swap", if job then string.format("job tier %d (the island %d), switched %s, %d of %d tiles", job.tier, prof.tier, tostring(job.switched), job.done, job.region) else "no job")
+	end
 	H.inClient(p, C.HS.setQuick, true)
 	-- (the classic look again)
 	E.editableImageMode = "fail"

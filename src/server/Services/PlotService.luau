@@ -472,12 +472,20 @@ function PlotService.build(s: S)
 			if ready and ready.tier == tier and ready.chunks then
 				swaps += 1
 			end
-			-- (the tree built ahead at its next stage, kept out of the hold that planNext lets go below)
+			-- (the tree built ahead at its next stage, kept out of the hold that planNext lets go below: moved straight
+			-- into the island's decor, where buildDecor finds it by its name. Parented to nil on the way, it reached
+			-- every client as a new copy of itself, not the one their pixel filter had drawn ahead; the report of
+			-- 2026-11-20, "the tree outlines are still broken")
 			local t = if ready and ready.tier == tier then ready.tree else nil
 			if t then
 				unstage(t)
-				t.Parent = nil
-				ahead[t.Name] = t
+				local decorF = static:FindFirstChild("Decor")
+				if decorF then
+					t.Parent = decorF
+				else
+					t.Parent = nil
+					ahead[t.Name] = t
+				end
 				ready.tree = nil
 			end
 			local want: { [string]: boolean } = { [plan.sign] = true, [plan.walls] = true }

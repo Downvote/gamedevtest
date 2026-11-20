@@ -1277,6 +1277,25 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, Â
   and at tier 15 (it was 272 and 204 frames, with seven to ten seconds of slower frames), with 6,473 parts coming and
   going at tier 15 and not one of them drawn again. If the player expands before the drawing ahead has reached
   everything on screen, the rest is drawn the old way.
+
+  > The reports (2026-11-20): "there are artifacts that appear around after expanding." (at night in the rain: a dark
+  > line across the rim's rocks into the sky, and square blocks of sky cut into the rocks), then "the tree outlines
+  > are still broken, not like the screenshot you sent" (the Tree of Life's trunk with short dark creases and a
+  > ragged outline after an expansion that grew it a stage).
+
+  Four things could leave the picture out of step with the island after an expansion, and each is closed now. The
+  drawing ahead held on to the swap it had made for good whenever the island after it was built ahead within 8
+  seconds, which it nearly always is: the next expansion was then never drawn ahead, and the models that swap had
+  brought in counted as already drawn whenever they changed again, so a later expansion that replaced them left their
+  old picture where nothing new was drawn over it. It now lets go 8 seconds after the swap. The pan cache, which keeps
+  the island's picture as the view moves on, could keep squares of the island as it was before an expansion and bring
+  them back on a later pan; every swap now empties it and puts back only the squares just drawn ahead. The server
+  parented the tree's next stage to nil on its way onto the island, so every player's game received it as a new copy
+  and drew it partly from the copy drawn ahead and partly from the new one; it now moves straight onto the island, and a
+  fresh copy of a model drawn ahead, should one come, is drawn again whole. And a swap landing while a whole new
+  picture is being drawn starts that drawing again, so none of it keeps the island as it was. The `expandrim` preview
+  drags the view round the island before and after each expansion and compares the picture with a fresh one at every
+  step, over the tree too.
   Islands at the first tiers have a few more palms and shells than before; from about tier 10 the counts are as they
   were.
 
