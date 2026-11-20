@@ -21,6 +21,7 @@ return function(env)
 	end
 	local Cosmetics = env.cshared(p, "Data.Cosmetics")
 	local CosmeticModels = env.cshared(p, "Models.CosmeticModels")
+	local WearModels = env.cshared(p, "Models.WearModels")
 	local Blocks = env.cshared(p, "Models.Blocks")
 	local SIZE = env.size or 24
 	local SIZES = { SIZE, SIZE + 1, SIZE + 2, SIZE + 3, SIZE + 4 }
@@ -53,7 +54,7 @@ return function(env)
 		root.Name = "Look_" .. c.id
 		local turn = CFrame.Angles(0, math.rad(if c.slot == "back" then 205 else 25), 0)
 		local lo, hi = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
-		for _, sp in CosmeticModels.parts(c.id) do
+		for _, sp in WearModels.piece(c.id) do
 			lo = Vector3.new(math.min(lo.X, sp.at.X - sp.size.X / 2), math.min(lo.Y, sp.at.Y - sp.size.Y / 2), math.min(lo.Z, sp.at.Z - sp.size.Z / 2))
 			hi = Vector3.new(math.max(hi.X, sp.at.X + sp.size.X / 2), math.max(hi.Y, sp.at.Y + sp.size.Y / 2), math.max(hi.Z, sp.at.Z + sp.size.Z / 2))
 		end
@@ -80,7 +81,7 @@ return function(env)
 				put(Vector3.new(1.375, 0.125, 0.875), Vector3.new(0, 1.3125, 0), "wood_dark")
 			end
 		end
-		for _, sp in CosmeticModels.parts(c.id) do
+		for _, sp in WearModels.piece(c.id) do
 			put(sp.size, sp.at, sp.color, sp.shape, sp.rot, sp.neon)
 		end
 		return root

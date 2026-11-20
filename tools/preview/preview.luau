@@ -3668,7 +3668,40 @@ end
 -- of four on a lawn far from the islands; standing (looks_stand) and walking (looks_walk). Batch n dresses founder i
 -- (8n-7 .. 8n) in each slot's piece i (round the slot's list), with skin, hair colour, hair style and shirt colour
 -- turning too, so batches 1 to 4 show every piece and every style; an id list puts one piece on each founder. The log
--- lists each founder's pieces and part count.
+-- lists each founder's pieces and part count. "looks=f<k>" shows the features of the bakery's customization screen (the
+-- request of 2026-11-20): f1 the newer hair styles, f2 bangs and a second hair colour, f3 aprons and eye colours, f4
+-- tinted bakery pieces and a turned held one, f5 the hats that cover the hair or are the head.
+local FEATURE_LOOKS: { [string]: { { [string]: any } } } = {
+	f1 = {
+		{ skin = 1, hair = 1, style = 11, shirt = 1 }, { skin = 2, hair = 2, style = 12, shirt = 2 }, { skin = 3, hair = 3, style = 13, shirt = 3 },
+		{ skin = 4, hair = 4, style = 14, shirt = 4 }, { skin = 5, hair = 11, style = 15, shirt = 5 }, { skin = 6, hair = 13, style = 16, shirt = 6 },
+		{ skin = 9, hair = 15, style = 17, shirt = 7 }, { skin = 3, hair = 16, style = 18, shirt = 9 },
+	},
+	f2 = {
+		{ skin = 1, hair = 1, style = 1, shirt = 1, bangs = 2 }, { skin = 2, hair = 2, style = 2, shirt = 2, bangs = 3, hair2 = 6 },
+		{ skin = 3, hair = 3, style = 9, shirt = 3, bangs = 4 }, { skin = 4, hair = 4, style = 3, shirt = 4, bangs = 5, hair2 = 5 },
+		{ skin = 5, hair = 11, style = 15, shirt = 5, bangs = 6 }, { skin = 6, hair = 13, style = 4, shirt = 6, bangs = 7, hair2 = 8 },
+		{ skin = 2, hair = 9, style = 5, shirt = 7, bangs = 8 }, { skin = 1, hair = 2, style = 1, shirt = 9, bangs = 9, hair2 = 17 },
+	},
+	f3 = {
+		{ skin = 1, hair = 1, style = 1, shirt = 1, apron = 2, eye = 5 }, { skin = 2, hair = 2, style = 2, shirt = 2, apron = 4, eye = 4, eye2 = 5 },
+		{ skin = 3, hair = 3, style = 6, shirt = 3, apron = 10 }, { skin = 4, hair = 4, style = 3, shirt = 4, apron = 11, apronTint = 7 },
+		{ skin = 5, hair = 11, style = 7, shirt = 5, apron = 12, eye = 10 }, { skin = 6, hair = 13, style = 4, shirt = 6, apron = 13, eye = 13 },
+		{ skin = 2, hair = 9, style = 5, shirt = 7, apron = 15 }, { skin = 1, hair = 2, style = 1, shirt = 9, apron = 16 },
+	},
+	f4 = {
+		{ skin = 1, hair = 1, style = 1, shirt = 1, hat = "beret", hatTint = 9 }, { skin = 2, hair = 2, style = 2, shirt = 2, back = "luna_wings", backTint = 13 },
+		{ skin = 3, hair = 3, style = 6, shirt = 3, face = "glasses", faceTint = 2 }, { skin = 4, hair = 4, style = 3, shirt = 4, hat = "strawhat", hatTint = 10 },
+		{ skin = 5, hair = 11, style = 7, shirt = 5, top = "tuxedo", topTint = 2 }, { skin = 6, hair = 13, style = 4, shirt = 6, hand = "rain_umbrella", turn = 2 },
+		{ skin = 2, hair = 9, style = 5, shirt = 7, hand = "cupcake_treat", turn = 4 }, { skin = 1, hair = 2, style = 1, shirt = 9, back = "bat_wings" },
+	},
+	f5 = {
+		{ skin = 1, hair = 1, style = 1, shirt = 1, hat = "toque" }, { skin = 2, hair = 2, style = 2, shirt = 2, hat = "tall_toque", bangs = 2 },
+		{ skin = 3, hair = 3, style = 4, shirt = 3, hat = "cap" }, { skin = 4, hair = 4, style = 5, shirt = 4, hat = "cuffed_beanie" },
+		{ skin = 5, hair = 11, style = 12, shirt = 5, hat = "cupcake" }, { skin = 6, hair = 13, style = 3, shirt = 6, hat = "pumpkin_head" },
+		{ skin = 2, hair = 9, style = 5, shirt = 7, hat = "headless" }, { skin = 1, hair = 2, style = 1, shirt = 9, hat = "cat_ears" },
+	},
+}
 local function looksScenario(arg)
 	seedProfile(64, 1, {})
 	local p = join(64, "Dresser")
@@ -3689,7 +3722,7 @@ local function looksScenario(arg)
 	end
 	local looks = {}
 	local n = tonumber(arg)
-	for k = 1, 8 do
+	for k = 1, if FEATURE_LOOKS[arg] then 0 else 8 do
 		local look = {}
 		if n then
 			local i = (n - 1) * 8 + k
@@ -3713,6 +3746,9 @@ local function looksScenario(arg)
 				look[c.slot] = id
 			end
 		end
+		table.insert(looks, look)
+	end
+	for _, look in FEATURE_LOOKS[arg] or {} do
 		table.insert(looks, look)
 	end
 	local OX, OZ = 0, 9400

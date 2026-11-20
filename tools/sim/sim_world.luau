@@ -410,6 +410,135 @@ do
 	E.run(1)
 end
 
+-- What a founder can wear since the bakery's customization screen came over (the request of 2026-11-20: "Port the
+-- entire character customization menu from the bakery game to this game, such accessory colors and other features,
+-- along with the accessories it has"): every piece in Data/Cosmetics builds on the founder (Models/WearModels), in
+-- palette colours and real sizes, each part named once on a rig; a hat that is the head hides the head; a tint
+-- recolours a piece; the hand's turn turns what it holds; a moving piece moves on the clock; the new hair styles,
+-- bangs, aprons and eye colours all build.
+E.phase = "wear"
+do
+	local ctxA = E.clientCtx(a)
+	local WM = E.moduleIn(ctxA, E.find("ReplicatedStorage.Shared.Models.WearModels"))
+	local CMw = E.moduleIn(ctxA, E.find("ReplicatedStorage.Shared.Models.CharacterModels"))
+	local Cos = H.sharedServer("Data.Cosmetics")
+	local LooksW = H.sharedServer("Data.Looks")
+	local colors = H.sharedServer("Data.Palette").colors
+	local empty, badColor, badSize, failed, clash = {}, {}, {}, {}, {}
+	local moving: string? = nil
+	for _, c in Cos.list do
+		local ok, specs = pcall(WM.piece, c.id)
+		if not ok then
+			table.insert(failed, c.id .. ": " .. tostring(specs))
+			continue
+		end
+		if #specs == 0 then
+			table.insert(empty, c.id)
+		end
+		for _, sp in specs do
+			if colors[sp.color] == nil then
+				table.insert(badColor, c.id .. ":" .. tostring(sp.color))
+				break
+			end
+			local z = sp.size
+			if not (z.X > 0 and z.Y > 0 and z.Z > 0 and z.X < 20 and z.Y < 20 and z.Z < 20) then
+				table.insert(badSize, c.id)
+				break
+			end
+			if sp.moves and moving == nil and c.slot ~= "hand" then
+				moving = c.id
+			end
+		end
+		-- worn on a whole founder: every part a name of its own
+		local look = { skin = 1, hair = 1, style = 1, shirt = 1, [c.slot] = c.id }
+		local okR, rig = pcall(CMw.buildStanding, look, "Wear", 1)
+		if not okR then
+			table.insert(failed, c.id .. " (rig): " .. tostring(rig))
+			continue
+		end
+		local n = 0
+		for _ in rig.parts do
+			n += 1
+		end
+		if n ~= #rig.model:GetChildren() then
+			table.insert(clash, c.id)
+		end
+		rig.model:Destroy()
+	end
+	H.expect(#failed == 0, "wear", string.format("all %d pieces build on the founder", #Cos.list), table.concat(failed, "; "))
+	H.expect(#empty == 0, "wear", "every piece has parts", table.concat(empty, ","))
+	H.expect(#badColor == 0, "wear", "every part is in a palette colour", table.concat(badColor, ","))
+	H.expect(#badSize == 0, "wear", "every part has a real size", table.concat(badSize, ","))
+	H.expect(#clash == 0, "wear", "no two parts on a rig share a name", table.concat(clash, ","))
+	-- the Pumpkin Head is the head: no head, eyes or hair under it
+	local pr = CMw.buildStanding({ skin = 1, hair = 1, style = 1, shirt = 1, hat = "pumpkin_head" }, "Wear", 1)
+	H.expect(pr.parts.Head == nil and pr.parts.EyeL == nil and pr.parts.HairCap == nil and #pr.extra.head > 5, "wear", "the Pumpkin Head takes the head's place")
+	pr.model:Destroy()
+	-- a tint: the beret in navy
+	local plain = WM.build({ skin = 1, hair = 1, style = 1, shirt = 1, hat = "beret" })
+	local navy = WM.build({ skin = 1, hair = 1, style = 1, shirt = 1, hat = "beret", hatTint = 10 })
+	H.expect(plain.specs[1] ~= nil and navy.specs[1] ~= nil and plain.specs[1].color ~= navy.specs[1].color and navy.specs[1].color == LooksW.tints[10].color, "wear", "a tint recolours the piece", string.format("%s -> %s", plain.specs[1] and plain.specs[1].color or "?", navy.specs[1] and navy.specs[1].color or "?"))
+	-- this game's own straw hat tinted: its straw takes the colour
+	local straw = WM.build({ skin = 1, hair = 1, style = 1, shirt = 1, hat = "strawhat", hatTint = 2 })
+	local red = 0
+	for _, sp in straw.specs do
+		if sp.color == LooksW.tints[2].color then
+			red += 1
+		end
+	end
+	H.expect(red >= 2, "wear", "this game's own pieces take a tint too", tostring(red))
+	-- the turn: the umbrella held flat forward
+	local up = WM.build({ skin = 1, hair = 1, style = 1, shirt = 1, hand = "rain_umbrella" })
+	local flat = WM.build({ skin = 1, hair = 1, style = 1, shirt = 1, hand = "rain_umbrella", turn = 3 })
+	local last = #up.specs
+	H.expect(last > 0 and (up.specs[last].at - flat.specs[last].at).Magnitude > 0.3, "wear", "the Turn turns what is in the hand", last > 0 and string.format("%.2f", (up.specs[last].at - flat.specs[last].at).Magnitude) or "none")
+	-- a moving piece moves with the clock
+	if moving then
+		local rig = CMw.buildStanding({ skin = 1, hair = 1, style = 1, shirt = 1, [Cos.byId[moving].slot] = moving }, "Wear", 1)
+		local name = next(rig.moves or {})
+		local at0, at1
+		if name then
+			CMw.posePose(rig, E.cf.new(), { t = 0 })
+			at0 = rig.parts[name].CFrame
+			local moved = false
+			for k = 1, 12 do
+				CMw.posePose(rig, E.cf.new(), { t = k / 7 })
+				at1 = rig.parts[name].CFrame
+				if (at1.Position - at0.Position).Magnitude > 1e-3 or at1.Rotation ~= at0.Rotation then
+					moved = true
+					break
+				end
+			end
+			H.expect(moved, "wear", "a moving piece moves on the clock (" .. moving .. ")")
+		else
+			H.expect(false, "wear", "a moving piece has its loop on the rig (" .. moving .. ")")
+		end
+		rig.model:Destroy()
+	else
+		H.expect(false, "wear", "some piece moves")
+	end
+	-- every hair style, bangs, apron and eye colour builds
+	local bad = {}
+	for st = 1, #LooksW.styles do
+		for b = 1, #LooksW.bangs, 3 do
+			local look = { skin = 1, hair = 2, style = st, shirt = 1, bangs = b, hair2 = 6, apron = (st % #LooksW.aprons) + 1, eye = (st % #LooksW.eyes) + 1, eye2 = 3 }
+			local okR, rig = pcall(CMw.buildStanding, look, "Wear", 1)
+			if not okR then
+				table.insert(bad, string.format("%s/%s: %s", LooksW.styles[st], LooksW.bangs[b].id, tostring(rig)))
+			else
+				rig.model:Destroy()
+			end
+		end
+	end
+	H.expect(#bad == 0, "wear", "every style with bangs, a second colour, an apron and odd eyes builds", table.concat(bad, "; "))
+	local bald = CMw.buildStanding({ skin = 1, hair = 1, style = #LooksW.styles, shirt = 1 }, "Wear", 1)
+	H.expect(LooksW.styles[#LooksW.styles] == "bald" and bald.parts.HairCap == nil and bald.parts.Fringe == nil and bald.parts.HairBack == nil, "wear", "bald: no hair at all")
+	bald.model:Destroy()
+	local eyes = CMw.buildStanding({ skin = 1, hair = 1, style = 1, shirt = 1, eye = 5, eye2 = 4 }, "Wear", 1)
+	H.expect(eyes.parts.EyeL.Color ~= eyes.parts.EyeR.Color, "wear", "odd eyes: each eye its own colour")
+	eyes.model:Destroy()
+end
+
 ------------------------------------------------------------------ 3. swimming over to the neighbour
 E.phase = "walk"
 -- the sea between island 1 and island 2 is open to swim: across from one's east shallows to the other's west ones,

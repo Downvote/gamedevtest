@@ -22,8 +22,9 @@ export type Spec = {
 	color: string,
 	shape: ("Block" | "Ball" | "Cylinder" | "Wedge")?,
 	rot: CFrame?,
-	bone: string,
+	bone: string, -- "head", "body", "hand" (the right forearm) or "handL" (the left: Models/WearModels' bakery pieces)
 	neon: boolean?,
+	moves: { CFrame }?, -- a loop of moves (rig space) before its rest CFrame (Models/WearModels' bakery pieces)
 }
 export type Recolor = { torso: string?, arms: string?, trim: string?, hide: { string }? }
 
@@ -641,9 +642,9 @@ MAKE.goldjacket = function(_, d)
 end
 TOPS.goldjacket = { torso = "gold", arms = "gold", trim = "black", hide = { "ButtonA", "ButtonB" } }
 
--- every piece in Data/Cosmetics has its model (the DataIntegrity spec checks it too)
+-- every piece of this game's own in Data/Cosmetics has its model (the bakery's, with a `kind`, are Models/WearModels')
 for _, c in Cosmetics.list do
-	assert(MAKE[c.id] ~= nil, "CosmeticModels: no model for " .. c.id)
+	assert(c.kind ~= nil or MAKE[c.id] ~= nil, "CosmeticModels: no model for " .. c.id)
 end
 
 local cache: { [string]: { Spec } } = {}
