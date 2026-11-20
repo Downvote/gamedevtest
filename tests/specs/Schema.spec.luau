@@ -110,7 +110,7 @@ return function()
 		raw.v = 21
 		raw.plot = { placed = { { uid = 5, id = "tree", x = -4, z = -6, rot = 0, lvl = 1 }, { uid = 6, id = "torch", x = 8, z = 4, rot = 0, lvl = 1 } } }
 		local q = Schema.reconcile(Schema.migrate(raw), 0, 1)
-		T.eq(q.v, 22)
+		T.eq(q.v, Schema.VERSION)
 		local moved = nil
 		for _, x in q.plot.placed do
 			if x.id == "tree" then
@@ -217,6 +217,12 @@ return function()
 		T.eq((Schema.reconcile({ v = 17, settings = { zoom = 8 } }, 2000, 9) :: any).settings.zoom, Tuning.CamZoomDefault, "a version 17 save on the old default: the new default")
 		T.eq((Schema.reconcile({ v = 17, settings = { zoom = 3 } }, 2000, 9) :: any).settings.zoom, 3, "a version 17 save on another notch keeps it")
 		T.eq((Schema.reconcile({ v = 18, settings = { zoom = 8 } }, 2000, 9) :: any).settings.zoom, 8, "the eighth picked since stays")
+		-- 22 -> 23: the sixth (the default every save since 18 wrote) goes to the seventh (the request of 2026-11-20,
+		-- "also, make the default view here"); another notch stays, and so does the sixth picked since
+		T.eq(Tuning.CamZoomDefault, 7, "the seventh notch")
+		T.eq((Schema.reconcile({ v = 22, settings = { zoom = 6 } }, 2000, 9) :: any).settings.zoom, 7, "a version 22 save on the old default: the new one")
+		T.eq((Schema.reconcile({ v = 22, settings = { zoom = 9 } }, 2000, 9) :: any).settings.zoom, 9, "a version 22 save on another notch keeps it")
+		T.eq((Schema.reconcile({ v = 23, settings = { zoom = 6 } }, 2000, 9) :: any).settings.zoom, 6, "the sixth picked since stays")
 		T.eq(#built(p), 0)
 		T.eq(treeCount(p), 1, "a tree")
 		T.eq(p.tut, 1, "the tips start over")

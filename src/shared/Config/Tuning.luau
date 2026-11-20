@@ -301,10 +301,11 @@ local Tuning = {
 	-- The Settings panel's View slider picks one of ten notches (the request of 2026-11-18: "make a view slider for
 	-- zooming the camera in and out, with 10 notches"): art px a stud at each, far out to close in, each a clean grid
 	-- scale (Raster.gridScale) and each step about the same share closer. A new player starts on CamZoomDefault: the
-	-- sixth, 10 a stud, a step further out than the 12 every screen had before the slider (the user's pick, the same
-	-- day, a screenshot of the knob on the sixth notch: "default view should be here"; it was the eighth, 12, at first).
+	-- seventh, 11 a stud (the request of 2026-11-20, a screenshot of the knob on the seventh notch: "also, make the
+	-- default view here"). It was the eighth, 12, at first, then the sixth, 10 (2026-11-18, the knob on the sixth:
+	-- "default view should be here").
 	CamZoomNotches = { 5, 6, 7, 8, 9, 10, 11, 12, 14, 16 },
-	CamZoomDefault = 6,
+	CamZoomDefault = 7,
 	-- on a phone (the screen's short side 500 px or less) a smaller box: the request of 2026-11-14, "On mobile, zoom in to
 	-- fit the island more" (the camera follows the founder round the rest); 0.75 until the desktop view came closer
 	-- the same way (0.95 to 0.75)
@@ -342,6 +343,9 @@ local Tuning = {
 	-- ms a frame of spare time spent casting the next tier's picture ahead of an expansion (PixelRenderer's pre-cast:
 	-- the request of 2026-11-20, "make island expansion seamless, with no lag"); 0: off
 	PixelPreCastMs = 2,
+	-- ms a frame the filter may spend on a bake or on re-casts while the screen is hidden (Build mode's expansion behind
+	-- the loading card: PixelRenderer.setHidden; nobody sees the game's frame rate then, so the new land is ready sooner)
+	PixelHiddenMs = 40,
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 80, -- dynamic models drawn afresh a tick at most (an island's driftlings and founders; the rest show their kept pictures)
 	PixelDynMs = 8, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short)

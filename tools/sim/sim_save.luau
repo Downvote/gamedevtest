@@ -917,14 +917,15 @@ E.run(1)
 
 -- a version 17 save from the build that brought the View slider (2026-11-18): it wrote the eighth notch, the slider's
 -- first default, into every save, and the default is the sixth now ("default view should be here"): it loads on the
--- new default; another notch, the player's own pick, stays
+-- new default; another notch, the player's own pick, stays. Then a version 22 save on the sixth, the default every
+-- save wrote from 18 on, loads on the seventh (2026-11-20: "also, make the default view here"); another stays.
 E.phase = "v17-zoom"
-for _, c in { { id = 9211, zoom = 8, want = Tuning.CamZoomDefault }, { id = 9212, zoom = 3, want = 3 } } do
-	seed(c.id, { data = { v = 17, shells = 500, tier = 1, tut = 0, settings = { pixel = "high", music = "on", sfx = "on", zoom = c.zoom }, createdAt = 1000 } })
+for _, c in { { id = 9211, v = 17, zoom = 8, want = Tuning.CamZoomDefault }, { id = 9212, v = 17, zoom = 3, want = 3 }, { id = 9213, v = 22, zoom = 6, want = 7 }, { id = 9214, v = 22, zoom = 9, want = 9 } } do
+	seed(c.id, { data = { v = c.v, shells = 500, tier = 1, tut = 0, settings = { pixel = "high", music = "on", sfx = "on", zoom = c.zoom }, createdAt = 1000 } })
 	local z = H.addPlayer({ userId = c.id, name = "Zoomer" .. c.zoom })
 	E.run(3)
 	local zp = H.profile(z)
-	H.expect(zp ~= nil and zp.v == Schema.VERSION and zp.settings.zoom == c.want, "save", string.format("a version 17 save on notch %d loads on notch %d", c.zoom, c.want), tostring(zp and zp.settings.zoom))
+	H.expect(zp ~= nil and zp.v == Schema.VERSION and zp.settings.zoom == c.want, "save", string.format("a version %d save on notch %d loads on notch %d", c.v, c.zoom, c.want), tostring(zp and zp.settings.zoom))
 	local CCz = H.cmod(z, "Controllers.CameraController")
 	H.expect(H.inClient(z, CCz.zoom) == c.want and CCz.view().grid.a == Tuning.CamZoomNotches[c.want], "save", "and its camera on that notch", string.format("%s, %g a stud", tostring(H.inClient(z, CCz.zoom)), CCz.view().grid.a))
 	z:Kick()

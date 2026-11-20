@@ -157,7 +157,7 @@ do
 	end
 	H.expect(ticks == 10 and longTick == Tuning.CamZoomDefault, "settings", "the View slider: ten notches, the default's tick longer", string.format("%d ticks, long %d", ticks, longTick))
 	H.expect(H.buttonNamed(p, "ZoomOut") ~= nil and H.buttonNamed(p, "ZoomIn") ~= nil and panel ~= nil and panel:FindFirstChild("ZoomKnob", true) ~= nil and panel:FindFirstChild("ZoomSlider", true) ~= nil, "settings", "with - and + at its ends, a knob and a track to drag")
-	H.expect(prof.settings.zoom == Tuning.CamZoomDefault and H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault and CCs.view().grid.a == 10, "settings", "a new player on the default notch, the sixth: 10 art px a stud", string.format("%s %s %g", tostring(prof.settings.zoom), tostring(H.inClient(p, CCs.zoom)), CCs.view().grid.a))
+	H.expect(prof.settings.zoom == Tuning.CamZoomDefault and H.inClient(p, CCs.zoom) == Tuning.CamZoomDefault and CCs.view().grid.a == 11, "settings", "a new player on the default notch, the seventh: 11 art px a stud", string.format("%s %s %g", tostring(prof.settings.zoom), tostring(H.inClient(p, CCs.zoom)), CCs.view().grid.a))
 	local knob = panel and panel:FindFirstChild("ZoomKnob", true)
 	local kx0 = if knob and knob:IsA("GuiObject") then knob.Position.X.Offset else -1
 	H.clickNamed(p, "ZoomOut", { wait = 0.05 })
@@ -183,7 +183,7 @@ do
 	end
 	H.inClient(p, SUs.setZoom, Tuning.CamZoomDefault)
 	E.run(0.6)
-	H.expect(CCs.view().grid.a == 10 and prof.settings.zoom == Tuning.CamZoomDefault, "settings", "and back to the default", string.format("%g", CCs.view().grid.a))
+	H.expect(CCs.view().grid.a == 11 and prof.settings.zoom == Tuning.CamZoomDefault, "settings", "and back to the default", string.format("%g", CCs.view().grid.a))
 end
 H.closePanel(p)
 -- the sounds (GAME_DESIGN 11): every event has a library sound, each of its takes too; the founder's feet are heard
@@ -1780,8 +1780,41 @@ local eggs0, eggIds0, fEggs = #prof.clutch.list, {}, #fx
 for _, e in prof.clutch.list do
 	eggIds0[e.id] = true
 end
+-- Expand: the loading card comes up first, behind a bank of cloud, and the server is asked once it covers the screen;
+-- the cheer comes on the bigger island once it has gone again (the request of 2026-11-20: "make a transition for
+-- expansion, hiding the game with a loading transition")
+local cardCtx = E.clientCtx(p)
+local cardInst = E.find("ReplicatedFirst.Loading.LoadingCard")
+local cardMod = cardCtx and cardInst and cardCtx.modules[cardInst]
+local function cardState()
+	return if cardMod then H.inClient(p, cardMod.value.state) else nil
+end
+local tClick = E.now()
 H.clickNamed(p, "Expand", { wait = 0 })
-H.expect(prof.tier == 2, "panels", "Expand: the island grows", tostring(prof.tier))
+local cs0 = cardState()
+local cardGui = p.PlayerGui:FindFirstChild("LoadingCard")
+local cardRoot = cardGui and cardGui:FindFirstChild("Root")
+H.expect(cs0 ~= nil and cs0.up and cs0.mode == "cover" and cs0.cover == "closing" and prof.tier == 1, "panels", "Expand: the loading card comes up first, the island not grown yet", cs0 and string.format("up %s mode %s cover %s tier %d", tostring(cs0.up), tostring(cs0.mode), tostring(cs0.cover), prof.tier) or "no card")
+H.expect(cardRoot ~= nil and cardRoot.BackgroundTransparency == 1 and cs0 ~= nil and cs0.clip ~= nil and cs0.clip.h == 0, "panels", "the game still shows: nothing of the card yet but what the bank has passed", cs0 and cs0.clip and string.format("clip %d+%d", cs0.clip.y, cs0.clip.h) or "?")
+local sawCovered, grewHidden, coveredAt, clipFull = false, true, -1, false
+E.runUntil(function()
+	local st = cardState()
+	if st and st.covered and not sawCovered then
+		sawCovered, coveredAt = true, E.now() - tClick
+		clipFull = st.clip ~= nil and st.clip.y == 0 and st.clip.h == st.size.Y
+	end
+	if prof.tier == 2 and not (st and st.covered) then
+		grewHidden = false
+	end
+	return prof.tier == 2
+end, 4, 0.05)
+H.expect(prof.tier == 2 and sawCovered and grewHidden, "panels", "the island grows only once the card covers the screen", string.format("tier %d, covered %s at %.2f s, hidden %s", prof.tier, tostring(sawCovered), coveredAt, tostring(grewHidden)))
+H.expect(clipFull and coveredAt >= 0.6 and coveredAt <= 1.2, "panels", "the bank brings it in over about 0.7 s, then all of it shows", string.format("%.2f s, clip full %s", coveredAt, tostring(clipFull)))
+do
+	local st = cardState()
+	H.expect(st ~= nil and st.status == "Growing your island" or st ~= nil and st.status == "Drawing your island", "panels", "its words say what is happening", st and st.status or "?")
+	H.expect(statusSays(H.sharedServer("Data.Office").plan(2).name) or (st ~= nil and st.fallback), "panels", "its title the island it grows into", st and tostring(st.fallback) or "?")
+end
 do
 	local own = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - tX) * 1.5 + 2
 	local moved = prof.shells - shellsX
@@ -1790,15 +1823,21 @@ do
 end
 local _, _, swaps1 = PS.debugNext(1)
 H.expect(swaps1 == swaps0 + 1, "panels", "the expansion swaps in the island built ahead", string.format("%d -> %d", swaps0, swaps1))
-local cheerAt = -1
-for k = 1, 30 do
+local cheerAt, upAtCheer, sawOpening = -1, true, false
+for _ = 1, 120 do
 	E.run(0.05)
+	local st = cardState()
+	if st and st.cover == "opening" then
+		sawOpening = true
+	end
 	if statusSays("Your island grew") then
-		cheerAt = k * 0.05
+		cheerAt = E.now() - tClick
+		upAtCheer = st ~= nil and st.up
 		break
 	end
 end
-H.expect(cheerAt > 0 and cheerAt <= 1.5, "panels", "the cheer comes with the bigger island's picture", string.format("%.2f s", cheerAt))
+H.expect(cheerAt > 0 and cheerAt <= 4 and sawOpening and not upAtCheer, "panels", "the bank takes the card away, then the cheer on the bigger island", string.format("%.2f s after the click, opening seen %s, card up %s", cheerAt, tostring(sawOpening), tostring(upAtCheer)))
+H.expect(p.PlayerGui:FindFirstChild("LoadingCard") == nil, "panels", "and nothing of the card left on the screen")
 H.expect(statusSays("Your island grew into " .. H.sharedServer("Data.Office").plan(2).name .. "."), "panels", "and names the island it grew into (tier 2's)")
 local PRx = H.cmod(p, "Pixel.PixelRenderer")
 H.log("expansion: the next island was ready, swapped in; the cheer came %.2f s after the click (filter %s, bakes %d)", cheerAt, tostring(PRx.tier()), PRx.debugStatic().bakes)
@@ -3313,9 +3352,10 @@ do
 	H.expect(H.buttonNamed(p, "Expand") ~= nil and cost ~= nil and table.find(H.textsOf(cost), Numbers.coins(Island.expandCost(19).shells)) ~= nil, "everdrift", "Expand on, its price the last step's shells", cost and table.concat(H.textsOf(cost), "/"))
 	local shells1, f1, eggs1, tH = prof.shells, #fx, #prof.clutch.list, E.now()
 	H.clickNamed(p, "Expand", { wait = 0 })
+	-- (behind the loading card: the cheer once it has gone)
 	local cheer = E.runUntil(function()
 		return statusSays("Your island grew into Everdrift.")
-	end, 2, 0.05)
+	end, 5, 0.05)
 	local ownH = math.max(0, Island.rates(prof).shells) / Tuning.TurnSeconds * (E.now() - tH) * 1.5 + 2
 	local movedH = prof.shells - shells1
 	H.expect(prof.tier == 20 and movedH >= -Island.expandCost(19).shells - 2 and movedH <= -Island.expandCost(19).shells + ownH, "everdrift", "Expand: tier 20 for its shells", string.format("tier %d, shells %+.0f", prof.tier, movedH))

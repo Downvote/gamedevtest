@@ -2676,13 +2676,12 @@ function SCEN.zoo()
 	return p
 end
 
--- "expand": the island grows from the build tray (GAME_DESIGN 4: "could you make a transition such that it feels like
--- the island grows out the new land smoothly?"). The server swaps in the island it built ahead; the filter re-bakes it
--- behind the picture (rushed), then the new land grows out of the old (Pixel/Grow: the coast moves out over
--- Tuning.GrowSecs, a beach riding on it, spray along it); the cheer waits for the end. Frames expand_before, the
--- growth a quarter, half, three quarters and nine tenths of the way (expand_grow25 ..), expand_after; then Build mode still following
--- the founder as they walk on a few studs (build_walk: the view lowered a little, the founder near the middle). The
--- log says how long the re-bake took, how many pixels the growth moved and when the cheer and the eggs came.
+-- "expand": the island grows from the build tray (GAME_DESIGN 4) behind the loading card (the request of 2026-11-20:
+-- "make a transition for expansion, hiding the game with a loading transition"). Frames expand_before, the bank of
+-- cloud bringing the card in (expand_cover_00 .., every 0.1 s), the card up (expand_card), the bank taking it away
+-- (expand_open_00 ..), expand_after; then Build mode still following the founder as they walk on a few studs
+-- (build_walk), then an expansion straight from the server with a hatch over the re-bake (expand_hatch ..). The log
+-- says when the card covered the screen, when the server was asked, when it went and when the cheer came.
 function SCEN.expand()
 	seedProfile(56, 1, { pieces = VILLAGE, shells = 1100000 })
 	local p = join(56, "Grower")
@@ -2703,26 +2702,82 @@ function SCEN.expand()
 	capture(p, "expand_before")
 	local bakes0, ticks0 = PR.debugStatic().bakes, PR.debugStatic().ticks
 	local eggs0 = EV and EV.count(1) or 0
-	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
-	-- the cheer at once (no growth on the picture since 2026-11-19), then the bigger island's new land drawn where it
-	-- shows (a re-bake behind the picture when most of the screen changed, else its rects re-cast)
-	local cheered = false
-	for _, d in p.PlayerGui:GetDescendants() do
-		if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
-			cheered = true
-		end
+	-- Expand behind the loading card (the request of 2026-11-20: "make a transition for expansion, hiding the game
+	-- with a loading transition"): the bank of cloud brings the card in, the server is asked under it, the card holds
+	-- until the new land is drawn, then the bank takes it away and the cheer comes. Frames expand_cover_00 .. as it
+	-- comes (every 0.1 s), expand_card once it covers the screen, expand_open_00 .. as it goes.
+	local LCm = nil
+	do
+		local ctx = E.clientCtx(p)
+		local inst = E.find("ReplicatedFirst.Loading.LoadingCard")
+		local e = ctx and inst and ctx.modules[inst]
+		LCm = e and e.value
 	end
+	local function cardSt()
+		return if LCm then H.inClient(p, LCm.state) else nil
+	end
+	local tier0 = H.profile(p).tier
+	local t0 = E.now()
+	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+	local shots, openShots, carded = 0, 0, false
+	local coveredAt, tierAt, openAt, goneAt, cheerAt = -1, -1, -1, -1, -1
+	local lastShot = -1
 	local n = 0
 	while n < 3000 do
 		E.step(E.dt)
 		n += 1
-		local st = PR.debugStatic()
-		if not st.baking and (st.queued or 0) == 0 and n > 2 then
+		local now = E.now() - t0
+		local st = cardSt()
+		if tierAt < 0 and H.profile(p).tier > tier0 then
+			tierAt = now
+		end
+		if st and st.up then
+			if st.cover == "closing" and now - lastShot >= 0.1 and shots < 10 then
+				capture(p, string.format("expand_cover_%02d", shots))
+				shots += 1
+				lastShot = now
+			elseif st.cover == "held" then
+				if coveredAt < 0 then
+					coveredAt = now
+				end
+				-- (what the filter still has to do while the card is up, twice a second)
+				if now - lastShot >= 0.5 then
+					lastShot = now
+					local ds = PR.debugStatic()
+					log("expand: %.2f s, card up: busy %s, baking %s, queued %d, bakes %d, recasts %d", now, tostring(H.inClient(p, PR.busy)), tostring(ds.baking), ds.queued or 0, ds.bakes, ds.recasts)
+				end
+				if not carded and now - coveredAt > 0.3 then
+					carded = true
+					capture(p, "expand_card")
+					log("expand: the card up, status %q, bar %.2f, painted %s, K %d, size %dx%d", tostring(st.status), st.bar, tostring(st.painted), st.K, st.size.X, st.size.Y)
+				end
+			elseif st.cover == "opening" then
+				if openAt < 0 then
+					openAt = now
+					lastShot = -1
+				end
+				if now - lastShot >= 0.1 and openShots < 10 then
+					capture(p, string.format("expand_open_%02d", openShots))
+					openShots += 1
+					lastShot = now
+				end
+			end
+		elseif goneAt < 0 and n > 2 then
+			goneAt = now
+		end
+		if cheerAt < 0 then
+			for _, d in p.PlayerGui:GetDescendants() do
+				if d:IsA("TextLabel") and string.find(d.Text, "Your island grew", 1, true) then
+					cheerAt = now
+				end
+			end
+		end
+		if cheerAt >= 0 and goneAt >= 0 then
 			break
 		end
 	end
 	local _, _, swaps = PS.debugNext(1)
-	log("expand: tier %d, swaps %d; the cheer at once %s; the new land drawn after %d frames (E.dt %.3f), bakes %d -> %d, %d re-casts, the picture composed %d times meanwhile", H.profile(p).tier, swaps, tostring(cheered), n, E.dt, bakes0, PR.debugStatic().bakes, PR.debugStatic().recasts, PR.debugStatic().ticks - ticks0)
+	log("expand: tier %d -> %d, swaps %d; covered at %.2f s, the server asked under it (tier at %.2f s), the bank took it at %.2f s, gone at %.2f s, the cheer at %.2f s; bakes %d -> %d, %d re-casts, composed %d times", tier0, H.profile(p).tier, swaps, coveredAt, tierAt, openAt, goneAt, cheerAt, bakes0, PR.debugStatic().bakes, PR.debugStatic().recasts, PR.debugStatic().ticks - ticks0)
 	settle(p, 10, 1.5)
 	log("expand: eggs drawn %d before, %d after", eggs0, EV and EV.count(1) or -1)
 	capture(p, "expand_after")
@@ -2752,15 +2807,17 @@ function SCEN.expand()
 		g3 += 1
 		E.step(E.dt)
 	end
-	local tier0 = H.profile(p).tier
-	H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+	local tier0b = H.profile(p).tier
+	-- (straight to the server, as the tray did before the loading card covered it: what the filter does with a bake
+	-- cut short by a scene)
+	H.req(p, "island.expand", {})
 	local k = 0
 	while k < 600 and not PR.debugStatic().baking do
 		E.step(E.dt)
 		k += 1
 	end
 	local st0 = PR.debugStatic()
-	log("expand+hatch: tier %d -> %d; the re-bake under way %s (behind the picture %s) %d frames after Expand", tier0, H.profile(p).tier, tostring(st0.baking), tostring(st0.behind), k)
+	log("expand+hatch: tier %d -> %d; the re-bake under way %s (behind the picture %s) %d frames after Expand", tier0b, H.profile(p).tier, tostring(st0.baking), tostring(st0.behind), k)
 	if HS then
 		H.inClient(p, function()
 			HS.play({ sp = "mossbun", muts = {}, r = 1, hr = 1, new = false }, nil)
@@ -3001,7 +3058,8 @@ local function expandPerf(tier: number)
 		end
 		return shownAt > 0
 	end, function()
-		H.clickNamed(p, "Expand", { optional = true, wait = 0 })
+		-- (the server's swap and the filter's work, timed: straight to the server, the tray's loading card left out)
+		H.req(p, "island.expand", {})
 	end)
 	local bakes = PR and PR.debugStatic().bakes or 0
 	log("expandperf: tier %d -> %d: the tier changed on frame %d, the new land drawn by frame %d (%d re-bakes); %d land parts now", tier0, H.profile(p).tier, tierAt, shownAt, bakes - bakes0, landParts())

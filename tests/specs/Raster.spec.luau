@@ -1624,8 +1624,8 @@ return function()
 	T.it("the View slider's ten notches are clean grid scales, far out to close in", function()
 		local n = Tuning.CamZoomNotches
 		T.eq(#n, 10)
-		T.eq(Tuning.CamZoomDefault, 6, "the default is the sixth notch (the user's pick)")
-		T.eq(n[Tuning.CamZoomDefault], 10, "10 art px a stud, a step out from the 12 every screen had before")
+		T.eq(Tuning.CamZoomDefault, 7, "the default is the seventh notch (the user's pick, 2026-11-20)")
+		T.eq(n[Tuning.CamZoomDefault], 11, "11 art px a stud, a step out from the 12 every screen had before")
 		for i, a in n do
 			T.eq(Raster.gridScale(a, 1, false), a, string.format("notch %d (%g) is clean", i, a))
 			if i > 1 then

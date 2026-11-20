@@ -46,6 +46,8 @@ local StoreUI = require(script.Parent.StoreUI)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local Words = require(script.Parent.Words)
+local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
+local LoadingCard = require(game:GetService("ReplicatedFirst").Loading.LoadingCard)
 
 local BuildUI = {}
 BuildUI.rebuilds = 0 -- (how many times the tray was built: the previews read it)
@@ -1415,22 +1417,95 @@ local function quickBar(f: Frame)
 	UIKit.text(info, "", UDim2.fromOffset(92, 10), UDim2.new(1, -96, 0, 15), { x = "right", color = UIKit.color("accent"), z = 4, name = "Stroke" })
 end
 
+-- An expansion behind the loading card (the request of 2026-11-20: "make a transition for expansion, hiding the game
+-- with a loading transition"). The card comes up behind a bank of cloud with the new island's name; once it covers
+-- the screen the server is asked, so the land changes out of sight: the bar moves on when the server says yes, again
+-- when the island's new land is in the world (its Static folder's Built mark), and fills once the pixel filter has
+-- drawn it (PixelRenderer.busy; 8 s at most, the filter given more of each frame meanwhile: setHidden). Then the bank
+-- takes the card away, and the fanfare and the notice come on the bigger
+-- island. Without the card (it could not come up) the island grows at once, as before.
+local expanding = false
+local function expandIsland(from: number)
+	if expanding then
+		return
+	end
+	expanding = true
+	local plan = Office.plan(from + 1)
+	local res: Types.Response? = nil
+	local function cheer()
+		local r = res
+		if r == nil then
+			return
+		end
+		if not r.ok then
+			UIKit.notice(buildErr(r.err, nil), UIKit.color("bad"))
+			return
+		end
+		local moved = if type(r.data) == "table" then tonumber(r.data.moved) or 0 else 0
+		-- (the island it grew into: the server's answer says, the view may still be the old one when this runs)
+		local grown = if type(r.data) == "table" then tonumber(r.data.tier) else nil
+		Audio.play("grow")
+		AvatarView.cheer()
+		local name = Office.plan(grown or from + 1).name
+		UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s moved.", name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s.", name), UIKit.color("good"), 4)
+	end
+	local function builtTier(): number
+		local plots = workspace:FindFirstChild("Plots")
+		local m = if plots then plots:FindFirstChild("Plot_" .. myPlot()) else nil
+		local st = if m then m:FindFirstChild("Static") else nil
+		local b = if st then st:GetAttribute("Built") else nil
+		return if type(b) == "number" then b else 0
+	end
+	local up = LoadingCard.cover({
+		title = Lang.t(plan.name),
+		status = Lang.t("Growing your island"),
+		onCovered = function()
+			-- (nobody sees the game now: the filter may take more of each frame)
+			PixelRenderer.setHidden(true)
+			local r = StateClient.request("island.expand", {})
+			res = r
+			if not r.ok then
+				PixelRenderer.setHidden(false)
+				LoadingCard.finish()
+				return
+			end
+			LoadingCard.progress(0.35)
+			local grown = if type(r.data) == "table" then tonumber(r.data.tier) or from + 1 else from + 1
+			-- the new land in the world (the server moves it onto the island and marks the island built)
+			local t0 = os.clock()
+			while builtTier() < grown and os.clock() - t0 < 8 do
+				task.wait(0.05)
+			end
+			LoadingCard.progress(0.6)
+			LoadingCard.status(Lang.t("Drawing your island"))
+			-- then its picture: a few frames for the filter to take the change up, then until its casts are done
+			task.wait(0.2)
+			local t1 = os.clock()
+			while PixelRenderer.busy() and os.clock() - t1 < 8 do
+				LoadingCard.progress(0.6 + 0.35 * math.min(1, (os.clock() - t1) / 3))
+				task.wait(0.05)
+			end
+			PixelRenderer.setHidden(false)
+			LoadingCard.finish()
+		end,
+		onOpened = function()
+			expanding = false
+			cheer()
+		end,
+	})
+	if not up then
+		res = StateClient.request("island.expand", {})
+		expanding = false
+		cheer()
+	end
+end
+
 local function expandButton(f: Frame, v: Types.ClientView)
 	local cost = Island.expandCost(v.tier)
 	-- (56 wide: "Island max" needs 51 px of words and the button keeps 2 a side; at 54 its last letter was cut)
 	UIKit.button(f, if cost then "Expand" else "Island max", UDim2.fromOffset(56, 13), UDim2.new(1, -104, 0, 2), function()
-		local res = ask("island.expand", {})
-		if res.ok then
-			-- the cheer at once: the new land's chunks come in as the server swaps them, and the pixel filter draws the
-			-- ones on screen in a moment (no transition since 2026-11-19: "No need for the transition anymore")
-			local moved = if type(res.data) == "table" then tonumber(res.data.moved) or 0 else 0
-			-- (the island it grew into: the server's answer says, the view may still be the old one when this runs)
-			local grown = if type(res.data) == "table" then tonumber(res.data.tier) else nil
-			Audio.play("grow")
-			AvatarView.cheer()
-			local plan = Office.plan(grown or v.tier + 1)
-			UIKit.notice(if moved > 0 then string.format("Your island grew into %s. %d building%s moved.", plan.name, moved, if moved == 1 then "" else "s") else string.format("Your island grew into %s.", plan.name), UIKit.color("good"), 4)
-		end
+		Audio.play("close")
+		expandIsland(v.tier)
 	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells })
 	if cost then
 		local pf = Instance.new("Frame")

@@ -1216,8 +1216,8 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   its coast reaching further out round the same heart. A piece that no longer fits moves to the nearest free spot
   (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
   fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
-  it, and it lays the bigger island's extra eggs at once (§6). The moment the server says yes: "Your island grew into
-  Moonlit Bay."
+  it, and it lays the bigger island's extra eggs at once (§6). It happens behind the loading card (below), and once the
+  card has gone: "Your island grew into Moonlit Bay."
 
   > The request (2026-11-14): "also, expanding the island dosent have a good transition, it simply make the new land
   > appear out of nowhere. could you make a transition such that it feels like the island grows out the new land
@@ -1279,6 +1279,20 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   everything on screen, the rest is drawn the old way.
   Islands at the first tiers have a few more palms and shells than before; from about tier 10 the counts are as they
   were.
+
+  > The request (2026-11-20): "make a transition for expansion, hiding the game with a loading transition"
+
+  Expand now brings up the loading card, the one the game opens with, and the island grows behind it. A bank of cloud
+  rises from the bottom of the screen to the top in 0.7 s: three layers of round billows in flat colour with no
+  outline, lavender at the back to pale pink at the front, the way the sea of clouds is drawn, with the card showing
+  wherever the bank has passed. The card's title is the island it grows into ("Moonlit Bay") and the words under it
+  say "Growing your island". Once the card covers the screen the server is asked, so the land changes out of sight;
+  the bar moves on when the server says yes and again when the new land is in the world, the words change to "Drawing
+  your island", and the bar fills when the pixel filter has drawn it (while the card hides the game the filter may
+  spend 40 ms of each frame on it, where it keeps to 6 to 14 ms while the island shows; 8 s at most). The card stays up for at least 0.9 s so its words
+  can be read, then another bank rises over 0.8 s and takes the card with it, and the fanfare and "Your island grew
+  into Moonlit Bay." come on the bigger island. A refusal (not enough shells after all) opens the card again and says
+  why. Without EditableImages the plain card comes and goes behind a straight edge.
 
   > The request (2026-11-11): "also, expanding the island causes the game to lag abit before the actual expansion"
 
@@ -2424,7 +2438,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   on a desktop, from 8). Then closer again, to match Random Bakery's shop ("zoom in into the island more. it should fit
   like this, with the playable island as big as the bakery"): `CamFrame` 0.75, about 11 art px a stud, the first
   island's grass filling the screen between the HUD's strips, the beach running out to the edges. A bigger island is
-  seen a part at a time as you walk. Since 2026-11-18 the detail is the same on every screen (12, now the View slider's notch, 10 by default): 12 art px a stud on a
+  seen a part at a time as you walk. Since 2026-11-18 the detail is the same on every screen (12, now the View slider's notch, 11 by default): 12 art px a stud on a
   desktop, a laptop, a tablet and a phone alike (`Tuning.CamDetail`; the request: "make it such that the pixel filter
   is, by default, on all devices, zoomed in to be at a good level of detail. make it such that smaller windows or
   smaller devices will still receive the same amount of detail as bigger ones"). The zoom had been fitted to the
@@ -2517,13 +2531,14 @@ for an option to turn off the pixel filter"), and View, a slider with ten notche
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
 big island's middle all at once, to 16, close enough to see a driftling's freckles; each is about the same step closer
-than the last. A new player starts on the sixth, 10 a stud, a step further out than the 12 every screen had before the
-slider (the user's pick: "default view should be here", with the knob on the sixth notch; the slider started on the
-eighth, 12, and a save still on that goes to the new default). The default's tick under the track is a pixel longer so
+than the last. A new player starts on the seventh, 11 a stud (the request of 2026-11-20, a screenshot with the knob
+on the seventh notch: "also, make the default view here"). The slider started on the eighth, 12, then moved to the
+sixth, 10 ("default view should be here", 2026-11-18); a save still on an old default goes to the new one, and a notch
+the player picked stays. The default's tick under the track is a pixel longer so
 it's easy to find again. The knob moves at once; the island is drawn again
 at the new zoom a moment after the last notch, so dragging across several only redraws it once, and the old picture
 stays up while it does. A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
-same detail as on a desktop (§8, the camera: the View slider's notch, 10 art px a stud by default), so it shows a part of the island round
+same detail as on a desktop (§8, the camera: the View slider's notch, 11 art px a stud by default), so it shows a part of the island round
 the founder and follows them; before, it fitted a smaller box round the island's heart (`CamFramePhone` 0.6 against
 `CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail. **The tips** (the banner over the menu bar, or over the build tray in Build mode: §4.5), each saying where
 the stores come from:

@@ -4396,9 +4396,11 @@ local function processInvalidation()
 	if s == nil then
 		return
 	end
-	local budget = Tuning.PixelInvalidateRaysFrame
+	-- (the screen hidden: far more a frame, nobody sees the frame rate)
+	local hidden = (PixelRenderer :: any)._hidden == true
+	local budget = if hidden then Tuning.PixelInvalidateRaysFrame * 8 else Tuning.PixelInvalidateRaysFrame
 	local start = bakeRays
-	local deadline = SG.clock() + Tuning.PixelInvalidateMs / 1000
+	local deadline = SG.clock() + (if hidden then Tuning.PixelHiddenMs else Tuning.PixelInvalidateMs) / 1000
 	while bakeRays - start < budget and SG.clock() < deadline do
 		local cur = invCur
 		if cur == nil then
@@ -5030,7 +5032,7 @@ local function frameStep(dt: number)
 	end
 	refreshExclude()
 	if baking then
-		local budget = Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8)
+		local budget = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs else Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8)
 		bakeSome(SG.clock() + budget / 1000)
 		if baking and back == nil then
 			return -- nothing on screen to keep alive (the first bake, a jump)
@@ -5446,6 +5448,21 @@ function PixelRenderer.ready(): boolean
 	end
 	local s = surf
 	return s ~= nil and not baking and s.view.key == CameraController.view().key
+end
+
+-- While the screen is hidden (Build mode's expansion behind the loading card), a bake or a re-cast may take
+-- Tuning.PixelHiddenMs of each frame (kept on the module table: the main chunk is at Luau's 200 registers).
+function PixelRenderer.setHidden(on: boolean)
+	(PixelRenderer :: any)._hidden = on
+end
+
+-- Whether the picture has work still to come: a bake under way or due, rects waiting to be cast again (Build mode's
+-- expansion keeps its cover up until there is none). False in the classic style.
+function PixelRenderer.busy(): boolean
+	if tier == "off" or surf == nil then
+		return false
+	end
+	return baking or rebakeAt >= 0 or #invQueue > 0 or invCur ~= nil
 end
 
 -- fn runs right after each new picture is drawn (nil: none), with the world as that picture shows it: an overlay that

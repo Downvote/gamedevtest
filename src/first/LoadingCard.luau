@@ -39,9 +39,23 @@
 --   LoadingCard.show()           puts the card up (once)
 --   LoadingCard.phase(name)      "island" (waiting for the island) | "picture" (drawing it)
 --   LoadingCard.progress(f)      the first picture's progress, 0..1 (phase "picture")
---   LoadingCard.finish()         the first picture is on screen: fill, fade out, destroy (once)
+--   LoadingCard.finish()         the first picture is on screen: fill, fade out, destroy (once); a cover's: fill, then
+--                                the bank takes the card away
+--   LoadingCard.cover(opts?)     the card again over the game, for an expansion: a bank of cloud drifts up the screen
+--                                and leaves it behind ({ title, status, onCovered, onOpened }; false while it is up)
+--   LoadingCard.status(text)     a cover's words under the title
 --   LoadingCard.state()          for the sims: { up, phase, bar, finished, fading, painted, fallback, actors, ticks, K,
---                                size, title (its rect: { x0, y0, x1, y1 }, UI px), island ({ cx, cy, rx, ry }) }
+--                                size, title (its rect: { x0, y0, x1, y1 }, UI px), island ({ cx, cy, rx, ry }), mode
+--                                ("join" | "cover"), cover ("closing" | "held" | "opening"), covered, bank (the bank's
+--                                top line, canvas px), clip ({ y, h }: the rows the sprites and words show in), status }
+--
+-- The cover (the request of 2026-11-20: "make a transition for expansion, hiding the game with a loading transition"):
+-- the same card, its root see-through at first. A bank of cloud (three layers of round domes in flat colour, no
+-- outline, each a step lighter than the one behind it, the front one with shallow domes hanging under it) rises from
+-- under the screen to over it in CLOSE_SEC; the painting is written only where the bank has passed, the rows it
+-- crossed since the last frame, and the sprites and words show only in the rows the card wholly covers (a clip under
+-- the bank). The card stays up HOLD_MIN at least, then the bank rises again over OPEN_SEC and takes the card with it.
+-- Without EditableImages the plain card comes and goes behind a straight edge instead.
 local Players = game:GetService("Players")
 local AssetService = game:GetService("AssetService")
 local RunService = game:GetService("RunService")
@@ -63,6 +77,15 @@ local SAFETY_SEC = 45
 local TIP_SEC = 5.5
 local TREE_TOP = 77 -- the Tree of Life's art: px from its anchor (its foot) up to the top of its crown
 local ORDER = 300 -- over everything the game draws
+-- the expansion's cover (LoadingCard.cover): the card comes in and goes again behind a bank of cloud drifting up the
+-- screen
+local CLOSE_SEC = 0.7
+local OPEN_SEC = 0.8
+local HOLD_MIN = 0.9 -- seconds the card stays up at least once it covers the screen (time to read it)
+local COVER_SAFETY = 20 -- seconds: a cover nobody finishes opens by itself
+-- the bank's three layers, back to front: flat colour and no outline, as the sky's sea of clouds, each a clear step
+-- lighter than the one behind it
+local BANK = { 0xB99BC6, 0xD9B9D6, 0xF4DDE4 }
 
 -- the palette's and the UI theme's colours (0xRRGGBB), written out
 local C = {
@@ -146,6 +169,12 @@ type Actor = {
 	baseY: number,
 	phase: number,
 }
+-- The bank of cloud: per column (1 .. W) the rows, from the bank's top line `base`, where each layer starts (`top`,
+-- `l1`, `l2`) and where the bank ends (`bot`); the highest and lowest of them; and the top line's first and last
+-- place (the bank wholly under the screen, wholly over it).
+type Band = { top: { number }, l1: { number }, l2: { number }, bot: { number }, minTop: number, maxBot: number, base0: number, base1: number }
+-- A cover under way: closing (the bank brings the card in), held (the card up), opening (the bank takes it away).
+type Cover = { state: string, t0: number, base: number, lo: number?, hi: number?, coveredAt: number, onCovered: (() -> ())?, onOpened: (() -> ())? }
 type Layout = {
 	W: number,
 	H: number,
@@ -201,6 +230,15 @@ local S = {
 	resizeAt = 0,
 	nextTick = 0,
 	statusShown = "",
+	mode = "join", -- "join" (the game loading) | "cover" (an expansion: LoadingCard.cover)
+	cover = nil :: Cover?,
+	coverTitle = nil :: string?,
+	coverStatus = nil :: string?,
+	band = nil :: Band?,
+	clip = nil :: Frame?, -- what shows the card's sprites and words: the rows the card covers
+	paintImg = nil :: EditableImage?,
+	paintBuf = nil :: buffer?,
+	paintKey = "", -- (the size paintBuf was painted at: a later cover of the same size paints nothing)
 }
 
 ------------------------------------------------------------------ helpers
@@ -1207,7 +1245,7 @@ end
 
 local function setStatus()
 	local L, layer = S.L, S.layer
-	local text = STATUS[S.phase] or STATUS.start
+	local text = if S.mode == "cover" then S.coverStatus or STATUS.start else STATUS[S.phase] or STATUS.start
 	if L == nil or layer == nil or S.statusShown == text then
 		return
 	end
@@ -1248,6 +1286,154 @@ local function setTip()
 	S.tipPlate = p
 end
 
+------------------------------------------------------------------ the bank of cloud (the expansion's cover)
+-- A row of round domes along the screen: per column (1 .. W) its height, whole px. Domes of radius r0 .. r1, each k of
+-- its radius tall, overlapping their neighbours by about a fifth.
+local function domes(W: number, rng: Random, r0: number, r1: number, k: number): { number }
+	local out: { number } = table.create(W, 0)
+	local x = -r1
+	while x < W + r1 do
+		local r = rng:NextInteger(r0, r1)
+		local cx = x + r
+		local hk = r * k
+		for xx = math.max(0, math.floor(cx - r)), math.min(W - 1, math.ceil(cx + r)) do
+			local u = (xx + 0.5 - cx) / r
+			if u > -1 and u < 1 then
+				local h = math.floor(hk * math.sqrt(1 - u * u) + 0.5)
+				if h > out[xx + 1] then
+					out[xx + 1] = h
+				end
+			end
+		end
+		x = cx + math.floor(r * 0.6)
+	end
+	return out
+end
+
+-- The bank for a canvas of W x H: three layers of domes over one another (each dome row of its own sizes), and domes
+-- hanging under the front one. Sizes in px of a 360 px tall canvas, scaled to H. The same every time (a fixed seed).
+local function bandShapes(W: number, H: number): Band
+	local u = math.max(0.5, H / 360)
+	local function sz(n: number): number
+		return math.max(2, math.floor(n * u + 0.5))
+	end
+	local rng = Random.new(11)
+	local b0 = domes(W, rng, sz(16), sz(32), 0.62)
+	local b1 = domes(W, rng, sz(13), sz(26), 0.6)
+	local b2 = domes(W, rng, sz(11), sz(22), 0.58)
+	local hang = domes(W, rng, sz(10), sz(20), 0.32)
+	local R1, R2, B = sz(24), sz(48), sz(76)
+	local top: { number }, l1: { number }, l2: { number }, bot: { number } = table.create(W, 0), table.create(W, 0), table.create(W, 0), table.create(W, 0)
+	local minTop, maxBot = 0, 0
+	for i = 1, W do
+		top[i] = -b0[i]
+		l1[i] = R1 - b1[i]
+		l2[i] = R2 - b2[i]
+		bot[i] = B + hang[i]
+		minTop = math.min(minTop, top[i])
+		maxBot = math.max(maxBot, bot[i])
+	end
+	return { top = top, l1 = l1, l2 = l2, bot = bot, minTop = minTop, maxBot = maxBot, base0 = H - minTop, base1 = -maxBot - 1 }
+end
+
+-- The bank's top line at time `now`: from under the screen to over it, quick in the middle and easing at each end.
+local function bankBase(cv: Cover, now: number): number
+	local band = S.band
+	if band == nil then
+		return 0
+	end
+	local dur = if cv.state == "closing" then CLOSE_SEC else OPEN_SEC
+	local p = math.clamp((now - cv.t0) / dur, 0, 1)
+	local e = p * p * (3 - 2 * p)
+	return math.floor(band.base0 + (band.base1 - band.base0) * e + 0.5)
+end
+
+-- The painting as the bank leaves it: the rows the bank crossed since the last time (all of them when `full`), each
+-- pixel the card's (under the bank while it closes, over it while it opens), one of the bank's three flat colours, or
+-- nothing (the game shows through). Only those rows are written to the image.
+local function drawBand(full: boolean?)
+	local cv, band, L = S.cover, S.band, S.L
+	if cv == nil or band == nil or L == nil then
+		return
+	end
+	local W, H = L.W, L.H
+	local base = cv.base
+	local lo, hi = base + band.minTop, base + band.maxBot
+	local plo, phi = cv.lo or lo, cv.hi or hi
+	cv.lo, cv.hi = lo, hi
+	local img, paint = S.paintImg, S.paintBuf
+	if img == nil or paint == nil or cv.state == "held" then
+		return
+	end
+	local y0, y1 = math.min(lo, plo), math.max(hi, phi)
+	if full then
+		y0, y1 = 0, H - 1
+	end
+	y0, y1 = math.max(0, y0), math.min(H - 1, y1)
+	if y1 < y0 then
+		return
+	end
+	local over = cv.state == "opening" -- the card over the bank (it goes); else under it (it comes)
+	local rows = y1 - y0 + 1
+	local out = buffer.create(W * rows * 4)
+	local top, l1, l2, bot = band.top, band.l1, band.l2, band.bot
+	local cFar, cMid, cNear = px(BANK[1]), px(BANK[2]), px(BANK[3])
+	local rowBytes = W * 4
+	for y = y0, y1 do
+		local rel = y - base
+		local o = (y - y0) * rowBytes
+		local src = y * rowBytes
+		if rel < band.minTop then
+			if over then
+				buffer.copy(out, o, paint, src, rowBytes)
+			end
+		elseif rel >= band.maxBot then
+			if not over then
+				buffer.copy(out, o, paint, src, rowBytes)
+			end
+		else
+			for x = 1, W do
+				local q = o + (x - 1) * 4
+				if rel < top[x] then
+					if over then
+						buffer.writeu32(out, q, buffer.readu32(paint, src + (x - 1) * 4))
+					end
+				elseif rel < l1[x] then
+					buffer.writeu32(out, q, cFar)
+				elseif rel < l2[x] then
+					buffer.writeu32(out, q, cMid)
+				elseif rel < bot[x] then
+					buffer.writeu32(out, q, cNear)
+				elseif not over then
+					buffer.writeu32(out, q, buffer.readu32(paint, src + (x - 1) * 4))
+				end
+			end
+		end
+	end
+	pcall(function()
+		img:WritePixelsBuffer(Vector2.new(0, y0), Vector2.new(W, rows), out)
+	end)
+end
+
+-- The card's sprites and words show only in the rows the card wholly covers: under the bank's lowest row while it
+-- closes, over its highest while it opens, everywhere otherwise.
+local function placeClip()
+	local clip, layer, L = S.clip, S.layer, S.L
+	if clip == nil or layer == nil or L == nil then
+		return
+	end
+	local y0, y1 = 0, L.H
+	local cv, band = S.cover, S.band
+	if cv and band and cv.state == "closing" then
+		y0 = math.clamp(cv.base + band.maxBot + 1, 0, L.H)
+	elseif cv and band and cv.state == "opening" then
+		y1 = math.clamp(cv.base + band.minTop, 0, L.H)
+	end
+	clip.Position = UDim2.fromOffset(0, y0)
+	clip.Size = UDim2.fromOffset(L.W, y1 - y0)
+	layer.Position = UDim2.fromOffset(0, -y0)
+end
+
 -- Everything laid out from the canvas's size: the painting, the scene, the words, the bar.
 local function build()
 	local root, canvas = S.root, S.canvas
@@ -1264,29 +1450,62 @@ local function build()
 		sc.Scale = S.K
 	end
 	canvas.Size = UDim2.fromOffset(W, H)
-	local old = S.layer
+	local old = canvas:FindFirstChild("Scene")
 	if old then
 		old:Destroy()
 	end
 	table.clear(S.actors)
 	S.statusLabel, S.tipLabel, S.tipPlate, S.statusShown = nil, nil, nil, ""
+	-- the painting, then over it a clip (all of the canvas but while a cover comes or goes) holding the rest: the
+	-- sprites, the words and the bar
+	local scene = Instance.new("Frame")
+	scene.Name = "Scene"
+	scene.BackgroundTransparency = 1
+	scene.Size = UDim2.fromScale(1, 1)
+	scene.Parent = canvas
+	local clip = Instance.new("Frame")
+	clip.Name = "Clip"
+	clip.BackgroundTransparency = 1
+	clip.ClipsDescendants = true
+	clip.Size = UDim2.fromOffset(W, H)
+	clip.ZIndex = 3
+	clip.Parent = scene
 	local layer = Instance.new("Frame")
-	layer.Name = "Scene"
+	layer.Name = "Over"
 	layer.BackgroundTransparency = 1
-	layer.Size = UDim2.fromScale(1, 1)
-	layer.Parent = canvas
-	S.layer = layer
+	layer.Size = UDim2.fromOffset(W, H)
+	layer.Parent = clip
+	S.layer, S.clip = layer, clip
+	S.paintImg = nil
+	if S.mode == "cover" then
+		S.band = bandShapes(W, H)
+	end
 	if not S.fallback then
 		local img, content = newImage(W, H)
 		if img then
-			local buf = paint(L)
-			local ok = pcall(function()
-				(img :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(W, H), buf)
-			end)
+			local key = W .. "x" .. H
+			if S.paintBuf == nil or S.paintKey ~= key then
+				S.paintBuf, S.paintKey = paint(L), key
+			end
+			local buf = S.paintBuf :: buffer
+			local cv = S.cover
+			local ok
+			if cv and cv.state ~= "held" then
+				-- (a cover coming or going: the painting as the bank leaves it now)
+				S.paintImg = img
+				cv.base, cv.lo, cv.hi = bankBase(cv, os.clock()), nil, nil
+				drawBand(true)
+				ok = true
+			else
+				ok = pcall(function()
+					(img :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(W, H), buf)
+				end)
+			end
 			if ok then
-				local bg = imageLabel(layer, content, 2)
+				local bg = imageLabel(scene, content, 2)
 				bg.Name = "Painting"
 				bg.Size = UDim2.fromOffset(W, H)
+				S.paintImg = img
 				S.painted = true
 			end
 		end
@@ -1308,12 +1527,12 @@ local function build()
 		t.Font = Enum.Font.Arcade
 		t.TextSize = 16
 		t.TextColor3 = rgb(C.accent)
-		t.Text = "Driftling Isle"
+		t.Text = if S.mode == "cover" and S.coverTitle then S.coverTitle else "Driftling Isle"
 		t.ZIndex = 902
 		t.Parent = layer
 		S.title = { x0 = 0, y0 = L.titleY, x1 = W, y1 = L.titleY + 16 }
 	else
-		local _, r = centredText(layer, L, "Driftling Isle", L.titleY, true, "title", C.accent, C.title_ink, C.title_aa, 902)
+		local _, r = centredText(layer, L, if S.mode == "cover" and S.coverTitle then S.coverTitle else "Driftling Isle", L.titleY, true, "title", C.accent, C.title_ink, C.title_aa, 902)
 		S.title = r
 		if S.atlasContent then
 			placeScene(L)
@@ -1337,6 +1556,7 @@ local function build()
 	setStatus()
 	setTip()
 	step(0)
+	placeClip()
 end
 
 ------------------------------------------------------------------ the fade and the end
@@ -1391,14 +1611,14 @@ local function destroy()
 	table.clear(S.images)
 	table.clear(S.actors)
 	S.up = false
-	S.gui, S.root, S.canvas, S.layer = nil, nil, nil, nil
+	S.gui, S.root, S.canvas, S.layer, S.clip, S.paintImg = nil, nil, nil, nil, nil, nil
+	S.cover = nil
+	S.atlas, S.atlasContent = nil, nil
 end
 
 ------------------------------------------------------------------ the API
-function LoadingCard.show()
-	if S.up or S.finished then
-		return
-	end
+-- The card on the screen (the join's or a cover's: S.mode says which).
+local function mount()
 	local player = Players.LocalPlayer
 	if player == nil then
 		return
@@ -1422,6 +1642,8 @@ function LoadingCard.show()
 	root.Name = "Root"
 	root.BorderSizePixel = 0
 	root.BackgroundColor3 = rgb(SKY[4])
+	-- (a cover starts with the game showing: only the bank and the card under it cover it)
+	root.BackgroundTransparency = if S.mode == "cover" then 1 else 0
 	root.Size = UDim2.fromScale(1, 1)
 	root.Active = true
 	root.Parent = gui
@@ -1455,12 +1677,39 @@ function LoadingCard.show()
 			S.resizeAt = 0
 			build()
 		end
-		-- the bar creeps toward the phase's share, and follows the picture's own progress in the last one
-		local target = if S.finished then 1 elseif S.phase == "picture" then 0.45 + 0.55 * S.progress elseif S.phase == "island" then 0.4 else 0.25
-		local creep = if S.phase == "picture" or S.finished then 1 else math.min(1, (now - S.t0) / 6)
+		-- a cover coming or going: the bank moves on (every frame, so it glides), and at its end the card is up, or gone
+		local cv = S.cover
+		if cv and (cv.state == "closing" or cv.state == "opening") then
+			cv.base = bankBase(cv, now)
+			drawBand()
+			placeClip()
+			if now - cv.t0 >= (if cv.state == "closing" then CLOSE_SEC else OPEN_SEC) then
+				if cv.state == "closing" then
+					cv.state = "held"
+					cv.coveredAt = now
+					placeClip()
+					local fn = cv.onCovered
+					if fn then
+						task.spawn(fn)
+					end
+				else
+					local fn = cv.onOpened
+					destroy()
+					if fn then
+						task.spawn(fn)
+					end
+					return
+				end
+			end
+		end
+		-- the bar creeps toward the phase's share, and follows the picture's own progress in the last one (a cover's
+		-- bar follows what the caller says)
+		local cover = S.mode == "cover"
+		local target = if S.finished then 1 elseif cover then S.progress elseif S.phase == "picture" then 0.45 + 0.55 * S.progress elseif S.phase == "island" then 0.4 else 0.25
+		local creep = if cover or S.phase == "picture" or S.finished then 1 else math.min(1, (now - S.t0) / 6)
 		local want = target * creep
 		if want > S.bar then
-			S.bar = math.min(want, S.bar + dt * (if S.finished then 2.5 else 0.6))
+			S.bar = math.min(want, S.bar + dt * (if S.finished then 2.5 elseif cover then 1.2 else 0.6))
 			setBar(S.bar)
 		end
 		-- the dots after the status, lit one after another
@@ -1480,11 +1729,54 @@ function LoadingCard.show()
 			S.ticks += 1
 			step(math.min(0.1, 1 / SCENE_FPS))
 		end
-		if not S.finished and now - S.t0 > SAFETY_SEC then
+		if not S.finished and now - S.t0 > (if cover then COVER_SAFETY else SAFETY_SEC) then
 			LoadingCard.finish()
 		end
 	end)
 	S.tipAt = os.clock()
+	local cv = S.cover
+	if cv then
+		-- (the bank sets off once the card is built: building it is the slow part)
+		cv.t0 = os.clock()
+	end
+end
+
+function LoadingCard.show()
+	if S.up or S.finished then
+		return
+	end
+	S.mode = "join"
+	mount()
+end
+
+-- The card over the game for a while (an expansion: the request of 2026-11-20, "make a transition for expansion, hiding
+-- the game with a loading transition"): a bank of cloud drifts up the screen and leaves the card behind it, with
+-- `title` over the sky (the join's "Driftling Isle" when nil) and `status` under it; `onCovered` runs once the card
+-- covers the screen. progress(f) moves the bar, status(text) changes the words, finish() fills the bar and the bank
+-- drifts up again, taking the card with it (after HOLD_MIN up at least); `onOpened` runs once it is gone. False (and
+-- nothing happens) while the card is up already.
+type CoverOpts = { title: string?, status: string?, onCovered: (() -> ())?, onOpened: (() -> ())? }
+function LoadingCard.cover(opts: CoverOpts?): boolean
+	if S.up then
+		return false
+	end
+	local o: CoverOpts = opts or {} :: CoverOpts
+	S.mode = "cover"
+	S.finished, S.fading = false, false
+	S.bar, S.progress = 0, 0
+	S.painted, S.fallback = false, false
+	S.coverTitle, S.coverStatus = o.title, o.status
+	S.cover = { state = "closing", t0 = os.clock(), base = 0, lo = nil, hi = nil, coveredAt = 0, onCovered = o.onCovered, onOpened = o.onOpened }
+	mount()
+	return S.up
+end
+
+-- A cover's words under the title.
+function LoadingCard.status(text: string)
+	if S.mode == "cover" and S.coverStatus ~= text then
+		S.coverStatus = text
+		setStatus()
+	end
 end
 
 function LoadingCard.phase(name: string)
@@ -1504,6 +1796,26 @@ function LoadingCard.finish()
 	end
 	S.finished = true
 	if not S.up then
+		return
+	end
+	if S.mode == "cover" then
+		task.spawn(function()
+			-- up for HOLD_MIN at least once it covers the screen, the bar full, then the bank takes it away
+			local t0 = os.clock()
+			while S.up do
+				local cv = S.cover
+				if cv == nil or (cv.state == "held" and os.clock() - cv.coveredAt >= HOLD_MIN and (S.bar >= 0.999 or os.clock() - t0 > 0.6 + HOLD_MIN + CLOSE_SEC)) then
+					break
+				end
+				task.wait()
+			end
+			local cv = S.cover
+			if cv and cv.state == "held" then
+				cv.state = "opening"
+				cv.t0 = os.clock()
+				cv.base, cv.lo, cv.hi = bankBase(cv, cv.t0), nil, nil
+			end
+		end)
 		return
 	end
 	task.spawn(function()
@@ -1536,6 +1848,12 @@ function LoadingCard.state(): { [string]: any }
 		K = S.K,
 		size = if L then Vector2.new(L.W, L.H) else Vector2.zero,
 		title = S.title,
+		mode = S.mode,
+		cover = if S.cover then (S.cover :: Cover).state else nil,
+		covered = S.cover ~= nil and (S.cover :: Cover).state == "held",
+		bank = if S.cover then (S.cover :: Cover).base else nil,
+		clip = if S.clip then { y = (S.clip :: Frame).Position.Y.Offset, h = (S.clip :: Frame).Size.Y.Offset } else nil,
+		status = S.statusShown,
 		island = if L then { cx = L.cx, cy = L.cy, rx = L.rx, ry = L.ry } else nil,
 	}
 end

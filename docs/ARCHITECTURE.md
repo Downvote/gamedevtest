@@ -197,7 +197,7 @@ next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, m
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
-`Profile` (the save, version 20 (the rewards for coming back and playing, 2026-11-19: `rewards` (`RewardsSave`:
+`Profile` (the save, version 23 (the View slider's default moved to the seventh notch, 2026-11-20, "also, make the default view here": a save still on the sixth, the default every save wrote since 18, loses it and reconcile gives it the new one; `settings.zoom`); 20 (the rewards for coming back and playing, 2026-11-19: `rewards` (`RewardsSave`:
 `daily { last (UTC day), streak, best, miles }`, `play { day, secs, got }`, `tasks { day, list { TaskSave { id, n, at } },
 got, bonus }`, `spin { day, extra, total }`, `codes` (code -> true), `index { got }`) and `boosts` (timed boost id ->
 seconds left); an older save gets them fresh); 19 (the questline lost its fourth quest, Another camp, 2026-11-18: `quest` past it moves
@@ -1061,7 +1061,24 @@ there yet): the palette's colours are written out and `PixelFont` / `PixelFontDa
 entry the screen's short side exceeds); Roblox's touch buttons off while it is up), `phase(name)` ("island",
 "picture"; it starts in "start"), `progress(f)`, `finish()` (the bar fills, `FADE_STEPS` (5) steps over `FADE_SEC`
 (0.45) to clear, destroyed, touch buttons back; by itself after `SAFETY_SEC` (45)), `state() -> { up, phase, bar,
-finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island }`. Laid out from
+finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island, mode, cover,
+covered, bank, clip, status }`; `cover(opts?) -> boolean` (2026-11-20, "make a transition for expansion, hiding the game
+with a loading transition": the card again, for Build mode's expansion; `opts { title?, status?, onCovered?, onOpened?
+}`; false while the card is up), `status(text)` (a cover's words). A cover mounts the same card with its root
+see-through (`mode` "cover"); `bandShapes(W, H)` lays a bank of cloud for the canvas (per column: where its three
+layers start, `top`, `l1`, `l2`, from rows of round domes, `domes(W, rng, r0, r1, k)`, and where it ends, `bot`, with
+shallow domes hanging under it; sizes for a 360 px tall canvas scaled to it, seed 11; `base0` the bank's top line
+wholly under the screen, `base1` wholly over it), and `Cover { state ("closing" | "held" | "opening"), t0, base, lo, hi,
+coveredAt, onCovered, onOpened }` moves the top line from `base0` to `base1` over `CLOSE_SEC` (0.7) with a smoothstep
+(`bankBase`). Every Heartbeat `drawBand()` writes the rows the bank crossed since the last frame (`lo`, `hi`: one
+`WritePixelsBuffer` of exactly those rows): each pixel the painting's (`paintBuf`, kept for the next cover of the same
+canvas size, `paintKey`) under the bank while it closes and over it while it opens, the bank's flat `BANK` colours
+(0xB99BC6, 0xD9B9D6, 0xF4DDE4, back to front), or clear; `placeClip()` sizes the `Clip` frame (ClipsDescendants) that
+holds the sprites, words and bar (`S.layer`, the `Over` frame inside it, under the `Painting`'s `Scene`) to the rows
+the card wholly covers. Covered: `onCovered` runs. `finish()` on a cover waits `HOLD_MIN` (0.9 s) after it covered and
+for the bar to fill, then the bank rises again over `OPEN_SEC` (0.8), the card over it; `onOpened` runs once it is
+destroyed. A cover's bar follows `progress(f)` (1.2 a second); it opens by itself after `COVER_SAFETY` (20 s).
+Without EditableImages only the clip moves: the plain card behind a straight edge. Laid out from
 the canvas's size (`layoutFor`: the horizon at 0.46 of the height, the island's middle and radii, the sun, the title,
 status, bar and tip rows, `pathEnd` the last row of the sun's path) and built again 0.15 s after the camera's
 ViewportSize changes: `paint(L)` writes the still scene into one EditableImage of the canvas's size. Its gradients go
@@ -1218,8 +1235,9 @@ receive the same amount of detail as bigger ones"): it was the largest clean gri
 clear, so it followed the screen (11.25 on a 1080p desktop, 12 on a laptop, 5 to 6.25 on phones). It is the Settings
 panel's View slider (the same day: "make a view slider for zooming the camera in and out, with 10 notches"):
 `setZoom(n)` picks notch n of `Tuning.CamZoomNotches` (5, 6, 7, 8, 9, 10, 11, 12, 14, 16 art px a stud, each a clean
-`Raster.gridScale`), `zoom()` reads it; `CamZoomDefault` 6 (10 a stud: the user's pick, "default view should be
-here"; it was 8, 12 a stud, and Schema's 17 -> 18 step moves a save still on 8 to the new default). A new notch is a new key: `refit` puts the pan
+`Raster.gridScale`), `zoom()` reads it; `CamZoomDefault` 7 (11 a stud: the user's pick on 2026-11-20, "also, make the
+default view here"; it was 8, 12 a stud, then 6, 10 a stud, "default view should be here"; Schema's 17 -> 18 step moves
+a save still on 8 to the new default and its 22 -> 23 step one still on 6). A new notch is a new key: `refit` puts the pan
 on the founder and fires `ViewChanged`, and the renderer bakes the island again at the new scale (the old picture
 stays up meanwhile); Build mode's drag is scaled to keep its studs. `start` applies `settings.zoom` from the view when
 the saved value changes (the join, another device), so a tap still waiting on the server is not undone. A stage's view (`Stage`) still fits its own points that way. The grid's ray plane `l` is fixed per plot (`CamRayBack` behind the plot's origin), so the
@@ -1291,7 +1309,10 @@ Back from a stage with nothing kept (the screen changed size), the layer stays h
 already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
 `afterBake(fn)` (fn runs once the picture shows the world as it is now: after the pending or running bake, at once
-when none is coming or the filter is off),
+when none is coming or the filter is off), `busy()` (a bake under way or due, or rects queued to cast again; false in
+the classic style: Build mode's expansion holds the loading card up until it is false), `setHidden(on)` (while the
+loading card hides the game a bake may take `Tuning.PixelHiddenMs` (40) of each frame, and a re-cast as long with 8
+times the rays; kept on the module table),
 (the island growing into its next tier on the picture, `Pixel/Grow` with `growNext`, `growing`, `growFront`,
 `afterGrow` and `growStats`, went on 2026-11-19: "Expansion is very slow and laggy, especially at higher levels. Is it
 possible to optimize and speed it up? No need for the transition anymore". The land's chunks that an expansion swaps
@@ -2162,9 +2183,13 @@ decor fun inv`; the icons alone when the names and the 180 px right of them don'
 `QuickRemove` (16 wide, orange, the `mini_takeup` sprite; `quickRemove(true)`, below) at 162 px from the right; the count (`Count`: the tab's group against its
 limit, `Plot.group` and `groupLimit`: the pieces on Work, Nature, Decor and Fun, the tiles on Paths and Water, the
 fence lengths on Fences, the huts' room (`housing`) against `housingLimit` on Huts, the places at work (`work`) against `workLimit` on Work; a hut card whose slots won't fit, a workplace card whose `jobs` won't (2026-11-18) and the Hatchery's at `hatcheryLimit` greyed, "Full" / "Max" (it was "No room" until 2026-11-19: too wide for the card's 34 px line), a tap saying why (`roomErr`: `huts`, `work` or `hatcheries`); orange when full); `Expand` ("Island max", greyed, at the
-top tier; `island.expand`, its price under it in `ExpandCost`; the fanfare and "Your island grew into Moonlit Bay.
-There's more to build now." (or how many buildings had to move), named from the answer's `tier`, come the moment the
-answer does: no growth to wait for since 2026-11-19) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
+top tier; `expandIsland(tier)`: since 2026-11-20 behind the loading card, `LoadingCard.cover` with the next island's
+name and "Growing your island"; once it covers the screen `island.expand` is asked, the bar goes to 0.35, then to 0.6
+when the island's `Static` folder's `Built` attribute reaches the answer's `tier` (8 s at most), the words to "Drawing
+your island", and `finish()` once `PixelRenderer.busy()` is false (8 s at most; `PixelRenderer.setHidden(true)` from
+the moment it covers the screen until then); without the card it asks at once.
+Its price under it in `ExpandCost`; the fanfare and "Your island grew into Moonlit Bay. There's more to build now." (or
+how many buildings had to move), named from the answer's `tier`, come once the card has gone, or a refusal's notice) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
 pixel-font copy of its words, `Query`, "Search" while empty, and `ClearSearch`), with the search button `SearchButton`
 just before it (16 wide, the 11 x 11 `mini_search` magnifier; it calls `focusSearch()`, the cursor into `Box`; the
 accent colour while a search is on): both on the tabs' plank right of the tabs when there are 80 px free there (the box
