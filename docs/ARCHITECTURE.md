@@ -907,7 +907,7 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `look.set` | `look` (a `Looks.encode` string, at most 200 characters) | `Store.setLook` (`checkLook`: every index in range, every piece owned and of its slot; the whole look replaces the founder's; the `Founder` attribute follows) | bad_payload, locked |
 | `outfit.set` | `i` (1 .. #outfits + 1), `look` ("" deletes outfit i) | `Store.setOutfit` (saves the look's canonical code as outfit i; returns `{ outfits }`) | bad_payload, locked, dup, full |
-| `settings.set` | `k` ("pixel", "music", "sfx" or "zoom"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10) | bad_payload |
+| `settings.set` | `k` ("pixel", "music", "sfx", "zoom" or "screen"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10), the screen's scale (a key of `Tuning.ScreenScales`: auto, 100, 125, 150, 175, 200) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
 | `char.home` | - | PlotService puts the founder in front of their own tree | cooldown (`Tuning.HomeCooldown`), not_ready |
@@ -1056,7 +1056,8 @@ view, `CameraController.start`, `PixelRenderer.start`, `DayLight.start`, `UIKit.
 there yet): the palette's colours are written out and `PixelFont` / `PixelFontData` are mapped beside it.
 `LoadingCard` (GAME_DESIGN 11): `show()` (once: a `LoadingCard` ScreenGui, DisplayOrder 300, no inset; a canvas of
 `ceil(screen / K)` UI px under a UIScale K, the game's pixel size (`PixelScaleMin` 2 plus one per `PixelScaleSides`
-entry the screen's short side exceeds); Roblox's touch buttons off while it is up), `phase(name)` ("island",
+entry the screen's short side exceeds; fitted to a whole number of the screen's own pixels when the screen's size, in
+units, says it is scaled by a fraction: Pixel/DisplayScale's rule on the two sides alone); Roblox's touch buttons off while it is up), `phase(name)` ("island",
 "picture"; it starts in "start"), `progress(f)`, `finish()` (the bar fills, `FADE_STEPS` (5) steps over `FADE_SEC`
 (0.45) to clear, destroyed, touch buttons back; by itself after `SAFETY_SEC` (45)), `state() -> { up, phase, bar,
 finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island, isle, bob,
@@ -1173,7 +1174,18 @@ it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mo
 ### 9.1 Principle (Random Bakery's, cut down: one fitted scale, pans, no Actors)
 One EditableImage, shown full screen through an ImageLabel with `ResampleMode = Pixelated` from the screen's top-left
 corner: one art pixel is K × K screen px. K is the game's one pixel size (2 on phones and 768p, 3 at 1080p, 4 at
-1440p; a tier only makes it coarser). The **static layer** is a raycast G-buffer of the view: progressive passes (one
+1440p; a tier only makes it coarser), in Roblox's units. On a screen scaled by a fraction (125%, 150%, 175%: Roblox
+lays the interface out in density-independent units and draws them at the display's scale) `Pixel/DisplayScale`
+fits it to a whole number of the screen's own pixels, so K may be a fraction of a unit (2.4, 3.2): `DisplayScale.start()`
+(CameraController.start) watches mouse and touch positions and the camera's ViewportSize; `DisplayScale.observe(v)`
+keeps the last 32 distinct values; the scale is the smallest of `1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.625, 2.75, 3,
+3.5, 4` that makes every one a whole number of pixels (within 0.02; nothing other than 1 before 6 samples), or the
+Settings choice (`setChoice(c)`, `Tuning.ScreenScales`: "auto" 0, "100" 1 .. "200" 2); `factor()`; `fit(K)` = K at a
+whole scale, else `round(K * s) / s`; `Changed` (the camera refits: `CameraController.pixelK` returns `fit` of
+`Raster.pixelScale`); `debugState()`, `debugReset()`. Everything that sizes from K takes it as it is (UIKit's
+canvases, SkyBackdrop, HatchBackdrop, the view's key formats it `%g`); UIKit's canvas sits on the K grid from the
+screen's corner (`top % K` with a tolerance). The report of 2026-11-20 ("the tree still looks like this": screenshots
+whose every pixel was 2.5 of the screen's). The **static layer** is a raycast G-buffer of the view: progressive passes (one
 ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`), time-sliced (`Tuning.PixelBakeMsPerFrame`, more
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
 pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
@@ -2513,8 +2525,10 @@ shut and the hatch scene isn't playing; it closes the card when the view has no 
 
 ### 10.14 Settings (`UI/SettingsUI`; GAME_DESIGN 9)
 The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: 118 tall, more when narrow): `ROWS` Music (`settings.music`), Sounds
-(`settings.sfx`) and Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish), each a row of buttons `Set_<k>_<v>`, the chosen
-one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
+(`settings.sfx`), Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish) and Screen
+(`settings.screen`: auto, 100, 125, 150, 175, 200; its six buttons on a line of their own under the label, `own`, with
+a hint; `SettingsUI.apply()` hands the value to `DisplayScale.setChoice` every frame), each a row of buttons
+`Set_<k>_<v>`, the chosen one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
 `Audio.setSoundsOn`, `PixelRenderer.setTier`) and sends `settings.set`; a refusal drops the pending value with a notice.
 Under them the View row (2026-11-18, `settings.zoom`): `ZoomOut` (-), the track (an ink frame round a groove, filled to
 the knob), its ten notches' ticks `ZoomTick_<i>` (1 x 3 px under the track, the default's 1 x 4), the 7 x 11 knob

@@ -4149,6 +4149,55 @@ function SCEN.alerts()
 	return p
 end
 
+-- "screen=<125|150|175|200>": the Settings panel's Screen at that scale (Pixel/DisplayScale; the report of 2026-11-20,
+-- a tree whose every pixel was 2.5 of the screen's): the village, then the log says the pixel size in units and in the
+-- screen's own pixels, and where the pixel layer's image and each interface root's canvas sit and how big they are, in
+-- the screen's pixels (`screen:` lines; every one should be whole). The harness draws at 100%, so the PNG's pixels are
+-- uneven by design: the numbers are the check.
+function SCEN.screen(choice: string)
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
+	local p = join(2, "Pixel")
+	settle(p)
+	local res = H.req(p, "settings.set", { k = "screen", v = choice })
+	local SU = modOr(p, "UI.SettingsUI")
+	if SU then
+		H.inClient(p, SU.apply)
+	end
+	E.run(1.5)
+	settle(p, 60, 1)
+	local DS = H.cmod(p, "Pixel.DisplayScale")
+	local PR = H.cmod(p, "Pixel.PixelRenderer")
+	local d = H.inClient(p, DS.factor)
+	local k = H.inClient(p, PR.pixelScale)
+	log("screen: choice %s (%s), scale %g, pixel size %g units = %g screen px", choice, tostring(res and (res.ok or res.err)), d, k, k * d)
+	local bad = 0
+	local function whole(v)
+		local q = v * d
+		return math.abs(q - math.floor(q + 0.5)) < 1e-3
+	end
+	-- (measured from the screen's corner, where the pixel layer's image starts: Roblox's own origin sits under the top
+	-- bar)
+	local layerGui = p.PlayerGui:FindFirstChild("PixelLayer")
+	local layerImg = layerGui and layerGui:FindFirstChild("Image")
+	local corner = if layerImg and layerImg:IsA("GuiObject") then layerImg.AbsolutePosition else Vector2.zero
+	for _, g in p.PlayerGui:GetChildren() do
+		if g:IsA("ScreenGui") and (g.Name == "PixelLayer" or g:FindFirstChild("Canvas") ~= nil) then
+			local o = if g.Name == "PixelLayer" then g:FindFirstChild("Image") else g:FindFirstChild("Canvas")
+			if o and o:IsA("GuiObject") then
+				local ap, as = o.AbsolutePosition - corner, o.AbsoluteSize
+				local ok = whole(ap.X) and whole(ap.Y) and whole(as.X) and whole(as.Y)
+				if not ok then
+					bad += 1
+				end
+				log("screen: %s %s at %g,%g size %g x %g units: %s", g.Name, o.Name, ap.X, ap.Y, as.X, as.Y, if ok then "whole screen px" else "NOT whole")
+			end
+		end
+	end
+	log("screen: %d not on whole screen px", bad)
+	capture(p, "screen")
+	return p
+end
+
 -- "loading": the loading card while the game loads (src/first/LoadingCard: ReplicatedFirst's Boot puts it up before the
 -- rest has arrived): a still a second in (loading) and a frame every fifth of a second while it is up (loading_000 ..;
 -- make_gif.py makes them a GIF); the log says how far it got (its phase, its bar, the island's picture, whether it
@@ -5169,6 +5218,12 @@ for _, name in list do
 	if zoomArg then
 		fn = function()
 			return zoomScenario(tonumber(zoomArg) :: number)
+		end
+	end
+	local scArg = string.match(name, "^screen=(%d+)$")
+	if scArg then
+		fn = function()
+			return SCEN.screen(scArg)
 		end
 	end
 	local laArg = string.match(name, "^ploadingart=(.+)$")

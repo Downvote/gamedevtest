@@ -2579,10 +2579,22 @@ a big one by turns. Any key, tap or step wakes it. Other players' founders doze 
 for 40 seconds. Landing from a jump squashes the legs for a moment, and claiming a quest or growing the island makes
 the founder cheer, arms up. With reduced motion on there are no fidgets and the Z's stay put.
 
+> The report (2026-11-20), a screenshot of the Tree of Life with ragged outlines and the Settings panel: "the tree still
+> looks like this". Every pixel in both pictures was 2.5 of the screen's own pixels: the screen was scaled by 125%, the
+> game's pixel was 2 of Roblox's units, so the art came out in columns 2 and 3 pixels wide by turns, its 1 px outlines
+> broken into dots and steps. The previews draw at 100% and never showed it.
+
+**Screen** (Settings, `settings.screen`): Auto, 100%, 125%, 150%, 175%, 200% ("Pixels look uneven? Pick your screen's
+scale."). The game's pixel size is fitted so one art pixel is a whole number of the screen's own pixels: on a screen
+at 125% the 2-unit pixel becomes 2.4 units, 3 of the screen's pixels, and 3 units become 3.2, 4 pixels. Auto works the
+scale out from what Roblox reports (no script can ask for it: at 125% a mouse moved one pixel moves 0.8 of a unit, a
+window 1366 pixels wide is 1092.8 units); a screen at a whole scale (100%, a Mac's 200%, a phone's 300%) keeps its
+pixel size as it was. The loading card does the same from the screen's size alone.
+
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
 rain; `settings.sfx`), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
-for an option to turn off the pixel filter"), and View, a slider with ten notches that zooms the camera out and in
+for an option to turn off the pixel filter"), Screen (below), and View, a slider with ten notches that zooms the camera out and in
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
 big island's middle all at once, to 16, close enough to see a driftling's freckles; each is about the same step closer

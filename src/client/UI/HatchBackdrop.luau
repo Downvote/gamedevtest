@@ -1108,7 +1108,7 @@ local makeLight: (W: number, H: number, K: number) -> ()
 local backs: { Frame } = {} -- behind the picture, its top and bottom colours (shown at the edge while it jolts)
 
 function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
-	local K = math.max(1, math.floor(PixelRenderer.pixelScale()))
+	local K = math.max(1, PixelRenderer.pixelScale())
 	local cam = workspace.CurrentCamera
 	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
 	local W, H = math.ceil(vp.X / K), math.ceil(vp.Y / K)

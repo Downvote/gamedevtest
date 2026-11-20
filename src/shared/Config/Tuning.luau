@@ -306,6 +306,9 @@ local Tuning = {
 	-- "default view should be here").
 	CamZoomNotches = { 5, 6, 7, 8, 9, 10, 11, 12, 14, 16 },
 	CamZoomDefault = 7,
+	-- the Settings panel's Screen choices (Pixel/DisplayScale): the display's own scale, so an art pixel is a whole
+	-- number of the screen's pixels (the report of 2026-11-20, a tree drawn on a screen at 125%); 0 is Auto
+	ScreenScales = { auto = 0, ["100"] = 1, ["125"] = 1.25, ["150"] = 1.5, ["175"] = 1.75, ["200"] = 2 } :: { [string]: number },
 	-- on a phone (the screen's short side 500 px or less) a smaller box: the request of 2026-11-14, "On mobile, zoom in to
 	-- fit the island more" (the camera follows the founder round the rest); 0.75 until the desktop view came closer
 	-- the same way (0.95 to 0.75)

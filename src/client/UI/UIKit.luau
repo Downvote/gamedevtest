@@ -105,10 +105,13 @@ local function layoutCanvas(rec: CanvasRec)
 		local vp = viewport()
 		size = Vector2.new(vp.X, vp.Y - top)
 	end
+	-- (K may be a fraction of a unit on a display scaled by a fraction, Pixel/DisplayScale: still a whole number of
+	-- the screen's pixels)
 	local oy = top % K
+	local shift = if oy < 1e-6 or K - oy < 1e-6 then 0 else K - oy
 	rec.scaler.Scale = K
-	rec.canvas.Position = UDim2.fromOffset(0, if oy == 0 then 0 else K - oy)
-	rec.canvas.Size = UDim2.fromOffset(math.max(1, math.floor(size.X / K)), math.max(1, math.floor((size.Y - (if oy == 0 then 0 else K - oy)) / K)))
+	rec.canvas.Position = UDim2.fromOffset(0, shift)
+	rec.canvas.Size = UDim2.fromOffset(math.max(1, math.floor(size.X / K + 1e-6)), math.max(1, math.floor((size.Y - shift) / K + 1e-6)))
 end
 
 -- A root's canvas changed size on its own (Roblox lays ScreenGuis out after the camera's ViewportSize event, and the
@@ -256,8 +259,7 @@ function UIKit.canvasOrigin(name: string): Vector2
 end
 
 local function relayoutAll()
-	local k = PixelRenderer.pixelScale()
-	K = math.max(1, math.floor(k))
+	K = math.max(1, PixelRenderer.pixelScale())
 	for _, rec in recs do
 		layoutCanvas(rec)
 	end
@@ -1741,7 +1743,7 @@ end
 
 ------------------------------------------------------------------ lifecycle
 function UIKit.init()
-	K = math.max(1, math.floor(PixelRenderer.pixelScale()))
+	K = math.max(1, PixelRenderer.pixelScale())
 	UIKit.root("World")
 	UIKit.root("Hud")
 	UIKit.root("Modal")
@@ -1757,8 +1759,8 @@ function UIKit.init()
 	task.spawn(function()
 		while true do
 			task.wait(0.5)
-			local k = math.max(1, math.floor(PixelRenderer.pixelScale()))
-			if k ~= K then
+			local k = math.max(1, PixelRenderer.pixelScale())
+			if math.abs(k - K) > 1e-6 then
 				relayoutAll()
 			end
 		end

@@ -30,6 +30,7 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local StateClient = require(script.Parent.StateClient)
+local DisplayScale = require(script.Parent.Parent.Pixel.DisplayScale)
 
 export type Room = { x0: number, x1: number, z0: number, z1: number, y1: number }
 -- A microgame's stage: its origin on the ground (the ray plane's anchor), the points its picture must show (x, y, z
@@ -87,9 +88,10 @@ local function screenSize(): Vector2
 	return Vector2.new(math.max(320, v.X), math.max(240, v.Y))
 end
 
+-- (nudged to a whole number of the screen's own pixels on a display scaled by a fraction: Pixel/DisplayScale)
 function CameraController.pixelK(size: Vector2?): number
 	local s = size or screenSize()
-	return Raster.pixelScale(s.X, s.Y, Tuning.PixelScaleMin, Tuning.PixelScaleSides, pixelLimit, 1024)
+	return DisplayScale.fit(Raster.pixelScale(s.X, s.Y, Tuning.PixelScaleMin, Tuning.PixelScaleSides, pixelLimit, 1024))
 end
 
 local function blocks(size: Vector2, K: number): { Raster.Rect }
@@ -193,7 +195,7 @@ local function build(): View
 		look = Vector3.new(LX, LY, LZ),
 		viewH = fy / (K * q),
 		grid = g,
-		key = (if st then "stage:" .. st.name .. "|" else "") .. string.format("%d|%g|%.5f|%.5f|%.4f|%dx%d|%d", plot, a, phX, phY, l, fx, fy, K),
+		key = (if st then "stage:" .. st.name .. "|" else "") .. string.format("%d|%g|%.5f|%.5f|%.4f|%dx%d|%g", plot, a, phX, phY, l, fx, fy, K),
 		fullX = fx,
 		fullY = fy,
 		K = K,
@@ -618,6 +620,11 @@ function CameraController.start()
 	if cv then
 		fromView(cv)
 	end
+	-- (the screen's own scale found or set: the pixel size follows)
+	DisplayScale.start()
+	DisplayScale.Changed:Connect(function()
+		CameraController.refit()
+	end)
 	local cam = Workspace.CurrentCamera
 	if cam then
 		cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()

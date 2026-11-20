@@ -140,6 +140,34 @@ local PRm = H.cmod(p, "Pixel.PixelRenderer")
 H.expect(H.clickNamed(p, "Set_pixel_low", { wait = 0.5 }) and prof.settings.pixel == "low", "settings", "Pixel art Low, kept with the profile", tostring(prof.settings.pixel))
 H.expect(H.clickNamed(p, "Set_pixel_high", { wait = 0.5 }) and prof.settings.pixel == "high", "settings", "and High again", tostring(prof.settings.pixel))
 H.expect(H.req(p, "settings.set", { k = "sfx", v = "loud" }).err == "bad_payload", "settings", "a sounds value that isn't on or off: bad_payload")
+-- the Screen choice (the report of 2026-11-20, "the tree still looks like this", with screenshots whose every pixel was
+-- 2.5 of the screen's: Pixel/DisplayScale fits the pixel size to a whole number of the screen's own pixels)
+do
+	local DS = H.cmod(p, "Pixel.DisplayScale")
+	local PRs = H.cmod(p, "Pixel.PixelRenderer")
+	for _, b in { "Set_screen_auto", "Set_screen_100", "Set_screen_125", "Set_screen_150", "Set_screen_175", "Set_screen_200" } do
+		H.expect(H.buttonNamed(p, b) ~= nil, "settings", "the panel's " .. b)
+	end
+	local k0 = H.inClient(p, PRs.pixelScale)
+	H.expect(prof.settings.screen == "auto" and H.inClient(p, DS.factor) == 1, "settings", "a new player's Screen: Auto, the sim's screen found at 100%", string.format("%s %g", tostring(prof.settings.screen), H.inClient(p, DS.factor)))
+	H.expect(H.clickNamed(p, "Set_screen_125", { wait = 1.2 }) and prof.settings.screen == "125", "settings", "Screen 125%, kept with the profile", tostring(prof.settings.screen))
+	local k1 = H.inClient(p, PRs.pixelScale)
+	local px1 = k1 * 1.25
+	H.expect(H.inClient(p, DS.factor) == 1.25 and math.abs(px1 - math.floor(px1 + 0.5)) < 1e-6 and k1 ~= k0, "settings", "at 125% the pixel size is a whole number of the screen's pixels", string.format("%g units -> %g units (%g pixels)", k0, k1, px1))
+	H.expect(H.clickNamed(p, "Set_screen_auto", { wait = 1.2 }) and prof.settings.screen == "auto" and math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "and Auto again: back as it was", string.format("%g", H.inClient(p, PRs.pixelScale)))
+	-- (Auto finds a screen at 125% from what Roblox reports there: positions and sizes 0.8 of a unit apart)
+	local found = H.inClient(p, function()
+		for _, v in { 100.8, 205.6, 63.2, 1092.8, 614.4, 333.6 } do
+			DS.observe(v)
+		end
+		return DS.factor()
+	end)
+	H.expect(found == 1.25, "settings", "Auto finds a screen at 125% from the mouse and the screen's size", tostring(found))
+	H.inClient(p, DS.debugReset)
+	E.run(1)
+	H.expect(math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "(and the sim's screen back at 100%)", string.format("%g", H.inClient(p, PRs.pixelScale)))
+	H.expect(H.req(p, "settings.set", { k = "screen", v = "133" }).err == "bad_payload", "settings", "a Screen value that isn't one of the choices: bad_payload")
+end
 local _ = PRm
 -- the View slider (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10
 -- notches"): ten notches under its track, the default's marked, - and + step a notch, the camera follows a moment after

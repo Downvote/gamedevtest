@@ -1042,7 +1042,7 @@ local function step(dt: number)
 	elseif gg and not gg.Enabled then
 		gg.Enabled = true
 	end
-	local K = math.max(1, math.floor(PixelRenderer.pixelScale()))
+	local K = math.max(1, PixelRenderer.pixelScale())
 	local cam = workspace.CurrentCamera
 	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
 	local W, H = math.max(1, math.ceil(vp.X / K)), math.max(1, math.ceil(vp.Y / K))
