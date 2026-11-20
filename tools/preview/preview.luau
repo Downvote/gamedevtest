@@ -264,11 +264,13 @@ local function seedProfile(userId, tier, opts)
 	prof.stats.days = prof.day - 1
 	prof.stats.taken = #prof.pals
 	prof.stats.built = #prof.plot.placed
-	-- an egg warming in the first Hatchery (opts.egg: { sp, left, muts })
-	if opts.egg then
-		for _, q in prof.plot.placed do
-			if q.id == "hatchery" and #prof.eggs == 0 and #prof.pals >= 2 then
-				table.insert(prof.eggs, { uid = q.uid, a = prof.pals[1].id, b = prof.pals[2].id, sp = opts.egg[1], left = opts.egg[2], muts = opts.egg[3] or {} })
+	-- an egg warming in the first Hatchery (opts.egg: { sp, left, muts }), and one in the second (opts.egg2)
+	for k, e in { opts.egg or false, opts.egg2 or false } do
+		if e then
+			for _, q in prof.plot.placed do
+				if q.id == "hatchery" and #prof.eggs == k - 1 and #prof.pals >= 2 and (prof.eggs[1] == nil or prof.eggs[1].uid ~= q.uid) then
+					table.insert(prof.eggs, { uid = q.uid, a = prof.pals[1].id, b = prof.pals[2].id, sp = e[1], left = e[2], muts = e[3] or {} })
+				end
 			end
 		end
 	end
@@ -305,6 +307,17 @@ function SCEN.island()
 	settle(p)
 	E.run(1)
 	capture(p, "island")
+	-- the trail through the rocks west of the meadow, the founder on it (the request of 2026-11-20: "make a path across
+	-- each plot that goes through the rocks"): island_trail
+	local Street = H.sharedServer("Data.Street")
+	local ox, oz = Street.origin(H.session(p).plot)
+	if p.Character then
+		p.Character:PivotTo(E.cf.new(ox - 26, 3, oz + Street.trailMid(-25.5)))
+		E.run(2)
+		settle(p, 30, 1)
+		E.run(1)
+		capture(p, "island_trail")
+	end
 	return p
 end
 
@@ -1876,6 +1889,51 @@ local function panelScenario(name)
 		E.run(0.8)
 		capture(p, "panel_pal_visit")
 	end
+	return p
+end
+
+-- The Hatcheries' tags (the request of 2026-11-20: "the hatchery should have the timer above its building, and show
+-- ready! once the egg is ready. clicking it while ready shows the hatching screen just like hatching an egg normally,
+-- but with the resultant creature"): a harbour island with two, a rare egg warming in one (its timer) and an uncommon
+-- one ready in the other (Ready!), the founder by them (hatchery); then a tap on Ready! and the hatch scene starting
+-- (hatchery_tap), and the scene a few taps on (hatchery_scene).
+function SCEN.hatchery()
+	local pieces = table.clone(HARBOR)
+	table.insert(pieces, { "hatchery", 4, -18 })
+	seedProfile(20, 3, { pieces = pieces, pals = { "clawdle", "gullfin", "shellback", "frostling", "mossbun" }, egg = { "glacior", 4, { "swift2" } }, egg2 = { "gullfin", 0, { "bright2" } }, shells = 9000, seen = { "glacior" } })
+	local p = join(20, "Hatch")
+	settle(p)
+	local s = H.session(p)
+	local Street = H.sharedServer("Data.Street")
+	local ox, oz = Street.origin(s.plot)
+	if p.Character then
+		p.Character:PivotTo(E.cf.new(ox + 2, 3, oz - 8))
+		E.run(2)
+		settle(p, 30, 1)
+	end
+	E.run(1)
+	capture(p, "hatchery")
+	local BT = modOr(p, "Controllers.BuildingTags")
+	local tags = if BT then H.inClient(p, BT.debugHatch) else {}
+	for _, t in tags do
+		log("hatchery tag %d: %s%s", t.uid, t.words, if t.shown then "" else " (off the screen)")
+	end
+	for _, t in tags do
+		if t.ready then
+			H.clickNamed(p, "HatchTap_" .. t.uid, { wait = 0.1 })
+			break
+		end
+	end
+	E.run(1.2)
+	capture(p, "hatchery_tap")
+	local HS = modOr(p, "UI.HatchScene")
+	if HS then
+		for _ = 1, 6 do
+			H.inClient(p, HS.skip)
+			E.run(0.5)
+		end
+	end
+	capture(p, "hatchery_scene")
 	return p
 end
 

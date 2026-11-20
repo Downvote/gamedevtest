@@ -148,11 +148,12 @@ return function()
 		T.eq(#q.eggs, 1)
 		local n0 = #q.pals
 		local okH, dH = Store.product(q, "HatcheryNow", 0)
-		T.truthy(okH and #q.eggs == 0 and #q.pals == n0 + 1, "hatched now")
-		T.eq(dH.given[1].kind, "pal")
+		T.truthy(okH and #q.eggs == 1 and q.eggs[1].left == 0 and #q.pals == n0, "ready now: a tap on the Hatchery hatches it")
+		T.eq(dH.given[1].kind, "ready")
+		T.eq(dH.given[1].n, 1)
 		local s2 = q.shells
 		Store.product(q, "HatcheryNow", 0)
-		T.truthy(q.shells > s2, "nothing to finish: shells")
+		T.truthy(q.shells > s2, "nothing warming: shells")
 		-- the eggs refreshed: the tree's clock run out, so its next tick lays a fresh lot (Tree.step)
 		q.clutch.left = 300
 		local okE, dE = Store.product(q, "RefreshEggs", 0)

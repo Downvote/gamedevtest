@@ -48,6 +48,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["pal.sell"] = { id = "int" },
 	["egg.hatch"] = { id = "int", swap = "int" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
+	["breed.hatch"] = { uid = "int" },
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
 	["tut.next"] = {},

@@ -81,7 +81,8 @@ export type OfflineReport = { away: number, secs: number, shells: number }
 export type Group = { member: boolean, gift: boolean }
 
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
--- the kind and its mutations) and the island turns left (it hatches into a hut with room at the turn it reaches 0).
+-- the kind and its mutations) and the island turns left (at 0 it is ready and waits till the player taps the Hatchery:
+-- Logic/Breed.hatch, into a hut with room).
 export type Egg = { uid: number, a: number, b: number, sp: string, muts: { string }, left: number }
 
 -- The rewards for coming back and for playing (Data/Rewards, Logic/Rewards; GAME_DESIGN 15, 2026-11-19). Days are UTC
@@ -164,6 +165,7 @@ export type ClientView = {
 	inv: { [string]: number }, -- Build mode's inventory (Profile.inv)
 	seen: { [string]: number },
 	eggs: { Egg },
+	turnIn: number?, -- seconds to the island's next turn when the view was made (the Hatcheries' timers)
 	tut: number,
 	quest: number,
 	stats: Stats,

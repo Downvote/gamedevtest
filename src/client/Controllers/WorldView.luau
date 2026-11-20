@@ -770,16 +770,18 @@ local function treeOf(inst: Instance): boolean?
 	return nil
 end
 
--- A Hatchery under a world hit: true for one on the own island, false for a neighbour's, nil for anything else.
-local function hatcheryOf(inst: Instance): boolean?
+-- A Hatchery under a world hit: true for one on the own island, false for a neighbour's, nil for anything else; and its
+-- uid (its model is named "uid:id:x:z:rot").
+local function hatcheryOf(inst: Instance): (boolean?, number)
 	local m: Instance? = inst
 	while m and m ~= workspace do
 		if m:IsA("Model") and m:GetAttribute("Decor") == "hatchery" then
-			return m:FindFirstAncestor("Plot_" .. myPlot) ~= nil
+			local uid = tonumber(string.match(m.Name, "^(%d+):")) or 0
+			return m:FindFirstAncestor("Plot_" .. myPlot) ~= nil, uid
 		end
 		m = m.Parent
 	end
-	return nil
+	return nil, 0
 end
 
 -- What a tap's ray may hit: the islands and their buildings, never the driftlings, the founders or anything else in
@@ -960,10 +962,10 @@ local function onTap(pos: Vector2)
 		return
 	end
 	-- a Hatchery: the own one opens the Hatchery panel (the request of 2026-11-14: "allow clicking on a hatchery to open
-	-- the hatchery menu")
-	local hatch = hatcheryOf(hit.Instance)
+	-- the hatchery menu"), or with its egg ready hatches it, the hatch scene and all (the request of 2026-11-20)
+	local hatch, hatchUid = hatcheryOf(hit.Instance)
 	if hatch == true then
-		UIKit.openPanel("hatch")
+		EggView.tapHatchery(hatchUid)
 		return
 	elseif hatch == false then
 		UIKit.notice("Not your Hatchery. Build one at home.", UIKit.color("text_dim"), 3)
@@ -1027,19 +1029,13 @@ local function hatchedOne(x: { [string]: any })
 	end
 end
 
--- A hatchling (Logic/Breed): its kind's name floats up over the Hatchery with pink and gold bits (it moves into a hut
--- with room like one out of the tree's eggs).
-local function hatched(x: { [string]: any })
-	local at: Vector3? = nil
-	for _, sp in spotsOf(myPlot) do
-		local b = Buildings.byId[sp.id]
-		if b and b.kind == "breed" then
-			at = Vector3.new(sp.cx, groundY() + 3, sp.cz)
-		end
-	end
-	local d = if type(x.sp) == "string" then Creatures.byId[x.sp] else nil
-	if at then
-		UIKit.floatText(at, (if d then d.name else "A driftling") .. " hatched!", UIKit.color("pink"), true)
+-- A Hatchery's egg ready (Logic/Breed.turn; Fx "turn"'s `ready`): "Ready!" floats up over that Hatchery with pink and
+-- gold bits (its tag says Ready! from now on, Controllers/BuildingTags; a tap hatches it).
+local function ready(x: { [string]: any })
+	local sp = spotsOf(myPlot)[tonumber(x.uid) or 0]
+	if sp then
+		local at = Vector3.new(sp.cx, groundY() + 3, sp.cz)
+		UIKit.floatText(at, "Ready!", UIKit.color("pink"), true)
 		UIKit.bitsAt(at, { "pink", "accent", "white", "good" }, 18, 50, 90)
 	end
 end
@@ -1057,10 +1053,10 @@ function WorldView.start()
 		own(v)
 	end
 	StateClient.Fx:Connect(function(msg)
-		if msg.kind == "turn" and type(msg.hatched) == "table" then
-			for _, x in msg.hatched do
+		if msg.kind == "turn" and type(msg.ready) == "table" then
+			for _, x in msg.ready do
 				if type(x) == "table" then
-					hatched(x)
+					ready(x)
 				end
 			end
 		end

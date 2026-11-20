@@ -596,17 +596,12 @@ function Store.product(p: Profile, key: string, now: number): (boolean, any)
 		p.clutch.left = 0
 		table.insert(given, { kind = "eggs", n = Tree.lot(p) })
 	elseif key == "HatcheryNow" then
-		if #p.eggs == 0 then
+		-- (every warming egg ready now: a tap on its Hatchery hatches it, the hatch scene and all; none warming: shells)
+		local n = Breed.finish(p)
+		if n == 0 then
 			table.insert(given, addShells(p, Store.minutes(p, Tuning.FallbackMins)))
 		else
-			for _, e in p.eggs do
-				e.left = 1
-			end
-			local born = Breed.turn(p)
-			for _, x in born do
-				table.insert(given, { kind = "pal", id = x.sp, n = x.id })
-				Store.addXp(p, "breed")
-			end
+			table.insert(given, { kind = "ready", n = n })
 		end
 	else
 		return false, "bad_payload" :: ErrCode

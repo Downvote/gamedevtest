@@ -179,7 +179,8 @@ end
 -- next egg a tap away) and a notice says what hatched.
 -- What hatched (egg.hatch's or bag.hatch's data): the hatch scene, then the tree's panel back when it was open and a
 -- notice of what came out.
-local function played(data: { [string]: any }, fromPanel: boolean)
+-- (`panel`: the panel to bring back after it, the tree's or the Hatchery's, when one was open)
+local function played(data: { [string]: any }, panel: string?)
 	local def = if type(data.sp) == "string" then Creatures.byId[data.sp] else nil
 	local rar = Traits.RARITY[if def then def.rarity else 1] or Traits.RARITY[1]
 	local name = if def then def.name else "a driftling"
@@ -202,8 +203,8 @@ local function played(data: { [string]: any }, fromPanel: boolean)
 	HatchScene.play({ sp = if type(data.sp) == "string" then data.sp else "", muts = muts, r = r, hr = math.clamp(tonumber(data.hr) or r, r, Traits.RMAX), new = fresh }, function()
 		-- (the panel first: opening it clears the notices, so what hatched goes on the new panel's status line; not while
 		-- another hatch waits to play, whose scene comes next: then what hatched shows as a notice over it)
-		if fromPanel and StateClient.view() ~= nil and HatchScene.waiting() == 0 then
-			UIKit.openPanel("tree")
+		if panel and StateClient.view() ~= nil and HatchScene.waiting() == 0 then
+			UIKit.openPanel(panel)
 		end
 		local said = if sold > 0 then string.format("Hatched %s. The old one sold for %s shells.", what, Numbers.coins(sold)) else string.format("Hatched %s.", what)
 		UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
@@ -214,14 +215,14 @@ function EggView.hatch(id: number, swap: number?)
 	-- (where it lies: its driftling steps out there)
 	local e = eggs[myPlot .. ":e" .. id]
 	local spot = if e then spotOf(myPlot, e.slot, e.n) else nil
-	local fromPanel = UIKit.currentPanel() == "tree"
+	local panel = if UIKit.currentPanel() == "tree" then "tree" else nil
 	local res = StateClient.request("egg.hatch", { id = id, swap = swap or 0 })
 	if res.ok then
 		hatching[id] = os.clock()
 		if spot then
 			lastHatch[myPlot] = spot
 		end
-		played(if type(res.data) == "table" then res.data else {}, fromPanel)
+		played(if type(res.data) == "table" then res.data else {}, panel)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id })
 	elseif res.err == "money" and EggView.onShort then
@@ -238,15 +239,81 @@ end
 -- hut, or every hut full, the tree panel's swap picker for it; the same hatch scene. It never lay under the tree, so
 -- no egg on the ring cracks.
 function EggView.hatchBag(id: number, swap: number?)
-	local fromPanel = UIKit.currentPanel() == "tree"
+	local panel = if UIKit.currentPanel() == "tree" then "tree" else nil
 	local res = StateClient.request("bag.hatch", { id = id, swap = swap or 0 })
 	if res.ok then
-		played(if type(res.data) == "table" then res.data else {}, fromPanel)
+		played(if type(res.data) == "table" then res.data else {}, panel)
 	elseif res.err == "full" then
 		UIKit.openPanel("tree", { hatch = id, bag = true })
 	else
 		Audio.play("deny")
 		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+	end
+end
+
+-- The own island's Hatchery `uid`: the point on the ground just in front of it (world), where its hatchling steps out.
+local function hatcheryFront(uid: number): Vector3?
+	local m = plotModel(myPlot)
+	local st = if m then m:FindFirstChild("Static") else nil
+	local decor = if st then st:FindFirstChild("Decor") else nil
+	if decor == nil then
+		return nil
+	end
+	local ox, oz = Street.origin(myPlot)
+	for _, c in decor:GetChildren() do
+		local u, id, x, z, rot = string.match(c.Name, "^(%d+):([%w_]+):(%-?%d+):(%-?%d+):(%d+)")
+		local xx, zz, r = tonumber(x), tonumber(z), tonumber(rot)
+		if tonumber(u) == uid and id and xx and zz and r then
+			local w, d = Plot.footprint(id, r)
+			return Vector3.new(ox + xx + w / 2, Street.LAWN_Y, oz + zz + d + 0.8)
+		end
+	end
+	return nil
+end
+
+-- The egg at the own Hatchery `uid` (the view's), if any.
+function EggView.hatcheryEgg(uid: number): Types.Egg?
+	local v = StateClient.view()
+	local eggs: { Types.Egg } = (if v then v.eggs else nil) or {}
+	for _, e in eggs do
+		if e.uid == uid then
+			return e
+		end
+	end
+	return nil
+end
+
+-- Hatch the ready egg at the own Hatchery `uid` (breed.hatch; the request of 2026-11-20: "the hatchery should have the
+-- timer above its building, and show ready! once the egg is ready. clicking it while ready shows the hatching screen
+-- just like hatching an egg normally, but with the resultant creature"): the same hatch scene as the tree's eggs with
+-- what came out (laid as its kind's rarity, it hatches as that: no rarer roll), then the Hatchery's panel back when it
+-- was open and a notice of what hatched. Its driftling steps out in front of the Hatchery.
+function EggView.hatchery(uid: number): boolean
+	local panel = if UIKit.currentPanel() == "hatch" then "hatch" else nil
+	local res = StateClient.request("breed.hatch", { uid = uid })
+	if not res.ok then
+		Audio.play("deny")
+		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+		return false
+	end
+	local at = hatcheryFront(uid)
+	if at then
+		lastHatch[myPlot] = at
+	end
+	local data: { [string]: any } = if type(res.data) == "table" then res.data else {}
+	local r = math.clamp(tonumber(data.r) or 1, 1, Traits.RMAX)
+	played({ sp = data.sp, muts = data.muts, r = r, hr = r, new = data.new == true }, panel)
+	return true
+end
+
+-- A tap on the own Hatchery `uid` (on the building or its tag): a ready egg hatches; otherwise its panel opens (the
+-- request of 2026-11-14: "allow clicking on a hatchery to open the hatchery menu").
+function EggView.tapHatchery(uid: number)
+	local e = EggView.hatcheryEgg(uid)
+	if e and e.left <= 0 then
+		EggView.hatchery(uid)
+	else
+		UIKit.openPanel("hatch")
 	end
 end
 

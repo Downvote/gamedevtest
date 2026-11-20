@@ -813,15 +813,48 @@ do
 	end
 	H.push(p, 0.3)
 	H.expect(Tree.room(prof) == 1, "hatchery", "(one place left in the huts)", tostring(Tree.room(prof)))
-	-- the turns: the egg on the panel counts down, then they hatch (announced)
+	-- the turns: the egg on the panel and the tag over the Hatchery count down; then they are ready and wait for a tap
+	-- (the request of 2026-11-20: "the hatchery should have the timer above its building, and show ready! once the egg
+	-- is ready. clicking it while ready shows the hatching screen just like hatching an egg normally, but with the
+	-- resultant creature")
 	H.openPanel(p, "hatch")
+	local BTh = H.cmod(p, "Controllers.BuildingTags")
+	local HSh = H.cmod(p, "UI.HatchScene")
+	local NumbersH = H.sharedServer("Logic.Numbers")
+	-- (the time left: its turns, the one going now partly done, Tuning.TurnSeconds each)
+	local function dueIn(e): number
+		return (e.left - 1) * Tuning.TurnSeconds + (Tuning.TurnSeconds - H.session(p).turnClock)
+	end
 	-- (the time left in minutes or hours, never turns: "instead of "Hatches after x turns", describe it in minutes or
 	-- hours")
 	do
-		local NumbersH = H.sharedServer("Logic.Numbers")
 		local left = p.PlayerGui:FindFirstChild("EggLeft", true)
-		local want = if egg then "Hatches in " .. NumbersH.duration(egg.left * Tuning.TurnSeconds) else "?"
-		H.expect(left ~= nil and left.Text == want and not string.find(left.Text, "turn", 1, true), "hatchery", "the egg's time left in minutes", left and left.Text)
+		local due = if egg then dueIn(egg) else 0
+		local ok = left ~= nil and not string.find(left.Text, "turn", 1, true) and (left.Text == "Hatches in " .. NumbersH.duration(due) or left.Text == "Hatches in " .. NumbersH.duration(due + 2) or left.Text == "Hatches in " .. NumbersH.duration(due - 2))
+		H.expect(ok, "hatchery", "the egg's time left in minutes", left and left.Text)
+	end
+	H.closePanel(p)
+	H.push(p, 0.6)
+	local function tagOf(u: number)
+		for _, t in H.inClient(p, BTh.debugHatch) do
+			if t.uid == u then
+				return t
+			end
+		end
+		return nil
+	end
+	do
+		local t = tagOf(uid)
+		local m, sec = string.match(t and t.words or "", "^(%d+):(%d%d)$")
+		local shown = (tonumber(m) or -1) * 60 + (tonumber(sec) or 0)
+		local due = if egg then dueIn(egg) else -99
+		H.expect(t ~= nil and t.shown and not t.ready and m ~= nil and math.abs(shown - due) <= 2, "hatchery", "a timer over the Hatchery: the time till the egg is ready", string.format("%s, due in %.1f s", t and t.words or "no tag", due))
+		H.expect(tagOf(uids[2] or 0) ~= nil, "hatchery", "and over the other Hatchery with its egg")
+		H.push(p, 2)
+		local t2 = tagOf(uid)
+		local m2, s2 = string.match(t2 and t2.words or "", "^(%d+):(%d%d)$")
+		local shown2 = (tonumber(m2) or -1) * 60 + (tonumber(s2) or 0)
+		H.expect(m2 ~= nil and shown2 < shown and shown - shown2 <= 3, "hatchery", "counting down by the second", string.format("%s then %s", t and t.words or "?", t2 and t2.words or "?"))
 	end
 	local pals0 = #prof.pals
 	local i0 = #fx
@@ -832,20 +865,84 @@ do
 	E.run(0.5)
 	local news = nil
 	for i = i0 + 1, #fx do
-		if fx[i].kind == "turn" and type(fx[i].hatched) == "table" then
-			news = fx[i].hatched
+		if fx[i].kind == "turn" and type(fx[i].ready) == "table" then
+			news = fx[i].ready
 		end
 	end
-	H.expect(news ~= nil and #news == 2 and news[1].sp == "gullfin" and news[2].sp == "gullfin", "hatchery", "both eggs hatched after their turns (the turn's news)", tostring(news and #news))
-	local born = {}
-	for _, n in news or {} do
-		for _, x in prof.pals do
-			if x.id == n.id then
-				table.insert(born, x)
+	H.expect(news ~= nil and #news == 2 and news[1].sp == "gullfin" and news[2].sp == "gullfin" and news[1].uid == uid, "hatchery", "both eggs ready after their turns (the turn's news)", tostring(news and #news))
+	H.expect(#prof.eggs == 2 and prof.eggs[1].left == 0 and prof.eggs[2].left == 0 and #prof.pals == pals0 and prof.stats.hatched == 0, "hatchery", "nothing hatches by itself: the ready eggs wait at their Hatcheries", string.format("%d eggs, %d -> %d driftlings", #prof.eggs, pals0, #prof.pals))
+	nextTurn()
+	H.expect(#prof.eggs == 2 and prof.eggs[1].left == 0 and #prof.pals == pals0, "hatchery", "a turn later still waiting")
+	H.push(p, 0.3)
+	do
+		local t = tagOf(uid)
+		H.expect(t ~= nil and t.shown and t.ready and t.words == "Ready!", "hatchery", "the tag says Ready!", t and t.words)
+	end
+	-- the panel: Ready to hatch, a Hatch button (no Finish now: nothing warming)
+	H.openPanel(p, "hatch")
+	do
+		local left = p.PlayerGui:FindFirstChild("EggLeft", true)
+		H.expect(left ~= nil and left.Text == "Ready to hatch." and H.buttonNamed(p, "HatchNow_" .. uid) ~= nil and H.buttonNamed(p, "FinishNow") == nil, "hatchery", "the panel: Ready to hatch., a Hatch button and no Finish now", left and left.Text)
+	end
+	H.closePanel(p)
+	-- a tap on the tag: the hatch scene with what came out, the driftling into the hut with room
+	H.clickNamed(p, "HatchTap_" .. uid, { wait = 0.5 })
+	local hs = H.inClient(p, HSh.debugState)
+	H.expect(hs.open and hs.r == 2 and hs.hr == 2, "hatchery", "a tap on Ready! plays the hatch scene with the hatchling (an uncommon egg for a Gullfin, no rarer roll)", string.format("open %s, r %d hr %d", tostring(hs.open), hs.r, hs.hr))
+	H.expect(tagOf(uid) == nil and tagOf(uids[2] or 0) == nil, "hatchery", "no tags over the hatch scene")
+	-- (tapped through to its end, as a player would)
+	local function sceneOut()
+		for _ = 1, 60 do
+			if not H.inClient(p, HSh.isOpen) then
+				break
+			end
+			H.inClient(p, HSh.skip)
+			E.run(0.4)
+		end
+		E.run(0.4)
+	end
+	sceneOut()
+	H.expect(not H.inClient(p, HSh.isOpen), "hatchery", "(the hatch scene over)")
+	H.expect(#prof.eggs == 1 and #prof.pals == pals0 + 1 and prof.stats.hatched == 1 and tagOf(uid) == nil, "hatchery", "hatched: the egg gone, its tag too, one more driftling", string.format("%d eggs, %d driftlings", #prof.eggs, #prof.pals))
+	-- the other with a tap on the Hatchery itself (into no hut: they're full)
+	do
+		local model: Instance? = nil
+		local plotModel = E.workspace.Plots:FindFirstChild("Plot_" .. H.session(p).plot)
+		for _, d in (if plotModel then plotModel:GetDescendants() else {}) do
+			if model == nil and d:IsA("Model") and d:GetAttribute("Decor") == "hatchery" and string.match(d.Name, "^(%d+):") == tostring(uids[2]) then
+				model = d
 			end
 		end
+		local PRh = H.cmod(p, "Pixel.PixelRenderer")
+		local WVh = H.cmod(p, "Controllers.WorldView")
+		if H.expect(model ~= nil, "hatchery", "(the second Hatchery's model)") then
+			local at = (model :: Model):GetPivot().Position + E.v3(0, 1.5, 0)
+			local pos = H.inClient(p, function()
+				local sp = PRh.project(at)
+				return E.v2(sp.X, sp.Y - E.inset)
+			end)
+			E.raycastParts = true
+			H.inClient(p, WVh.tapScreen, pos)
+			E.raycastParts = nil
+			E.run(0.6)
+		end
 	end
-	H.expect(#born == 2 and #prof.eggs == 0 and prof.stats.hatched == 2 and #prof.pals == pals0 + 2, "hatchery", "two new driftlings", string.format("%d -> %d", pals0, #prof.pals))
+	H.expect(#prof.eggs == 0 and #prof.pals == pals0 + 2 and prof.stats.hatched == 2, "hatchery", "a tap on the other Hatchery hatches its ready egg", string.format("%d eggs, %d driftlings", #prof.eggs, #prof.pals))
+	sceneOut()
+	H.expect(H.req(p, "breed.hatch", { uid = uid }).err == "not_found", "hatchery", "nothing left to hatch there (not_found)")
+	local born = {}
+	for _, x in prof.pals do
+		if x.sp == "gullfin" and x.id ~= ids[1] and x.id ~= ids[2] and table.find(fillers, x.id) == nil then
+			table.insert(born, x)
+		end
+	end
+	table.sort(born, function(a, b)
+		return a.id < b.id
+	end)
+	-- (the two newest Gullfins)
+	while #born > 2 do
+		table.remove(born, 1)
+	end
 	H.expect(#born == 2 and born[1].home ~= 0 and born[2].home == 0 and born[2].work == 0, "hatchery", "the first into the hut with room, the second waiting with no hut", string.format("homes %s %s", tostring(born[1] and born[1].home), tostring(born[2] and born[2].home)))
 	H.expect(#born == 2 and born[1].lvl == nil and born[1].sp == "gullfin", "hatchery", "its parents' kind (no levels)")
 	H.checkProfile(p, "hatched")

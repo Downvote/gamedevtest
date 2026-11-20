@@ -332,8 +332,8 @@ local function buildLand(I: Isle)
 	for z = b.z0, b.z1 do
 		for x = b.x0, b.x1 do
 			local l = Street.layer(tier, x, z)
-			if l == Street.GRASS and Street.walkable(tier, x, z) then
-				-- (the open ground's: none under the rocks)
+			if l == Street.GRASS and Street.walkable(tier, x, z) and not Street.trail(tier, x, z) then
+				-- (the open ground's: none under the rocks, none on the trail's earth through them)
 				local key = (x // 8) * 1000 + z // 8
 				local ch = chunks[key]
 				if ch == nil then

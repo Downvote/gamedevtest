@@ -30,6 +30,48 @@ local function spot(p: any, id: string): (number, number)
 end
 
 return function()
+	T.it("the trail: a path across the island through the rocks, walked on, never built on, gone as the rocks go", function()
+		-- (the request of 2026-11-20: "make a path across each plot that goes through the rocks")
+		for _, tier in { 1, 5, 12 } do
+			local land = Street.cellBounds(tier)
+			local cut, west, east = 0, false, false
+			for x = land.x0, land.x1 do
+				-- every column of the island's grass has walkable ground on the trail's line: open ground or the cut
+				local mid = math.floor(Street.trailMid(x + 0.5))
+				if Street.layer(tier, x, mid) == Street.GRASS then
+					T.truthy(Street.walkable(tier, x, mid), string.format("tier %d: walkable at x %d on the trail's line", tier, x))
+					T.truthy(not Street.locked(tier, x, mid), "no rock on it")
+				end
+				for z = land.z0, land.z1 do
+					if Street.trail(tier, x, z) then
+						cut += 1
+						T.truthy(Street.walkable(tier, x, z) and not Street.locked(tier, x, z) and not Street.buildable(tier, x, z), "the cut: walked on, no rock, not built on")
+						T.truthy(Street.trailDist(x, z) <= 0, "on the trail")
+						T.truthy(Street.openDist(tier, x, z) > 0, "past the open ground")
+						if x < 0 then
+							west = true
+						else
+							east = true
+						end
+					end
+				end
+			end
+			T.truthy(cut > 0 and west and east, string.format("tier %d: the cut runs out both ways (%d cells)", tier, cut))
+		end
+		-- the top tier's island is all open: no cut left
+		local top = Street.cellBounds(Street.TOP)
+		local left = 0
+		for z = top.z0, top.z1 do
+			for x = top.x0, top.x1 do
+				if Street.trail(Street.TOP, x, z) then
+					left += 1
+				end
+			end
+		end
+		T.eq(left, 0, "every rock gone, the trail is open ground")
+		T.truthy(Street.trail(1, -40, math.floor(Street.trailMid(-39.5))), "(a cell of the first island's cut)")
+		T.truthy(not Plot.fits(1, {}, "torch", -40, math.floor(Street.trailMid(-39.5)), 0), "nothing built on the cut")
+	end)
 	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
 	T.it("the tips' snack stall: free while the tips ask for a shop, full price before and after", function()
 		local p = fresh()

@@ -188,6 +188,14 @@ function IslandService.init()
 	Router.on("breed.start", function(s, a)
 		return Breed.start(s.profile, a.uid, a.a, a.b)
 	end)
+	-- a ready egg hatched from its Hatchery (a tap on it: the client plays the hatch scene with what came out)
+	Router.on("breed.hatch", function(s, a)
+		local ok, data = Breed.hatch(s.profile, a.uid)
+		if ok then
+			Store.addXp(s.profile, "breed")
+		end
+		return ok, data
+	end)
 	-- the founder's look (GAME_DESIGN 9): the player's attribute follows on the next sync
 	Router.on("founder.set", function(s, a)
 		return Island.setFounder(s.profile, a.skin, a.hair, a.style, a.shirt)
@@ -344,11 +352,10 @@ function IslandService.step(dt: number)
 		s.turnClock += dt
 		if s.turnClock >= Tuning.TurnSeconds then
 			s.turnClock -= Tuning.TurnSeconds
-			-- the eggs a turn nearer; the ready ones hatch into a hut with room
-			local hatched, fresh = Breed.turn(p)
-			Store.addXp(p, "breed", #hatched)
+			-- the eggs a turn nearer; the ready ones wait for a tap on their Hatchery (breed.hatch)
+			local ready = Breed.turn(p)
 			Session.markDirty(s)
-			Session.fx(s, { kind = "turn", hatched = if #hatched > 0 then hatched else nil, fresh = if #fresh > 0 then fresh else nil })
+			Session.fx(s, { kind = "turn", ready = if #ready > 0 then ready else nil })
 		end
 		if today > s.dayIndex then
 			s.dayIndex = today
@@ -392,7 +399,7 @@ function IslandService.step(dt: number)
 				s.shopRot = rot
 				Session.markDirty(s)
 			end
-			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = now, clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p), play = p.rewards.play.secs })
+			Session.fx(s, { kind = "tick", shells = p.shells, dayFrac = WorldClock.dayFrac(), clock = now, clutchLeft = p.clutch.left, clutchSecs = Tree.secs(p), turnIn = Tuning.TurnSeconds - s.turnClock, play = p.rewards.play.secs })
 		end
 	end
 end

@@ -1029,12 +1029,19 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > The request (2026-11-20, after the first rings ran out to the island's sides and then on north and south): "make
 > expansion expand outwards evenly instead of resulting in one long stretch"
 
+> The request (2026-11-20): "also, make a path across each plot that goes through the rocks"
+
 The island is whole from the first day and round: about 132 studs across, its beaches, palms and shallows all round.
 The founder starts in the middle of it, on a meadow round the plaza and the Tree of Life, and rock covers the rest of
 the grass: shelves of grey stone that step up the further they are from the meadow, boulders along the edge and on
 top, moss and tufts. Nobody walks or builds on the rock. Each tier opens a wider ring round the plaza (`Data/Street`'s
 isles: the first a small oval, then circles from 19 studs across the radius to 60, each edge with its own wobble), so
-the open ground grows outward evenly every way, and growing to a tier clears the rocks off its ring. The rings open as
+the open ground grows outward evenly every way, and growing to a tier clears the rocks off its ring. A trail runs
+across every island from the west beach to the east one through the plaza's row, wandering a little, four studs wide
+(`Street.trail`): where the rocks still stand it is trodden earth like the Dirt Path with a pebble here and there, the
+rock stepping up from it on both sides as it does from the meadow, so a founder who swims over from a neighbour walks
+up off the beach and in. Nothing is built on it and no tufts grow on it; as the rings open it becomes meadow like the
+rest, and at Everdrift none of it is left. The rings open as
 much ground as the islands used to gain (the table's grass), so the limits and prices still fit. The ring reaches the
 beaches about Sunspire Capital and the whole island is open at Everdrift: 12,193 cells. The islands stand 170 studs
 apart (80 before, when a new island was small), so open sea still runs between two neighbours. A piece may stand
@@ -1950,6 +1957,11 @@ the text gets cut off for some alerts").
 > The request (2026-11-19): "In hatchery, show the resultant mutation combination the pet will have. Always take the
 > highest tier mutations to combine with each other if possible." So nothing about an egg is left to chance: the
 > panel shows its kind, its mutations, its price and its time before Breed, and that is what hatches.
+>
+> The request (2026-11-20): "the hatchery should have the timer above its building, and show ready! once the egg is
+> ready. clicking it while ready shows the hatching screen just like hatching an egg normally, but with the resultant
+> creature". So an egg no longer hatches by itself: once its time is up it waits at its Hatchery, and a tap hatches it
+> through the same hatch scene as the tree's eggs (below).
 
 - **The Hatchery** (Huts tab, island tier 3: a warm nursery with a nest of speckled eggs and a heat lamp): one egg at a
   time each; one may stand on Grand Isle and more on bigger islands (`HatcheryLimit`, §4). Its panel opens from a tap
@@ -1992,12 +2004,21 @@ the text gets cut off for some alerts").
   family: all gone with the kinds of work.)
 - **Its time**: `BreedTurns` times the huts' Hatchery shares (the Cozy family, the rain's, a few passives: each takes
   its share off what is left, down to `HatchMin`, 30% of the time), at least one turn.
-- **Hatching**: at each turn's end the eggs count down; a ready one hatches and moves into the comfiest hut with room
-  (with none it waits with no hut, §6), and goes in the Index ("Floe hatched" in the turn's banner). The panel shows
-  each egg: its rarity's egg, the time left in minutes or hours over a bar ("Hatches in 2 min", `Numbers.duration`;
-  the request of 2026-11-14: "instead of "Hatches after x turns", describe it in minutes or hours for hatcheries"),
-  its parents. A Hatchery holding an egg is not cleared
-  away ("An egg is still warming there."). On the island its name floats up over the Hatchery in pink.
+- **The tag over the Hatchery** (`Controllers/BuildingTags`): while it holds an egg, a small tag floats over its roof
+  with the egg of its rarity and the time till it is ready as a clock ("2:25", `Numbers.clock`, counting down by the
+  second from the island's turn clock). Ready, it says **Ready!** in green and bobs a pixel. The tags hide while the
+  hatch scene plays.
+- **Ready** (`Breed.turn`): at each turn's end the eggs count down; one reaching zero is ready and waits at its
+  Hatchery. "Ready!" floats up over it in pink and a banner says "An egg is ready" with "Tap the Hatchery to hatch
+  it." The panel shows each egg: its rarity's egg, the time left in minutes or hours over a bar ("Hatches in 2 min",
+  `Numbers.duration`; the request of 2026-11-14: "instead of "Hatches after x turns", describe it in minutes or hours
+  for hatcheries"), its parents; a ready one says "Ready to hatch." with a **Hatch** button.
+- **Hatching** (`Breed.hatch`, the action `breed.hatch`): a tap on a ready Hatchery, on its tag, or Hatch in the panel
+  plays the hatch scene (§6.2) with what came out, laid as its kind's rarity and hatching as that (no rarer roll: what
+  hatches was shown before Breed), "New!" for a kind never had. It moves into the comfiest hut with room (with none it
+  waits with no hut, §6), steps out in front of the Hatchery, goes in the Index, and a notice says "Hatched an
+  uncommon Gullfin." A tap on a Hatchery with an egg still warming, or none, opens the panel. A Hatchery holding an
+  egg, ready or not, is not cleared away ("An egg is still warming there.").
 
 ### 6.2 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `EggModels.hero`)
 
@@ -2907,7 +2928,7 @@ the purchase went through only once the save holds it):
 | Uncommon, Rare, Epic, Legendary, Mythic and Celestial Egg | 15, 35, 75, 159, 399, 999 | an egg of that rarity in the bag |
 | Shop Refresh | 19 | a new set in the rotating shop, till it turns over |
 | Starter Pack | 49 | once: an hour of shells, an epic and a legendary egg, the Explorer Hat and Explorer Shirt, the Early Bird title (bought again: half an hour of shells) |
-| Finish Hatcheries | 29 | every egg in the Hatcheries hatches now (none there: half an hour of shells) |
+| Finish Hatcheries | 29 | every egg warming in the Hatcheries ready now, a tap away from hatching (none warming: half an hour of shells) |
 | New Eggs | 25 | the Tree of Life lays a fresh lot now, the eggs lying there going (its clock run out: the server's next tick lays it, in the weather of the moment) |
 
 Where they are sold beside the Store (the request of 2026-11-14: "make a developer product to refresh eggs in the tree

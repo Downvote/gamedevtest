@@ -614,6 +614,44 @@ do
 	end
 	H.expect(walls > 0 and under and open == 0, "walk", "rock walls stand on the rock round a first island's open ground, none on the open ground", string.format("%d walls, the rock at z %s under one: %s, %d on the open ground", walls, tostring(lockedZ), tostring(under), open))
 end
+-- the trail across the island through the rocks (the request of 2026-11-20: "make a path across each plot that goes
+-- through the rocks"): its cells clear of every rock wall from the open ground out to the beach both ways, and drawn
+-- (the Trail slabs)
+do
+	local ox = Street.origin(1)
+	local cells: { { number } } = {}
+	local b = Street.cellBounds(1)
+	for x = b.x0, b.x1 do
+		local z = math.floor(Street.trailMid(x + 0.5))
+		if Street.trail(1, x, z) then
+			table.insert(cells, { x, z })
+		end
+	end
+	local walled, slabs = 0, 0
+	local west, east = false, false
+	for _, c in cells do
+		if c[1] < 0 then
+			west = true
+		else
+			east = true
+		end
+	end
+	for _, d in plots:GetDescendants() do
+		if d:IsA("BasePart") and math.abs(d.Position.X - ox) < Street.SPACING / 2 then
+			if d.Name == "RockWall" then
+				local p, sz = d.Position, d.Size
+				for _, c in cells do
+					if math.abs(ox + c[1] + 0.5 - p.X) < sz.X / 2 and math.abs(c[2] + 0.5 - p.Z) < sz.Z / 2 then
+						walled += 1
+					end
+				end
+			elseif d.Name == "Trail" then
+				slabs += 1
+			end
+		end
+	end
+	H.expect(#cells > 20 and west and east and walled == 0 and slabs > 0, "walk", "the trail runs through the rocks both ways, no wall on it, drawn as earth", string.format("%d cells on its line, %d walled, %d slabs", #cells, walled, slabs))
+end
 -- a founder in that sea swims (AvatarView: the ground under them is the sea, the rig sunk to its chest at the
 -- surface, the strokes heard, a ring of foam round them; the HUD holds the jump and slows them to Tuning.SwimSpeed);
 -- with E.raycastParts the ground ray hits every part, as in Roblox

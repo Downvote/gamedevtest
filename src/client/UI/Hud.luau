@@ -930,38 +930,29 @@ local function updateTips(v: Types.ClientView)
 end
 
 ------------------------------------------------------------------ a new day
--- A banner drops in at the top: the day, or what hatched. Under a panel or in Build mode: a notice.
--- A new calendar day ("Day 12": every few hours) or a turn's news (an egg hatched).
+-- A banner drops in at the top: the day, or a Hatchery egg ready. Under a panel or in Build mode: a notice.
+-- A new calendar day ("Day 12": every few hours) or a turn's news (a Hatchery's egg ready to hatch).
 local function onDay(msg: { [string]: any })
 	local isDay = msg.kind == "day"
 	local day = tonumber(msg.day) or 0
 	local lines: { string } = {}
-	-- an egg hatched at the Hatchery (Logic/Breed): its kind (and what it was born with)
-	-- (a kind the player never had before gets "New!" in front: the turn's `fresh`)
+	-- a Hatchery's egg ready (Logic/Breed.turn): a tap on the Hatchery hatches it (the request of 2026-11-20)
 	local hatched = 0
-	local fresh: { [string]: boolean } = {}
-	if type(msg.fresh) == "table" then
-		for _, sp in msg.fresh do
-			if type(sp) == "string" then
-				fresh[sp] = true
+	if type(msg.ready) == "table" then
+		for _, x in msg.ready do
+			if type(x) == "table" and type(x.sp) == "string" and Creatures.byId[x.sp] then
+				hatched += 1
 			end
 		end
 	end
-	if type(msg.hatched) == "table" then
-		for _, x in msg.hatched do
-			local d = if type(x) == "table" and type(x.sp) == "string" then Creatures.byId[x.sp] else nil
-			if d then
-				hatched += 1
-				table.insert(lines, (if fresh[d.id] then "New: " else "") .. d.name .. " hatched")
-				fresh[d.id] = nil
-			end
-		end
+	if hatched > 0 then
+		table.insert(lines, if hatched == 1 then "Tap the Hatchery to hatch it." else "Tap the Hatcheries to hatch them.")
 	end
 	if not isDay and hatched == 0 then
 		return
 	end
-	local title = if isDay then "Day " .. day else "An egg hatched!"
-	-- (a hatchling the friend's chimes, a plain new day a small ding)
+	local title = if isDay then "Day " .. day elseif hatched == 1 then "An egg is ready" else "Eggs are ready"
+	-- (an egg ready the friend's chimes, a plain new day a small ding)
 	Audio.play(if hatched > 0 then "friend" else "ding")
 	if isDay then
 		chipBump.day = os.clock()
@@ -989,7 +980,7 @@ local function onDay(msg: { [string]: any })
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, -h - 10), 2)
 	f.Name = "DayBanner"
 	f.ZIndex = 8
-	PixelSprites.image(f, if isDay then "mini_sun" else "mini_pal", UDim2.fromOffset(6, 6), 9)
+	PixelSprites.image(f, if isDay then "mini_sun" else "mini_egg", UDim2.fromOffset(6, 6), 9)
 	UIKit.text(f, title, UDim2.fromOffset(w - 24, 16), UDim2.fromOffset(20, 3), { face = "big", kind = "title", color = UIKit.color("accent"), z = 9, name = "Day" })
 	for i, l in lines do
 		UIKit.text(f, l, UDim2.fromOffset(w - 12, 10), UDim2.fromOffset(6, 10 + i * 10), { color = UIKit.color("good"), z = 9, name = "Line" .. i })

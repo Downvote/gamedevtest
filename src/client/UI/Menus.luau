@@ -482,7 +482,13 @@ local function buildHatch(body: Frame, arg: any?)
 	-- (the request of 2026-11-15: "say Breed two driftlings for an egg. also, specify what happens to the result, such
 	-- as mutations and rarity": the rarity here, the mutations on each pair's line; Finish now in the first warming
 	-- egg's row, so the words have the whole width)
-	local warming = #(v.eggs or {}) > 0
+	local warming = false
+	local allEggs: { Types.Egg } = v.eggs or {}
+	for _, e in allEggs do
+		if e.left > 0 then
+			warming = true
+		end
+	end
 	local finishShown = false
 	-- (the request of 2026-11-19: "In hatchery, show the resultant mutation combination the pet will have. Always take
 	-- the highest tier mutations to combine with each other if possible": Logic/Breed.preview, shown before Breed)
@@ -513,9 +519,11 @@ local function buildHatch(body: Frame, arg: any?)
 			PixelSprites.image(f, "egg_" .. r, UDim2.fromOffset(5, 6), 4)
 			UIKit.text(f, rar.name, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 2), { color = UIKit.color(rar.color), z = 4, name = "EggName" })
 			local _, total = Breed.cost(egg.sp, asProfile(v))
-			-- (in minutes or hours: its turns left, Tuning.TurnSeconds each while you are on the island)
-			local line = if egg.left > 0 then "Hatches in " .. Numbers.duration(egg.left * Tuning.TurnSeconds) else "Hatching now."
-			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if egg.left > 0 then UIKit.color("text") else UIKit.color("orange"), z = 4, name = "EggLeft" })
+			-- (in minutes or hours: its turns left, Tuning.TurnSeconds each while you are on the island; ready, it waits
+			-- for Hatch here or a tap on the Hatchery: the request of 2026-11-20)
+			local ready = egg.left <= 0
+			local line = if ready then "Ready to hatch." else "Hatches in " .. Numbers.duration(StateClient.eggLeft(egg))
+			UIKit.text(f, line, UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 12), { color = if ready then UIKit.color("good") else UIKit.color("text"), z = 4, name = "EggLeft" })
 			local bw = math.min(140, W - 40)
 			local back = UIKit.rect(f, UDim2.fromOffset(bw, 4), UDim2.fromOffset(26, 24), UIKit.color("glass"), 4)
 			back.BackgroundTransparency = 0.25
@@ -530,7 +538,11 @@ local function buildHatch(body: Frame, arg: any?)
 			UIKit.text(f, "From " .. nm(pa) .. " and " .. nm(pb), UDim2.fromOffset(W - 40, 10), UDim2.fromOffset(26, 32), { color = UIKit.color("text_dim"), z = 4 })
 			-- the mutations it hatches with (decided when it was laid)
 			mutLine(f, Traits.clean(egg.muts), 26, 44, W - 26 - 100)
-			if warming and not finishShown then
+			if ready then
+				UIKit.button(f, "Hatch", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 49), function()
+					EggView.hatchery(q.uid)
+				end, { name = "HatchNow_" .. q.uid, color = UIKit.color("button_ok") }).ZIndex = 4
+			elseif warming and not finishShown then
 				finishShown = true
 				UIKit.button(f, "Finish now", UDim2.fromOffset(88, 13), UDim2.new(1, -92, 0, 49), function()
 					StoreUI.buy("HatcheryNow")

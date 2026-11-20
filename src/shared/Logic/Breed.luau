@@ -1,7 +1,7 @@
 --!strict
 -- The Hatchery (GAME_DESIGN 6.1: "make a breeding system that also works like in palworld that unlocks after a certain
--- island level"; 2026-11-15: "say Breed two driftlings for an egg"): two driftlings bred for an egg; it hatches after a
--- few island turns into a hut with room
+-- island level"; 2026-11-15: "say Breed two driftlings for an egg"): two driftlings bred for an egg; it is ready after
+-- a few island turns and hatches when the player taps its Hatchery (`hatch`), into a hut with room
 -- (Logic/Tree.add: with none it waits with no hut till one has room).
 -- The genre's system in our own numbers. Pure.
 --   What hatches: the same kind from a pair of one kind; else the kind whose power (Data/Creatures `power`) lies
@@ -191,27 +191,62 @@ function Breed.start(p: Profile, uid: number, a: number, b: number): (boolean, a
 	return true, egg
 end
 
--- A turn's end: every egg a turn nearer; the ready ones hatch into a hut with room (in the Index). The hatched, and
--- the kinds among them the player never had before (the notice's "New!").
-function Breed.turn(p: Profile): ({ Types.Pal }, { string })
-	local born: { Types.Pal } = {}
-	local fresh: { string } = {}
-	local keep: { Egg } = {}
+-- A turn's end: every egg a turn nearer. One reaching 0 is ready and waits at its Hatchery till the player taps it
+-- (`hatch`; the request of 2026-11-20: "the hatchery should have the timer above its building, and show ready! once
+-- the egg is ready. clicking it while ready shows the hatching screen just like hatching an egg normally, but with the
+-- resultant creature"). The eggs that turned ready this turn (each its Hatchery's uid and kind).
+export type Ready = { uid: number, sp: string }
+function Breed.turn(p: Profile): { Ready }
+	local ready: { Ready } = {}
 	for _, egg in p.eggs do
-		egg.left = math.max(0, egg.left - 1)
-		local d = Creatures.byId[egg.sp]
-		if egg.left == 0 and d then
-			if (p.seen[egg.sp] or 0) < 2 then
-				table.insert(fresh, egg.sp)
+		if egg.left > 0 then
+			egg.left -= 1
+			if egg.left == 0 then
+				table.insert(ready, { uid = egg.uid, sp = egg.sp })
 			end
-			table.insert(born, Tree.add(p, egg.sp, Traits.clean(egg.muts)))
-			p.stats.hatched += 1
-		else
-			table.insert(keep, egg)
 		end
 	end
-	p.eggs = keep
-	return born, fresh
+	return ready
+end
+
+-- Every warming egg ready now (the Finish Hatcheries product): how many turned ready.
+function Breed.finish(p: Profile): number
+	local n = 0
+	for _, egg in p.eggs do
+		if egg.left > 0 then
+			egg.left = 0
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Hatch the ready egg at the Hatchery `uid` into a hut with room (Logic/Tree.add: with none it waits with no hut; in
+-- the Index either way): not_found (no egg there), egg (still warming). What hatched: its Hatchery, kind, mutations,
+-- rarity, new id and hut, and `new` for a kind the player never had before (the hatch scene's "New!").
+export type Hatched = { uid: number, sp: string, muts: { string }, r: number, id: number, home: number, new: boolean }
+function Breed.hatch(p: Profile, uid: number): (boolean, any)
+	local at = 0
+	for i, e in p.eggs do
+		if e.uid == uid then
+			at = i
+		end
+	end
+	local egg = p.eggs[at]
+	local d = if egg then Creatures.byId[egg.sp] else nil
+	if egg == nil or d == nil then
+		return false, "not_found" :: ErrCode
+	end
+	if egg.left > 0 then
+		return false, "egg" :: ErrCode
+	end
+	local fresh = (p.seen[egg.sp] or 0) < 2
+	local muts = Traits.clean(egg.muts)
+	local pal = Tree.add(p, egg.sp, muts)
+	p.stats.hatched += 1
+	table.remove(p.eggs, at)
+	local out: Hatched = { uid = uid, sp = egg.sp, muts = table.clone(muts), r = d.rarity, id = pal.id, home = pal.home, new = fresh }
+	return true, out
 end
 
 return table.freeze(Breed)

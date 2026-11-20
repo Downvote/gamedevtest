@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Net = require(ReplicatedStorage.Shared.Net)
+local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 
 local StateClient = {}
@@ -18,6 +19,13 @@ StateClient.Fx = Util.Signal() :: Types.Signal<{ [string]: any }>
 StateClient.Tick = Util.Signal() :: Types.Signal<Types.ClientView>
 -- the time to the tree's next eggs as the server last said, and when (the client runs it down between its ticks)
 local clutchLeft, clutchAt = 0, 0
+-- the seconds to the island's next turn as the server last said, and when (the Hatcheries' timers run it down)
+local turnIn, turnAt = 0, 0
+local function tookTurn(x: any)
+	if type(x) == "number" and x == x then
+		turnIn, turnAt = x, os.clock()
+	end
+end
 -- the sea's clock as the server last said, and when (run on between ticks: the season and weather, Logic/Weather)
 local seaAt, seaClock = 0, 0
 local function tookClock(c: any)
@@ -36,6 +44,7 @@ function StateClient.init()
 				clutchLeft, clutchAt = left, os.clock()
 			end
 			tookClock((v :: any).clock)
+			tookTurn((v :: any).turnIn)
 			StateClient.Changed:Fire(v :: Types.ClientView)
 		end
 	end)
@@ -56,6 +65,7 @@ function StateClient.init()
 				if type(msg.clutchSecs) == "number" and msg.clutchSecs == msg.clutchSecs and msg.clutchSecs > 0 then
 					cur.clutchSecs = msg.clutchSecs
 				end
+				tookTurn(msg.turnIn)
 				if type(msg.clock) == "number" and msg.clock == msg.clock then
 					tookClock(msg.clock)
 					cur.clock = msg.clock
@@ -77,6 +87,19 @@ function StateClient.clutchLeft(): (number, number)
 	local v = current
 	local secs = if v then v.clutchSecs else 1
 	return math.max(0, clutchLeft - (os.clock() - clutchAt)), secs
+end
+
+-- Seconds to the island's next turn (the server's last word run down by the clock).
+function StateClient.turnIn(): number
+	return math.max(0, turnIn - (os.clock() - turnAt))
+end
+
+-- Seconds till the Hatchery egg `e` is ready (0 once it is: its turns left, the one going now partly done).
+function StateClient.eggLeft(e: Types.Egg): number
+	if e.left <= 0 then
+		return 0
+	end
+	return (e.left - 1) * Tuning.TurnSeconds + math.min(Tuning.TurnSeconds, StateClient.turnIn())
 end
 
 -- The sea's clock now (seconds: the server's last word run on by this client's clock; 0 before the first view): the

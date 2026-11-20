@@ -911,7 +911,7 @@ local function scatterOk(k: ScatterKind, tier: number, x: number, z: number, sx:
 	elseif id == "weed" then
 		return l == Street.WET
 	end
-	return l == Street.GRASS and not Street.buildable(tier, x, z) and not Street.locked(tier, x, z)
+	return l == Street.GRASS and not Street.buildable(tier, x, z) and not Street.locked(tier, x, z) and not Street.trail(tier, x, z)
 end
 
 -- The way out to sea from cell (x, z) (radians, as a palm leans): down the layers round it, grass to sea.
@@ -1030,8 +1030,9 @@ end
 
 local function rockCover(m: Instance, o: CFrame, tier: number, b: Rect)
 	local key = Street.cellKey
+	-- (how far from the ground walked on: the open ground and the trail, so the rocks step up from both)
 	local function open(x: number, z: number): number
-		return Street.openDist(tier, x, z)
+		return Street.rockDist(tier, x, z)
 	end
 	local function onRock(x: number, z: number): boolean
 		return Street.locked(tier, x, z)
@@ -1056,6 +1057,23 @@ local function rockCover(m: Instance, o: CFrame, tier: number, b: Rect)
 		f.CastShadow = false
 		f.CollisionGroup = "Bounds"
 	end
+	-- the trail through them (Street.trail): trodden earth flush with the grass, as the Dirt Path piece, a pebble here
+	-- and there
+	local function onTrail(x: number, z: number): boolean
+		return Street.trail(tier, x, z)
+	end
+	for _, r in greedy(b, onTrail) do
+		slab(m, o, r.x0, r.z0, r.x1, r.z1, Street.LAWN_Y + 0.04, 0.06, "sand_dark", "Trail")
+	end
+	for z = b.z0, b.z1 do
+		for x = b.x0, b.x1 do
+			if onTrail(x, z) and hash01(x, z, 141) < 0.09 then
+				local px = x + 0.25 + math.floor(hash01(x, z, 142) * 3) * 0.25
+				local pz = z + 0.25 + math.floor(hash01(x, z, 143) * 3) * 0.25
+				box(m, o, px, Street.LAWN_Y + 0.07, pz, 0.25, 0.06, 0.25, if hash01(x, z, 144) < 0.5 then "rock" else "rock_dark", "Pebble")
+			end
+		end
+	end
 	-- boulders, moss and tufts, each where its hash is the lowest of its kind within its gap
 	for _, k in ROCK_THINGS do
 		local g = math.ceil(k.gap)
@@ -1063,7 +1081,8 @@ local function rockCover(m: Instance, o: CFrame, tier: number, b: Rect)
 		for z = b.z0 - g, b.z1 + g do
 			for x = b.x0 - g, b.x1 + g do
 				local d = open(x, z)
-				if d > k.d0 and d <= k.d1 and Street.layer(tier, x, z) == Street.GRASS then
+				-- (none on the trail or at its edge: it stays clear to walk)
+				if d > k.d0 and d <= k.d1 and Street.layer(tier, x, z) == Street.GRASS and Street.trailDist(x, z) > 0.3 then
 					local h = hash01(x, z, k.salt)
 					if h < k.p then
 						cand[key(x, z)] = h
@@ -1137,15 +1156,15 @@ local function cellCode(tier: number, x: number, z: number): number
 	local d = Street.cellDist(tier, x, z)
 	local code = l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
 	if l == Street.GRASS then
-		-- (and how far from the open ground's edge, in the bands the rocks read: rockCover)
-		local od = Street.openDist(tier, x, z)
+		-- (and how far from the ground walked on, in the bands the rocks read: rockCover; the trail's cells are rock-free)
+		local od = Street.rockDist(tier, x, z)
 		local band = 0
 		for _, e in ROCK_BANDS do
 			if od > e then
 				band += 1
 			end
 		end
-		code += 64 * band
+		code += 64 * band + (if Street.trail(tier, x, z) then 1024 else 0)
 	end
 	return code
 end

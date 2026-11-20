@@ -28,7 +28,7 @@ local Monetization = {
 		EggCelestial = 0,
 		RefreshShop = 0, -- a new set of pieces in the rotating shop
 		StarterPack = 0, -- once: shells, an epic and a legendary egg, the Explorer set and the Early Bird title
-		HatcheryNow = 0, -- every egg in the Hatcheries hatches now
+		HatcheryNow = 0, -- every egg warming in the Hatcheries ready now
 		RefreshEggs = 0, -- the Tree of Life lays a fresh lot of eggs now (the request of 2026-11-14: "make a developer product to refresh eggs in the tree of life")
 	} :: { [string]: number },
 	-- what each should cost (set the real price on the Creator Dashboard; the Store shows the live price once it has it)

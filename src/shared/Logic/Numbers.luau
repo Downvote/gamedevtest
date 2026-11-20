@@ -67,6 +67,15 @@ function Numbers.duration(secs: number): string
 	return string.format("%d min", m)
 end
 
+-- A timer: "4:05", "1:02:09" (whole seconds, rounded up so it reads 0:00 only at the end).
+function Numbers.clock(secs: number): string
+	local t = math.max(0, math.ceil(secs - 1e-9))
+	if t >= 3600 then
+		return string.format("%d:%02d:%02d", t // 3600, (t // 60) % 60, t % 60)
+	end
+	return string.format("%d:%02d", t // 60, t % 60)
+end
+
 -- A rarity: "1 in 1,250" (short past a million: "1 in 4.5M").
 function Numbers.oneIn(n: number): string
 	if n >= 1e6 then

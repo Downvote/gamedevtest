@@ -63,7 +63,7 @@ local PASSES: { Item } = {
 
 local PRODUCTS: { Item } = {
 	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of shells, epic and legendary eggs, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
-	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Hatch every Hatchery egg now.", icon = "mini_nest", pass = false },
+	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Every Hatchery egg ready now.", icon = "mini_nest", pass = false },
 	{ key = "RefreshShop", name = "Shop Refresh", blurb = "Six new pieces in the shop now.", icon = "mini_refresh", pass = false },
 	{ key = "RefreshEggs", name = "New Eggs", blurb = "The tree lays new eggs now.", icon = "mini_tree", pass = false },
 }
@@ -253,6 +253,9 @@ function StoreUI.rewardText(from: string, given: { any }): string
 			table.insert(one, "a new shop set")
 		elseif g.kind == "eggs" then
 			table.insert(one, "new eggs at the tree")
+		elseif g.kind == "ready" then
+			local n = math.max(1, math.floor(tonumber(g.n) or 1))
+			table.insert(one, if n == 1 then "an egg ready at the Hatchery" else string.format("%d eggs ready at the Hatcheries", n))
 		elseif g.kind == "pal" then
 			pals += 1
 			local d = Creatures.byId[tostring(g.id)]
@@ -493,7 +496,14 @@ local function buildEggs(body: Frame, v: Types.ClientView, W: number, H: number,
 		UIKit.text(f, it.name, UDim2.fromOffset(W - BW - 40, 10), UDim2.fromOffset(24, 2), { color = color, z = 4, name = "Name" })
 		local blurb = it.blurb
 		if it.key == "HatcheryNow" then
-			blurb = if #(v.eggs or {}) > 0 then string.format("Hatch every Hatchery egg now (%d warming).", #v.eggs) else "Hatch every Hatchery egg now. None warming."
+			local warm = 0
+			local eggs: { Types.Egg } = v.eggs or {}
+			for _, e in eggs do
+				if e.left > 0 then
+					warm += 1
+				end
+			end
+			blurb = if warm > 0 then string.format("Every Hatchery egg ready now (%d warming).", warm) else "Every Hatchery egg ready now. None warming."
 		end
 		UIKit.text(f, blurb, UDim2.fromOffset(W - BW - 34, if r then 10 else 20), UDim2.fromOffset(24, 12), { color = UIKit.color("text_dim"), z = 4, wrap = r == nil, name = "Blurb" })
 		robuxButton(f, it.key, W - BW - 10, 3, BW)

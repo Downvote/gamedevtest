@@ -104,6 +104,8 @@ function Session.view(s: S): Types.ClientView
 		inv = p.inv,
 		seen = p.seen,
 		eggs = p.eggs,
+		-- (seconds to the island's next turn: the Hatcheries' timers count down from it, StateClient.turnIn)
+		turnIn = Tuning.TurnSeconds - s.turnClock,
 		tut = p.tut,
 		quest = p.quest,
 		stats = p.stats,

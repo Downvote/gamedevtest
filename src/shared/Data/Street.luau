@@ -22,8 +22,9 @@
 -- heart: `openDist`, the signed distance from the open ground's edge) and an expansion clears the rocks off it (the
 -- request of 2026-11-20: "instead of expansion actually expanding the island, make the player start in the middle of
 -- the island first, which is surrounded by rocks. expanding removes these rocks to give space to the player to
--- build"). Buildings stand only on `buildable` cells (a stud in from the coast and from the rocks, off the plaza);
--- the founders walk on the open ground and the beaches, never on the rocks (`walkable`). The same tier is the same
+-- build"). A trail runs across the island from beach to beach through the rocks (`trail`). Buildings stand only on
+-- `buildable` cells (a stud in from the coast and from the rocks, off the plaza); the founders walk on the open ground,
+-- the trail and the beaches, never on the rocks (`walkable`). The same tier is the same
 -- shape on every plot (a save does not depend on where the island is moored).
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 
@@ -221,11 +222,41 @@ function Street.openDist(tier: number, x: number, z: number): number
 	return cellsOf(tier).dist[key(x, z)] or math.huge
 end
 
--- Whether rocks cover cell (x, z) at a tier: the island's grass past the open ground.
+-- The trail: a path across the island from the west beach to the east, through the plaza's row, cut through the rocks
+-- (the request of 2026-11-20: "make a path across each plot that goes through the rocks"), so a founder who swims over
+-- from a neighbour (they lie east and west) walks up off the beach onto the open ground. Its middle wanders a little,
+-- TRAIL_HALF studs either side of it. Where the rocks still are it is a dirt path between them (StreetModels), never
+-- built on; on the open ground it is grass like the rest. The same on every plot and tier.
+Street.TRAIL_HALF = 2
+local function trailMid(x: number): number
+	return Street.CENTER.z + 1.4 * math.sin(x * 0.11 + 0.8) + 0.6 * math.sin(x * 0.27 + 2.1)
+end
+Street.trailMid = trailMid
+
+-- How far a cell's centre lies from the trail's edge (studs, across it; negative on it).
+function Street.trailDist(x: number, z: number): number
+	return math.abs(z + 0.5 - trailMid(x + 0.5)) - Street.TRAIL_HALF
+end
+
+-- Whether cell (x, z) is the trail's cut through the rocks at a tier: the island's grass past the open ground, on the
+-- trail.
+function Street.trail(tier: number, x: number, z: number): boolean
+	local k = key(x, z)
+	local d = land().dist[k]
+	return d ~= nil and d <= 0 and (cellsOf(tier).dist[k] or math.huge) > 0 and Street.trailDist(x, z) <= 0
+end
+
+-- Whether rocks cover cell (x, z) at a tier: the island's grass past the open ground, off the trail.
 function Street.locked(tier: number, x: number, z: number): boolean
 	local k = key(x, z)
 	local d = land().dist[k]
-	return d ~= nil and d <= 0 and (cellsOf(tier).dist[k] or math.huge) > 0
+	return d ~= nil and d <= 0 and (cellsOf(tier).dist[k] or math.huge) > 0 and Street.trailDist(x, z) > 0
+end
+
+-- How far a cell lies from the ground a founder walks on at a tier (studs: the nearer of the open ground's edge and the
+-- trail's; negative on them): the rocks step up from it (StreetModels).
+function Street.rockDist(tier: number, x: number, z: number): number
+	return math.min(cellsOf(tier).dist[key(x, z)] or math.huge, Street.trailDist(x, z))
 end
 
 -- Every cell the layers cover (the shallows' outer box) for drawing the island.
@@ -241,11 +272,12 @@ function Street.buildable(tier: number, x: number, z: number): boolean
 	return d ~= nil and d <= -1 and (cellsOf(tier).dist[k] or math.huge) <= -1
 end
 
--- Whether a founder may stand on cell (x, z): the open ground, the beach and the wet sand (never on the rocks).
+-- Whether a founder may stand on cell (x, z): the open ground, the trail, the beach and the wet sand (never on the
+-- rocks).
 function Street.walkable(tier: number, x: number, z: number): boolean
 	local l = Street.layer(tier, x, z)
 	if l == Street.GRASS then
-		return (cellsOf(tier).dist[key(x, z)] or math.huge) <= 0
+		return (cellsOf(tier).dist[key(x, z)] or math.huge) <= 0 or Street.trailDist(x, z) <= 0
 	end
 	return l == Street.SAND or l == Street.WET
 end
