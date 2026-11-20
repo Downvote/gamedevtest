@@ -1056,6 +1056,18 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > bar: it lists the other players' islands (name, owner, tier), and Visit puts you in front of that island's Tree of
 > Life. Home brings you back.
 
+> The requests (2026-11-20, later still): "polish the skybox more. it should be of the same quality as the ones in the
+> egg hatching screen, with day and night cycles with moon and sun rising", then "also, detail and polish the edges and
+> the bottom of the island more", then "make the clouds look more natural and polished. same with the background
+> islands". So the sky got its own day: twenty minutes from midnight to midnight on the server's clock, the same for
+> everyone there. The sun rises out of a sea of clouds on the left, climbs and sets into it on the right; the moon
+> follows it through the night with a new phase each night (full, gibbous, half and a crescent, never dark). Night
+> brings out the stars one by one, the band of the galaxy, twinkles and shooting stars; sunrise and sunset paint the
+> sky pink and gold; rain, storms and fog grey it over and hide the stars. The clouds are soft heaps lit from the top
+> left in four tones, and the far islets have grass tops, earth lips, layered rock with a point or three, trees and
+> now and then a thread of water falling off. Only the sky turns to night: the island keeps its bright light, as asked
+> on 2026-11-14. Crickets sing at night, the birds by day, and a soft wind took the surf's place.
+
 The island floats in the sky and grows with its tier: tier 1 a small oval about 30 by 24 studs round the Tree of Life,
 then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
 its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
@@ -1065,9 +1077,19 @@ grey rock in four steps, each a stud or two further in and two studs further dow
 one, so from the camera the island reads as a floating chunk of land tapering down into the sky. Under the middle
 there is nothing: no ray from the view ever reaches it. An invisible wall just past the grass keeps the founders on it;
 one who falls off anyway (a glitch) is put back by their tree. Buildings stand a stud or more in from the edge. The
-sky behind everything is painted pixel by pixel (§2): bands of blue paling toward the bottom, each meeting the next in
-an ordered dither, a few far islets floating in the haze, and puffy clouds in front of them that drift slowly and
-slide a little with the view; each weather has its own sky. (From 2026-11-20 the island was whole from the start
+sky behind everything is painted pixel by pixel (§2) and runs through its own day (twenty minutes, every player on a
+server seeing the same hour): bands of colour from the top down, each meeting the next in an ordered dither (blue by
+day, pink and gold at sunrise and sunset, deep blue at night); the sun and the moon on their arcs, each rising from
+behind a sea of clouds along the bottom on the left and setting into it on the right, a flat disc in a halo of
+dithered rings (the sun's warmer and wider near the horizon, the moon cratered and in a new phase each night); at
+night the stars coming out one by one, the band of the galaxy, twinkles and now and then a shooting star; by day a
+little flock of birds now and then. In front of it far islets float in the haze (grass tops lit from the top left,
+earth lips, layered rock narrowing to a point or three, trees and bushes, on the bigger ones a thread of water falling
+off), then the sea of clouds in three ranges of soft heaps, then puffy clouds that drift slowly and slide a little
+with the view. Each cloud is a heap of round lumps lit from the top left in four tones (lit, body, shade, deep) with a
+narrow dither where two meet and an outline a darker step of the tone beside it. Each weather pulls the colours
+toward its own grey, adds or takes away clouds, hides the stars in rain, storm and fog and veils the sun and moon.
+The island keeps its bright light at every hour. (From 2026-11-20 the island was whole from the start
 with the land not yet open under rock, then in a dithered dark, the beach and sea round it; both went with the request
 above.) The islands grow by as
 much ground as the islands always gained (the table's grass), so the limits and prices still fit. The islands stand
@@ -2791,8 +2813,8 @@ reason.
   A driftling pecks at the ground in the fields,
   dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stand along the
   building's front, apart, turned three-quarters to the view so the work reads.
-- **The sky lives:** clouds drift past behind the islands, leaves sway and flags ripple in the wind, and flocks of
-  white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
+- **The sky lives:** the sky runs through its own day and night, clouds drift past behind the islands, leaves sway
+  and flags ripple in the wind, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
   time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
   rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no
   clouds' shadows: the player asked for the "random shadow that appears sometimes" gone.)

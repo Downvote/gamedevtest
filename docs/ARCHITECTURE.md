@@ -124,7 +124,8 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
                        AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
-                       Menus, BuildUI, StoreUI, FounderUI, PixelSprites, ArtData and ThumbData (generated), Words, PalTip)
+                       Menus, BuildUI, StoreUI, FounderUI, SkyBackdrop, VisitUI, PixelSprites, ArtData and ThumbData (generated),
+                       Words, PalTip)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
                        (puts the loading card up first), LoadingCard, LoadingArt (generated: tools/preview/loading_art.sh)
 src/RbxCharacterSounds.client.luau  an empty LocalScript in StarterPlayerScripts under the name Roblox would give its own
@@ -237,7 +238,8 @@ every field.
   figures: every piece's,
   `Buildings.shellsFor`, and growing the island's, `Island.expandCost`; GAME_DESIGN 4, 10), `StartShells` (600: the
   tips' buildings, 405, and two eggs for the first hut, a rare and a common, so no tip waits on shells; `StartWood` went with the wood), `TurnSeconds` (the island's pace),
-  `DaySeconds` (the sea's day: hours), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
+  `DaySeconds` (the sea's day: hours), `SkyDaySecs` (1200: the sky's own day round the floating islands, midnight to
+  midnight, UI/SkyBackdrop; only the sky follows it), `IdleOutput` (a building's work with nobody at it), `PalWork` (a common
   driftling's), `RarityWork` (a driftling's work by its rarity), `WorkRoom` (the driftlings a workplace takes by the tier it opens at: 2 on the first island, then since 2026-11-19 as
 many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26, 30, 34; Data/Buildings' `jobs`; it was
 `HelpMax`, 2 everywhere, until 2026-11-18, then 6, 8, 10, 12, 16, 20 to 32), `CharmMax` (1) and
@@ -1078,10 +1080,18 @@ client's clock), `eggLeft(egg) -> number` (seconds till a Hatchery egg is ready:
 before the first view), `request(action, payload) -> Response` (never errors), `signal(kind, payload)`. (No `TideChanged`, `tideNow`
 or `along` since the tide went; `treeFrac` went with the old tree.)
 
-### 8.2 `DayLight` (the light: one bright day)
+### 8.2 `DayLight` (the light: one bright day; the sky's own day)
 The request of 2026-11-14, "remove the day night cycle, and make everything brighter": `start()` sets
-`PixelRenderer.setGrade(hold or BRIGHT)` every frame (with the filter off, `Lighting.ClockTime` 13.5), keeps the surf
-going (`Audio.ambience("waves")`, the crickets at 0) and plays the birds every `BIRDS_EVERY` 80 s. `BRIGHT` = `{ mr
+`PixelRenderer.setGrade(hold or BRIGHT)` every frame (with the filter off, `Lighting.ClockTime` 13.5), sets the
+crickets to `0.12 x night()` (the surf at 0 since the sea went on 2026-11-20; WeatherView keeps a soft wind) and plays
+the birds every `BIRDS_EVERY` 80 s while `night()` is under a half.
+The sky's day (the request of 2026-11-20: "polish the skybox more. it should be of the same quality as the ones in the
+egg hatching screen, with day and night cycles with moon and sun rising"): `skyHour() -> 0 .. 1` (the sea's clock,
+`StateClient.seaClock`, round `Tuning.SkyDaySecs`: the same hour on every client of a server; 0 midnight, about 0.23
+sunrise, 0.5 noon, about 0.77 sunset; os.clock before the first view), `skyNight()` (which night: the clock in sky days
+plus a half, so it turns at noon; the moon's phase), `night(h?) -> 0 .. 1` (0 from 0.25 to 0.75, 1 before 0.17 and after
+0.83, straight ramps between), `debugSky(h?, night?)` (hold the hour and the night for the previews and sims; nil lets
+them run). Only the sky and the sounds follow it: the island's grade stays `BRIGHT`. `BRIGHT` = `{ mr
 1.035, mg 1.035, mb 1.025, lift 3, sat 1.02, lamps 0 }`. `at(frac) -> Grade` (`BRIGHT` at any time), `frac()` (always
 0.35, the day's middle: AmbientView's birds and butterflies are always about, its fireflies never), `hold(grade?)`
 (the hatch scene's rarity grades over the day's; nil lets go), `setWeather(grade?)` (WeatherView: the weather's
@@ -1109,8 +1119,9 @@ silent), or a few takes (`ids`: one voice each, picked at random, never the same
 pitch range, a cooldown (a repeat inside it is dropped), a few voices and maybe a stretch of the clip (`from`, `len`:
 the hammer's first two taps, the door chime's first ding-dong; its last `fade` seconds tweened down, a fade still
 running cancelled when the voice plays again; the voice stops when it is over) (Sounds in `SoundService.UISounds`,
-reused). `playCount(name)`: how many times an event has played on this client (the sims: the footsteps). `ambience(name, volume)`: a looped sound (`waves`, `crickets`) faded toward a volume
-(DayLight: the surf always; the crickets no longer, there is no night). `music(mood?)`: the background music, a mood's playlist of
+reused). `playCount(name)`: how many times an event has played on this client (the sims: the footsteps). `ambience(name, volume)`: a looped sound (`waves`, `crickets`, `rain`, `downpour`, `wind`) faded toward a volume
+(DayLight: the crickets at night by the sky's day, the surf no longer since the sea went; WeatherView: the rain and the
+wind). `music(mood?)`: the background music, a mood's playlist of
 `Monetization.Music` ("day", "night"; nil: quiet) shuffled once and played round, track after track
 (`Music_<mood>` Sounds at `MUSIC_VOL` (0.4, twice the 0.2 it was since "make the music louder", 2026-11-14) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
 that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades
@@ -1278,7 +1289,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
 - **The see-through sky round the islands** (the request of 2026-11-20: "Never mind, make it a floating island instead,
   with a 2d skybox. Expanding makes the island bigger."): the islands' view is `clear` (CameraController), so a pixel
   whose ray meets nothing is left empty (alpha 0, never graded), like the hatch scene's stage, and `UI/SkyBackdrop`'s
-  painted sky shows through behind the pixel layer. An island's invisible wall and the parts that keep a bevel's cut
+  painted sky shows through behind the pixel layer (10.19; hidden whenever the filter isn't drawing, so the classic
+  style shows the world). An island's invisible wall and the parts that keep a bevel's cut
   corner solid (group `Bounds`, `StagedBounds`, or wholly transparent) are never in the picture, so their coming and
   going casts nothing (`watchStatic`'s `poke`). The rect a part and its shadow cover runs down to `Street.LAWN_Y` - 0.6
   (`SG.boxRect`). (The darkness over the land not open yet, `SG.DK` with its `sDark` keys, ran for part of the same
@@ -2554,7 +2566,8 @@ spread in slots across the screen; one gone off downwind comes back upwind with 
 wraps to the far side. The light: the
 kind's grade stepped in `GRADE_STEPS` 4 over `GRADE_SECS` 2 through `DayLight.setWeather`; a storm flashes it (x1.28,
 lift +10) for 0.12 s every 7 to 16 s and plays `Audio.play("thunder")` 0.6 to 1.4 s after. Sounds: `Audio.ambience`
-"rain" (1.4 x rain), "downpour" (0.45 x storm), "wind" (0.5 x the breeze, half the blossom or leaves, 0.6 x storm).
+"rain" (1.4 x rain), "downpour" (0.45 x storm), "wind" (0.12 always, a soft wind round the floating islands in the
+surf's place, plus 0.4 x the breeze, half the blossom or leaves, 0.6 x storm).
 Nothing on the hatch scene's stage; reduced motion clears the particles. `start()`, `debugSet(kind?)` (hold a kind
 at full strength and its light at once), `debugFlash(secs?)`, `debugState() -> { kind, season, strength, drops,
 flakes, fog, lines, flashing }`.
@@ -2573,6 +2586,66 @@ a maple leaf; haze: a small lit sun; fog: five puffs of mist round its middle), 
 Tree panel's row for a touched egg (36 tall) adds the kind's `laid` words, its `mini_` icon and the mutation's name
 and stars in `Traits.TIER_COLOR`. Sprites (`gen_art.py`): `mini_breeze rain storm fog snow petal heat leaf` and
 `mini_season_spring summer autumn winter`, `fx_flake_1..3`.
+
+### 10.19 The sky (`UI/SkyBackdrop`) and Visit (`UI/VisitUI`; GAME_DESIGN 2, 8)
+The requests of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the island
+bigger.", "polish the skybox more. it should be of the same quality as the ones in the egg hatching screen, with day and
+night cycles with moon and sun rising" and "make the clouds look more natural and polished. same with the background
+islands". `SkyBackdrop.start()` (Main, after WeatherView) steps on Heartbeat. A ScreenGui "SkyBackdrop" at
+`PixelDisplayOrder - 3` (behind the hatch scene's backdrop and the pixel layer), enabled only while
+`PixelRenderer.isActive()` (the classic style shows the world itself), holds back to front: `Sky` (the bands, the stars,
+the galaxy), `Sun` and `Moon` (small images moved on their arcs), `FarA`/`FarB` (the far islets and the sea of clouds, the
+picture twice side by side: it drifts right a pixel every `SEA_DRIFT` 6 s and slides `FAR_PARALLAX` 1/16 of
+`CameraController.pan()`), `CloudsA`/`CloudsB` (the same for the clouds: `DRIFT` 1.6 s, `PARALLAX` 1/8) and `Life` (Frames
+a K x K screen px: birds, twinkles, a shooting star). Every picture is the screen's size in art px (`PixelRenderer.pixelScale`
+K screen px each).
+- **The hour's colours:** `KEYS` (night, first light, sunrise, morning, day, afternoon, sunset, dusk, at hours 0, 0.15,
+  0.2, 0.235, 0.29, 0.36 .. 0.64, 0.71, 0.765, 0.8, 0.86 .. 1) each give six sky stops, the clouds' lit, body, shade and
+  ink, the far islets' light and how much night shows (`stars`); `paletteAt(h, kind)` mixes the two keys round the hour
+  in `NOTCHES` 10 steps and the weather's `WX` entry pulls every colour toward its grey at the colour's own lightness
+  (`tint`, `k`, `dark`: rain 0.55, storm 0.72, fog 0.62, snow 0.45, haze 0.3), hides the stars (`stars x (1 - 1.5 k)`),
+  sets the clouds a 100,000 px (`clouds`), veils the sun and moon (their ImageTransparency `veil`) and fades the far
+  things (`fade`). A palette's key is the weather and the notch: a new key paints again.
+- **The shapes** (`buildGeo(W, H)` once a screen size, `buildClouds(W, H, clouds)` once a weather's count): a class a
+  pixel in byte buffers. The sky: the band (stop 0 .. 5, an ordered 4 x 4 dither in the middle 40 % between two), the
+  galaxy (0 .. 3, slanting up to the right with a lane of dust) and a star (dim, bright, brightest with a cross's arms)
+  with its threshold, so they come out one by one as the night deepens, the brightest first. The front: up to five far
+  islets (`islet`: 12 classes each, grass lit, grass, grass shade, earth, rock lit, rock, rock shade, bark, falling water,
+  leaves lit, leaves, outline; a grass ellipse lit at the top left with a darker front rim and hanging tufts, a 2 px earth
+  lip with pebbles, a main rock point and on the bigger ones one or two shorter ones, each lit left and shaded right with
+  broken layer lines, roots and little stones under it, a tree or a bush, white flowers, on the bigger ones a thread of
+  water falling off the front and thinning into spray; the smaller ones fade more, as farther off) and the sea of
+  clouds (three ranges at 0.775, 0.845 and 0.915 of the height, each a whole number of lumps a width so it tiles, some
+  with smaller lumps heaped on top, solid below, darker toward its foot, faded 0.5, 0.25 and 0 toward the sky's last
+  stop). Clouds of both kinds are lumps (`lumpsInto`: front halves of ellipsoids `{ cx, cy, rx, ry, z }`, the surface
+  nearest the eye wins, Lambert light from the top left `(-0.45, -0.65, 0.61)`) stepped into four tones by `toneOf` (cuts
+  0.6, 0.22, -0.15, a dither 0.05 either side of each), with an outline a darker step of the tone beside it and corners
+  anti-aliased over the sky by the row's colour. A drifting cloud is four to seven lumps along a flat bottom (its two
+  lowest rows a step darker) with a few small ones heaped on top.
+- **A notch** (`newJob`, `colourRows`, `finish`): small lookup tables (the sky's 256 classes, the front's, the clouds'
+  ten) and each row's corner colour; the three pictures coloured `ROW_PIXELS` (25,000) pixels a frame and uploaded
+  together once whole, so the old picture shows until the new one is done. Measured in the previews at 640 x 360: the
+  shapes 160 ms (a new screen size), a weather's clouds 31 ms, a notch 44 ms in all, spread over about ten frames.
+- **The sun and the moon** (`paintBody`, `arc`, `placeBody`): the sun's u = (hour - 0.23) / 0.54, the moon's the rest of
+  the day from sunset; `arc` puts the middle at x = W (0.1 + 0.8 u) and y from `HORIZON` (0.77 of the height, half
+  behind the sea of clouds) up to 0.14 by sin(pi u); shown from u -0.06 to 1.06. A body is a flat disc (radius 5 % of
+  the height, 6 .. 16 px; the moon's 85 % of it) with half-covered edge pixels at half alpha, over a halo of dithered
+  rings (alpha steps of 0.15; the sun's reach 2.1 to 3.5 radii and its colours warmer as it nears the horizon, in five
+  steps; the moon's a cool 0.09 a step); the moon has three craters and a phase from `skyNight() % 8` (`MOON_BITE`: a
+  shadow disc beside it, full, gibbous, half, crescent, then the same waxing). Painted again only when its size, its
+  warmth step or its phase changes.
+- **The life** (`stepLife`): 16 twinkling pixels once the night passes 0.35 to 0.71 (by their index); a shooting star
+  every 5 to 13 s past 0.6 of the night (a head and a tail of four fading tones, 0.7 s); by day (night under 0.2, the
+  weather's k under 0.6) a flock of two to five birds every 18 to 40 s, in the palette's ink, flapping in two frames.
+- `paint(kind, W, H, hour?) -> (sky, front, clouds)` (RGBA buffers), `debugHour(h?, night?)` (DayLight.debugSky),
+  `debugTimes(W, H, clock?) -> (shapes, clouds, notch ms)`, `debugState() -> { on, kind, key, W, H, paints, geos, pending,
+  off, seaOff, hour, stars, sun, sunX, sunY, moon, moonX, moonY, birds, twinkles, streak }`.
+
+`VisitUI` (the islands float apart, so nobody walks or swims to a neighbour): `init()` registers the "visit" panel
+(icon "visitor", 220 wide, a row each: the island's name, its owner and tier's name, a Visit button `Visit_<plot>`
+sending `char.visit`; "Nobody else is here yet." when alone; a refusal says to wait or that the island is gone),
+`islands() -> { { plot, name, owner, tier } }` (the other claimed plots, from `Plot_<i>`'s attributes). The HUD's Visit
+button (10.3) opens it.
 
 ### 10.17 The sweep of 2026-11-19 (costs cut on the client)
 The request: "optimize the game further, fix bugs, and polish everything fully". What the probes showed and what

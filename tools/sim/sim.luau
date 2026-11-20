@@ -3748,6 +3748,54 @@ do
 	H.expect(f ~= nil and f.Size.X.Offset == 320 and f:FindFirstChild("Wallet", true) == nil and c2 ~= nil and c2:FindFirstChild("Hit") == nil, "touch", "back on the desktop: the panel its design, no pads", f and tostring(f.Size))
 	H.closePanel(p)
 end
+-- the sky round the floating islands (UI/SkyBackdrop; the request of 2026-11-20, "polish the skybox more. it should be
+-- of the same quality as the ones in the egg hatching screen, with day and night cycles with moon and sun rising"):
+-- hidden in the classic look (the world itself shows); with the pixel filter on, painted behind its picture: held at
+-- noon the sun is high, no moon and no stars; at midnight the moon is up and the night full; at sunrise the sun sits
+-- low on the sea of clouds; the night's sounds and birds follow DayLight.night
+do
+	local SBm = H.cmod(p, "UI.SkyBackdrop")
+	local DLm = H.cmod(p, "Controllers.DayLight")
+	local PRs = H.cmod(p, "Pixel.PixelRenderer")
+	local WVs = H.cmod(p, "Controllers.WeatherView")
+	local pg = p:FindFirstChildOfClass("PlayerGui")
+	local g0 = pg and pg:FindFirstChild("SkyBackdrop")
+	H.expect(g0 == nil or not g0.Enabled, "sky", "in the classic look no painted sky covers the world")
+	E.editableImageMode = "ok"
+	H.inClient(p, PRs.setTier, "low")
+	H.inClient(p, WVs.debugSet, "sunny") -- (a clear night: rain would hide the stars)
+	E.run(1)
+	local g = pg and pg:FindFirstChild("SkyBackdrop")
+	local whole = g ~= nil and g.Enabled
+	for _, n in { "Sky", "Sun", "Moon", "FarA", "FarB", "CloudsA", "CloudsB", "Life" } do
+		whole = whole and g:FindFirstChild(n) ~= nil
+	end
+	H.expect(whole, "sky", "with the pixel filter on, the sky behind the islands: its picture, the sun, the moon, the far islets and the sea of clouds twice, the clouds twice, its life")
+	local function at(h)
+		H.inClient(p, SBm.debugHour, h, 0)
+		E.run(0.6)
+		return H.inClient(p, SBm.debugState)
+	end
+	local function said(d)
+		return string.format("on %s, hour %.3f, %s, sun %s at %d, moon %s, stars %.2f, painted %d, pending %s", tostring(d.on), d.hour, d.key, tostring(d.sun), d.sunY, tostring(d.moon), d.stars, d.paints, tostring(d.pending))
+	end
+	local noon = at(0.5)
+	H.expect(noon.on and noon.sun and not noon.moon and noon.stars == 0 and not noon.pending and noon.W > 0, "sky", "at noon the sun is up, no moon, no stars", said(noon))
+	local night = at(0.95)
+	H.expect(night.moon and not night.sun and night.stars > 0.9 and night.paints > noon.paints and not night.pending, "sky", "at midnight the moon is up and the night full, painted as a new notch", said(night))
+	local rise = at(0.235)
+	H.expect(rise.sun and rise.sunY > noon.sunY + rise.H * 0.4 and rise.stars < 0.3, "sky", "at sunrise the sun sits low on the sea of clouds, the stars nearly gone", said(rise))
+	H.expect(H.inClient(p, DLm.night, 0.5) == 0 and H.inClient(p, DLm.night, 0.95) == 1, "sky", "DayLight.night: none at noon, full at midnight")
+	H.inClient(p, WVs.debugSet, "rain")
+	local rain = at(0.95)
+	H.expect(rain.moon and rain.stars < 0.3 and rain.key ~= night.key, "sky", "the same midnight in the rain: the stars hidden, another notch", said(rain))
+	H.inClient(p, WVs.debugSet, nil)
+	H.inClient(p, SBm.debugHour, nil)
+	H.inClient(p, PRs.setTier, "off")
+	E.editableImageMode = "fail"
+	E.run(0.2)
+	H.expect(g ~= nil and not g.Enabled, "sky", "the classic look again: the painted sky hidden again")
+end
 H.checkProfile(p, "end")
 mirror(p, "end")
 

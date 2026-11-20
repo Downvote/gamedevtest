@@ -479,11 +479,12 @@ local function heartbeat()
 		thunderAt = 0
 		Audio.play("thunder")
 	end
-	-- the sounds: the drizzle in the rain, the downpour in a storm, the wind on a breezy day and with petals or leaves
+	-- the sounds: the drizzle in the rain, the downpour in a storm, the wind on a breezy day and with petals or leaves,
+	-- and a soft wind always (the islands float in the sky: it took the surf's place on 2026-11-20)
 	local rain, wind = strength.rain or 0, math.max(strength.breezy or 0, (strength.blossom or 0) * 0.5, (strength.leaves or 0) * 0.5, storm * 0.6)
 	Audio.ambience("rain", 1.4 * rain)
 	Audio.ambience("downpour", 0.45 * storm)
-	Audio.ambience("wind", 0.5 * wind)
+	Audio.ambience("wind", 0.12 + 0.4 * wind)
 end
 
 ------------------------------------------------------------------ API

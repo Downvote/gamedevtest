@@ -12,10 +12,10 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1, `sim_save.luau`
-its 2 deliberate store failures; checks today: `sim.luau` about 3199, `sim_save.luau` about 1126, `sim_clock.luau`
+its 2 deliberate store failures; checks today: `sim.luau` about 3207, `sim_save.luau` about 1126, `sim_clock.luau`
 about 1834, `sim_world.luau` about 2628, `sim_tree.luau` about 1972).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city everdrift gallery tree day dusk night dawn hatchery sky visit build buildui inventory expand zoo paths water work motion idle pan stress ambient late
+village island2 island3 city everdrift gallery tree day dusk night dawn hatchery sky skies visit build buildui inventory expand zoo paths water work motion idle pan stress ambient late
 loading themes hatches weathers crowd alerts`, `showcase=<1..20>` (a well decorated town on an island of that expansion level), `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<skin|style|bangs|hair|eyes|shirt|top|apron|hat|face|neck|back|hand|outfits|titles>` (the My founder screen), `panel=rewards:<today|tasks|spin|index|codes>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing
 the cosmetics, with their white outlines and name tags; `looks=f<1..5>` the customization screen's features: new styles, bangs,
@@ -51,6 +51,8 @@ driftlings are built from parts (`Models/DecorModels` with the catalog's `Models
 (`Models/DriftRig`: bones, skin weights, squash and stretch, springs) by keyed poses (`Models/DriftMotion`); each kind's eye
 style and texture in `Data/Creatures`, the textures drawn by `Render/DynTex` in one-pixel marks), world-aligned on the iso
 grid and drawn by the pixel filter. The hatch scene is the egg alone, floating in front of a 2D sky painted pixel by pixel (`UI/HatchBackdrop`).
+The islands float in front of a sky painted the same way (`UI/SkyBackdrop`), with its own day and night (the sun and
+the moon rising out of a sea of clouds), far islets and clouds lit in four tones; `skies` previews it hour by hour.
 (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few
 hours; the tree is back, laying the eggs the driftlings hatch from.)
 

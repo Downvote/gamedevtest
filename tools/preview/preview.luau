@@ -2118,6 +2118,61 @@ function SCEN.sky()
 	return p
 end
 
+-- The sky's day (the request of 2026-11-20: "polish the skybox more. it should be of the same quality as the ones in
+-- the egg hatching screen, with day and night cycles with moon and sun rising"): a first island at the widest View
+-- notch, the sky held at each hour in turn (sky_<hour name>), then the moon in three more phases and the sky in rain,
+-- storm, snow and fog. The log gives each frame's SkyBackdrop state (the notch, the stars, where the sun and moon are)
+-- and how long the shapes and a notch take to paint.
+function SCEN.skies()
+	local p = join(1, "Pixel")
+	settle(p)
+	local SU = modOr(p, "UI.SettingsUI")
+	if SU then
+		H.inClient(p, SU.setZoom, 1)
+	end
+	E.run(1)
+	settle(p, 20, 1)
+	local SB = modOr(p, "UI.SkyBackdrop")
+	local WV = modOr(p, "Controllers.WeatherView")
+	if SB == nil then
+		log("skies: no SkyBackdrop")
+		return p
+	end
+	local function shot(name, h, night, kind)
+		if WV then
+			H.inClient(p, WV.debugSet, kind)
+		end
+		H.inClient(p, SB.debugHour, h, night or 0)
+		E.run(0.4)
+		settle(p, 6, 0.3)
+		local d = H.inClient(p, SB.debugState)
+		log("skies %s: hour %.3f, %s, notch %s, stars %.2f, sun %s at %d,%d, moon %s at %d,%d, %d twinkles, %d birds, painted %d, shapes %d", name, d.hour, d.kind, d.key, d.stars, tostring(d.sun), d.sunX, d.sunY, tostring(d.moon), d.moonX, d.moonY, d.twinkles, d.birds, d.paints, d.geos)
+		capture(p, "sky_" .. name)
+	end
+	for _, s in { { "night", 0.02 }, { "firstlight", 0.2 }, { "sunrise", 0.235 }, { "morning", 0.29 }, { "noon", 0.5 }, { "afternoon", 0.7 }, { "sunset", 0.765 }, { "dusk", 0.81 }, { "midnight", 0.95 } } do
+		shot(s[1], s[2], 0, "sunny")
+	end
+	shot("moon_half", 0.95, 2, "sunny")
+	shot("moon_crescent", 0.95, 3, "sunny")
+	shot("moon_waxing", 0.95, 5, "sunny")
+	shot("rain_noon", 0.5, 0, "rain")
+	shot("storm_dusk", 0.81, 0, "storm")
+	shot("snow_morning", 0.3, 0, "snow")
+	shot("fog_night", 0.02, 0, "fog")
+	-- what a new notch and new shapes cost, timed in the client (os.clock)
+	local realClock = os.clock
+	local ms = H.inClient(p, function()
+		local a, b, c = SB.debugTimes(640, 360, realClock)
+		return { a, b, c }
+	end)
+	log("skies at 640x360: the shapes %.1f ms, a weather's clouds %.1f ms, a notch %.1f ms (spread over a few frames)", ms[1], ms[2], ms[3])
+	if WV then
+		H.inClient(p, WV.debugSet, nil)
+	end
+	H.inClient(p, SB.debugHour, nil)
+	return p
+end
+
 -- Visit: the HUD's Visit button, the list of the other islands (visit_list), then Visit on the neighbour's: the
 -- founder there while its driftlings work (visit), Home showing.
 function SCEN.visit()

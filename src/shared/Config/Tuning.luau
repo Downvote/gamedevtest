@@ -49,6 +49,11 @@ local Tuning = {
 	StartShells = 600,
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
+	-- the sky's own day round the floating islands (UI/SkyBackdrop; the request of 2026-11-20: "polish the skybox more.
+	-- it should be of the same quality as the ones in the egg hatching screen, with day and night cycles with moon and
+	-- sun rising"): twenty minutes of the sea's clock from midnight to midnight, the sun up from about a quarter past to
+	-- three quarters. Only the sky follows it: the island's light stays the bright day (DayLight).
+	SkyDaySecs = 20 * 60,
 	IdleOutput = 0.3, -- a building with no driftling working there makes this share
 	PalWork = 0.6, -- a common driftling at work makes this share of its workplace's rate ...
 	RarityWork = { 1, 1.6, 2.5, 4, 7, 11, 17, 26, 40 }, -- ... times this by its rarity ("creatures work faster based on their rarity")

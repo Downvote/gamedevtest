@@ -301,6 +301,15 @@ return function(env)
 		if CC then
 			H.inClient(p, CC.setFocus, Vector3.new(ox + 2, Street.LAWN_Y, 4), true)
 		end
+		-- (the sky held at a warm late afternoon, the sun low over the sea of clouds, the weather clear)
+		local SB = env.modOr(p, "UI.SkyBackdrop")
+		local WVs = env.modOr(p, "Controllers.WeatherView")
+		if WVs then
+			H.inClient(p, WVs.debugSet, "sunny")
+		end
+		if SB then
+			H.inClient(p, SB.debugHour, 0.735, 0)
+		end
 		E.run(1)
 		env.settle(p, 60, 1)
 		E.run(1.5)
@@ -375,6 +384,11 @@ return function(env)
 	local WV = env.modOr(p, "Controllers.WeatherView")
 	if WV then
 		H.inClient(p, WV.debugSet, "sunny")
+	end
+	-- (the sky held in the middle of a clear day)
+	local SBt = env.modOr(p, "UI.SkyBackdrop")
+	if SBt then
+		H.inClient(p, SBt.debugHour, 0.45, 0)
 	end
 	E.run(2)
 	local function zoom(n: number)
