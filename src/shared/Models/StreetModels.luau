@@ -2,27 +2,28 @@
 -- The floating islands from parts (GAME_DESIGN 8; docs/ARCHITECTURE.md 6; Data/Street). Roblox module (server:
 -- PlotService builds each plot's island as players come and go, and a little islet on each free plot).
 --   land(parent, origin, tier)    an occupied plot: the island at its tier (Data/Street's coast), top down: the lawn in
---                                 two tones; grass hanging over the earth lip in ragged teeth; the lip, warm soil with
---                                 pale stones in it; seven rings of rock stepping in and down toward a point, each
---                                 ring's edge wobbling round the island, light warm stone at the top to dusky violet
---                                 at the bottom with dark cracks and, deep down, crystal; roots and leafy vines under
---                                 the lip, stones hanging under every ring (drips, spikes, spires with crystal tips);
---                                 tufts, flat stones and small bushes on the grass's rim, never where a building may
---                                 stand. An invisible wall just past the grass, and the island's sign on its south rim
---                                 (its board named "SignBoard"); built in chunks (landPlan, landChunk, landSign) so an
+--                                 two tones; round its edge a ring of chunky boulders, their tops about level with
+--                                 the grass, some carrying a turf of it; under them course after course of boulders
+--                                 stepping in toward a rough point, pale warm stone at the top to dusky violet at the
+--                                 bottom, dark crevices between them; vines under the rim's stones, stones hanging
+--                                 under the lower courses (drips, spikes, spires with crystal tips); tufts, flat
+--                                 stones and small bushes on the grass's rim, never where a building may stand. An
+--                                 invisible wall just past the grass, and the island's sign on its south rim (its
+--                                 board named "SignBoard"); built in chunks (landPlan, landChunk, landSign) so an
 --                                 expansion changes only the chunks along the edge
 --   emptyLot(parent, origin)      an unclaimed plot: a little islet built the same way, with a sign
 -- The request of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the
 -- island bigger." (the sea, the beaches, the swimming and the boats went with it; UI/SkyBackdrop paints the sky), then
--- "also, detail and polish the edges and the bottom of the island more" (the teeth, the soil's stones, the wobbling
--- rings in the new cliff colours, the crystal, the vines, the hanging stones' three sizes, the rim's stones and
--- bushes). The layers are whole-stud cells merged into as few boxes as they make (greedy rectangles). Their outlines
--- are bevelled (the request of 2026-11-13: "could you bevel these to make them smoother, with rounded corners?"):
--- every notch of a layer's stairs is half filled by a flat triangle (a wedge on its side) and a square corner cut
--- back, so each edge runs straight, on a diagonal or along the grid, and turns in 45 degree steps (`bevelled`). The
--- lip and the rock are skins one cell thick on the side the view sees (`shell`). The wall and the parts that keep a
--- bevel's cut corner solid are invisible and in the "Bounds" collision group (the pixel filter's rays pass through
--- them). Nothing under the grass collides, and none of the small things do.
+-- "also, detail and polish the edges and the bottom of the island more" and, with a picture of an island held up by
+-- boulders, "for the floating island, detail the rocks and below like this too" (the courses of boulders, the turf,
+-- the crevices, the vines and hanging stones, the rim's stones and bushes; the smooth earth lip and rock steps went).
+-- The lawn and the courses' cores are whole-stud cells merged into as few boxes as they make (greedy rectangles),
+-- their outlines bevelled (the request of 2026-11-13: "could you bevel these to make them smoother, with rounded
+-- corners?"): every notch of a layer's stairs is half filled by a flat triangle (a wedge on its side) and a square
+-- corner cut back, so each edge runs straight, on a diagonal or along the grid, and turns in 45 degree steps
+-- (`bevelled`). The cores are skins one cell thick on the side the view sees (`shell`). The wall and the parts that
+-- keep a bevel's cut corner solid are invisible and in the "Bounds" collision group (the pixel filter's rays pass
+-- through them). Only the lawn collides; nothing under it does, nor any of the small things.
 local Street = require(script.Parent.Parent.Data.Street)
 local Blocks = require(script.Parent.Blocks)
 
@@ -132,7 +133,7 @@ local SUBQ = {
 type Level = { top: number, h: number, name: string, colors: { string }, solid: boolean }
 
 -- Cell (x, z) under `lab` (the labels by cell): its own label, and its four quarters' labels when a bevel changes any
--- of them (nil: the cell is wholly its own). With `airOnly` (a shell: the lip and the rock, whose labels are colours
+-- of them (nil: the cell is wholly its own). With `airOnly` (a shell: the courses' cores, whose labels are colours
 -- on a face, not shapes) the outline is bevelled as the whole region's, whatever the labels inside it: a notch is
 -- filled with the label of a side beside it, a jutting corner cut back to nothing, and two labels meet square.
 local function quarters(x: number, z: number, lab: (x: number, z: number) -> number, airOnly: boolean?): (number, { number }?)
@@ -215,7 +216,7 @@ end
 -- triangles, and a run of half cells along a diagonal as one big triangle where every cell it covers past the run is
 -- the layer's own in the same label. The founders walk as they did on the cells: a filled notch never collides, a
 -- cell of a solid layer still wholly covered (in two tones) does, and one cut back keeps an invisible part where it
--- stood (out of the pixel filter's rays: "Bounds"). With `shell` (the lip and the rock under the grass) only the cells
+-- stood (out of the pixel filter's rays: "Bounds"). With `shell` (the courses' cores under the grass) only the cells
 -- that show are drawn: one whose neighbours east, south and south-east are all in the layer has no face toward the
 -- view (it looks from the south-east and above: Tuning.CamYaw, CamPitch) and sits under the layers above, so it is
 -- left out. That is the whole north-west side of the island and everything behind the outer face, so what is drawn is
@@ -424,30 +425,7 @@ local function bush(parent: Instance, at: CFrame, h: number, bloom: string)
 	end
 end
 
--- A root hanging from under the earth lip: a strand winding down in steps, a quarter stud aside at each, dark brown
--- and darker toward its tip; a long one puts out a short side root at its first bend.
-local function root(parent: Instance, at: CFrame, len: number, h: number)
-	local shares: { number } = if len > 2.25 then { 0.4, 0.35, 0.25 } else { 0.55, 0.45 }
-	local dx = if h < 0.5 then 0.25 else -0.25
-	local y, ox, oz = 0, 0, 0
-	for i, share in shares do
-		local seg = q(len * share)
-		deco(parent, at, ox, y - seg / 2, oz, 0.25, seg, 0.25, if i == 1 then "wood_dark" else "choco_dark", "Root")
-		y -= seg
-		if i == 1 and #shares == 3 and h > 0.3 then
-			-- the side root: out a step, then down
-			deco(parent, at, ox - dx * 2, y + 0.125, oz, 0.5, 0.25, 0.25, "wood_dark", "Root")
-			deco(parent, at, ox - dx * 3, y - 0.25, oz, 0.25, 0.5, 0.25, "choco_dark", "Root")
-		end
-		if i % 2 == 1 then
-			ox += dx
-		else
-			oz += 0.25
-		end
-	end
-end
-
--- A vine hanging from under the lip: a stem with a leaf every stud, out to one side and then the
+-- A vine hanging from under the rim's stones: a stem with a leaf every stud, out to one side and then the
 -- other as the view sees it (along +X -Z), lit leaves on the left, darker on the right, a tuft of leaves at its end
 -- and on some a flower.
 local function vine(parent: Instance, at: CFrame, len: number, h: number, bloom: string)
@@ -466,9 +444,9 @@ local function vine(parent: Instance, at: CFrame, len: number, h: number, bloom:
 	end
 end
 
--- A stone hanging under a ring of rock, from `at` (the ring's underside, a cell's middle) down: blocks narrowing to a
--- point, each a quarter stud off the last. `size` 1 a drip (two blocks), 2 a spike (three), 3 a spire (three, longer
--- and wider, and on some crystals at its tip); in the ring's colours `cols` (lit, body, dark).
+-- A stone hanging under a course of boulders, from `at` (the course's underside, a cell's middle) down: blocks
+-- narrowing to a point, each a quarter stud off the last. `size` 1 a drip (two blocks), 2 a spike (three), 3 a spire
+-- (three, longer and wider, and on some crystals at its tip); in the course's colours `cols` (lit, body, dark).
 local function hanger(parent: Instance, at: CFrame, len: number, h: number, size: number, cols: { string })
 	local m = Blocks.model(nil, "Hanger")
 	local widths: { number }, shares: { number }
@@ -514,57 +492,56 @@ local function sign(m: Instance, at: CFrame, words: string?)
 end
 
 ------------------------------------------------------------------ the island's layers
--- A floating island from its coast distance by cell (`dist`: negative on the grass), top down (the request of
--- 2026-11-20, "also, detail and polish the edges and the bottom of the island more"):
+-- A floating island from its coast distance by cell (`dist`: negative on the grass), the request of 2026-11-20,
+-- "also, detail and polish the edges and the bottom of the island more", then, with a picture of a floating island
+-- ringed and held up by boulders, "for the floating island, detail the rocks and below like this too":
 -- * the lawn, grass in two tones (a darker rim and darker patches) over the whole grass;
--- * the grass hanging over the earth lip in teeth: under the lawn's edge, cell by cell, none, one, two or three bands
---   of grass half a stud each (`toothOf`), so the edge is ragged, never a ruled line;
--- * the earth lip, warm soil down to LIP_BOT with pale stones and redder streaks in it;
--- * the rock in RINGS, each further in and further down than the one above, so the underside narrows toward a point
---   (a small island runs out of width first: its point is shallower). Each ring's outer edge wobbles in and out round
---   the island (`cutsOf`: two slow waves and a little jitter a cell, always at least half a stud in from the ring
---   above), so the ledges are uneven. Its stone is light and warm near the top and a dusky violet at the bottom, here
---   and there a cell of a darker stone, dark cracks a cell wide and, on the two deepest rings, crystal in the stone;
--- * hanging things (`scatterIn`): roots and leafy vines under the lip, stones under every ring (drips under the upper
---   rings, spikes under the middle ones, spires under the deepest with crystals at some tips), and on the grass's rim
---   tufts, flat stones and small bushes, never where a building may stand.
--- Every outline is bevelled (`bevelled`); the lip and the rock are skins one cell thick, drawn only where the view
--- sees them (`shell`). Every height is on the quarter-stud grid parts snap to (Blocks.part).
+-- * round it and under it, COURSES of boulders: a ring of chunky stones each, the rim's standing just outside the
+--   grass with their tops at about its height (some a little higher, some lower so the grass's edge shows over them),
+--   the courses under it stepping in further and further, so the underside narrows to a rough point (a small island
+--   runs out of width first: its point is shallower). The stones are laid on a grid of 2-cell blocks, one stone a
+--   block from the course's cells in it, each course's grid a cell off the one above (staggered like a wall), every
+--   stone a different height and its own small gap from its neighbours. A rim stone has a rounded top (a cap a quarter
+--   stud in all round) and some carry a turf of grass with a tuft hanging over their front; a stone the view sees from
+--   the side stands on a darker foot, its shaded underside (on the upper five courses: the deeper stones are dark
+--   already). Below the rim a stone stands out from its course by up to half a stud. The pixel filter lights each
+--   one: a pale top, a mid front, a darker side. Behind every course, its core: dark soil under the rim, dark stone
+--   below, which is what shows in the crevices between the stones;
+-- * hanging things (`scatterIn`): leafy vines under the rim's stones, stones hanging under the lower courses (drips,
+--   spikes, and under the deepest spires with crystal at some tips), and on the grass's rim tufts, flat stones and
+--   small bushes, never where a building may stand.
+-- Each course's edges wobble in and out round the island (`cutsOf`). Only what the view sees is built: the cores are
+-- skins one cell thick on the south and east (`shell`), and a stone below the rim stands only where the view sees its
+-- face. Every height is on the quarter-stud grid parts snap to (Blocks.part).
 local LAWN_H = 0.5
-local LIP_TOP = Street.LAWN_Y - LAWN_H
-local TOOTH_H = 0.5
-local TEETH = 3
-local SOIL_H = 1.5
-local LIP_BOT = LIP_TOP - TEETH * TOOTH_H - SOIL_H
--- the rock's rings: inset (studs in from the grass's edge, before the wobble), height, colours (its stone, a darker
--- stone in single cells, its cracks), crystal in its stone
-type Ring = { inset: number, h: number, cols: { string }, crystal: boolean, top: number, bot: number }
-local RINGS: { Ring } = {
-	{ inset = 1.25, h = 2, cols = { "cliff", "cliff_dark", "cliff_deep" }, crystal = false, top = 0, bot = 0 },
-	{ inset = 2.75, h = 2, cols = { "cliff", "cliff_dark", "cliff_deep" }, crystal = false, top = 0, bot = 0 },
-	{ inset = 4.25, h = 1.75, cols = { "cliff_dark", "cliff", "cliff_deep" }, crystal = false, top = 0, bot = 0 },
-	{ inset = 5.75, h = 1.75, cols = { "cliff_dark", "cliff_deep", "cliff_base" }, crystal = false, top = 0, bot = 0 },
-	{ inset = 7.5, h = 1.75, cols = { "cliff_deep", "cliff_dark", "cliff_base" }, crystal = false, top = 0, bot = 0 },
-	{ inset = 9.25, h = 1.5, cols = { "cliff_deep", "cliff_base", "basalt" }, crystal = true, top = 0, bot = 0 },
-	{ inset = 11.25, h = 1.5, cols = { "cliff_base", "cliff_deep", "basalt" }, crystal = true, top = 0, bot = 0 },
+local LAWN_BOT = Street.LAWN_Y - LAWN_H
+-- The courses, top down: `hi` the coast distance of the outer edge of its stones (before the wobble: the rim's outside
+-- the grass, the lower ones further in each), `w` how wide its band of stones is (the rim's stands between the grass's
+-- edge and `hi`), `top` and `bot` its height, `off` its block grid's offset, `cols` its stones' two colours, `foot`
+-- their feet's, `core` what is behind them, `gap` how far each stone keeps in from its block's edge (at least).
+type Course = { hi: number, w: number, top: number, bot: number, off: number, cols: { string }, foot: string, core: string, gap: number }
+local COURSES: { Course } = {
+	{ hi = 1.5, w = 1.5, top = Street.LAWN_Y, bot = -3, off = 0, cols = { "cliff", "cliff_dark" }, foot = "cliff_dark", core = "choco_dark", gap = 0.125 },
+	{ hi = 0.75, w = 2, top = -3, bot = -5, off = 1, cols = { "cliff", "cliff_dark" }, foot = "cliff_dark", core = "basalt", gap = 0.25 },
+	{ hi = -0.25, w = 2, top = -5, bot = -7, off = 0, cols = { "cliff", "cliff_dark" }, foot = "cliff_deep", core = "basalt", gap = 0.25 },
+	{ hi = -1.5, w = 2.25, top = -7, bot = -9, off = 1, cols = { "cliff_dark", "cliff" }, foot = "cliff_deep", core = "basalt", gap = 0.25 },
+	{ hi = -3, w = 2.25, top = -9, bot = -10.75, off = 0, cols = { "cliff_dark", "cliff_deep" }, foot = "cliff_base", core = "basalt", gap = 0.25 },
+	{ hi = -4.75, w = 2.5, top = -10.75, bot = -12.5, off = 1, cols = { "cliff_deep", "cliff_dark" }, foot = "cliff_base", core = "basalt", gap = 0.25 },
+	{ hi = -6.75, w = 2.5, top = -12.5, bot = -14, off = 0, cols = { "cliff_deep", "cliff_base" }, foot = "basalt", core = "basalt", gap = 0.375 },
+	{ hi = -9, w = 2.5, top = -14, bot = -15.5, off = 1, cols = { "cliff_base", "cliff_deep" }, foot = "basalt", core = "basalt", gap = 0.375 },
+	{ hi = -11.5, w = 2.5, top = -15.5, bot = -16.75, off = 0, cols = { "cliff_base", "cliff_deep" }, foot = "basalt", core = "basalt", gap = 0.375 },
 }
-do
-	local y = LIP_BOT
-	for _, r in RINGS do
-		r.top, r.bot = y, y - r.h
-		y -= r.h
-	end
-end
--- the cuts a cell's rings are read by: each ring's outer edge, and the inner edge of the band its deepest stones
--- hang in
-local NCUT = #RINGS + 1
-StreetModels.LIP_BOT = LIP_BOT
-StreetModels.BOTTOM = RINGS[#RINGS].bot
+local NC = #COURSES
+StreetModels.LIP_BOT = COURSES[1].bot
+StreetModels.BOTTOM = COURSES[NC].bot
+-- (no coast distance a stone stands on is over this: the chunks' codes treat what is further out as open air)
+local REACH_CODE = 2.25
 
--- The rings' outer edges at cell (x, z) as coast distances (a cell at or under one is in that ring): each ring's inset
--- moved by two slow waves (up to about 0.55 studs) and a jitter (0.15 studs either way), never less than half a stud in from
--- the ring above; and last, two studs in from the deepest ring's. Plot-local, the same on every tier (the chunks'
--- signatures read them: `cellCode`).
+-- The cuts a cell is read by, as coast distances (a cell at or under a cut is inside it): [k] course k's outer edge,
+-- its `hi` moved by two slow waves (up to half a stud) and a jitter (0.15 studs either way), never less than half a
+-- stud in from the course above; [NC + k] course k's inner edge (the rim's is the grass's edge, 0); [2 NC + 1] the
+-- inner edge of the band the deepest course's stones hang in, two studs in from its outer edge. Plot-local, the same
+-- on every tier (the chunks' signatures read them: `cellCode`).
 local cutCache: { [number]: { number } } = {}
 local function cutsOf(x: number, z: number): { number }
 	local k0 = Street.cellKey(x, z)
@@ -572,25 +549,18 @@ local function cutsOf(x: number, z: number): { number }
 	if c then
 		return c
 	end
-	local out = table.create(NCUT, 0)
-	local prev = -0.25
-	for k, r in RINGS do
+	local out = table.create(2 * NC + 1, 0)
+	local prev = math.huge
+	for k, r in COURSES do
 		local w = math.sin(x * 0.37 + z * 0.21 + k * 1.7) * 0.6 + math.sin(x * 0.13 - z * 0.41 + k * 2.9) * 0.4
-		local cut = -(r.inset + w * 0.55 + (hash01(x, z, 200 + k) - 0.5) * 0.3)
-		cut = math.min(cut, prev - 0.5)
+		local cut = math.min(r.hi + w * 0.5 + (hash01(x, z, 200 + k) - 0.5) * 0.3, prev - 0.5)
 		out[k] = cut
+		out[NC + k] = if k == 1 then 0 else cut - r.w
 		prev = cut
 	end
-	out[NCUT] = prev - 2
+	out[2 * NC + 1] = prev - 2
 	cutCache[k0] = out
 	return out
-end
-
--- How many bands of grass hang over the lip at an edge cell: 0 .. TEETH, from a hash and two slow waves (runs of long
--- and short teeth).
-local function toothOf(x: number, z: number): number
-	local v = hash01(x, z, 11) + 0.22 * math.sin(x * 0.61 + z * 0.47) + 0.12 * math.sin(x * 0.23 - z * 0.71)
-	return if v < 0.1 then 0 elseif v < 0.5 then 1 elseif v < 0.82 then 2 else 3
 end
 
 -- A cell's coast distance, kept for one build (the layers read each cell many times).
@@ -605,6 +575,91 @@ local function cached(dist: (x: number, z: number) -> number): (x: number, z: nu
 			memo[k] = v
 		end
 		return v
+	end
+end
+
+-- The stones of course k whose blocks start in b (a block is BLOCK x BLOCK cells on the course's grid; its stone is
+-- built by the chunk holding the block's first cell, even where it reaches over the chunk's edge).
+local BLOCK = 2
+local function stones(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: number) -> number, k: number)
+	local c = COURSES[k]
+	local rim = k == 1
+	local lawnY = Street.LAWN_Y
+	local cx, cz = Street.CENTER.x, Street.CENTER.z
+	local function inBand(x: number, z: number): boolean
+		local d, cut = dist(x, z), cutsOf(x, z)
+		return d <= cut[k] and d > cut[NC + k]
+	end
+	local function inCourse(x: number, z: number): boolean
+		return dist(x, z) <= cutsOf(x, z)[k]
+	end
+	local function first(v: number): number
+		return v + ((c.off - v) % BLOCK)
+	end
+	for bz = first(b.z0), b.z1, BLOCK do
+		for bx = first(b.x0), b.x1, BLOCK do
+			-- the block's cells in the band: their box, and whether the view sees any of them from the side
+			local x0, z0, x1, z1 = math.huge, math.huge, -math.huge, -math.huge
+			local seen = false
+			for z = bz, bz + BLOCK - 1 do
+				for x = bx, bx + BLOCK - 1 do
+					if inBand(x, z) then
+						x0, z0 = math.min(x0, x), math.min(z0, z)
+						x1, z1 = math.max(x1, x + 1), math.max(z1, z + 1)
+						seen = seen or not (inCourse(x + 1, z) and inCourse(x, z + 1) and inCourse(x + 1, z + 1))
+					end
+				end
+			end
+			if x0 == math.huge or (not seen and not rim) then
+				continue
+			end
+			local h1, h2, h3 = hash01(bx, bz, 400 + k), hash01(bx, bz, 420 + k), hash01(bx, bz, 440 + k)
+			-- (its size: the cells less its gap, at least three quarters of a stud, so a block with one cell in the band
+			-- still gets a small stone)
+			local gap = c.gap + (if h1 < 0.3 then 0.125 else 0)
+			local W, D = math.max(0.75, x1 - x0 - 2 * gap), math.max(0.75, z1 - z0 - 2 * gap)
+			local px, pz = (x0 + x1) / 2, (z0 + z1) / 2
+			local top = if rim
+				then lawnY + (if h2 < 0.2 then -0.5 elseif h2 < 0.45 then -0.25 elseif h2 < 0.75 then 0 elseif h2 < 0.92 then 0.25 else 0.5)
+				else c.top - (if h2 < 0.3 then 0.5 elseif h2 < 0.6 then 0.25 else 0)
+			local bot = c.bot + (if h3 < 0.3 then 0.25 elseif h3 < 0.55 then 0 else -0.25)
+			-- (a stone below the rim stands out from its course by up to half a stud, toward the island's outside, so its
+			-- neighbours' sides show and the course's face is never one flat wall)
+			local fx, fz = px - cx, pz - cz
+			if not rim then
+				local out = if h1 > 0.66 then 0.5 elseif h1 > 0.33 then 0.25 else 0
+				local len = math.max(1e-6, math.sqrt(fx * fx + fz * fz))
+				px += math.floor(out * fx / len * 4 + 0.5) / 4
+				pz += math.floor(out * fz / len * 4 + 0.5) / 4
+			end
+			local col = if h3 > 0.7 then c.cols[2] else c.cols[1]
+			local at = o * CFrame.new(px, 0, pz)
+			local capped = rim and W >= 1.25 and D >= 1.25
+			local footH = if seen and k <= 5 and top - bot >= 1.25 then (if h1 > 0.6 then 0.5 else 0.25) else 0
+			local bodyTop = if capped then top - 0.25 else top
+			local bodyBot = bot + footH
+			deco(m, at, 0, (bodyTop + bodyBot) / 2, 0, W, bodyTop - bodyBot, D, col, "Boulder")
+			if capped then
+				-- (its rounded top: a quarter stud in all round)
+				deco(m, at, 0, top - 0.125, 0, W - 0.5, 0.25, D - 0.5, col, "Boulder")
+			end
+			if footH > 0 and W > 0.75 and D > 0.75 then
+				-- (its shaded underside: a darker foot a quarter stud in)
+				deco(m, at, 0, bot + footH / 2, 0, W - 0.5, footH, D - 0.5, c.foot, "Boulder")
+			end
+			if rim and top <= lawnY and h1 > 0.62 then
+				-- a turf of grass over it, and where the view sees its front a tuft hanging over the edge
+				local tw, td = if capped then W - 0.5 else W, if capped then D - 0.5 else D
+				deco(m, at, 0, top + 0.125, 0, tw, 0.25, td, "grass", "Turf")
+				if seen and (fx > 0 or fz > 0) then
+					if math.abs(fx) > math.abs(fz) then
+						deco(m, at, (if fx > 0 then 1 else -1) * (W / 2 + 0.125), top - 0.125, 0, 0.25, 0.75, math.min(1, D), "grass_dark", "Turf")
+					else
+						deco(m, at, 0, top - 0.125, (if fz > 0 then 1 else -1) * (D / 2 + 0.125), math.min(1, W), 0.75, 0.25, "grass_dark", "Turf")
+					end
+				end
+			end
+		end
 	end
 end
 
@@ -631,34 +686,13 @@ local function layers(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: numb
 		return if dark then 2 else 1
 	end
 	bevelled(m, o, b, { top = lawnY, h = LAWN_H, name = "Lawn", colors = { "grass", "grass_dark" }, solid = true }, lawn)
-	-- the grass's teeth over the lip: band j is grass where an edge cell's teeth reach it, soil elsewhere
-	for j = 1, TEETH do
-		bevelled(m, o, b, { top = LIP_TOP - (j - 1) * TOOTH_H, h = TOOTH_H, name = "Lip", colors = { "chocolate", "grass_dark" }, solid = false }, function(x, z)
-			local d = dist(x, z)
-			if d > 0 then
-				return 0
-			end
-			return if d > -1 and toothOf(x, z) >= j then 2 else 1
+	-- each course: its core (the soil under the rim, "Lip"; dark stone below, "Rock"), then its stones
+	for k, c in COURSES do
+		local top = if k == 1 then LAWN_BOT else c.top
+		bevelled(m, o, b, { top = top, h = top - c.bot, name = if k == 1 then "Lip" else "Rock", colors = { c.core }, solid = false }, function(x, z)
+			return if dist(x, z) <= cutsOf(x, z)[NC + k] then 1 else 0
 		end, true)
-	end
-	-- the soil: pale stones and redder streaks in it
-	bevelled(m, o, b, { top = LIP_TOP - TEETH * TOOTH_H, h = SOIL_H, name = "Lip", colors = { "chocolate", "cliff", "cliff_dark", "hair_brown" }, solid = false }, function(x, z)
-		if dist(x, z) > 0 then
-			return 0
-		end
-		local h = hash01(x, z, 17)
-		return if h < 0.12 then 2 elseif h < 0.18 then 3 elseif patch(x, z, 3, 1.15) then 4 else 1
-	end, true)
-	-- the rock: each ring in its stone, with dark cracks a cell wide and, on the deepest, crystal in it
-	for k, r in RINGS do
-		local cols = r.cols
-		bevelled(m, o, b, { top = r.top, h = r.h, name = "Rock", colors = { cols[1], cols[2], cols[3], "crystal" }, solid = false }, function(x, z)
-			if dist(x, z) > cutsOf(x, z)[k] then
-				return 0
-			end
-			local h = hash01(x, z, 300 + k)
-			return if h < 0.08 then 3 elseif r.crystal and h < 0.11 then 4 elseif h < 0.2 then 2 else 1
-		end, true)
+		stones(m, o, b, dist, k)
 	end
 end
 
@@ -686,34 +720,33 @@ end
 -- (BLOCK cells a side, a whole number of them to a chunk's side): the block's cell with the lowest hash among those
 -- the kind may use, kept when a second hash is under the kind's share, so a chunk's things depend on its own cells and
 -- their neighbours alone and a part of the island an expansion leaves as it was keeps the same things in the same
--- places. The kinds: on the grass's rim (studs 0 .. 0.95 in) tufts, flat stones and bushes; on the ledge under the
--- lip (between the grass's edge and the first ring's) roots and vines; under each ring, between its edge and the
--- next ring's (the deepest: two studs in), its stones. What hangs is placed only where the view sees it: the cell
--- south-east of it is out from under the ring below as well.
-type ScatterKind = { id: string, salt: number, p: number, block: number, ring: number }
+-- places. The kinds: on the grass's rim (studs 0 .. 0.95 in) tufts, flat stones and bushes; under the rim's stones
+-- (out from under the course below) vines; under each lower course, between its edge and the next one's (the
+-- deepest: two studs in), its hanging stones. What hangs is placed only where the view sees it: the cell south-east
+-- of it is out from under the course below as well.
+type ScatterKind = { id: string, salt: number, p: number, block: number, course: number }
 local SCATTER: { ScatterKind } = {
-	{ id = "tuft", salt = 79, p = 0.22, block = 2, ring = 0 },
-	{ id = "pebble", salt = 83, p = 0.5, block = 4, ring = 0 },
-	{ id = "bush", salt = 89, p = 0.6, block = 8, ring = 0 },
-	{ id = "root", salt = 31, p = 0.35, block = 2, ring = 0 },
-	{ id = "vine", salt = 37, p = 0.45, block = 4, ring = 0 },
+	{ id = "tuft", salt = 79, p = 0.22, block = 2, course = 0 },
+	{ id = "pebble", salt = 83, p = 0.5, block = 4, course = 0 },
+	{ id = "bush", salt = 89, p = 0.6, block = 8, course = 0 },
+	{ id = "vine", salt = 37, p = 0.45, block = 4, course = 1 },
 }
-for k = 1, #RINGS do
-	table.insert(SCATTER, { id = "hanger", salt = 47 + k * 6, p = if k <= 3 then 0.4 elseif k == 4 then 0.5 else 0.35, block = 4, ring = k })
+for k = 4, NC do
+	table.insert(SCATTER, { id = "hanger", salt = 47 + k * 6, p = if k <= 6 then 0.25 elseif k < NC then 0.4 else 0.45, block = 4, course = k })
 end
 
 local function scatterIn(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: number) -> number, sx: number?, sz: number?)
 	local lawnY = Street.LAWN_Y
-	-- (may a kind use cell (x, z))
+	-- (may a kind use cell (x, z): the rim's things on the grass's rim; what hangs under course k between its outer edge
+	-- and the next one's (cut NC + 1 + ... for the deepest: the band two studs in), seen from the view)
 	local function fits(k: ScatterKind, x: number, z: number): boolean
 		local d = dist(x, z)
-		if k.id == "tuft" or k.id == "pebble" or k.id == "bush" then
+		if k.course == 0 then
 			return d <= 0 and d > -0.95
-		elseif k.id == "root" or k.id == "vine" then
-			return d <= 0 and d > cutsOf(x, z)[1] and dist(x + 1, z + 1) > cutsOf(x + 1, z + 1)[1]
 		end
 		local c = cutsOf(x, z)
-		return d <= c[k.ring] and d > c[k.ring + 1] and dist(x + 1, z + 1) > cutsOf(x + 1, z + 1)[k.ring + 1]
+		local below = if k.course < NC then k.course + 1 else 2 * NC + 1
+		return d <= c[k.course] and d > c[below] and dist(x + 1, z + 1) > cutsOf(x + 1, z + 1)[below]
 	end
 	for _, k in SCATTER do
 		local B = k.block
@@ -752,15 +785,13 @@ local function scatterIn(m: Instance, o: CFrame, b: Rect, dist: (x: number, z: n
 					pebble(m, o * CFrame.new(px, lawnY, pz), h2)
 				elseif k.id == "bush" then
 					bush(m, o * CFrame.new(px, lawnY, pz), h2, bloom)
-				elseif k.id == "root" then
-					root(m, o * CFrame.new(px, LIP_BOT, pz), 0.75 + h2 * 2.5, h3)
 				elseif k.id == "vine" then
-					vine(m, o * CFrame.new(px, LIP_BOT + 0.25, pz), 2 + h2 * 4, h3, bloom)
+					vine(m, o * CFrame.new(px, COURSES[1].bot + 0.25, pz), 2 + h2 * 4, h3, bloom)
 				else
-					local r = RINGS[k.ring]
-					local size = if k.ring <= 3 then 1 elseif k.ring == 4 then 2 else 3
+					local c = COURSES[k.course]
+					local size = if k.course <= 6 then 1 elseif k.course < NC then 2 else 3
 					local len = if size == 1 then 0.75 + h2 * 0.75 elseif size == 2 then 1.75 + h2 * 2 else 3 + h2 * 4
-					hanger(m, o * CFrame.new(px, r.bot, pz), len, h3, size, r.cols)
+					hanger(m, o * CFrame.new(px, c.bot, pz), len, h3, size, { c.cols[1], c.cols[2], c.foot })
 				end
 			end
 		end
@@ -784,16 +815,15 @@ local LAND_MARGIN = 3
 export type LandChunk = { name: string, rect: Rect }
 export type LandPlan = { chunks: { LandChunk }, sign: string, walls: string }
 
--- The coast distances the drawing reads every cell by (the grass's edge, the rim's tones, the teeth's edge cells, the
--- rim's small things), deepest last; with each cell's own ring cuts (`cutsOf`), every threshold a cell is compared
--- with.
-local BANDS: { number } = { 0, -0.9, -0.95, -1 }
+-- The coast distances the drawing reads every cell by (the grass's edge, the rim's tones and its small things),
+-- deepest last; with each cell's own course cuts (`cutsOf`), every threshold a cell is compared with.
+local BANDS: { number } = { 0, -0.9, -0.95 }
 
--- A cell's code for the signature: 0 the open air, else 1 + how many of its thresholds its coast distance is at or
--- under (the static bands and its ring cuts: the count says which side of every one of them it is on).
+-- A cell's code for the signature: 0 the open air (past every stone), else 1 + how many of its thresholds its coast
+-- distance is at or under (the static bands and its course cuts: the count says which side of every one it is on).
 local function cellCode(tier: number, x: number, z: number): number
 	local d = Street.cellDist(tier, x, z)
-	if d > Street.WALL then
+	if d > REACH_CODE then
 		return 0
 	end
 	local c = 1
