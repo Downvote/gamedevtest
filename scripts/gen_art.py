@@ -349,7 +349,6 @@ HAND("mini_tree", [
 # The rest of the small icons, hand-toned the same way (the request of 2026-11-14: "Do the same with all the other
 # icons"), each 9 x 9 inside its ink ring like the masks they replace, so every layout keeps its sizes.
 ICONS = {
-    # the shells: a scallop, its ribs fanning down to the hinge
     # food: a red apple, a brown stem and a green leaf
     "food": (["....c.87.", ".444c433.", "44w443332", "444433332", "444333322", "433333222", ".3332222.", ".3322221.", "..22.11.."], ["R", "G", "N"], None),
     # wood: a log lying down, its cut end showing the rings
@@ -443,9 +442,21 @@ for _k, (_rows, _ramps, _flat) in ICONS.items():
     assert len(_rows) == 9, _k
     HAND("mini_" + _k, _rows, _ramps, _flat)
 
-# the shell (the shells counter and every price): the scallop it had before the hand-toned redraw, its ribs meeting at
-# its hinge, shaded the region way (the request of 2026-11-14: "use the same shell sprite used before")
-S("mini_shell", [".........", ".FFFFFFF.", "FFFFFFFFF", "FFjFjFjFF", "FFjFjFjFF", ".FFjjjFF.", "..FFjFF..", "...FFF...", "........."], flat={"j": "org1"}, pad=True)
+# the coin (the coins counter and every price; the scallop shell until the request of 2026-11-20: "change the
+# currency to just coins", then "make coin icons coins now, including developer products"): a round gold coin lit from
+# the top left, a glint on its rim, a ring pressed into its face (the ring's upper left in shadow, its lower right
+# catching the light, as a groove does) round a face lit at its top left
+HAND("mini_coin", [
+    "..44433..",
+    ".4w43332.",
+    "443222332",
+    "442433432",
+    "432333432",
+    "332333422",
+    "333444321",
+    ".3332221.",
+    "..22111..",
+], ["Y"])
 
 # A mutation's tier, in stars after its name (the request of 2026-11-14: "the * in mutations should be replaced with
 # small star sprites to show the rarity of mutations"): one 7 x 7 star a tier, in the tier's colour (UI's

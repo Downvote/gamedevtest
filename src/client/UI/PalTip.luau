@@ -38,11 +38,11 @@ local ISLAND_KEYS: { [string]: string } = {
 	boost = "boost",
 	charm = "charm",
 	charmPct = "charm share",
-	all = "shells share",
+	all = "coins share",
 	aura = "work for all",
 	eggs = "extra eggs",
 	skip = "rarer hatches",
-	away = "offline shells",
+	away = "offline coins",
 }
 
 export type Line = { text: string, color: string, tier: number?, title: string? }
@@ -102,7 +102,7 @@ function PalTip.lines(pal: Types.Pal): { Line }
 		local said = if #names == 1 then names[1] else table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names]
 		table.insert(out, { text = string.format("Its %s count%s while in a hut", said, if #names == 1 then "s" else ""), color = "text_dim" })
 	end
-	table.insert(out, { text = "Sells for " .. Numbers.coins(Tree.price(pal)) .. " shells", color = "text_dim" })
+	table.insert(out, { text = "Sells for " .. Numbers.coins(Tree.price(pal)) .. " coins", color = "text_dim" })
 	return out
 end
 

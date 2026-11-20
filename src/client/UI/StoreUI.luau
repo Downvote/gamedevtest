@@ -53,8 +53,8 @@ local StoreUI = {}
 type Item = { key: string, name: string, blurb: string, icon: string, pass: boolean }
 
 local PASSES: { Item } = {
-	{ key = "VIP", name = "VIP", blurb = "25% more shells, a welcome gift, a daily gift, six pieces and the VIP title.", icon = "mini_crown", pass = true },
-	{ key = "DoubleIncome", name = "Double Income", blurb = "Your island earns double.", icon = "mini_shell", pass = true },
+	{ key = "VIP", name = "VIP", blurb = "25% more coins, a welcome gift, a daily gift, six pieces and the VIP title.", icon = "mini_crown", pass = true },
+	{ key = "DoubleIncome", name = "Double Income", blurb = "Your island earns double.", icon = "mini_coin", pass = true },
 	{ key = "QuickTree", name = "Quick Tree", blurb = string.format("New eggs every %d minutes, not %d.", Tuning.EggSecsPass // 60, Tuning.EggSecs // 60), icon = "mini_tree", pass = true },
 	{ key = "FreeDecor", name = "Free Decor", blurb = "Decor, paths, water and fences are free.", icon = "mini_decor", pass = true },
 	{ key = "PremiumTrack", name = "Premium Track", blurb = "Opens the premium track, every season.", icon = "mini_ticket", pass = true },
@@ -62,7 +62,7 @@ local PASSES: { Item } = {
 }
 
 local PRODUCTS: { Item } = {
-	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of shells, epic and legendary eggs, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
+	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of coins, epic and legendary eggs, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
 	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Every Hatchery egg ready now.", icon = "mini_nest", pass = false },
 	{ key = "RefreshShop", name = "Shop Refresh", blurb = "Six new pieces in the shop now.", icon = "mini_refresh", pass = false },
 	{ key = "RefreshEggs", name = "New Eggs", blurb = "The tree lays new eggs now.", icon = "mini_tree", pass = false },
@@ -170,12 +170,12 @@ function StoreUI.eggInstead(r: number)
 	local id = idOf(key)
 	if not Monetization.isEnabled(id) then
 		Audio.play("deny")
-		UIKit.notice("Not enough shells.", UIKit.color("text_dim"))
+		UIKit.notice("Not enough coins.", UIKit.color("text_dim"))
 		return
 	end
 	local rar = Traits.RARITY[Store.EGG_R[key] or 2] or Traits.RARITY[2]
 	local an = if string.match(string.lower(rar.name), "^[aeiou]") then "an" else "a"
-	UIKit.notice(string.format("Not enough shells. Buy %s %s egg with Robux?", an, string.lower(rar.name)), UIKit.color("text_dim"))
+	UIKit.notice(string.format("Not enough coins. Buy %s %s egg with Robux?", an, string.lower(rar.name)), UIKit.color("text_dim"))
 	StoreUI.buy(key)
 end
 
@@ -263,7 +263,7 @@ function StoreUI.rewardText(from: string, given: { any }): string
 		end
 	end
 	if shells > 0 then
-		table.insert(parts, Numbers.coins(shells) .. " shells")
+		table.insert(parts, Numbers.coins(shells) .. " coins")
 	end
 	if #one + #parts <= 3 then
 		for _, w in one do
@@ -308,7 +308,7 @@ local function howWords(t: Titles.Title): string
 	elseif h == "seen" then
 		return if n > 0 then string.format("Find %d kinds.", n) else "Find every kind."
 	elseif h == "earned" then
-		return string.format("Make %s shells in all.", Numbers.coins(n))
+		return string.format("Make %s coins in all.", Numbers.coins(n))
 	elseif h == "hatched" then
 		return string.format("Hatch %d Hatchery eggs.", n)
 	elseif h == "days" then
@@ -364,7 +364,7 @@ end
 
 -- A shells price with the small shell (red when there aren't enough).
 local function shellPrice(parent: Instance, x: number, y: number, shells: number, have: number, z: number?)
-	PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
+	PixelSprites.image(parent, "mini_coin", UDim2.fromOffset(x, y), z or 4)
 	local t = Numbers.coins(shells)
 	UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 12, y + 1), { color = if have >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Price" })
 end
@@ -433,8 +433,8 @@ local function groupRow(list: Instance, v: Types.ClientView, W: number, BW: numb
 	spriteIn(f, "mini_folk", 3, 4, 14)
 	local pct = math.floor(Tuning.GroupBoost * 100 + 0.5)
 	local blurb = if member
-		then string.format("You're in: %d%% more shells.", pct)
-		else string.format("Join for a rare egg, %d minutes of shells and %d%% more shells.", Tuning.GroupMins, pct)
+		then string.format("You're in: %d%% more coins.", pct)
+		else string.format("Join for a rare egg, %d minutes of coins and %d%% more coins.", Tuning.GroupMins, pct)
 	UIKit.text(f, "Our group", UDim2.fromOffset(W - BW - 40, 10), UDim2.fromOffset(22, 2), { color = UIKit.color("good"), z = 4, name = "Name" })
 	UIKit.text(f, blurb, UDim2.fromOffset(W - BW - 32, 20), UDim2.fromOffset(22, 12), { color = UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
 	local on = v.groupOn
@@ -751,7 +751,7 @@ local function buildTrack(body: Frame, v: Types.ClientView, W: number, H: number
 		elseif r.kind == "title" then
 			spriteIn(c, "mini_star", ix, 1, 24, 5)
 		else
-			spriteIn(c, "mini_shell", ix, 1, 24, 5)
+			spriteIn(c, "mini_coin", ix, 1, 24, 5)
 		end
 		local words = if can then "Claim" else rewardShort(v, r)
 		local wc = if can then UIKit.color("glass") elseif claimed or not reached then UIKit.color("text_dim") else UIKit.color("text")
@@ -878,7 +878,7 @@ function StoreUI.offers(parent: Instance, v: Types.ClientView, w: number): Frame
 	local list: { { name: string, text: string, sub: string, icon: string, color: Color3, go: () -> () } } = {}
 	if v.offline ~= false then
 		local r = v.offline :: Types.OfflineReport
-		table.insert(list, { name = "Offer_Offline", text = "Away earnings", sub = "+" .. Numbers.coins(r.shells), icon = "mini_shell", color = UIKit.color("accent"), go = function()
+		table.insert(list, { name = "Offer_Offline", text = "Away earnings", sub = "+" .. Numbers.coins(r.shells), icon = "mini_coin", color = UIKit.color("accent"), go = function()
 			UIKit.openPanel("welcome")
 		end })
 	end
@@ -929,7 +929,7 @@ end
 ------------------------------------------------------------------ init
 local PASS_THANKS: { [string]: string } = {
 	VIP = "Thanks! VIP is on.",
-	DoubleIncome = "Thanks! Shells count double now.",
+	DoubleIncome = "Thanks! Coins count double now.",
 	QuickTree = string.format("Thanks! New eggs every %d minutes now.", Tuning.EggSecsPass // 60),
 	FreeDecor = "Thanks! Decor is free now.",
 	PremiumTrack = "Thanks! Premium track open.",
@@ -937,7 +937,7 @@ local PASS_THANKS: { [string]: string } = {
 }
 
 function StoreUI.init()
-	UIKit.registerPanel("store", { title = "Store", icon = "store", w = 380, h = 210, props = { "crown", "shell", "ticket" }, build = buildStore })
+	UIKit.registerPanel("store", { title = "Store", icon = "store", w = 380, h = 210, props = { "crown", "coin", "ticket" }, build = buildStore })
 	StateClient.Fx:Connect(function(msg)
 		if msg.kind == "pass" and msg.bought then
 			Audio.play("reward")

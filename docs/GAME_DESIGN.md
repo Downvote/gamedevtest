@@ -353,17 +353,29 @@ decides everything, pure Data/Logic modules with specs, and the fake-engine simu
 ## 1. The loop in one paragraph
 
 Build a Lumber Camp that sells the wood it cuts, a Veggie Patch that sells what it grows, and a Driftling Hut; each
-building works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its shells. All the
+building works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its coins. All the
 while the Tree of Life lays a new lot of eggs every three minutes, five on a new island, and the ones left from the last
 lot go. Tap the tree (or an egg, or the Tree card) to see them and hatch one there: out comes a driftling of the
 egg's rarity, now and then of a rarer one, with mutations of its own, shown off in a short hatch scene. It
 moves into a hut and takes a place at a farm, lumber camp or shop (its knack's first), adding to what it makes, a
 legendary seven times what a common one adds. Rarer eggs cost more, and on a bigger island every egg costs more, the
 tree lays more of them and the rare ones come more often. When every hut is full, the new one takes the place of one you
-pick, and that one is sold. Spend shells on more buildings, huts (so many a tier), and on decor, paths, fences and
-water (their charm raises every shell the island makes), and expand the island for bigger buildings, more huts, more eggs and
+pick, and that one is sold. Spend coins on more buildings, huts (so many a tier), and on decor, paths, fences and
+water (their charm raises every coin the island makes), and expand the island for bigger buildings, more huts, more eggs and
 new kinds of driftling, and past the capital for more room and better eggs. Nothing happens while you are away (no
 offline progress).
+
+**Coins.** The island's money is coins: every word a player reads says coins, and every price, the counter, the rewards
+and the store show a gold coin (`mini_coin`, drawn by hand in `scripts/gen_art.py`), the Double Income pass's icon two
+big coins and the Starter Pack's its two eggs on a heap of them. It was shells, with a scallop for its icon, until the
+requests of 2026-11-20. The save, the server and the code still call it `shells` (`Profile.shells`, `v.shells`, a
+reward's kind `"shells"`, the title ids `shellsaver`, `shellbaron`, `shelltycoon`, whose names are now Coin Saver,
+Coin Baron and Coin Tycoon), so no save changes; where an older note below says shells about money, read coins. The
+seashells on the islands stay seashells (the Shell Path, Shell Wall and Shell Pile, the Shell Cap and the other shell
+pieces, a snail's or a turtle's shell), and so does the Lucky Shell, the daily spin, which is a name.
+
+> The requests (2026-11-20): "change the currency to just coins", then "make coin icons coins now, including developer
+> products"
 
 ## 2. Look and feel
 
@@ -1415,12 +1427,18 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, Â
   sand for sand (higher for snow), a cloth flap for cloth and a shaker for fire.
 - **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
   is open) turns the tray to the tab and row of the building the tip asks for (the Lumber Camp on Work's Wood row, the
-  Veggie Patch on Farms, the Driftling Hut on Huts, the Snack Stall on Shops), and that building's card (and its tab,
-  while another tab is shown) pulses until it stands on the island; placing it goes straight on to the next tip's tab.
-  The quests' Go opens Build mode on its tab (an old tab's name, "build:wood", opens Work on that row).
+  Veggie Patch on Farms, the Driftling Hut on Huts, the Snack Stall on Shops), and that building's whole button turns
+  yellow (where it was the green of a building you can afford), pulsing to a paler yellow and back, a shine sweeping
+  across it every 1.2 seconds, until it stands on the island (its tab pulses too while another tab is shown); placing
+  it goes straight on to the next tip's tab. Before 2026-11-20 it was the card's faint plate round the button that
+  glowed, the button itself staying green. The quests' Go opens Build mode on its tab (an old tab's name, "build:wood",
+  opens Work on that row).
 
   > The request (2026-11-10): "make the tutorial show while in the build menu as well, and auto switches the player to
   > the tab where the required buildings are in"
+
+  > The request (2026-11-20, with a picture of the Lumber Camp's card): "make the highlight during tutorial make the
+  > whole green button yellow instead and shine"
 
 ### 4.6 How full each building is (`Controllers/BuildingTags`)
 
@@ -3446,7 +3464,10 @@ something on it waits:
 - **Lucky Shell.** One free spin a day, more from the rewards (`reward.spin`). Nine prizes with their odds shown
   (2, 6 or 12 min of shells, an uncommon, rare, epic or legendary egg, a Lucky Hour or a Busy Day of 15 min). A spin
   runs a light over the prizes, two laps and on, slowing, and stops on the one won; only then does the sheet say what
-  it gave.
+  it gave. While the light runs, Spin turns into Skip: a tap lands the light on the prize at once (the prize was drawn
+  on the server when the spin began, so skipping changes nothing but the wait).
+
+  > The request (2026-11-20): "make a skip for lucky shell spinning"
 - **Index.** Gifts for kinds found (5, 10, 20, 35, 50, 75, 100, 125 and 145 kinds), each once (`reward.index`).
 - **Codes.** A box to type a code into and Redeem (`code.redeem`): trimmed and made upper case, each once a player,
   some with an end date (`Config/Codes`, on the server only: WELCOME, DRIFTLING, HATCHDAY, SPINME to start).

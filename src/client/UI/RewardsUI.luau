@@ -60,7 +60,7 @@ end
 function RewardsUI.words(v: View?, r: Reward, short: boolean?): string
 	if r.kind == "shells" then
 		local n = math.floor(((if v then v.minuteShells else 0) or 0) * (r.mins or 1))
-		return if short then Numbers.short(n) else Numbers.coins(n) .. " shells"
+		return if short then Numbers.short(n) else Numbers.coins(n) .. " coins"
 	elseif r.kind == "egg" then
 		local rar = Traits.RARITY[math.clamp(r.r or 1, 1, Traits.RMAX)]
 		return if short then rar.name else string.format("%s %s egg", an(rar.name), string.lower(rar.name))
@@ -92,7 +92,7 @@ end
 -- A reward's mini icon ("mini_" less).
 function RewardsUI.icon(r: Reward): string
 	if r.kind == "shells" then
-		return "shell"
+		return "coin"
 	elseif r.kind == "egg" then
 		return "egg_" .. math.clamp(r.r or 1, 1, Traits.RMAX)
 	elseif r.kind == "spin" then
@@ -389,9 +389,12 @@ local function buildTasks(list: ScrollingFrame, v: View, W: number): number
 	return y
 end
 
--- The Lucky Shell: the light over its prizes (spinAt), running while a spin plays out.
+-- The Lucky Shell: the light over its prizes (spinAt), running while a spin plays out. While it runs, the Spin button
+-- turns into Skip (the request of 2026-11-20: "make a skip for lucky shell spinning"), which lands the light on the
+-- prize at once.
 local spinAt = 0
 local spinning = false
+local skipSpin = false
 local function paintSpin()
 	local name = UIKit.currentPanel()
 	if name ~= "rewards" then
@@ -423,16 +426,28 @@ local function spin()
 	local slice = if type(data) == "table" and type(data.slice) == "number" then data.slice else 1
 	local n = #RewardsData.SPIN
 	spinning = true
+	skipSpin = false
+	-- (the panel again, so Spin reads Skip while the light runs)
+	if UIKit.currentPanel() == "rewards" then
+		UIKit.refreshPanel()
+	end
 	task.spawn(function()
-		-- two laps and on to the prize, slowing as it goes
+		-- two laps and on to the prize, slowing as it goes (Skip: straight to it)
 		local steps = 2 * n + ((slice - (if spinAt > 0 then spinAt else 1)) % n) + 1
 		for k = 1, steps do
+			if skipSpin then
+				break
+			end
 			spinAt = (spinAt % n) + 1
 			paintSpin()
 			Audio.play("tick")
 			local t = k / steps
-			task.wait(0.04 + 0.22 * t * t)
+			local untilAt = os.clock() + 0.04 + 0.22 * t * t
+			while os.clock() < untilAt and not skipSpin do
+				task.wait()
+			end
 		end
+		skipSpin = false
 		spinAt = slice
 		paintSpin()
 		spinning = false
@@ -452,10 +467,21 @@ local function buildSpin(list: ScrollingFrame, v: View, W: number): number
 	y += 14
 	local bw = 96
 	local function spinButton(at: number)
-		local b = UIKit.button(list, if spinning then "Spinning" else "Spin", UDim2.fromOffset(bw, 18), UDim2.fromOffset(math.floor((W - bw) / 2), at), spin, {
+		if spinning then
+			-- (while the light runs: Skip, which lands it on the prize now)
+			local b = UIKit.button(list, "Skip", UDim2.fromOffset(bw, 18), UDim2.fromOffset(math.floor((W - bw) / 2), at), function()
+				if spinning and not skipSpin then
+					skipSpin = true
+					Audio.play("flip")
+				end
+			end, { name = "SkipSpin", color = UIKit.color("button") })
+			b.ZIndex = 5
+			return
+		end
+		local b = UIKit.button(list, "Spin", UDim2.fromOffset(bw, 18), UDim2.fromOffset(math.floor((W - bw) / 2), at), spin, {
 			name = "Spin",
 			color = UIKit.color("button_ok"),
-			enabled = r.spins > 0 and not spinning,
+			enabled = r.spins > 0,
 		})
 		b.ZIndex = 5
 		PixelSprites.image(b, "mini_wheel", UDim2.fromOffset(6, 3), 6)

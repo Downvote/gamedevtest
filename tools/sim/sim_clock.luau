@@ -739,7 +739,7 @@ do
 		local ht = if hint then table.concat(H.textsOf(hint), " ") else ""
 		local ct = if cost then table.concat(H.textsOf(cost), " ") else ""
 		H.expect(string.find(ht, "Breed two driftlings for an egg.", 1, true) ~= nil and string.find(ht, "best mutations", 1, true) ~= nil, "hatchery", "the hint: breed two for an egg, it gets their best mutations", ht)
-		H.expect(preview ~= nil and string.find(ct, Numbers.coins(preview.price) .. " shells, hatches in", 1, true) ~= nil, "hatchery", "the pair's line: the price and the time", ct)
+		H.expect(preview ~= nil and string.find(ct, Numbers.coins(preview.price) .. " coins, hatches in", 1, true) ~= nil, "hatchery", "the pair's line: the price and the time", ct)
 		local row = p.PlayerGui:FindFirstChild("Hatch_" .. uid, true)
 		local shown = 0
 		for _, id in if preview then preview.muts else {} do
@@ -1280,6 +1280,17 @@ do
 		return if s and s:IsA("TextLabel") then s.Text else ""
 	end)
 	H.expect(string.find(said, "Lucky Shell", 1, true) ~= nil, "rewards", "once the light stops, the sheet says what it gave", said)
+	-- Skip (the request of 2026-11-20: "make a skip for lucky shell spinning"): while the light runs, Spin reads Skip,
+	-- and a tap lands it on the prize at once
+	prof.rewards.spin.extra = (prof.rewards.spin.extra or 0) + 1
+	H.push(p, 0.4)
+	H.openPanel(p, "rewards", "spin")
+	local total1 = prof.rewards.spin.total
+	H.clickNamed(p, "Spin", { wait = 0.2 })
+	H.expect(prof.rewards.spin.total == total1 + 1, "rewards", "a second spin turns", tostring(prof.rewards.spin.total))
+	H.expect(H.buttonNamed(p, "SkipSpin") ~= nil and H.buttonNamed(p, "Spin", true) == nil, "rewards", "while the light runs, Spin reads Skip")
+	H.clickNamed(p, "SkipSpin", { wait = 0.3 })
+	H.expect(H.buttonNamed(p, "Spin", true) ~= nil and H.buttonNamed(p, "SkipSpin", true) == nil, "rewards", "Skip lands the light on the prize at once (Spin is back)")
 	prof.rewards.spin.extra = 0
 	local rs = H.req(p, "reward.spin", {})
 	H.expect(not rs.ok and rs.err == "not_done", "rewards", "no spins left: refused (not_done)", tostring(rs.err))

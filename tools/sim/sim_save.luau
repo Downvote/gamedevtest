@@ -836,7 +836,7 @@ local function label(p, name)
 	local l = p.PlayerGui:FindFirstChild(name, true)
 	return if l and l:IsA("TextLabel") then l.Text else nil
 end
-H.expect(r1 ~= nil and label(o1, "Shells") == "+" .. H.sharedServer("Logic.Numbers").coins(r1.shells) .. " shells" and H.buttonNamed(o1, "Collect") ~= nil and H.buttonNamed(o1, "SeePass") ~= nil, "offline", "the card: the shells, Collect, and the Offline Pass's line", tostring(label(o1, "Shells")))
+H.expect(r1 ~= nil and label(o1, "Shells") == "+" .. H.sharedServer("Logic.Numbers").coins(r1.shells) .. " coins" and H.buttonNamed(o1, "Collect") ~= nil and H.buttonNamed(o1, "SeePass") ~= nil, "offline", "the card: the coins, Collect, and the Offline Pass's line", tostring(label(o1, "Shells")))
 H.expect(v1 ~= nil and v1.offlineDouble and H.buttonNamed(o1, "CollectDouble") ~= nil, "offline", "a new island's first days: Collect x2 is there, free")
 local sh0 = pr1.shells
 H.clickNamed(o1, "Collect", { wait = 0.6 })

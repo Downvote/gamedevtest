@@ -206,7 +206,7 @@ local function played(data: { [string]: any }, panel: string?)
 		if panel and StateClient.view() ~= nil and HatchScene.waiting() == 0 then
 			UIKit.openPanel(panel)
 		end
-		local said = if sold > 0 then string.format("Hatched %s. The old one sold for %s shells.", what, Numbers.coins(sold)) else string.format("Hatched %s.", what)
+		local said = if sold > 0 then string.format("Hatched %s. The old one sold for %s coins.", what, Numbers.coins(sold)) else string.format("Hatched %s.", what)
 		UIKit.notice((if fresh then "New! " else "") .. said, UIKit.color(rar.color), 4)
 	end)
 end

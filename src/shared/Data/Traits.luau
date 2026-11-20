@@ -305,13 +305,13 @@ end
 local WORDS: { [string]: string } = {
 	work = "work",
 	aura = "work for all",
-	all = "all shells",
+	all = "all coins",
 	boost = "boost buildings",
 	charmPct = "charm",
 	sell = "sell price",
 	luck = "egg luck",
 	skip = "rarer hatch chance",
-	away = "offline shells",
+	away = "offline coins",
 }
 local function pct(v: number): string
 	local x = math.abs(v) * 100

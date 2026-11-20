@@ -36,7 +36,7 @@ local list: { Quest } = {
 		goal = { kind = "sold", n = 1 },
 		reward = { shells = 40 },
 		go = "pals",
-		icon = "shell",
+		icon = "coin",
 	},
 	{
 		id = "take3",
@@ -83,7 +83,7 @@ local list: { Quest } = {
 		goal = { kind = "built", n = 4, of = "work" },
 		reward = { shells = 120 },
 		go = "build:work",
-		icon = "shell",
+		icon = "coin",
 	},
 	{
 		id = "paths",
@@ -97,7 +97,7 @@ local list: { Quest } = {
 	{
 		id = "decor",
 		title = "Decorate",
-		text = "Place two from the Decor tab. Charm brings in more shells.",
+		text = "Place two from the Decor tab. Charm brings in more coins.",
 		goal = { kind = "decor", n = 2 },
 		reward = { shells = 100 },
 		go = "build:decor",
@@ -108,7 +108,7 @@ local list: { Quest } = {
 		title = "A rare one",
 		-- (the user's words of 2026-11-14: "Get a rare egg from the tree! Save some shells for one.", and the tree
 		-- keeps one under it while this quest is on: Logic/Tree.ensure)
-		text = "Get a rare egg from the tree! Save some shells for one.",
+		text = "Get a rare egg from the tree! Save some coins for one.",
 		goal = { kind = "best", n = 3 },
 		reward = { shells = 200 },
 		go = "tree",

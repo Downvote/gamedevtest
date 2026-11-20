@@ -157,7 +157,9 @@ is `DriftlingIsle-<short hash>.rbxl`.)
   `Logic/Validate`, answered `{ ok = true, data }` or `{ ok = false, err = ErrCode }`.
 - Every number is in `Config/Tuning.luau`; every Roblox id is in `Config/Monetization.luau` (0 = not made yet). Each
   pass's and product's icon to upload is `art/products/<key>.png` (512 x 512 pixel art drawn from the game's models by
-  `tools/preview/product_icons.sh`: a round badge for a pass, a rounded square for a product). The game's own
+  `tools/preview/product_icons.sh`: a round badge for a pass, a rounded square for a product; the money on them is
+  gold coins drawn in `product_icons.py`, `coin(cv, cx, cy, R, star?)`: two on Double Income, a heap of five in front
+  of the Starter Pack's eggs). The game's own
   thumbnails (1920 x 1080) and icon (512 x 512) are `art/thumbnails/thumb_<n>_<name>.png` and `art/thumbnails/icon.png`
   (`tools/preview/game_thumbs.sh`: frames of the game drawn by its pixel filter with the HUD off and no founder in them,
   driftlings drawn through Pixel/Snapshot over them, the title and captions in the pixel font, all on one 4x grid).
@@ -1753,7 +1755,7 @@ TextBox `Box` over the pixel font's `Query`, "Search" while empty, the clear mar
 `onChange(q)` with the words trimmed and in lower case whenever they change), `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
 (`registerPanel(name, { title, icon?, w, h, hFor?, props?, build })`, `hFor(w)` the height for the width the screen leaves it in place of `h` (Settings: its rows wrap on a narrow panel), the body that big with the awning on top (`SHEET_TOP` 25 UI px), within the screen less a few px; since 2026-11-19 ("Look at the bakery game and see its menu. Make a similarly polished and themed menu for different tabs") a **sheet** over a `sea_shade` veil (0.45 transparent): a "Frame" holding the "Glass" plate (black glass at `PANEL_ALPHA`), the "Head" (the awning: a "Band" clip with the `awning` plate, its "Stripe"s and "Fold"s, the "Hem" of `SCALLOP` 9 px scallops; the "Icon" `mini_<icon>`, the "Title" in cream with an ink outline, the "Status" line, the "Props" shelf with the def's `props` mini icons, the "Close" button (`awning_dark`, the `mini_close` sprite)) and the "Body"; `openPanel(name, arg)`, `openCount()` (openings so far: a panel takes its argument's tab once an opening), `closePanel`, `currentPanel`,
-`refreshPanel` (keeps the "List" scroll), `PanelChanged`, `bodyWidth`, `bodyHeight`). Screens (2026-11-19, "make mobile and tablet as responsive and catered to as possible ... Make menus fill the screen on mobile with currency showing and an exit button"): `phone()` (a short side of 500 screen px or less), `touch()` (touch and no mouse), `tablet()` (touch, not a phone); `TOUCH_MIN` 44 screen px: on a touch screen `button` gives a button smaller than that a see-through "Hit" TextButton child round it (its pad, ZIndex 4) that presses it too; `onHold(target, show, hide)` (a finger held `HOLD_SECS` 0.35: show, lifted: hide); `setWallet(get, changed)` (Main.client: the view's shells and `StateClient.Changed`). A sheet on a phone is the Modal canvas's whole size (no margin, square glass corners), on a tablet 1.3 times its design within the canvas less 24; on a touch screen the awning is `AWNING_TOUCH` 24 tall (the body starts 4 lower), its exit 20 x 20 (else 15) and a "Wallet" chip before it (`mini_shell` and the "Shells" label, `Numbers.short`, set again on every `changed`); a phone's awning has no props shelf. (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
+`refreshPanel` (keeps the "List" scroll), `PanelChanged`, `bodyWidth`, `bodyHeight`). Screens (2026-11-19, "make mobile and tablet as responsive and catered to as possible ... Make menus fill the screen on mobile with currency showing and an exit button"): `phone()` (a short side of 500 screen px or less), `touch()` (touch and no mouse), `tablet()` (touch, not a phone); `TOUCH_MIN` 44 screen px: on a touch screen `button` gives a button smaller than that a see-through "Hit" TextButton child round it (its pad, ZIndex 4) that presses it too; `onHold(target, show, hide)` (a finger held `HOLD_SECS` 0.35: show, lifted: hide); `setWallet(get, changed)` (Main.client: the view's shells and `StateClient.Changed`). A sheet on a phone is the Modal canvas's whole size (no margin, square glass corners), on a tablet 1.3 times its design within the canvas less 24; on a touch screen the awning is `AWNING_TOUCH` 24 tall (the body starts 4 lower), its exit 20 x 20 (else 15) and a "Wallet" chip before it (`mini_coin` and the label named "Shells", `Numbers.short`, set again on every `changed`); a phone's awning has no props shelf. (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
 rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
@@ -1780,7 +1782,9 @@ wide), the "Gifts for playing" heading, the "PlayGift" row (Claim `PlayClaim` or
 eight `Play_<i>` cards. Tasks: `Task_<i>` rows (a bar, the count, `TaskClaim_<i>` or Done or the gift), the "Bonus" row
 (`BonusClaim`). Lucky Shell: the `Slice_<i>` prizes with their odds and `Spin` (under them; on a phone first, under the heading, where a landscape screen's fold left it): the reply's `slice` drives a light round
 the prizes (`spinAt`, repainted by name so a rebuilt sheet keeps it), slowing, then the notice (`StoreUI.rewardText`
-from "spin", which `StoreUI` leaves to it). Index: `IndexGift_<i>` rows (`IndexClaim_<i>`). Codes: the "CodeField" (a
+from "spin", which `StoreUI` leaves to it). While it runs the sheet is rebuilt with `SkipSpin` ("Skip") in Spin's
+place: it sets `skipSpin`, and the light's loop (which waits a frame at a time) stops and lands on `slice` at once
+(2026-11-20, "make a skip for lucky shell spinning"). Index: `IndexGift_<i>` rows (`IndexClaim_<i>`). Codes: the "CodeField" (a
 row kept across rebuilds, `Keep`, with a TextBox "Box" under the pixel font's copy "Typed") and `Redeem`. API:
 `init()`, `words(v, reward, short?)`, `icon(reward)`, `ready(v)` (the server's count and a gift for playing come due
 since), `playSecs(v)` (today's seconds, running on from the last tick Fx's `play`), `status(v, line)` (Hud's: the
@@ -1986,7 +1990,7 @@ changing clears everything), `tapAt(pos) -> boolean` from `onTap` after the eggs
 Hatchery. No alerts over empty spots since 2026-11-17 (a `BuildingAlert` tag, "Empty", bobbed over each spot with `n`
 0). The `BuildingCard` (on the Popup root since 2026-11-15, over the HUD's cards, moved there from the World canvas's position by the two roots' origins; glass: `Name` in the
 accent, then a line each with its icon: `mini_work` or `mini_nest` and `Line` "Workers n/2" or "Living here n/room" in
-`bad` at 0, `good` when full, else `text`, and for a workplace `mini_shell` and `Line2` its earnings; a boost building's
+`bad` at 0, `good` when full, else `text`, and for a workplace `mini_coin` and `Line2` its earnings; a boost building's
 `mini_boost` and `Line` its knack's boost in `good`, `mini_star` and `Line2` what one more adds in `text_dim`; 16 + 10
 px a line high; 2 px over `top`, kept on the screen and `CARD_TOP` 22 below the top of the HUD's canvas, under the top bar's chips): a tap's for `CARD_SECS` 3 (while no panel is open), else the pointer's,
 looked for every `HOVER_SECS` 0.1 with a mouse, no panel, not Build mode (`CameraController.isFree`) and no driftling's
@@ -2276,8 +2280,10 @@ Inventory tab with none left there is dropped, never bought: "None left.") or `p
 `UIKit.Resized` and when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 Work's Wood row and
 the lumber camp, 2 Farms and the patch, 3 Huts and the hut, 5 Shops and the stall; tip 4, an egg hatched, has no
 building): opening, and each new tip while open (`followTut`, from the rebuild; it waits while a piece is picked),
-turns the tray to the tip's tab and row; the tip's card (`TutGoal`) and its tab, while another is shown, pulse to the
-accent and shine; placing the tip's building drops the pick so the tray goes on to the next tab. `TRAY_H` (82),
+turns the tray to the tip's tab and row; the tip's card (`TutGoal`; never one too full or locked) has its whole `Buy_<id>`
+button in the accent yellow (not `button_ok` green), pulsing toward white by `TIP_PALE` (0.35) and shining every
+`TIP_SHINE` (1.2) seconds (`UIKit.setButtonColor`, `UIKit.shine`; 2026-11-20, "make the highlight during tutorial
+make the whole green button yellow instead and shine"), and its tab, while another is shown, pulses to the accent; placing the tip's building drops the pick so the tray goes on to the next tab. `TRAY_H` (82),
 `debugState() -> { tab, chip, goal?, quick, selling }`, `debugTip(id) -> boolean` (a card's tooltip, as a mouse over it),
 `debugSearch(text)` (typed into the box), `focusSearch()` (the search button's work), `tapScreen(pos, mouse?)` (the sims'
 and previews' tap; with Quick remove on, its tap).
@@ -2521,7 +2527,7 @@ rings as midpoint ellipses with a half-strength one a pixel inside, the motes; a
 covered cleared and uploaded); each upload a region's rows), `debugLight()`, `hide()`.
 
 ### 10.15 The welcome-back card (`UI/WelcomeUI`; GAME_DESIGN 14.3)
-`WelcomeUI.init()` (Hud.start) registers "welcome" (title "Welcome back", `mini_shell`, 250 x 112): `Shells` ("+N
+`WelcomeUI.init()` (Hud.start) registers "welcome" (title "Welcome back", `mini_coin`, 250 x 112): `Shells` ("+N
 shells", big, in the accent, after the `Shell` sprite), `Away` ("You were away X. Your driftlings kept working, at
 30% pace." or, past the cap, "... worked 3 h of it, ..."; "at full pace" with the pass), without the Offline
 Pass `PassNote` with `SeePass` (opens "store" on "passes"), with it and past the cap `CapNote`, then `Collect`
@@ -2589,7 +2595,7 @@ in the background (`PriceInRobux`, the panel refreshed when it lands), else `Sug
   `FreeHead`, `PremHead`; then the `Track` scroller (sideways, `TRACK_COL` 50 a column (as wide as "Legendary"), `TRACK_GAP` 3): `TrackLine`
   and its `Fill` (to the points so far), a `Level_<L>` tag a level (`Num`; pink reached, yellow the next), and the
   cards `FreeCard_<L>` over it and `PremCard_<L>` under it: the picture (a piece's, `egg_<r>`, `mini_star` for a
-  title, `mini_shell`), `Caption` (`rewardShort`: shells as `minuteShells` x minutes in short, the egg's rarity, the
+  title, `mini_coin`), `Caption` (`rewardShort`: shells as `minuteShells` x minutes in short, the egg's rarity, the
   piece's name when it fits else "Look", "Title"; "Claim" when ready), `Got` (`mini_check`) once taken, `Lock`
   (`mini_lock`) on the premium side without the pass, and over a card ready to take a see-through `Claim_<L>` /
   `ClaimP_<L>` (`track.claim`). It opens at the level being worked on, a column in, or the first reward waiting
@@ -2810,11 +2816,14 @@ The store's 11 x 11 icons (2026-11-14): `mini_store` (a stall with a striped awn
 `mini_crown` (VIP), `mini_ticket` (the pass track), `mini_lock` (a premium card without its pass), `mini_check` (a track reward taken), `mini_gift` (the Starter Pack, VIP's gift), `mini_refresh` (two
 turning arrows: Shop Refresh; My founder's Turn), each with its `_sil`. `mini_dice` (2026-11-20: a white die with three
 pips, My founder's Randomise) is its own `HAND` call.
-Every `mini_` icon but the shell (51 of them, 2026-11-14) is hand-toned: `HAND(name, rows, ramps, flat?)` in `gen_art.py` takes 9 x 9
+Every `mini_` icon is hand-toned: `HAND(name, rows, ramps, flat?)` in `gen_art.py` takes 9 x 9
 rows where `1234`, `5678` and `abcd` are the dark, shadow, base and light tones of up to three `RAMPS`, `w` a white
 glint, `x` near-black, other letters the sprite's `flat` keys; the `ICONS` table holds 43 of them, eight more are their
-own `HAND` calls. `mini_shell` is the region-shaded scallop it was before (an `S` mask with its ribs in `org1`: "use the
-same shell sprite used before", 2026-11-14). `build()` gives a hand-toned sprite (`spec.hand`, each ramp character's ramp and tone) the same inner
+own `HAND` calls. `mini_coin`, the money's icon (every price, the counter, the rewards), is a gold coin on the `Y` ramp
+with a groove pressed round its face; it replaced `mini_shell`, the region-shaded scallop, on 2026-11-20 ("change the
+currency to just coins", "make coin icons coins now, including developer products"), and the icon name `"coin"` took
+`"shell"`'s place wherever an icon is named without its `mini_` (the HUD's chip, its rate line, a quest's reward, the
+Welcome back sheet, the Store's props). `build()` gives a hand-toned sprite (`spec.hand`, each ramp character's ramp and tone) the same inner
 anti-aliasing as a shaded one: a ramp pixel that meets the outline only at a corner steps a tone down (light to base,
 base to shadow unless the corner is its top left, shadow to dark at its bottom right). `mini_heat` is a thermometer,
 `mini_takeup` an arrow up out of a tray.

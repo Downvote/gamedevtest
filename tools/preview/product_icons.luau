@@ -57,11 +57,11 @@ return function(env)
 			egg(root, 5, CFrame.new(0, 0, -0.3), true)
 			egg(root, 4, CFrame.new(1.15, 0, 0.35), true)
 		end },
-		-- the starter pack: an epic and a legendary egg on a pile of shells
-		{ id = "starter", size = 46, make = function(root)
-			decor(root, "shellpile", -1, -1)
-			egg(root, 4, CFrame.new(-0.55, 0.35, 0.2), true)
-			egg(root, 5, CFrame.new(0.6, 0.35, -0.15), true)
+		-- the starter pack: an epic and a legendary egg (product_icons.py heaps gold coins in front of them; a pile of
+		-- shells under them until the request of 2026-11-20: "make coin icons coins now, including developer products")
+		{ id = "starter", size = 40, make = function(root)
+			egg(root, 4, CFrame.new(-0.55, 0, 0.2), true)
+			egg(root, 5, CFrame.new(0.6, 0, -0.15), true)
 		end },
 		{ id = "crown", size = 44, pitch = 14, make = function(root) wear(root, "crown_gold") end },
 		{ id = "tree", size = 48, make = function(root) decor(root, "tree", -4, -4) end },

@@ -1200,7 +1200,7 @@ function UIKit.openPanel(name: string, arg: any?)
 		local chip = UIKit.plate(head, UDim2.fromOffset(ww, 14), UDim2.fromOffset(right, math.floor((aw - 14) / 2)), UIKit.color("awning_dark"), 0, 2)
 		chip.Name = "Wallet"
 		chip.ZIndex = 5
-		PixelSprites.image(chip, "mini_shell", UDim2.fromOffset(2, 1), 6)
+		PixelSprites.image(chip, "mini_coin", UDim2.fromOffset(2, 1), 6)
 		local label = UIKit.text(chip, words, UDim2.fromOffset(ww - 16, 12), UDim2.fromOffset(14, 1), { color = UIKit.color("accent"), z = 6, name = "Shells" })
 		if walletChanged and walletChanged.Connect then
 			local conn: any = nil

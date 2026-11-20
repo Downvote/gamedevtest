@@ -206,7 +206,7 @@ local function buildPicker(body: Frame, v: Types.ClientView, palId: number, back
 		local f = row(list, order, 22)
 		f.Name = "Spot_" .. q.uid
 		-- (by how its workers look at work: a farm's veggies, a shop's shell, a wood building's tools)
-		local icon = if d.act == "shop" then "shell" elseif d.act == "farm" then "food" else "work"
+		local icon = if d.act == "shop" then "coin" elseif d.act == "farm" then "food" else "work"
 		PixelSprites.image(f, "mini_" .. (if PixelSprites.has("mini_" .. icon) then icon else "work"), UDim2.fromOffset(4, 5), 4)
 		UIKit.text(f, d.name .. (if q.lvl > 1 then " Lv" .. q.lvl else ""), UDim2.new(1, -124, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
 		-- (its `jobs` a building; one more sends the first there back to rest)
@@ -583,7 +583,7 @@ local function buildHatch(body: Frame, arg: any?)
 				local lw = UIKit.textWidth(lead) + 4
 				UIKit.text(f, lead, UDim2.fromOffset(lw, 10), UDim2.fromOffset(4, 42), { color = UIKit.color("text_dim"), z = 4, name = "MutsLead" })
 				mutLine(f, pv.muts, 4 + lw, 42, W - 12 - lw)
-				local costWords = string.format("%s shells, hatches in %s.", Numbers.coins(pv.price), Numbers.duration(pv.turns * Tuning.TurnSeconds))
+				local costWords = string.format("%s coins, hatches in %s.", Numbers.coins(pv.price), Numbers.duration(pv.turns * Tuning.TurnSeconds))
 				UIKit.text(f, costWords, UDim2.fromOffset(W - 76, 10), UDim2.fromOffset(4, 53), { color = UIKit.color("text_dim"), z = 4, name = "Cost" })
 				UIKit.button(f, "Breed", UDim2.fromOffset(60, 13), UDim2.new(1, -64, 0, 51), function()
 					local res = ask("breed.start", { uid = q.uid, a = pa.id, b = pb.id }, "An egg is already warming here.")
@@ -718,7 +718,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 		if res.ok then
 			Audio.play("coins")
 			local got = if type(res.data) == "table" then tonumber(res.data.shells) or 0 else 0
-			UIKit.notice(string.format("Sold %s for %s shells.", d.name, Numbers.coins(got)), UIKit.color("good"))
+			UIKit.notice(string.format("Sold %s for %s coins.", d.name, Numbers.coins(got)), UIKit.color("good"))
 		end
 	end, "Sell_" .. x.id)
 end
@@ -909,7 +909,7 @@ local function buildPal(body: Frame, arg: any?)
 	end
 	ry += info(ry, "nest", if hutName then "Lives in the " .. hutName else "No hut yet", if hutName then "Home" else "Waits for room", if hutName then UIKit.color("text") else UIKit.color("orange"), "Hut")
 	local price = Tree.price(pal)
-	info(ry, "shell", string.format("%s %s shells", if own then "Sells for" else "Worth", Numbers.coins(price)), if own then "Tap Sell twice" else "Not yours to sell", UIKit.color("accent"), "Price")
+	info(ry, "coin", string.format("%s %s coins", if own then "Sells for" else "Worth", Numbers.coins(price)), if own then "Tap Sell twice" else "Not yours to sell", UIKit.color("accent"), "Price")
 	-- the foot: the own one's buttons; a neighbour's says whose it is
 	local fy = H - 14
 	if own then
@@ -929,7 +929,7 @@ local function buildPal(body: Frame, arg: any?)
 				Audio.play("coins")
 				local got = if type(res.data) == "table" then tonumber(res.data.shells) or 0 else 0
 				UIKit.openPanel("pals")
-				UIKit.notice(string.format("Sold %s for %s shells.", d.name, Numbers.coins(got)), UIKit.color("good"))
+				UIKit.notice(string.format("Sold %s for %s coins.", d.name, Numbers.coins(got)), UIKit.color("good"))
 			end
 		end, "PalSell")
 	else
@@ -960,7 +960,7 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 	end
 	local e = egg :: Types.Laid
 	local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
-	local top = hint(body, if bag then string.format("Huts full. Pick one to sell for the %s egg from your bag.", string.lower(rar.name)) else string.format("Huts full. Pick one to sell for the %s egg (%s shells).", string.lower(rar.name), Numbers.coins(e.cost or 0)), W - 50)
+	local top = hint(body, if bag then string.format("Huts full. Pick one to sell for the %s egg from your bag.", string.lower(rar.name)) else string.format("Huts full. Pick one to sell for the %s egg (%s coins).", string.lower(rar.name), Numbers.coins(e.cost or 0)), W - 50)
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
 		UIKit.openPanel("tree")
 	end, { name = "Back", color = UIKit.color("plate_light") })
@@ -1177,7 +1177,7 @@ local function buildTree(body: Frame, arg: any?)
 			words.Position = UDim2.fromOffset(2, 0)
 			words.Size = UDim2.new(1, -16, 1, 0)
 		end
-		PixelSprites.image(b, "mini_shell", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
+		PixelSprites.image(b, "mini_coin", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
 	end
 	-- under the eggs, eggs to buy (into the bag above, free to hatch: StoreUI.eggRows)
 	StoreUI.eggRows(list, base + math.max(1, #shown) + 1, RW)

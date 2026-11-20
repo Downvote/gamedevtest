@@ -4,7 +4,7 @@
 local Words = {}
 
 local ERRORS: { [string]: string } = {
-	money = "Not enough shells.",
+	money = "Not enough coins.",
 	no_hut = "Build a hut first.",
 	huts = "No more hut room. Grow the island.",
 	work = "No more work spots. Grow the island.",

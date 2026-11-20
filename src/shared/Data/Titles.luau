@@ -51,9 +51,9 @@ T("naturalist", "Naturalist", "seen", 50, "button")
 T("archivist", "Archivist", "seen", 0, "accent")
 T("matchmaker", "Matchmaker", "hatched", 10, "pink")
 -- shells and time
-T("shellsaver", "Shell Saver", "earned", 1e6, "good")
-T("shellbaron", "Shell Baron", "earned", 1e9, "button")
-T("shelltycoon", "Shell Tycoon", "earned", 1e12, "accent")
+T("shellsaver", "Coin Saver", "earned", 1e6, "good")
+T("shellbaron", "Coin Baron", "earned", 1e9, "button")
+T("shelltycoon", "Coin Tycoon", "earned", 1e12, "accent")
 T("regular", "Regular", "days", 7)
 T("oldsalt", "Old Salt", "days", 30, "good")
 -- cosmetics

@@ -124,13 +124,13 @@ local GRASS, STONE = 0x72C476, 0x8D7F96
 -- what the status says in each phase (and the tips, one after another)
 local STATUS = { start = "Waking up your island", island = "Finding your island", picture = "Drawing your island" }
 local TIPS = {
-	"Shells pay for eggs and buildings.",
-	"Decor adds charm. Charm brings more shells.",
+	"Coins pay for eggs and buildings.",
+	"Decor adds charm. Charm brings more coins.",
 	"Decor gives charm for each tile it covers.",
 	"The tree lays new eggs every few minutes.",
 	"Rare driftlings work much faster.",
 	"Huts full? Swap a weak driftling for a better one.",
-	"Blue-spotted eggs hatch rare ones. Save shells for them.",
+	"Blue-spotted eggs hatch rare ones. Save coins for them.",
 	"A bigger island gets more eggs, and better ones.",
 }
 

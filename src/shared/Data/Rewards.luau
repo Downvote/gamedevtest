@@ -90,7 +90,7 @@ local PLAY: { PlayGift } = {
 local TASKS: { TaskDef } = {
 	{ id = "hatch", text = "Hatch {n} eggs", stat = "taken", base = 3, per = 0.5, max = 12, tier = 1, give = { egg(2), shells(2) } },
 	{ id = "build", text = "Place {n} pieces", stat = "built", base = 3, per = 0.4, max = 12, tier = 1, give = { shells(4) } },
-	{ id = "earn", text = "Earn {n} shells", stat = "earned", base = 0, per = 0, max = 0, mins = 20, tier = 1, give = { shells(4) } },
+	{ id = "earn", text = "Earn {n} coins", stat = "earned", base = 0, per = 0, max = 0, mins = 20, tier = 1, give = { shells(4) } },
 	{ id = "play", text = "Play {n} minutes", stat = "play", base = 15, per = 0, max = 15, tier = 1, give = { spin(1) } },
 	{ id = "sell", text = "Sell {n} driftlings", stat = "sold", base = 1, per = 0.25, max = 5, tier = 2, give = { shells(3.2), boost("luck", 10) } },
 	{ id = "breed", text = "Hatch {n} Hatchery eggs", stat = "hatched", base = 1, per = 0.1, max = 3, tier = 3, give = { egg(3) } },
@@ -99,10 +99,10 @@ local TASKS: { TaskDef } = {
 local BONUS: Bundle = { egg(4), spin(1), shells(6) }
 
 local SPIN: { Slice } = {
-	{ w = 30, give = shells(2), label = "2 min of shells" },
-	{ w = 20, give = shells(6), label = "6 min of shells" },
+	{ w = 30, give = shells(2), label = "2 min of coins" },
+	{ w = 20, give = shells(6), label = "6 min of coins" },
 	{ w = 16, give = egg(2), label = "Uncommon egg" },
-	{ w = 12, give = shells(12), label = "12 min of shells" },
+	{ w = 12, give = shells(12), label = "12 min of coins" },
 	{ w = 8, give = boost("luck", 15), label = "Lucky Hour, 15 min" },
 	{ w = 7, give = egg(3), label = "Rare egg" },
 	{ w = 4, give = boost("shells", 15), label = "Busy Day, 15 min" },

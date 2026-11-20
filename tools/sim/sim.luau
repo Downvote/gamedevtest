@@ -598,6 +598,15 @@ H.expect(H.buttonNamed(p, "BuyFreeDecor") ~= nil, "build", "Build mode offers th
 local bst = H.inClient(p, BuildUI.debugState)
 H.expect(bst.tab == "work" and bst.chip == "work" and bst.goal == "lumber" and goalCard("lumber") ~= nil, "build", "the first tip: the Work tab on its Workplaces row, the lumber camp's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
 H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
+do
+	-- (the request of 2026-11-20: "make the highlight during tutorial make the whole green button yellow instead and
+	-- shine"): the tip's building's whole button is yellow (pulsing toward a paler yellow), never the green one
+	local b = H.buttonNamed(p, "Buy_lumber")
+	local plate = b and b:FindFirstChild("Plate")
+	local fill = plate and plate:FindFirstChild("Fill")
+	local c = fill and fill.BackgroundColor3
+	H.expect(c ~= nil and c.R > 0.95 and c.G > 0.75 and c.B < 0.65, "build", "the tip's building's whole button is yellow", if c then string.format("%.2f %.2f %.2f", c.R, c.G, c.B) else "no fill")
+end
 H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 H.expect(H.inClient(p, BuildUI.debugState).tab == "decor", "build", "the player can still look round the other tabs")
 H.expect(H.buttonNamed(p, "Buy_tree", true) == nil, "build", "no Tree of Life in the tray (every island has its one)")
@@ -856,7 +865,7 @@ do
 		bt = H.inClient(p, BTp.debugState)
 		local cv = H.view(p)
 		local made = Island.output(prof)[camp and camp.uid or 0] or 0
-		local want = string.format("Earns %s shells/min", Numbers.short(math.floor(made * (1 + cv.charmBonus) * cv.incomeMult * 60 / Tuning.TurnSeconds + 0.5)))
+		local want = string.format("Earns %s coins/min", Numbers.short(math.floor(made * (1 + cv.charmBonus) * cv.incomeMult * 60 / Tuning.TurnSeconds + 0.5)))
 		H.expect(shownC and bt.card == string.format("%s Workers 1/%d", Buildings.byId.lumber.name, Buildings.byId.lumber.jobs) and bt.card2 == want, "build", "a tap on the lumber camp: its workers and what it earns a minute", string.format("%q / %q (want %q)", bt.card, bt.card2, want))
 		E.run(3.2)
 	end
@@ -1209,7 +1218,7 @@ do
 			H.expect(work and whereTop and whereTop.Text == "Works at the " .. work.name, "pals", "where it works", whereTop and whereTop.Text)
 			local priceRow = panel and panel:FindFirstChild("Price", true)
 			local priceTop = priceRow and priceRow:FindFirstChild("Top")
-			H.expect(priceTop and priceTop.Text == string.format("Sells for %s shells", Numbers.coins(TreeL.price(x))), "pals", "what it sells for, in shells", priceTop and priceTop.Text)
+			H.expect(priceTop and priceTop.Text == string.format("Sells for %s coins", Numbers.coins(TreeL.price(x))), "pals", "what it sells for, in coins", priceTop and priceTop.Text)
 			H.expect(H.buttonNamed(p, "PalWork") ~= nil and H.buttonNamed(p, "PalMove") ~= nil and H.buttonNamed(p, "PalSell") ~= nil and label("ReadOnly") == nil, "pals", "its own: Work, Move and Sell")
 			H.clickNamed(p, "PalWork", { wait = 0.3 })
 			H.expect(H.currentPanel(p) == "pals" and H.buttonNamed(p, "Go_0", true) ~= nil, "pals", "Work opens the work picker", tostring(H.currentPanel(p)))
@@ -1450,7 +1459,7 @@ do
 	H.clickNamed(p, "PanelHatch_" .. e.id, { wait = 0.4, optional = true })
 	local said = ""
 	for _, x in p.PlayerGui:GetDescendants() do
-		if x:IsA("TextLabel") and string.find(x.Text, "shells", 1, true) and string.find(x.Text, "Robux", 1, true) then
+		if x:IsA("TextLabel") and string.find(x.Text, "coins", 1, true) and string.find(x.Text, "Robux", 1, true) then
 			said = x.Text
 		end
 	end

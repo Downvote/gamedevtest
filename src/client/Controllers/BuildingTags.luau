@@ -232,7 +232,7 @@ local function extrasOf(s: Spot): { string }
 				madeFor = v
 			end
 			local mult = (1 + (v.charmBonus or 0)) * (v.incomeMult or 1) * 60 / Tuning.TurnSeconds
-			out = { string.format("Earns %s shells/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
+			out = { string.format("Earns %s coins/min", Numbers.short(math.floor((made[s.uid] or 0) * mult + 0.5))) }
 		elseif s.kind == "boost" then
 			local b = Island.boostInfo(prof, s.id)
 			local first = string.format("+%s to all from %d boost%s", pct(b.total), b.count, if b.count == 1 then "" else "s")
@@ -273,7 +273,7 @@ local function showCard(s: Spot)
 		local full = s.n >= s.room
 		table.insert(lines, { icon = if s.work then "mini_work" else "mini_nest", text = fullness(s), color = if s.n == 0 then "bad" elseif full then "good" else "text" })
 		if s.work and extra[1] then
-			table.insert(lines, { icon = "mini_shell", text = extra[1], color = "text" })
+			table.insert(lines, { icon = "mini_coin", text = extra[1], color = "text" })
 		end
 	end
 	local words = name

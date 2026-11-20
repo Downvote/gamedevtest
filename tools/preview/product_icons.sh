@@ -3,7 +3,7 @@
 # from the game's own models (the preview scenario "picons", tools/preview/product_icons.luau), lays them on their
 # badges with the words and symbols (tools/preview/product_icons.py) and writes the 512 x 512 PNGs to upload on the
 # Creator Dashboard into art/products/<key>.png. Run it again after changing a model an icon shows (an egg, the Tree of
-# Life, the Hatchery, the Snack Stall, the fountain, the shell pile, the founder, the Golden Crown).
+# Life, the Hatchery, the Snack Stall, the fountain, a pile of coins, the founder, the Golden Crown).
 #
 # Usage: sh tools/preview/product_icons.sh [outdir]
 #   outdir (default: a temporary folder, removed after) keeps the run's log and sheet.png (every icon at half size).

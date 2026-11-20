@@ -55,7 +55,7 @@ local function collect(mode: string)
 			if UIKit.currentPanel() == "welcome" then
 				UIKit.closePanel()
 			end
-			UIKit.notice("Collected " .. Numbers.coins(tonumber(res.data.shells) or 0) .. " shells.", UIKit.color("accent"), 3)
+			UIKit.notice("Collected " .. Numbers.coins(tonumber(res.data.shells) or 0) .. " coins.", UIKit.color("accent"), 3)
 		else
 			Audio.play("deny")
 			UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
@@ -77,8 +77,8 @@ local function build(body: Frame, _arg: any?)
 	end
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
 	-- the haul: the shell and the shells, big
-	PixelSprites.image(body, "mini_shell", UDim2.fromOffset(PAD, 7), 3).Name = "Shell"
-	UIKit.text(body, "+" .. Numbers.coins(r.shells) .. " shells", UDim2.fromOffset(W - 2 * PAD - 16, 18), UDim2.fromOffset(PAD + 15, 2), { face = "big", color = UIKit.color("accent"), name = "Shells" })
+	PixelSprites.image(body, "mini_coin", UDim2.fromOffset(PAD, 7), 3).Name = "Shell"
+	UIKit.text(body, "+" .. Numbers.coins(r.shells) .. " coins", UDim2.fromOffset(W - 2 * PAD - 16, 18), UDim2.fromOffset(PAD + 15, 2), { face = "big", color = UIKit.color("accent"), name = "Shells" })
 	-- how long the player was away and how much of it counted
 	local line = if r.secs < r.away
 		then string.format("You were away %s. Your driftlings worked %s of it, %s.", Numbers.duration(r.away), Numbers.duration(r.secs), pace(v.offlinePct))
@@ -148,7 +148,7 @@ function WelcomeUI.step()
 end
 
 function WelcomeUI.init()
-	UIKit.registerPanel("welcome", { title = "Welcome back", icon = "shell", w = 250, h = 112, build = build })
+	UIKit.registerPanel("welcome", { title = "Welcome back", icon = "coin", w = 250, h = 112, build = build })
 end
 
 return WelcomeUI

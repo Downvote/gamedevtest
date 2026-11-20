@@ -713,7 +713,7 @@ local n1s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 E.run(3)
 local n2s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 H.expect(n1s ~= nil and n2s ~= nil and n1s - n2s >= 2 and n1s - n2s <= 4, "card", "join: New eggs in m:ss counts down", string.format("%s then %s", tostring(n1s), tostring(n2s)))
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Tap Build and place a Lumber Camp. It earns shells.", "join", "the first tip")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Tap Build and place a Lumber Camp. It earns coins.", "join", "the first tip")
 -- Fx tick every second: the clock running down, and the seconds between two lots
 local i0 = #W.fx
 E.run(3.2)

@@ -110,6 +110,8 @@ local TUT: { [number]: { tab: string, chip: string, id: string } } = {
 	[3] = { tab = "nest", chip = "", id = "nest" },
 	[5] = { tab = "work", chip = "work", id = "stall" },
 }
+local TIP_SHINE = 1.2 -- seconds between the shines sweeping across the tip's button
+local TIP_PALE = 0.35 -- how far the tip's yellow button pales toward white at the top of its pulse
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
 local goalCard: Frame? = nil
 local goalTab: GuiButton? = nil
@@ -505,7 +507,7 @@ local function showDrawGhost(cells: { { number } })
 	if label and label:IsA("TextLabel") and #cells > 1 then
 		local what = if fence then "length" else "tile"
 		local erase = draw.erase or pick == nil
-		UIKit.setText(label, if erase then string.format("%d to take up", n) elseif cost == 0 then string.format("%d %s%s, free", n, what, if n == 1 then "" else "s") else string.format("%d %s%s, %s shells", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
+		UIKit.setText(label, if erase then string.format("%d to take up", n) elseif cost == 0 then string.format("%d %s%s, free", n, what, if n == 1 then "" else "s") else string.format("%d %s%s, %s coins", n, what, if n == 1 then "" else "s", Numbers.coins(cost)))
 	end
 	local ox, oz = origin()
 	local m = Blocks.model(nil, "DrawGhost")
@@ -702,7 +704,7 @@ local function price(parent: Instance, x: number, y: number, shells: number, v: 
 		UIKit.text(parent, "Free", UDim2.fromOffset(UIKit.textWidth("Free") + 2, 10), UDim2.fromOffset(x, y + 1), { color = UIKit.color("accent"), z = z or 4, name = "Shells" })
 		return x + UIKit.textWidth("Free") + 2
 	end
-	PixelSprites.image(parent, "mini_shell", UDim2.fromOffset(x, y), z or 4)
+	PixelSprites.image(parent, "mini_coin", UDim2.fromOffset(x, y), z or 4)
 	local t = Numbers.coins(shells)
 	UIKit.text(parent, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(x + 11, y + 1), { color = if v.shells >= shells then UIKit.color("text") else UIKit.color("bad"), z = z or 4, name = "Shells" })
 	return x + 13 + UIKit.textWidth(t) + 2
@@ -713,7 +715,7 @@ end
 local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): string
 	local say = def.blurb
 	if def.rate > 0 then
-		say = string.format("%s %s shells a minute per common worker.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
+		say = string.format("%s %s coins a minute per common worker.", say, (Numbers.perMin(def.rate * Tuning.PalWork * (Tuning.UpgradeMult[lvl or 1] or 1) * 60 / Tuning.TurnSeconds):gsub("/min", "")))
 	end
 	-- (its places: Data/Buildings' jobs, the request of 2026-11-18)
 	if def.jobs > 0 then
@@ -1173,7 +1175,7 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 				local res = StateClient.request("inv.sell", { id = def.id, n = 1 })
 				if res.ok and type(res.data) == "table" then
 					Audio.play("coins")
-					UIKit.notice(string.format("Sold a %s for %s shells.", def.name, Numbers.coins(tonumber(res.data.shells) or back)), UIKit.color("good"), 2)
+					UIKit.notice(string.format("Sold a %s for %s coins.", def.name, Numbers.coins(tonumber(res.data.shells) or back)), UIKit.color("good"), 2)
 				else
 					Audio.play("deny")
 					UIKit.notice(if res.err == "not_found" then "None of those left." else Words.errText(res.err), UIKit.color("bad"))
@@ -1194,7 +1196,7 @@ local function invCards(list: ScrollingFrame, v: Types.ClientView)
 			local t = Numbers.coins(back)
 			local w = UIKit.textWidth(t) + 11
 			local px = math.max(0, math.floor((CARD_W - 4 - w) / 2))
-			PixelSprites.image(b, "mini_shell", UDim2.fromOffset(px, PIC + 3), 7)
+			PixelSprites.image(b, "mini_coin", UDim2.fromOffset(px, PIC + 3), 7)
 			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = UIKit.color("text"), z = 7, name = "Shells" })
 			-- (and how many are left, in the corner)
 			heldCount(b, n, 8)
@@ -1234,7 +1236,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 		card.Name = "Card_" .. def.id
 		card.LayoutOrder = k
 		local goal = tutGoal(v)
-		if goal and goal.id == def.id and not locked then
+		local isGoal = goal ~= nil and goal.id == def.id and not locked and not noRoom
+		if isGoal then
 			card:SetAttribute("TutGoal", true)
 			goalCard = card
 		end
@@ -1252,7 +1255,8 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			pickPiece(def, false)
 		end, {
 			name = "Buy_" .. def.id,
-			color = if locked or noRoom then UIKit.color("button_off") elseif picked then UIKit.color("accent") elseif afford then UIKit.color("button_ok") else UIKit.color("plate_light"),
+			-- (the tip's building: the whole button yellow, pulsing and shining in open()'s Heartbeat)
+			color = if locked or noRoom then UIKit.color("button_off") elseif picked or isGoal then UIKit.color("accent") elseif afford then UIKit.color("button_ok") else UIKit.color("plate_light"),
 		})
 		picture(b, def.id, UDim2.fromOffset(math.floor((CARD_W - 4 - PIC) / 2), 1), 6)
 		if locked then
@@ -1269,7 +1273,7 @@ local function cards(list: ScrollingFrame, v: Types.ClientView)
 			local t = Numbers.coins(cost)
 			local w = UIKit.textWidth(t) + 11
 			local px = math.max(0, math.floor((CARD_W - 4 - w) / 2))
-			PixelSprites.image(b, "mini_shell", UDim2.fromOffset(px, PIC + 3), 7)
+			PixelSprites.image(b, "mini_coin", UDim2.fromOffset(px, PIC + 3), 7)
 			UIKit.text(b, t, UDim2.fromOffset(UIKit.textWidth(t) + 2, 10), UDim2.fromOffset(px + 11, PIC + 4), { color = if v.shells >= cost then UIKit.color("text") else UIKit.color("bad"), z = 7, name = "Shells" })
 		end
 		-- (a boost building's count in the corner, where an inventory piece's "x2" would be)
@@ -2080,7 +2084,9 @@ function BuildUI.open(onTab: string?)
 			tutWas = now
 		end
 	end))
-	-- the tip's building pulses (its card, and its tab while another is shown) and shines now and then
+	-- the tip's building: its whole button yellow, pulsing to a paler yellow and back, a shine sweeping across it every
+	-- TIP_SHINE seconds (the request of 2026-11-20: "make the highlight during tutorial make the whole green button
+	-- yellow instead and shine"); its tab pulses too while another is shown
 	local nextShine = 0
 	local lastPanX, lastPanY = CameraController.pan()
 	table.insert(conns, RunService.Heartbeat:Connect(function()
@@ -2097,15 +2103,15 @@ function BuildUI.open(onTab: string?)
 		local k = (math.sin(now * 5) + 1) / 2
 		local shine = now >= nextShine
 		if shine then
-			nextShine = now + 2
+			nextShine = now + TIP_SHINE
 		end
 		local c = goalCard
 		if c and c.Parent then
-			-- (the card's veil glows toward the accent and back)
-			UIKit.setPlate(c, UIKit.color("veil"):Lerp(UIKit.color("accent"), k), UIKit.ROW_ALPHA - 0.4 * k)
-			if shine then
-				local b = c:FindFirstChildWhichIsA("GuiButton")
-				if b then
+			local b = c:FindFirstChildWhichIsA("GuiButton")
+			if b then
+				local gold = UIKit.color("accent")
+				UIKit.setButtonColor(b, gold:Lerp(Color3.new(1, 1, 1), TIP_PALE * k))
+				if shine then
 					UIKit.shine(b)
 				end
 			end

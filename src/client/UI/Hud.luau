@@ -229,7 +229,7 @@ local function buildTop()
 	tb.Name = "TopBar"
 	topBar = tb
 	local x = PAD
-	x = chip("shells", x, widths.shells, "shell")
+	x = chip("shells", x, widths.shells, "coin")
 	x = chip("season", x, widths.season, "sun")
 	x = chip("weather", x, widths.weather, "sun")
 	layoutTop()
@@ -582,7 +582,7 @@ local function updateCard(v: Types.ClientView)
 	line(f, "charm", "Charm", y, w, nil, Numbers.int(math.floor(v.charm)), UIKit.color("pink"), "Charm")
 	y += LINE_H
 	-- what the charm adds to every shell (Logic/Island.charmBonus: the visitors went on 2026-11-14)
-	line(f, "shell", "Charm bonus", y, w, nil, string.format("+%d%%", math.round((v.charmBonus or 0) * 100)), UIKit.color("pink"), "CharmBonus")
+	line(f, "coin", "Charm bonus", y, w, nil, string.format("+%d%%", math.round((v.charmBonus or 0) * 100)), UIKit.color("pink"), "CharmBonus")
 	y += LINE_H
 	-- a faint rule between the island and what it makes
 	local rule = UIKit.rect(f, UDim2.fromOffset(w - 2 * PAD, 1), UDim2.fromOffset(PAD, y + 1), UIKit.color("rule"), 4)
@@ -593,7 +593,7 @@ local function updateCard(v: Types.ClientView)
 		line(f, icon, label, y, w, nil, Numbers.perMin(n * 60 / Tuning.TurnSeconds), c, "Rate_" .. icon)
 		y += LINE_H
 	end
-	rate("shell", v.rates.shells, "Shells")
+	rate("coin", v.rates.shells, "Coins")
 	f:SetAttribute("Key", key)
 	f.Visible = not BuildUI.isOpen()
 	card = f
@@ -665,7 +665,7 @@ local function updateTree(v: Types.ClientView)
 		UIKit.text(f, rar.name, UDim2.fromOffset(w - bw - 21, 10), UDim2.fromOffset(PAD + 12, y + 2), { color = UIKit.color(rar.color), z = 4, name = "EggName_" .. e.id })
 		local can = v.shells >= cost
 		local price = UIKit.text(f, text, UDim2.fromOffset(bw - 14, 10), UDim2.fromOffset(w - bw - PAD + 1, y + 2), { x = "right", color = if can then UIKit.color("good") else UIKit.color("text_dim"), z = 4, name = "CardPrice_" .. e.id })
-		PixelSprites.image(price, "mini_shell", UDim2.new(1, 2, 0, 0), 5).Name = "PriceIcon"
+		PixelSprites.image(price, "mini_coin", UDim2.new(1, 2, 0, 0), 5).Name = "PriceIcon"
 	end
 	-- (the whole card under the title opens the panel: the eggs are bought there)
 	local tap = Instance.new("TextButton")
@@ -770,7 +770,7 @@ local function claimQuest()
 		if res.ok and type(res.data) == "table" then
 			local d = res.data :: { [string]: any }
 			local parts: { string } = {}
-			for _, it in { { "shells", "shells" } } do
+			for _, it in { { "shells", "coins" } } do
 				local n = tonumber(d[it[1]]) or 0
 				if n > 0 then
 					table.insert(parts, string.format("+%s %s", Numbers.coins(n), it[2]))
@@ -831,7 +831,7 @@ local function updateQuest(v: Types.ClientView)
 	if done then
 		-- its reward, and Claim
 		local x = 5
-		for _, it in { { "shells", "shell" } } do
+		for _, it in { { "shells", "coin" } } do
 			local n = (q.reward :: { [string]: number? })[it[1]] or 0
 			if n > 0 then
 				PixelSprites.image(f, "mini_" .. it[2], UDim2.fromOffset(x, y), 3)
@@ -871,8 +871,8 @@ end
 
 ------------------------------------------------------------------ tips
 local TIPS: { [number]: string } = {
-	[1] = "Tap Build and place a Lumber Camp. It earns shells.",
-	[2] = "Place a Veggie Patch for more shells.",
+	[1] = "Tap Build and place a Lumber Camp. It earns coins.",
+	[2] = "Place a Veggie Patch for more coins.",
 	[3] = "Driftlings need a home. Place a Driftling Hut.",
 	[4] = "The tree laid eggs. Tap it to hatch one.",
 	[5] = "Place a Snack Stall by the path. The first one is free.",
@@ -880,8 +880,8 @@ local TIPS: { [number]: string } = {
 }
 -- in Build mode (the tray already on the right tab, the building pulsing)
 local TIPS_BUILD: { [number]: string } = {
-	[1] = "Place a Lumber Camp. It earns shells.",
-	[2] = "Place a Veggie Patch. It earns shells too.",
+	[1] = "Place a Lumber Camp. It earns coins.",
+	[2] = "Place a Veggie Patch. It earns coins too.",
 	[3] = "Place a Driftling Hut. Driftlings live there.",
 	[5] = "Place a Snack Stall. The first one is free.",
 }

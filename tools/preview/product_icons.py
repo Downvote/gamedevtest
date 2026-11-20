@@ -406,39 +406,32 @@ def moon(cv, cx, cy):
         cv.put(x, y, (255, 246, 200) if lit else PAL["yellow"])
 
 
-def shell(cv, cx, by, R=21):
-    """A big scallop (the shells counter's own, drawn large): ribs fanning up from the hinge at (cx, by), alternate ribs a
-    tone darker, the whole lit from the top left, two ears at the hinge."""
-    base = PAL["coral"]
-    tones = [dark(base, 0.62), dark(base, 0.8), base, light(base, 0.3), light(base, 0.55)]
-    hx, hy = cx, by - 2.0
-    pts = {}
-    for y in range(by - R - 2, by + 1):
-        for x in range(cx - R - 2, cx + R + 3):
-            dx, dy = x + 0.5 - hx, hy - (y + 0.5)
-            r = math.hypot(dx, dy)
-            a = math.degrees(math.atan2(dy, dx))
-            if r <= R and 28 <= a <= 152:
-                pts[(x, y)] = (r, a)
-    # the ears: a little block each side of the hinge
-    for x in range(cx - 7, cx + 7):
-        for y in range(by - 4, by):
-            if (x, y) not in pts and abs(x + 0.5 - cx) > 1.5:
-                pts[(x, y)] = (0.0, 90.0 if x < cx else 90.0)
-    cv.outline(set(pts), INK)
-    bounds = [52.0, 63.4, 76.0, 90.0, 104.0, 116.6, 128.0]
-    for (x, y), (r, a) in pts.items():
-        rib = sum(1 for b in bounds if a > b)
-        lit = (cx - x) * 0.6 + (by - y) * 0.5 - 6  # toward the top left
-        k = 2 + (1 if lit > 4 else 0) + (1 if lit > 11 else 0) - (1 if lit < -4 else 0)
-        if rib % 2 == 1:
-            k -= 1
-        if r > R - 1.2:  # the lip: a step lighter along the top edge
-            k += 1
-        cv.put(x, y, tones[max(0, min(4, k))])
-    # the hinge's shadow between the ears
-    for x in range(cx - 1, cx + 1):
-        cv.put(x, by - 1, tones[0])
+# the coin's gold: the small coin's own ramp (scripts/gen_art.py's Y: yel0..yel3), deep, shadow, base, light
+GOLD = [(0x8F, 0x5E, 0x24), (0xD9, 0x9A, 0x2B), (0xFF, 0xC9, 0x3C), (0xFF, 0xE9, 0x8A)]
+
+
+def coin(cv, cx, cy, R, star=True):
+    """A big gold coin (the coins counter's own, drawn large; the shell until the request of 2026-11-20: "make coin icons
+    coins now, including developer products"): its rim lit at the top left and shaded at the bottom right, a groove
+    pressed in inside it (dark at its upper left, catching the light at its lower right), a light crescent on the face
+    and a star struck in its middle. The outline rings it on its four sides only, so the curve steps cleanly."""
+    pts = disc_pts(cx, cy, R)
+    cv.outline(pts, INK, diag=False)
+    face = R - 4.0
+    for x, y in pts:
+        dx, dy = x + 0.5 - cx, y + 0.5 - cy
+        r = math.hypot(dx, dy)
+        lit = -(dx + dy) / math.sqrt(2)  # toward the top left
+        u = lit / max(r, 1e-6)
+        if r > R - 2.2:  # the rim
+            k = 3 if u > 0.4 else (2 if u > -0.5 else 1)
+        elif r > R - 3.3:  # the groove
+            k = 1 if u > -0.15 else 3
+        else:  # the face, a light crescent at its top left
+            k = 3 if lit > face * 0.5 and r > face * 0.6 else 2
+        cv.put(x, y, GOLD[k])
+    if star and R >= 11:
+        cv.sprite(STAR9, {"k": INK, "y": GOLD[3], "w": WHITE, "o": GOLD[1]}, int(cx) - 4, int(cy) - 4)
 
 
 def ticket(cv, cx, cy):
@@ -480,7 +473,7 @@ def ticket(cv, cx, cy):
 # picture), its offset, words, symbols
 ICONS = [
     ("VIP", "round", "gold", "crown", (0, -5), ("VIP", WHITE), None),
-    ("DoubleIncome", "round", "teal", None, (0, 0), ("x2", PAL["yellow"]), "shell"),
+    ("DoubleIncome", "round", "teal", None, (0, 0), ("x2", PAL["yellow"]), "coins"),
     ("QuickTree", "round", "leaf", "tree", (-2, -3), None, "clock"),
     ("FreeDecor", "round", "pink", "fountain", (0, -4), ("FREE", WHITE), None),
     ("PremiumTrack", "round", "purple", None, (0, 0), None, "ticket"),
@@ -492,7 +485,7 @@ ICONS = [
     ("EggMythic", "square", "r_mythic", "egg6", (0, -1), None, None),
     ("EggCelestial", "square", "sky_night", "egg7", (0, -1), None, None),
     ("RefreshShop", "square", "orange", "stall", (-2, -2), None, "arrows"),
-    ("StarterPack", "square", "sky_day", "starter", (0, -1), None, None),
+    ("StarterPack", "square", "sky_day", "starter", (0, -5), None, "coinpile"),
     ("HatcheryNow", "square", "yellow", "hatchery", (-2, -1), None, "bolt"),
     ("RefreshEggs", "square", "leaf", "eggs3", (-1, -2), None, "arrows"),
 ]
@@ -511,8 +504,14 @@ def build_icon(spec, pics):
         px = pics[subject]
         h, w = len(px), len(px[0])
         cv.picture(px, (N - w) // 2 + off[0], (N - h) // 2 + off[1])
-    if sym == "shell":
-        shell(cv, 32, 44)
+    if sym == "coins":
+        # two coins, one peeking out behind the other
+        coin(cv, 39, 24, 11, star=False)
+        coin(cv, 29, 32, 14)
+    elif sym == "coinpile":
+        # a heap of coins in front of the eggs: a back row, then a front row over it
+        for x, y, r in ((17, 44, 6), (47, 44, 6), (24, 47, 7), (40, 47, 7), (32, 49, 8)):
+            coin(cv, x, y, r)
     elif sym == "ticket":
         ticket(cv, 32, 33)
     elif sym == "clock":
