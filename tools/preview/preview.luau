@@ -2120,7 +2120,8 @@ end
 
 -- The sky's day (the request of 2026-11-20: "polish the skybox more. it should be of the same quality as the ones in
 -- the egg hatching screen, with day and night cycles with moon and sun rising"): a first island at the widest View
--- notch, the sky held at each hour in turn (sky_<hour name>), then the moon in three more phases and the sky in rain,
+-- notch, the sky held at each hour in turn (sky_<hour name>), the other two days' variations (sky_<hour>_v2, _v3), then
+-- the moon in three more phases and the sky in rain,
 -- storm, snow and fog. The log gives each frame's SkyBackdrop state (the notch, the stars, where the sun and moon are)
 -- and how long the shapes and a notch take to paint.
 function SCEN.skies()
@@ -2152,6 +2153,13 @@ function SCEN.skies()
 	for _, s in { { "night", 0.02 }, { "firstlight", 0.2 }, { "sunrise", 0.235 }, { "morning", 0.29 }, { "noon", 0.5 }, { "afternoon", 0.7 }, { "sunset", 0.765 }, { "dusk", 0.81 }, { "midnight", 0.95 } } do
 		shot(s[1], s[2], 0, "sunny")
 	end
+	-- (the other two days' variations: their dawn, sunset and night)
+	shot("sunrise_v2", 0.24, 1, "sunny")
+	shot("sunset_v2", 0.765, 1, "sunny")
+	shot("night_v2", 0.95, 1, "sunny")
+	shot("sunrise_v3", 0.24, 2, "sunny")
+	shot("sunset_v3", 0.765, 2, "sunny")
+	shot("night_v3", 0.95, 2, "sunny")
 	shot("moon_half", 0.95, 2, "sunny")
 	shot("moon_crescent", 0.95, 3, "sunny")
 	shot("moon_waxing", 0.95, 5, "sunny")

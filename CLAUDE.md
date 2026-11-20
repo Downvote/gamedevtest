@@ -52,7 +52,8 @@ driftlings are built from parts (`Models/DecorModels` with the catalog's `Models
 style and texture in `Data/Creatures`, the textures drawn by `Render/DynTex` in one-pixel marks), world-aligned on the iso
 grid and drawn by the pixel filter. The hatch scene is the egg alone, floating in front of a 2D sky painted pixel by pixel (`UI/HatchBackdrop`).
 The islands float in front of a sky painted the same way (`UI/SkyBackdrop`), with its own day and night (the sun and
-the moon rising out of a sea of clouds), far islets and clouds lit in four tones; `skies` previews it hour by hour.
+the moon rising out of a sea of clouds, three variations of night, dawn and sunset), far islets as silhouettes and flat
+clouds with no outline (the user's references); `skies` previews it hour by hour.
 (The expeditions and their 3D stages went on 2026-11-12. On 2026-11-13 the tide took the Tree of Life's place for a few
 hours; the tree is back, laying the eggs the driftlings hatch from.)
 

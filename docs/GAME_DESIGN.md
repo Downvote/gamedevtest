@@ -1068,6 +1068,18 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > now and then a thread of water falling off. Only the sky turns to night: the island keeps its bright light, as asked
 > on 2026-11-14. Crickets sing at night, the birds by day, and a soft wind took the surf's place.
 
+> Then, with a city's night under purple cloud banks and a desert's sunset for reference: "use these landscapes as
+> reference, no need to make the clouds so detailed with outlines, just simple shapes and color is enough. make
+> variations to them as well", and "same with the floating islands, they should be sillouhetted instead". So the clouds
+> are flat shapes now (long thin streaks and round puffs, a lighter row along the top and a darker one underneath, no
+> outline) and the sea of clouds is heaps in flat colour with a lit rim along their tops; the far islets are
+> silhouettes in the haze (a flat grass top with little trees and a pine, a round belly, hanging points) with a
+> lighter top edge; the sky's bands meet in wide ordered dithers like a painted sunset, the sun is a big pale disc
+> as it nears the clouds, and the brightest stars are little blue, gold or white crosses. The night, dawn and sunset
+> come in three variations, one a day: a deep blue night under purple banks with a peach dawn and a rose and gold
+> sunset; a lavender night with a lilac dawn and a pink and violet sunset; a sea-blue night with a golden dawn and an
+> ember-red sunset. The day's own blue is the same every day, and the day changes over at noon, so nothing jumps.
+
 The island floats in the sky and grows with its tier: tier 1 a small oval about 30 by 24 studs round the Tree of Life,
 then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
 its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
@@ -1078,18 +1090,20 @@ one, so from the camera the island reads as a floating chunk of land tapering do
 there is nothing: no ray from the view ever reaches it. An invisible wall just past the grass keeps the founders on it;
 one who falls off anyway (a glitch) is put back by their tree. Buildings stand a stud or more in from the edge. The
 sky behind everything is painted pixel by pixel (§2) and runs through its own day (twenty minutes, every player on a
-server seeing the same hour): bands of colour from the top down, each meeting the next in an ordered dither (blue by
-day, pink and gold at sunrise and sunset, deep blue at night); the sun and the moon on their arcs, each rising from
-behind a sea of clouds along the bottom on the left and setting into it on the right, a flat disc in a halo of
-dithered rings (the sun's warmer and wider near the horizon, the moon cratered and in a new phase each night); at
-night the stars coming out one by one, the band of the galaxy, twinkles and now and then a shooting star; by day a
-little flock of birds now and then. In front of it far islets float in the haze (grass tops lit from the top left,
-earth lips, layered rock narrowing to a point or three, trees and bushes, on the bigger ones a thread of water falling
-off), then the sea of clouds in three ranges of soft heaps, then puffy clouds that drift slowly and slide a little
-with the view. Each cloud is a heap of round lumps lit from the top left in four tones (lit, body, shade, deep) with a
-narrow dither where two meet and an outline a darker step of the tone beside it. Each weather pulls the colours
-toward its own grey, adds or takes away clouds, hides the stars in rain, storm and fog and veils the sun and moon.
-The island keeps its bright light at every hour. (From 2026-11-20 the island was whole from the start
+server seeing the same hour): bands of colour from the top down, each blending into the next in a wide ordered dither
+(blue by day, pink and gold at sunrise and sunset, deep blue at night; the night, dawn and sunset in one of three
+variations a day); the sun and the moon on their arcs, each rising from behind a sea of clouds along the bottom on the
+left and setting into it on the right, a flat disc in a halo of dithered rings (the sun a big pale disc near the
+horizon, the moon cratered and in a new phase each night); at night the stars coming out one by one (the brightest
+little blue, gold or white crosses), the band of the galaxy, twinkles and now and then a shooting star; by day a
+little flock of birds now and then. In front of it far islets float in the haze as silhouettes (a flat grass top with
+little trees and a pine, a round belly narrowing to ragged points, stones floating under it; one colour leaning from
+the sky's toward the hour's dark, its top edge a step lighter), then the sea of clouds in three ranges of heaped
+puffs, then clouds that drift slowly and slide a little with the view, long thin streaks and round puffs in every
+size. Every cloud is a flat shape: one body colour, a lighter row along its top, a darker one underneath, no outline.
+Each weather pulls the colours toward its own grey, adds or takes away clouds (more streaks on fair days, more puffs
+in rain and storms), hides the stars in rain, storm and fog and veils the sun and moon. The island keeps its bright
+light at every hour. (From 2026-11-20 the island was whole from the start
 with the land not yet open under rock, then in a dithered dark, the beach and sea round it; both went with the request
 above.) The islands grow by as
 much ground as the islands always gained (the table's grass), so the limits and prices still fit. The islands stand

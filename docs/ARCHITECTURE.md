@@ -2590,56 +2590,66 @@ and stars in `Traits.TIER_COLOR`. Sprites (`gen_art.py`): `mini_breeze rain stor
 ### 10.19 The sky (`UI/SkyBackdrop`) and Visit (`UI/VisitUI`; GAME_DESIGN 2, 8)
 The requests of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the island
 bigger.", "polish the skybox more. it should be of the same quality as the ones in the egg hatching screen, with day and
-night cycles with moon and sun rising" and "make the clouds look more natural and polished. same with the background
-islands". `SkyBackdrop.start()` (Main, after WeatherView) steps on Heartbeat. A ScreenGui "SkyBackdrop" at
-`PixelDisplayOrder - 3` (behind the hatch scene's backdrop and the pixel layer), enabled only while
-`PixelRenderer.isActive()` (the classic style shows the world itself), holds back to front: `Sky` (the bands, the stars,
-the galaxy), `Sun` and `Moon` (small images moved on their arcs), `FarA`/`FarB` (the far islets and the sea of clouds, the
-picture twice side by side: it drifts right a pixel every `SEA_DRIFT` 6 s and slides `FAR_PARALLAX` 1/16 of
+night cycles with moon and sun rising", "make the clouds look more natural and polished. same with the background
+islands", then with two reference pictures "use these landscapes as reference, no need to make the clouds so detailed
+with outlines, just simple shapes and color is enough. make variations to them as well" and "same with the floating
+islands, they should be sillouhetted instead". `SkyBackdrop.start()` (Main, after WeatherView) steps on Heartbeat. A
+ScreenGui "SkyBackdrop" at `PixelDisplayOrder - 3` (behind the hatch scene's backdrop and the pixel layer), enabled only
+while `PixelRenderer.isActive()` (the classic style shows the world itself), holds back to front: `Sky` (the bands, the
+stars, the galaxy), `Sun` and `Moon` (small images moved on their arcs), `FarA`/`FarB` (the far islets and the sea of
+clouds, the picture twice side by side: it drifts right a pixel every `SEA_DRIFT` 6 s and slides `FAR_PARALLAX` 1/16 of
 `CameraController.pan()`), `CloudsA`/`CloudsB` (the same for the clouds: `DRIFT` 1.6 s, `PARALLAX` 1/8) and `Life` (Frames
 a K x K screen px: birds, twinkles, a shooting star). Every picture is the screen's size in art px (`PixelRenderer.pixelScale`
 K screen px each).
-- **The hour's colours:** `KEYS` (night, first light, sunrise, morning, day, afternoon, sunset, dusk, at hours 0, 0.15,
-  0.2, 0.235, 0.29, 0.36 .. 0.64, 0.71, 0.765, 0.8, 0.86 .. 1) each give six sky stops, the clouds' lit, body, shade and
-  ink, the far islets' light and how much night shows (`stars`); `paletteAt(h, kind)` mixes the two keys round the hour
-  in `NOTCHES` 10 steps and the weather's `WX` entry pulls every colour toward its grey at the colour's own lightness
-  (`tint`, `k`, `dark`: rain 0.55, storm 0.72, fog 0.62, snow 0.45, haze 0.3), hides the stars (`stars x (1 - 1.5 k)`),
-  sets the clouds a 100,000 px (`clouds`), veils the sun and moon (their ImageTransparency `veil`) and fades the far
-  things (`fade`). A palette's key is the weather and the notch: a new key paints again.
-- **The shapes** (`buildGeo(W, H)` once a screen size, `buildClouds(W, H, clouds)` once a weather's count): a class a
-  pixel in byte buffers. The sky: the band (stop 0 .. 5, an ordered 4 x 4 dither in the middle 40 % between two), the
-  galaxy (0 .. 3, slanting up to the right with a lane of dust) and a star (dim, bright, brightest with a cross's arms)
-  with its threshold, so they come out one by one as the night deepens, the brightest first. The front: up to five far
-  islets (`islet`: 12 classes each, grass lit, grass, grass shade, earth, rock lit, rock, rock shade, bark, falling water,
-  leaves lit, leaves, outline; a grass ellipse lit at the top left with a darker front rim and hanging tufts, a 2 px earth
-  lip with pebbles, a main rock point and on the bigger ones one or two shorter ones, each lit left and shaded right with
-  broken layer lines, roots and little stones under it, a tree or a bush, white flowers, on the bigger ones a thread of
-  water falling off the front and thinning into spray; the smaller ones fade more, as farther off) and the sea of
-  clouds (three ranges at 0.775, 0.845 and 0.915 of the height, each a whole number of lumps a width so it tiles, some
-  with smaller lumps heaped on top, solid below, darker toward its foot, faded 0.5, 0.25 and 0 toward the sky's last
-  stop). Clouds of both kinds are lumps (`lumpsInto`: front halves of ellipsoids `{ cx, cy, rx, ry, z }`, the surface
-  nearest the eye wins, Lambert light from the top left `(-0.45, -0.65, 0.61)`) stepped into four tones by `toneOf` (cuts
-  0.6, 0.22, -0.15, a dither 0.05 either side of each), with an outline a darker step of the tone beside it and corners
-  anti-aliased over the sky by the row's colour. A drifting cloud is four to seven lumps along a flat bottom (its two
-  lowest rows a step darker) with a few small ones heaped on top.
+- **The hour's colours:** a `Key` gives six sky stops, the clouds' rim (`lit`), body and underside (`shade`), the hour's
+  dark (`ink`: the far islets lean toward it, the birds are drawn in it) and how much night shows (`stars`). The day's
+  own keys (`MORNING`, `DAY`, `AFTERNOON`) are the same every day; the night, the first light, sunrise, sunset and dusk
+  come in three `VARIANTS` (a deep blue night under purple banks lit magenta, a peach dawn, a rose and gold sunset; a
+  lavender night, a lilac dawn, a pink and violet sunset; a sea-blue night, a golden dawn, an ember-red sunset),
+  `variantNow()` = `DayLight.skyNight() % 3 + 1` (it turns at noon, inside the day's own key, so nothing jumps).
+  `keysOf(v)` lays a variation's keys at hours 0, 0.15, 0.2, 0.235, 0.29, 0.36 .. 0.64, 0.71, 0.765, 0.8, 0.86 .. 1;
+  `paletteAt(h, kind, v)` mixes the two keys round the hour in `NOTCHES` 10 steps and the weather's `WX` entry pulls
+  every colour toward its grey at the colour's own lightness (`tint`, `k`, `dark`: rain 0.55, storm 0.72, fog 0.62, snow
+  0.45, haze 0.3), hides the stars (`stars x (1 - 1.5 k)`), sets the clouds a 100,000 px (`clouds`) and the share of
+  them that are streaks (`streaks`: 0.55 fair, 0.65 breezy, 0.75 haze, 0.25 rain, 0.15 storm), veils the sun and moon
+  (their ImageTransparency `veil`) and fades the far things (`fade`). A palette's key is the weather, the key names
+  and the notch: a new key paints again.
+- **The shapes** (`buildGeo(W, H)` once a screen size, `buildClouds(W, H, clouds, streaks)` once a weather's mix): a class
+  a pixel in byte buffers. The sky: the band (stop 0 .. 5, `bandOf`: the middle 60 % of each band an ordered 4 x 4
+  dither into the next), the galaxy (0 .. 3, slanting up to the right, a lane of dust fading in and out down its
+  middle) and a star (dim, bright; a cross's white middle and arms, blue arms, or a gold middle with red arms) with
+  its threshold, so they come out one by one as the night deepens, the brightest first. The front: up to five far
+  islets as silhouettes (`islet`: a flat grass top two rows deep with rounded ends, a two-row cliff under it, a round
+  belly narrowing to a ragged point with short points hanging under it, one to four trees on one-pixel trunks along
+  the top (round crowns, now and then a pine), stones floating below; its body the sky's colour at its height mixed
+  toward the hour's dark by 0.16 to 0.32 (bigger, nearer), its top edge a step toward the clouds' rim colour) and the
+  sea of clouds (three ranges at 0.775, 0.845 and 0.915 of the height, each a whole number of round puffs a width so it
+  tiles, some with a smaller heap behind and above, solid below; flat: a rim along the top of every puff that shows
+  against the sky or a farther range (1 px far, 2 near) and a short cap where a puff's top stands in front of the heap
+  behind it, the underside darker toward its foot after a checker row, the nearest range's foot darker still; the
+  ranges faded 0.55, 0.3 and 0 toward the sky's last stop). The drifting clouds (`streakCloud`: a bar with round ends
+  and a shorter one or two along its top, now and then one under it; `puffCloud`: three to six round heaps on a flat
+  bottom, its lower part darker after a checker row; `cloudShape`: one body colour, the row along the top lighter on
+  puffs and thicker streaks, the row along every underside darker, no outline), the farther (higher) first.
 - **A notch** (`newJob`, `colourRows`, `finish`): small lookup tables (the sky's 256 classes, the front's, the clouds'
-  ten) and each row's corner colour; the three pictures coloured `ROW_PIXELS` (25,000) pixels a frame and uploaded
-  together once whole, so the old picture shows until the new one is done. Measured in the previews at 640 x 360: the
-  shapes 160 ms (a new screen size), a weather's clouds 31 ms, a notch 44 ms in all, spread over about ten frames.
+  three); the three pictures coloured `ROW_PIXELS` (25,000) pixels a frame and uploaded together once whole, so the old
+  picture shows until the new one is done. Measured in the previews at 640 x 360: the shapes 142 ms (a new screen
+  size), a weather's clouds 4 ms, a notch 43 ms in all, spread over about ten frames.
 - **The sun and the moon** (`paintBody`, `arc`, `placeBody`): the sun's u = (hour - 0.23) / 0.54, the moon's the rest of
   the day from sunset; `arc` puts the middle at x = W (0.1 + 0.8 u) and y from `HORIZON` (0.77 of the height, half
   behind the sea of clouds) up to 0.14 by sin(pi u); shown from u -0.06 to 1.06. A body is a flat disc (radius 5 % of
-  the height, 6 .. 16 px; the moon's 85 % of it) with half-covered edge pixels at half alpha, over a halo of dithered
-  rings (alpha steps of 0.15; the sun's reach 2.1 to 3.5 radii and its colours warmer as it nears the horizon, in five
-  steps; the moon's a cool 0.09 a step); the moon has three craters and a phase from `skyNight() % 8` (`MOON_BITE`: a
-  shadow disc beside it, full, gibbous, half, crescent, then the same waxing). Painted again only when its size, its
-  warmth step or its phase changes.
+  the height, 6 .. 16 px, the sun's up to 1.9 times that near the horizon, the moon's 85 % of it) with half-covered edge
+  pixels at half alpha, over a halo of dithered rings (the sun's a pale cream disc, one or two rings of 0.13 alpha out
+  to 1.9 .. 2.8 radii, warmer near the horizon, in five steps; the moon's a cool 0.09 a step); the moon has three
+  craters and a phase from `skyNight() % 8` (`MOON_BITE`: a shadow disc beside it, full, gibbous, half, crescent, then
+  the same waxing). Painted again only when its size, its warmth step or its phase changes.
 - **The life** (`stepLife`): 16 twinkling pixels once the night passes 0.35 to 0.71 (by their index); a shooting star
   every 5 to 13 s past 0.6 of the night (a head and a tail of four fading tones, 0.7 s); by day (night under 0.2, the
   weather's k under 0.6) a flock of two to five birds every 18 to 40 s, in the palette's ink, flapping in two frames.
-- `paint(kind, W, H, hour?) -> (sky, front, clouds)` (RGBA buffers), `debugHour(h?, night?)` (DayLight.debugSky),
-  `debugTimes(W, H, clock?) -> (shapes, clouds, notch ms)`, `debugState() -> { on, kind, key, W, H, paints, geos, pending,
-  off, seaOff, hour, stars, sun, sunX, sunY, moon, moonX, moonY, birds, twinkles, streak }`.
+- `paint(kind, W, H, hour?, variant?) -> (sky, front, clouds)` (RGBA buffers), `debugHour(h?, night?)`
+  (DayLight.debugSky: the night picks the variation and the moon's phase), `debugTimes(W, H, clock?) -> (shapes, clouds,
+  notch ms)`, `debugState() -> { on, kind, key, W, H, paints, geos, pending, off, seaOff, hour, stars, sun, sunX, sunY,
+  moon, moonX, moonY, birds, twinkles, streak }`.
 
 `VisitUI` (the islands float apart, so nobody walks or swims to a neighbour): `init()` registers the "visit" panel
 (icon "visitor", 220 wide, a row each: the island's name, its owner and tier's name, a Visit button `Visit_<plot>`
