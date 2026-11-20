@@ -1070,6 +1070,11 @@ do
 	H.expect(gifts ~= nil and dot ~= nil and dot.Visible, "rewards", "the menu bar's Gifts, a red dot on it while something waits")
 	local st = p.PlayerGui:FindFirstChild("Status_gift", true)
 	H.expect(st ~= nil, "rewards", "the HUD's line about the next gift")
+	-- (the request of 2026-11-20: "make this clickable to open the gift tab": today's reward waits, so Today)
+	local RewardsC = H.cmod(p, "UI.RewardsUI")
+	H.expect(H.clickNamed(p, "StatusTap_gift", { wait = 0.5 }) and H.currentPanel(p) == "rewards" and RewardsC.tabOf() == "today", "rewards", "a tap on the gift's line opens the Rewards sheet on Today, where the gift waits", tostring(H.currentPanel(p)) .. " " .. tostring(RewardsC.tabOf()))
+	H.closePanel(p)
+	E.run(0.4)
 	H.clickNamed(p, "Menu_rewards", { wait = 0.5 })
 	H.expect(H.currentPanel(p) == "rewards", "rewards", "Gifts opens the Rewards sheet", tostring(H.currentPanel(p)))
 	-- the daily reward: today's, then refused till tomorrow; tomorrow's goes on the streak

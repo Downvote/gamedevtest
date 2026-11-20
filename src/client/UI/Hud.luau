@@ -243,8 +243,9 @@ end
 
 ------------------------------------------------------------------ the status panel
 -- Under the top bar on the left, glass like it: one line each (an 11 px icon and words), the season and the weather
--- and the like, from other modules: `Hud.statusLine(name, icon, text, color?)` adds or changes a line, a nil `text`
--- takes it away. It hides while it has no lines; the quest's card sits under it.
+-- and the like, from other modules: `Hud.statusLine(name, icon, text, color?, onTap?)` adds or changes a line, a nil
+-- `text` takes it away. A line given `onTap` is a ghost button (a faint veil under the mouse; a tap calls it: the gift's
+-- line opens the Rewards sheet). It hides while it has no lines; the quest's card sits under it.
 local STATUS_W = QUEST_W
 -- (the blocks under it move when a line comes or goes: `stack`, set once it is defined below)
 local restack: () -> () = function() end
@@ -267,13 +268,15 @@ local function layoutStatus()
 	st.Visible = #statusOrder > 0 and not (BuildUI.isOpen() or UIKit.currentPanel() ~= nil)
 end
 
-function Hud.statusLine(name: string, icon: string?, text: string?, color: Color3?)
+local statusTaps: { [string]: () -> () } = {}
+function Hud.statusLine(name: string, icon: string?, text: string?, color: Color3?, onTap: (() -> ())?)
 	local st = status
 	if st == nil then
 		return
 	end
 	local old = statusLines[name]
 	if text == nil then
+		statusTaps[name] = nil
 		if old then
 			old:Destroy()
 			statusLines[name] = nil
@@ -317,6 +320,24 @@ function Hud.statusLine(name: string, icon: string?, text: string?, color: Color
 		UIKit.setTextColor(t, color or UIKit.color("text"))
 	else
 		UIKit.text(line, text, UDim2.new(1, -13, 0, 10), UDim2.fromOffset(13, 1), { color = color or UIKit.color("text"), name = "Text", z = 3 })
+	end
+	-- (the button under the icon and the words, made once: the line is set again four times a second, the latest
+	-- `onTap` kept by name)
+	if onTap then
+		statusTaps[name] = onTap
+	else
+		statusTaps[name] = nil
+	end
+	local tap = line:FindFirstChild("StatusTap_" .. name)
+	if onTap and tap == nil then
+		UIKit.button(line, "", UDim2.new(1, 2, 1, 0), UDim2.fromOffset(-1, 0), function()
+			local f = statusTaps[name]
+			if f then
+				f()
+			end
+		end, { name = "StatusTap_" .. name, ghost = true }).ZIndex = 1
+	elseif onTap == nil and tap then
+		tap:Destroy()
 	end
 	layoutStatus()
 	if added then

@@ -3009,7 +3009,9 @@ and the option's name sit on the stage. A narrow portrait screen puts the stage 
 The menu bar's **Gifts** (a gift icon, between Looks and Store) opens the Rewards sheet; a small red dot sits on it
 while something waits to be claimed (`Rewards.view.ready`). On the HUD's status strip under the top bar a line says
 "Gift in 3:12" (the next gift for playing) or "A gift is waiting" in gold, and a timed boost running has its own line
-("Lucky Hour 14:04"). Days are UTC days of the sea's clock. The sheet has five tabs, each with a red dot while
+("Lucky Hour 14:04"). A tap on the gift's line opens the sheet on the first tab with something to claim, or on Today
+when nothing waits yet (the request of 2026-11-20: "make this clickable to open the gift tab"); under the mouse the
+line gets the same faint veil as the menu bar's buttons. Days are UTC days of the sea's clock. The sheet has five tabs, each with a red dot while
 something on it waits:
 
 - **Today: the daily reward and the streak.** One a day (`reward.daily`). Claimed the day after the last claim the

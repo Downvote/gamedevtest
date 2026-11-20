@@ -1621,7 +1621,8 @@ from "spin", which `StoreUI` leaves to it). Index: `IndexGift_<i>` rows (`IndexC
 row kept across rebuilds, `Keep`, with a TextBox "Box" under the pixel font's copy "Typed") and `Redeem`. API:
 `init()`, `words(v, reward, short?)`, `icon(reward)`, `ready(v)` (the server's count and a gift for playing come due
 since), `playSecs(v)` (today's seconds, running on from the last tick Fx's `play`), `status(v, line)` (Hud's: the
-"gift" line and a "boost_<id>" line per timed boost; the open sheet's timer), `TABS`, `tabOf()`. `Hud` adds the menu
+"gift" line, tapped `openWaiting`, and a "boost_<id>" line per timed boost; the open sheet's timer), `openWaiting()`
+(the sheet on the first tab with a red dot, else "today"), `TABS`, `tabOf()`. `Hud` adds the menu
 bar's `Menu_rewards` ("Gifts", between Looks and Store) with a red "Dot" while `ready` > 0, and calls `status` four
 times a second. The Hatchery panel (`Menus`) shows `Breed.preview` on a pair's row ("MutsLead" "Hatches with:", the
 mutations, the "Cost" line) and a warming egg's mutations; the Tree panel's odds never say "not yet".
@@ -1847,8 +1848,9 @@ color?)` sets the season's and the weather's icon, words and colour, nil words h
 1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, sending `char.home` (no `MusicToggle` since 2026-11-14: the music, the sounds and the pixel art are the
 Settings panel's, `UI/SettingsUI`; the right-hand column's top is `rightTop()`: `CHIP_Y`, level with the top bar, when
 the top bar and Home leave the column room, else `CARD_Y`; the top bar and Home call `restackSoon` when that may change),
-the `Status` panel under the top bar on the left (`Hud.statusLine(name, icon?, text?, color?)`: adds, changes or, with
-a nil `text`, removes a line `Status_<name>` (an 11 px `mini_<icon>` and its `Text`); hidden while it has no lines and
+the `Status` panel under the top bar on the left (`Hud.statusLine(name, icon?, text?, color?, onTap?)`: adds, changes
+or, with a nil `text`, removes a line `Status_<name>` (an 11 px `mini_<icon>` and its `Text`; given `onTap`, a ghost
+button `StatusTap_<name>` under them that calls it: the gift's line, `RewardsUI.openWaiting`); hidden while it has no lines and
 for a panel or Build mode; the `Quest` card sits under it; a module mounted from Hud can be handed `Hud.statusLine`),
 the menu bar
 (`Menu_build`, `Menu_pals`, `Menu_hatch` (the Hatchery, `mini_egg`, after Driftlings once the view's tier reaches

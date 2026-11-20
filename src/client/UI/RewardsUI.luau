@@ -12,10 +12,12 @@
 --     Index: the gifts for kinds found (reward.index).
 --     Codes: a box to type a code in and Redeem (code.redeem).
 --   On the HUD (UI/Hud): the menu bar's Gifts button with a red dot while something waits (RewardsUI.ready), and the
---   status lines RewardsUI.status keeps: the next gift for playing, each timed boost running.
+--   status lines RewardsUI.status keeps: the next gift for playing, each timed boost running. A tap on the gift's line
+--   opens the sheet on the first tab with something waiting, else Today (RewardsUI.openWaiting; the request of
+--   2026-11-20: "make this clickable to open the gift tab").
 -- API: RewardsUI.init(), RewardsUI.words(v, r, short?) -> string, RewardsUI.icon(r) -> string, RewardsUI.ready(v) ->
--- number, RewardsUI.playSecs(v) -> number, RewardsUI.status(v, line) (Hud's second: line(name, icon?, text?, color?)),
--- RewardsUI.TABS, RewardsUI.tabOf() -> string.
+-- number, RewardsUI.playSecs(v) -> number, RewardsUI.status(v, line) (Hud's second: line(name, icon?, text?, color?, onTap?)),
+-- RewardsUI.openWaiting(), RewardsUI.TABS, RewardsUI.tabOf() -> string.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -645,17 +647,31 @@ local function build(body: Frame, arg: any?)
 end
 
 ------------------------------------------------------------------ the HUD's lines
--- The status lines this module keeps (Hud's second): the next gift for playing (or one waiting), each timed boost.
-function RewardsUI.status(v: View?, line: (name: string, icon: string?, text: string?, color: Color3?) -> ())
+-- The sheet on the first tab with something to claim (its red dot), else Today, where the gifts for playing are.
+function RewardsUI.openWaiting()
+	local dots = tabDots(StateClient.view())
+	local at = "today"
+	for _, t in RewardsUI.TABS do
+		if dots[t.id] then
+			at = t.id
+			break
+		end
+	end
+	UIKit.openPanel("rewards", at)
+end
+
+-- The status lines this module keeps (Hud's second): the next gift for playing (or one waiting; a tap on it opens the
+-- sheet where it is), each timed boost.
+function RewardsUI.status(v: View?, line: (name: string, icon: string?, text: string?, color: Color3?, onTap: (() -> ())?) -> ())
 	local r = rv(v)
 	if v == nil or r == nil then
 		return
 	end
 	local ready, nextI = playState(v)
 	if RewardsUI.ready(v) > 0 or ready then
-		line("gift", "gift", "A gift is waiting", UIKit.color("accent"))
+		line("gift", "gift", "A gift is waiting", UIKit.color("accent"), RewardsUI.openWaiting)
 	elseif nextI then
-		line("gift", "gift", "Gift in " .. mmss(RewardsData.PLAY[nextI].min * 60 - RewardsUI.playSecs(v)), nil)
+		line("gift", "gift", "Gift in " .. mmss(RewardsData.PLAY[nextI].min * 60 - RewardsUI.playSecs(v)), nil, RewardsUI.openWaiting)
 	else
 		line("gift", nil, nil)
 	end
