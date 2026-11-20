@@ -15,7 +15,7 @@ This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every sce
 its 2 deliberate store failures; checks today: `sim.luau` about 3207, `sim_save.luau` about 1126, `sim_clock.luau`
 about 1834, `sim_world.luau` about 2628, `sim_tree.luau` about 1972).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city everdrift gallery tree day dusk night dawn hatchery sky skies visit build buildui inventory expand zoo paths water work motion idle pan stress ambient late
+village island2 island3 city everdrift gallery tree day dusk night dawn hatchery sky skies visit build buildui drop inventory expand zoo paths water work motion idle pan stress ambient late
 loading themes hatches weathers crowd alerts`, `showcase=<1..20>` (a well decorated town on an island of that expansion level), `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<skin|style|bangs|hair|eyes|shirt|top|apron|hat|face|neck|back|hand|outfits|titles>` (the My founder screen), `panel=rewards:<today|tasks|spin|index|codes>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing
 the cosmetics, with their white outlines and name tags; `looks=f<1..5>` the customization screen's features: new styles, bangs,

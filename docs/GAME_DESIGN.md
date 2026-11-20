@@ -1356,6 +1356,18 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, Â
   path, water or fence puffs along its tiles or lengths (at most 24 puffs, spread along it) with its sound in a quick
   run of up to six; taking them up puffs dust. A piece put away goes in a puff. The particles are 1 px bits and
   small sprites at whole pixels (at most 260 at once); with the pixel filter off there are none.
+
+  > The report (2026-11-20): "also, when a building is placed, it seems to shift right instead of shifting down. also,
+  > they seem to vanish for awhile before appearing, especially for bigger buildings"
+
+  The piece is on screen the whole way now. Its ghost shows it until the server says yes, the stand-in drops straight
+  down onto its spot (moved by height alone, upright, whatever the model's parts are turned to), and once it lands it
+  stays there until the pixel filter has drawn the real one in its place, then goes in the same frame the real one
+  shows. Before, the stand-in went the moment it landed, and a big building's patch of the picture took several frames
+  to be drawn again, so the spot sat empty. The ghost also stays off the spot a copy was just put down on until the
+  pointer moves to another square: it used to come back there at once, so the new piece dropped onto a copy of itself
+  standing in its place, and that copy then went off sideways with the pointer. The server's model is kept out of the
+  island from the moment it arrives until its drop is done, so it never shows early.
 - **The sounds** go by feel, cut from clips the game already has: a hammer's tap for wood, pebbles for stone, rustling
   grass for plants, a low bubble pop for water, a chime's clink for metal, a sparkle of chimes for magic, footsteps in
   sand for sand (higher for snow), a cloth flap for cloth and a shaker for fire.
