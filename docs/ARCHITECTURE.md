@@ -1059,8 +1059,8 @@ there yet): the palette's colours are written out and `PixelFont` / `PixelFontDa
 entry the screen's short side exceeds); Roblox's touch buttons off while it is up), `phase(name)` ("island",
 "picture"; it starts in "start"), `progress(f)`, `finish()` (the bar fills, `FADE_STEPS` (5) steps over `FADE_SEC`
 (0.45) to clear, destroyed, touch buttons back; by itself after `SAFETY_SEC` (45)), `state() -> { up, phase, bar,
-finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island, mode, cover,
-covered, bank, clip, status }`; `cover(opts?) -> boolean` (2026-11-20, "make a transition for expansion, hiding the game
+finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island, isle, bob,
+bobMoves, mode, cover, covered, bank, clip, status }`; `cover(opts?) -> boolean` (2026-11-20, "make a transition for expansion, hiding the game
 with a loading transition": the card again, for Build mode's expansion; `opts { title?, status?, onCovered?, onOpened?
 }`; false while the card is up), `status(text)` (a cover's words). A cover mounts the same card with its root
 see-through (`mode` "cover"); `bandShapes(W, H)` lays a bank of cloud for the canvas (per column: where its three
@@ -1077,26 +1077,36 @@ the card wholly covers. Covered: `onCovered` runs. `finish()` on a cover waits `
 for the bar to fill, then the bank rises again over `OPEN_SEC` (0.8), the card over it; `onOpened` runs once it is
 destroyed. A cover's bar follows `progress(f)` (1.2 a second); it opens by itself after `COVER_SAFETY` (20 s).
 Without EditableImages only the clip moves: the plain card behind a straight edge. Laid out from
-the canvas's size (`layoutFor`: the horizon at 0.46 of the height, the island's middle and radii, the sun, the title,
-status, bar and tip rows, `pathEnd` the last row of the sun's path) and built again 0.15 s after the camera's
-ViewportSize changes: `paint(L)` writes the still scene into one EditableImage of the canvas's size. Its gradients go
-through `bandAt(list, u, x, y, zone?)` / `band(list, t, ...)` (flat, then three dither steps of `stepOn(x, y, s)`: a
-quarter, a half, three quarters). It paints the sky's bands, stars, the sun cut by the horizon with its halo, clouds,
-far islands with palms; the sea's bands with the sun's glow (`SEA_LIT`: the sea's tones after two warm ones, the index
-lifted round `sunX`), the horizon, wave dashes, the sun's path lines; the island from a class grid over its box (sea,
-shallows' edge, shallows, near shore, foam, wet sand, beach, grass) by its ground distance to the coast (`shoreR(L, a)`:
-the oval of radii `rx`, `ry / PITCH` times Street's four sines, `PITCH` 0.5), then tufts, flowers, rocks, driftwood,
-the sand round the fire (no path or jetty since 2026-11-13). `buildAtlas()` decodes `LoadingArt` into one atlas EditableImage (the run-length
-format of `gen_loading_art.py`), `placeScene(L)` lays the actors (ImageLabels on the atlas, `ImageRectOffset` per
-frame, whole UI px, ZIndex by their foot's row) and `step(dt)` moves them at most `SCENE_FPS` (24) times a second
-from the card's one Heartbeat: stills (the Tree of Life, `tree`, at the back in the middle, or at the back on the left
-when its crown, `TREE_TOP` (77) art px over its foot, would reach the bar; a "blink" still: its second frame, the
-hollow, fruit and marks dimmer, for a fifth of a second every 4.2 s; a tall palm, `palm_b`, stood there while the tide
-ran and now stands on the right); the
-fire, the boat (drifting right, wrapping), the cheering Conchy (a burst, a rest), walkers (driftlings up and down a lane, a pause at each end, the
-sequence's name left and `<name>_r` right),
-followers (a driftling `gap` px behind its walker), gulls, stars, crests and glints (a run, hidden, a new spot: open
-sea at least 26 ground px past `shoreR`, or the sun's path as wide as its lines at that row), embers.
+the canvas's size (`layoutFor`: the island's middle and radii, `rx` 0.24 of the width (70 .. 160), `ry` 0.3 of it,
+`depth` the underside's (up to 0.58 of `rx`, what room is left above the tip), the horizon (the top of the sea of
+clouds), the sun, the title, status, bar and tip rows) and built again 0.15 s after the camera's ViewportSize changes.
+Since 2026-11-20 ("redo the loading screen. it should be the floating island now") it is two pictures. `paint(L)`
+writes the sky into one EditableImage of the canvas's size: its gradients through `bandAt(list, u, x, y, zone?)` /
+`band(list, t, ...)` (flat, then three dither steps of `stepOn(x, y, s)`: a quarter, a half, three quarters), stars,
+the sun with its halo, four far islets (silhouettes in `FAR`, the edge facing the sun `FAR_TOP`, palms on the two
+big ones) and the sea of clouds (`CLOUDS`, five layers of `domes`, flat, no outline). `paintIsle(L) -> (buf, x0, y0, w,
+h)` paints the floating island on a clear buffer of its own box: the grass top (the oval of radii `rx`, `ry / PITCH`
+times Street's four sines, `rimR(L, a)`, `PITCH` 0.5) in patches with tufts and flowers and a darker lip; under it,
+per column, a band of `SOIL` and rows of stones (random heights, cuts along the rim at `s = rx * asin(dx / rx)`, so the
+stones narrow toward the sides) down to a ragged rounded foot (chunks of the rim a few px lower or higher, long ones
+under the middle), each stone a `STONE` step by depth plus one in the shadow on the right, its top row and left
+column `STONE_LIT`, its foot a step darker, the cracks two steps darker; the grass hanging over the lip, a stream to a
+rounded end, stones floating beside it; then the outline (every pixel next to a clear one takes `inkOf` of its own
+colour: 0.45 of it plus 0.3 of the ink 0x2B1E2E); then vines and roots (kept over the stones) and a puff of mist under
+the stream (flat, no outline). Every `put` rounds to whole pixels (a fraction would write across two pixels' bytes:
+on a phone the far islets came out shifted and blue). The island is the `Isle` ImageLabel in the `Over` layer (ZIndex
+3, under the sprites) and bobs: `step` moves it to `S.bob` (-1, 0, 1 px by a sine over `BOB_SEC`, 3.6 s) and
+re-shows every actor marked `isle`, which `show` draws `S.bob` px lower. `buildAtlas()` decodes `LoadingArt` into
+one atlas EditableImage (the run-length format of `gen_loading_art.py`), `placeScene(L)` lays the actors (ImageLabels
+on the atlas, `ImageRectOffset` per frame, whole UI px, ZIndex by their foot's row; all but the gulls and stars on the
+island, `isle`) and `step(dt)` moves them at most `SCENE_FPS` (24) times a second from the card's one Heartbeat:
+stills (the Tree of Life, `tree`, at the back in the middle, or at the back on the left when its crown, `TREE_TOP`
+(77) art px over its foot, would reach the bar; a "blink" still: its second frame, the hollow, fruit and marks
+dimmer, for a fifth of a second every 4.2 s; a tall palm, `palm_b`, on the right); the fire, the cheering Conchy (a
+burst, a rest), walkers (driftlings up and down a lane, a pause at each end, the sequence's name left and
+`<name>_r` right), followers (a driftling `gap` px behind its walker), gulls, stars, embers. (The boat, the wave
+crests and the sun's glints went with the sea on 2026-11-20; their sprites are still in the atlas.)
+`state()` adds `island.depth`, `isle` (the island image's box), `bob` and `bobMoves`.
 The words: `textImage` rasterises a line with `PixelFont.mask`
 (the title in `BIG` with the "title" under layer and `PixelFont.smooth`'s anti-aliasing steps, the status and the tip
 in `SMALL` with a drop shadow) into an EditableImage, centred on the canvas; the status's dots and the bar are Frames.

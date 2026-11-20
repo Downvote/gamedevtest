@@ -563,7 +563,7 @@ floor, it just looks noisy", 2026-11-14),
   coral Close), over the island seen through a sea-dark veil; the island card and the tree's card the same, their
   names on planks; the chips, the notices and the tip (a parchment note) thin frames; the chips and the rows in the
   panels are carved boards (a lit top row, a shaded bottom one); the menu bar stands on a wooden dock; the build tray is
-  a workbench with its tabs on a plank. The loading card is the island at dusk (§11).
+  a workbench with its tabs on a plank. The loading card is the floating island at dusk (§11).
 - **The founder:** you walk your island and visit the others as a chibi founder (§9).
 
 **The pixel art rules** (they hold for every sprite, icon, scene and effect, now and from now on):
@@ -2863,11 +2863,25 @@ reason.
 
 ## 11. Polish and animation
 
-> The request (2026-11-12, later): "detail the island on the loading screen more, it should be uneven like the actual
-> island. the reflection of the sun on the water should be polished more, same with the dithered gradient of the
+> The request (2026-11-20): "redo the loading screen. it should be the floating island now"
+
+- **The loading card is the floating island** the game is now: no sea, no boat, no foam. The dusk sky stays (its
+  dithered bands, the stars, the sun) but the sun goes down into a sea of clouds, five layers of round billows in flat
+  colour with no outline, each lower and lighter than the one behind it, as the game's own sky draws them. Far islets
+  float over the clouds as silhouettes. In the middle the island floats on its own: the grass top with its patches,
+  tufts and flowers and the grass hanging over the lip, a band of soil, then rows of chunky stones (each row's stones
+  of uneven widths, lit from the top left, darker the deeper they are, the right side in shadow) narrowing to a ragged
+  rounded point with a few long chunks hanging under the middle; vines and roots down its face, a stream falling off
+  the front edge into a puff of mist, a few stones floating beside it. A 1 px outline goes round all of it, a darker
+  step of the colour inside. The island is its own picture over the sky and bobs a pixel down and back up every few
+  seconds, the tree, the huts and the driftlings on it bobbing with it. Gulls still cross the sky. Without
+  EditableImages the plain card shows the sky, the clouds and the island as two flat blocks.
+
+> The request (2026-11-12, later), for the island in the sea it was then: "detail the island on the loading screen
+> more, it should be uneven like the actual island. the reflection of the sun on the water should be polished more, same with the dithered gradient of the
 > background, dither it better"
 
-- **The loading card's island** has the real island's coast: the oval pushed in and out by the same four sines as a
+- (Until 2026-11-20.) **The loading card's island** had the real island's coast: the oval pushed in and out by the same four sines as a
   first tier island (Data/Street), seen from the world camera's height. Inland of the shore: wet sand, a beach that is
   wider in front (lit along its back edge, a small dark step down to the wet sand in front, grains and a few shells),
   then grass in darker and lighter patches with tufts and flowers, its front edge a darker lip. Out from the shore: a
@@ -2911,7 +2925,8 @@ reason.
   for them.", "A bigger island gets more eggs, and better ones."). Everything is laid out from the screen's size each time it changes (the old
   curtain took its size once, so on a window still settling its words sat left of the middle). Roblox's touch
   buttons are hidden while it is up. When the first picture is on screen the bar fills and the card fades into it.
-  Without EditableImages it is a plain card (sky, sea, island, title, bar).
+  Without EditableImages it is a plain card (sky, sea, island, title, bar). Since 2026-11-20 the island floats over a
+  sea of clouds and the boat, the waves, the crests and the glints are gone (above).
 - **Blinds that cover the screen:** the walk-in's blinds and the places' curtains were laid out against the screen's
   edges, three screens deep. They went with the wild places (§7).
 

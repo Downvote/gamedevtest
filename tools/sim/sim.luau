@@ -94,6 +94,9 @@ do
 	H.expect(st ~= nil and st.finished and not st.up, "join", "the loading card went up and is gone now the island shows", st and string.format("finished %s up %s", tostring(st.finished), tostring(st.up)))
 	local mid = st and st.title and (st.title.x0 + st.title.x1) / 2
 	H.expect(mid ~= nil and math.abs(mid - st.size.X / 2) <= 1, "join", "its title centred on the screen", if st and st.title then string.format("%s of %d", tostring(mid), st.size.X) else "no title")
+	-- (the request of 2026-11-20: "redo the loading screen. it should be the floating island now")
+	local isle = st and st.isle
+	H.expect(st ~= nil and (st.fallback or (isle ~= nil and st.bobMoves > 0 and math.abs(isle.x0 + (isle.w - 1) / 2 - st.size.X / 2) <= 1)), "join", "it showed the floating island in the middle, bobbing over the clouds", if st and isle then string.format("box %d,%d %dx%d, bobbed %d times", isle.x0, isle.y0, isle.w, isle.h, st.bobMoves) else (if st then "fallback " .. tostring(st.fallback) else "?"))
 	local pg = p:FindFirstChildOfClass("PlayerGui")
 	H.expect(pg ~= nil and pg:FindFirstChild("LoadingCard") == nil, "join", "and nothing of it left on the screen")
 end

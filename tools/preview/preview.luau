@@ -1955,7 +1955,7 @@ local function treeModelOf(p)
 	return nil
 end
 
-function SCEN.treeink(zoomTo: number?, tier: number?)
+function SCEN.treeink(zoomTo: number?, tier: number?, turn: number?)
 	seedProfile(21, tier or 2, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 2000, eggs = { 1, 6, 3, 4, 5, 7, 8, 9 } })
 	local p = join(21, "Grove")
 	settle(p)
@@ -1972,6 +1972,17 @@ function SCEN.treeink(zoomTo: number?, tier: number?)
 	local prof = H.profile(p)
 	local ox, oz = Street.origin(s.plot)
 	local q = Tree.piece(prof)
+	-- (turned on its lot, as a player can turn it in Build mode)
+	if q and turn and turn ~= 0 then
+		for i, pq in prof.plot.placed do
+			if pq == q then
+				local res = H.req(p, "plot.move", { i = i, x = q.x, z = q.z, rot = turn })
+				log("treeink: the tree turned %d: %s", turn, tostring(res and (res.ok or res.err)))
+			end
+		end
+		settle(p, 30, 1)
+		q = Tree.piece(prof)
+	end
 	if q and p.Character then
 		local _, d = Plot.footprint(q.id, q.rot)
 		p.Character:PivotTo(E.cf.new(ox + q.x - 1, 3, oz + q.z + d + 2))
@@ -4887,10 +4898,10 @@ for _, name in list do
 			return showcaseScenario(tonumber(showArg) :: number)
 		end
 	end
-	local tiArg, tiTier = string.match(name, "^treeink=(%d+),?(%d*)$")
+	local tiArg, tiTier, tiTurn = string.match(name, "^treeink=(%d+),?(%d*),?(%d*)$")
 	if tiArg then
 		fn = function()
-			return SCEN.treeink(tonumber(tiArg), tonumber(tiTier))
+			return SCEN.treeink(tonumber(tiArg), tonumber(tiTier), tonumber(tiTurn))
 		end
 	end
 	local zoomArg = string.match(name, "^zoom=(%d+)$")
