@@ -13,7 +13,7 @@ changes, run the specs: `tests/specs/Economy.spec.luau` holds the economy to the
 This game's simulator baselines (`sh tools/sim/par.sh`, `SIM REPORT`): every scenario 0 findings, 0 errors, 0 issues,
 0 warnings (`sim.luau` lists its 2 deliberate malicious non-finite payloads apart, `sim_world.luau` its 1, `sim_save.luau`
 its 2 deliberate store failures; checks today: `sim.luau` about 3167, `sim_save.luau` about 1117, `sim_clock.luau`
-about 1814, `sim_world.luau` about 2613, `sim_tree.luau` about 1936).
+about 1814, `sim_world.luau` about 2626, `sim_tree.luau` about 1936).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
 village island2 island3 city everdrift gallery tree day dusk night dawn sea visit build buildui inventory expand zoo paths water work motion idle pan stress ambient late
 loading themes hatches weathers crowd alerts`, `showcase=<1..20>` (a well decorated town on an island of that expansion level), `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<pieces|titles>`, `panel=rewards:<today|tasks|spin|index|codes>`), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r

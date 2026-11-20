@@ -3039,7 +3039,7 @@ do
 	ok, out = H.raw(p, "plot.paint", { id = "stream", cells = string.format("%d,%d,0", fx0, fz0) })
 	expectRefused("a cell with an edge's turn", ok, out, "bad_payload")
 end
-ok, out = H.raw(p, "founder.set", { skin = 9, hair = 1, style = 1, shirt = 1 })
+ok, out = H.raw(p, "founder.set", { skin = 99, hair = 1, style = 1, shirt = 1 })
 expectRefused("a skin that does not exist", ok, out, "bad_payload")
 local diff = H.diff(before, snap())
 H.expect(diff == nil, "malicious", "the refusals changed nothing", tostring(diff))
@@ -3327,7 +3327,7 @@ do
 	H.push(p, 0.3)
 	H.clickNamed(p, "Tab_shop", { wait = 0.3 })
 	local v = H.view(p)
-	H.expect(#v.shopList == 6 and p.PlayerGui:FindFirstChild("Piece_" .. v.shopList[1], true) ~= nil, "store", "the shop shows its six pieces", tostring(#v.shopList))
+	H.expect(#v.shopList == Tuning.ShopSize and p.PlayerGui:FindFirstChild("Piece_" .. v.shopList[1], true) ~= nil, "store", string.format("the shop shows its %d pieces", Tuning.ShopSize), tostring(#v.shopList))
 	local id = nil
 	for _, x in v.shopList do
 		if not prof.owned[x] then
