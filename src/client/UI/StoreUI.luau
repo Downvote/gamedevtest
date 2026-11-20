@@ -216,7 +216,7 @@ local FROM: { [string]: string } = {
 	play = "Playtime gift",
 	task = "Task done",
 	bonus = "All tasks done",
-	spin = "Lucky Shell",
+	spin = "Lucky Spin",
 	index = "Index gift",
 	code = "Code",
 }
@@ -246,7 +246,7 @@ function StoreUI.rewardText(from: string, given: { any }): string
 			table.insert(one, "the " .. (if t then t.name else "new") .. " title")
 		elseif g.kind == "spin" then
 			local n = tonumber(g.n) or 1
-			table.insert(one, if n == 1 then "a Lucky Shell spin" else string.format("%d Lucky Shell spins", n))
+			table.insert(one, if n == 1 then "a Lucky Spin" else string.format("%d Lucky Spins", n))
 		elseif g.kind == "boost" then
 			table.insert(one, string.format("%s for %d min", BOOST_NAMES[tostring(g.id)] or "a boost", math.max(1, math.floor((tonumber(g.n) or 60) / 60 + 0.5))))
 		elseif g.kind == "shop" then
@@ -943,7 +943,7 @@ function StoreUI.init()
 			Audio.play("reward")
 			UIKit.notice(PASS_THANKS[tostring(msg.key)] or "Thanks! Your pass is on.", UIKit.color("good"), 4)
 		elseif msg.kind == "rewards" and type(msg.given) == "table" and msg.from ~= "spin" then
-			-- (the Lucky Shell tells its own once its light stops: UI/RewardsUI)
+			-- (the Lucky Spin tells its own once its light stops: UI/RewardsUI)
 			Audio.play("reward")
 			UIKit.notice(StoreUI.rewardText(tostring(msg.from), msg.given), UIKit.color("accent"), 5)
 		elseif msg.kind == "titles" and type(msg.ids) == "table" then

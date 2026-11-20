@@ -1780,7 +1780,7 @@ each tab with something waiting, then a "List" scroll per tab. Today: the "Daily
 "Streak" row (Claim `DailyClaim` or "Next in ..."), the seven `Day_<i>` cards (got, now, plain; the seventh twice as
 wide), the "Gifts for playing" heading, the "PlayGift" row (Claim `PlayClaim` or the next gift's `PlayTimer`) and the
 eight `Play_<i>` cards. Tasks: `Task_<i>` rows (a bar, the count, `TaskClaim_<i>` or Done or the gift), the "Bonus" row
-(`BonusClaim`). Lucky Shell: the `Slice_<i>` prizes with their odds and `Spin` (under them; on a phone first, under the heading, where a landscape screen's fold left it): the reply's `slice` drives a light round
+(`BonusClaim`). Lucky Spin: the `Slice_<i>` prizes with their odds and `Spin` (under them; on a phone first, under the heading, where a landscape screen's fold left it): the reply's `slice` drives a light round
 the prizes (`spinAt`, repainted by name so a rebuilt sheet keeps it), slowing, then the notice (`StoreUI.rewardText`
 from "spin", which `StoreUI` leaves to it). While it runs the sheet is rebuilt with `SkipSpin` ("Skip") in Spin's
 place: it sets `skipSpin`, and the light's loop (which waits a frame at a time) stops and lands on `slice` at once
@@ -2825,7 +2825,7 @@ currency to just coins", "make coin icons coins now, including developer product
 `"shell"`'s place wherever an icon is named without its `mini_` (the HUD's chip, its rate line, a quest's reward, the
 Welcome back sheet, the Store's props). `build()` gives a hand-toned sprite (`spec.hand`, each ramp character's ramp and tone) the same inner
 anti-aliasing as a shaded one: a ramp pixel that meets the outline only at a corner steps a tone down (light to base,
-base to shadow unless the corner is its top left, shadow to dark at its bottom right). `mini_heat` is a thermometer,
+base to shadow unless the corner is its top left, shadow to dark at its bottom right). `mini_wheel` is the Lucky Spin's prize wheel (purple rim with seven gold bulbs, six wedges, a red pointer). `mini_heat` is a thermometer,
 `mini_takeup` an arrow up out of a tray.
 A mutation's tier (2026-11-14, in place of the "*" text): `star_t1` .. `star_t4`, 7 x 7 hand-toned stars (white, green,
 teal, gold: the ramps `W G C Y`, the tiers' `Traits.TIER_COLOR`). `UI/TierStars`: `label(parent, text, tier, x, y,

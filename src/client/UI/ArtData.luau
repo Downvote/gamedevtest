@@ -3301,9 +3301,9 @@ local DATA: { [string]: SpriteData } = {
 	},
 	["mini_wheel"] = {
 		w = 11, h = 11,
-		px = "...00122.....0334552...035345652.0353345565203333455567144448444419aaaa4bbbcd9aeae4bbccd.9abe4bccd...fee4ccd.....ff1dd...",
-		pal = { 0x80724C, 0x593A39, 0x806329, 0xFFE98A, 0xA86D60, 0xFFC93C, 0xD99A2B, 0x6F4E21, 0x2E2433, 0x486E68, 0x84E0C8, 0x28827E, 0x1A4C58, 0x192B35, 0x3CB4A8, 0x285A59 },
-		alpha = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+		px = "...01110.....0233320...045637849.025a777388902abb733389c4bbb4bbbde023337bbf890283777fg89.04877hgd9...988d889.....99e99...",
+		pal = { 0x68547A, 0x752E37, 0xCAA6F0, 0xE8535C, 0xFFE98A, 0x9B74D8, 0xFFF5E4, 0xFBE0BF, 0x6A47AC, 0x3D295B, 0x84E0C8, 0x3CB4A8, 0x80724C, 0xFFC93C, 0x806329, 0x28827E, 0x3A2672, 0xDEAC88 },
+		alpha = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
 	},
 	["mini_wheel_sil"] = {
 		w = 11, h = 11,

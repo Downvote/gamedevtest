@@ -1194,7 +1194,7 @@ end
 ------------------------------------------------------------------ the rewards (GAME_DESIGN 15)
 -- The request (2026-11-19): "add rewards for playtime, daily rewards, streak rewards, codes, and as many retention
 -- features you can think of". Through the Rewards sheet as a player: the menu bar's Gifts and its dot, the daily reward
--- and its streak over two days, a gift for playing, a task and the bonus, the Lucky Shell, the codes, an Index gift.
+-- and its streak over two days, a gift for playing, a task and the bonus, the Lucky Spin, the codes, an Index gift.
 E.phase = "rewards"
 do
 	local RewardsL = H.sharedServer("Logic.Rewards")
@@ -1266,20 +1266,20 @@ do
 	H.openPanel(p, "rewards", "tasks")
 	H.clickNamed(p, "BonusClaim", { wait = 0.4 })
 	H.expect(tk.bonus == true, "rewards", "the bonus for all three")
-	-- the Lucky Shell: the free spin (and the spins the rewards gave), the light stops on the prize
+	-- the Lucky Spin: the free spin (and the spins the rewards gave), the light stops on the prize
 	H.openPanel(p, "rewards", "spin")
 	local spins0 = RewardsL.spins(prof, WC.now())
 	local total0 = prof.rewards.spin.total
 	H.expect(spins0 >= 1, "rewards", "a spin in hand", tostring(spins0))
 	H.clickNamed(p, "Spin", { wait = 0.3 })
-	H.expect(prof.rewards.spin.total == total0 + 1, "rewards", "Spin turns the Lucky Shell", tostring(prof.rewards.spin.total))
+	H.expect(prof.rewards.spin.total == total0 + 1, "rewards", "Spin turns the Lucky Spin", tostring(prof.rewards.spin.total))
 	E.run(6)
 	local said = H.inClient(p, function()
 		local sheet = p.PlayerGui:FindFirstChild("Panel_rewards", true)
 		local s = sheet and sheet:FindFirstChild("Status", true)
 		return if s and s:IsA("TextLabel") then s.Text else ""
 	end)
-	H.expect(string.find(said, "Lucky Shell", 1, true) ~= nil, "rewards", "once the light stops, the sheet says what it gave", said)
+	H.expect(string.find(said, "Lucky Spin", 1, true) ~= nil, "rewards", "once the light stops, the sheet says what it gave", said)
 	-- Skip (the request of 2026-11-20: "make a skip for lucky shell spinning"): while the light runs, Spin reads Skip,
 	-- and a tap lands it on the prize at once
 	prof.rewards.spin.extra = (prof.rewards.spin.extra or 0) + 1

@@ -7,7 +7,7 @@
 --     Today: the daily reward (the streak, the 7-day round as cards, Claim: reward.daily, the next milestone) and the
 --       gifts for playing (the next one's minutes running down, Claim: reward.play, a card each).
 --     Tasks: today's three tasks (a bar each, Claim once done: reward.task) and the bonus for all three (reward.bonus).
---     Lucky Shell: its prizes with their odds and Spin (reward.spin): a light runs over the prizes, slows and stops on
+--     Lucky Spin: its prizes with their odds and Spin (reward.spin): a light runs over the prizes, slows and stops on
 --       the one won, then the notice says what it was.
 --     Index: the gifts for kinds found (reward.index).
 --     Codes: a box to type a code in and Redeem (code.redeem).
@@ -42,7 +42,7 @@ type View = Types.ClientView
 RewardsUI.TABS = {
 	{ id = "today", text = "Today", icon = "gift" },
 	{ id = "tasks", text = "Tasks", icon = "check" },
-	{ id = "spin", text = "Lucky Shell", icon = "wheel" },
+	{ id = "spin", text = "Lucky Spin", icon = "wheel" },
 	{ id = "index", text = "Index", icon = "star" },
 	{ id = "codes", text = "Codes", icon = "ticket" },
 }
@@ -389,7 +389,7 @@ local function buildTasks(list: ScrollingFrame, v: View, W: number): number
 	return y
 end
 
--- The Lucky Shell: the light over its prizes (spinAt), running while a spin plays out. While it runs, the Spin button
+-- The Lucky Spin: the light over its prizes (spinAt), running while a spin plays out. While it runs, the Spin button
 -- turns into Skip (the request of 2026-11-20: "make a skip for lucky shell spinning"), which lands the light on the
 -- prize at once.
 local spinAt = 0
@@ -463,7 +463,7 @@ end
 local function buildSpin(list: ScrollingFrame, v: View, W: number): number
 	local r = rv(v)
 	local y = 0
-	UIKit.heading(list, "Lucky Shell", y, "wheel", if r.spins == 1 then "1 spin" else string.format("%d spins", r.spins))
+	UIKit.heading(list, "Lucky Spin", y, "wheel", if r.spins == 1 then "1 spin" else string.format("%d spins", r.spins))
 	y += 14
 	local bw = 96
 	local function spinButton(at: number)

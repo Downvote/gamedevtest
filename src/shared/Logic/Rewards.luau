@@ -12,7 +12,7 @@
 --   is claimed by hand once its minutes are in, once a day.
 --   Daily tasks (`sync` deals three a day; `taskState`, `claimTask`, `claimBonus`): each counts a stat from the
 --   moment it was dealt; all three claimed, the bonus.
---   The Lucky Shell (`spins`, `spin`): one free spin a day, more from the rewards; a weighted slice of Data/Rewards.SPIN.
+--   The Lucky Spin (`spins`, `spin`): one free spin a day, more from the rewards; a weighted slice of Data/Rewards.SPIN.
 --   Codes (`redeem`): a code from the server's list (Config/Codes: upper case, maybe an end time), once each.
 --   The Index's milestones (`claimIndex`): kinds had, once each.
 local Types = require(script.Parent.Parent.Types)
@@ -251,7 +251,7 @@ function Rewards.claimBonus(p: Profile, now: number): (boolean, any)
 	return true, { given = giveAll(p, RewardsData.BONUS) }
 end
 
------------------------------------------------------------------- the Lucky Shell
+------------------------------------------------------------------ the Lucky Spin
 -- Spins in hand: today's free one (not used yet) and the extra ones.
 function Rewards.spins(p: Profile, now: number): number
 	local sp = p.rewards.spin

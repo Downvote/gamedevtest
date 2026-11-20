@@ -482,19 +482,21 @@ HAND("mini_close", [
     "333...222",
     "33.....22",
 ], ["E"])
-# The Lucky Shell's spins (the Rewards sheet): a beach ball turned like a prize wheel, gold over teal, its seams in
-# brown meeting at a dark hub.
+# The Lucky Spin (the Rewards sheet; the Lucky Shell until the request of 2026-11-20: "rename it to lucky spin, and make
+# the icon a lucky wheel"): a prize wheel, six wedges of cream, coral red and teal round a gold hub, in a purple rim lit
+# from the top left with seven gold bulbs set round it, and a red pointer over the rim at the top. (It was a beach ball
+# turned like a wheel, gold over teal; the bulbs sit apart so the rim never reads as a checkerboard.)
 HAND("mini_wheel", [
-    "..44a33..",
-    ".444a333.",
-    "4444a3333",
-    "4444a3332",
-    "aaaaxaaaa",
-    "8888a6665",
-    "8887a6655",
-    ".877a655.",
-    "..77a55..",
-], ["Y", "T", "E"])
+    "..47774..",
+    ".l4g7e3l.",
+    "44deee732",
+    "4dcce7772",
+    "lccclccck",
+    "4777eccb2",
+    "437eeeb22",
+    ".l3eef2k.",
+    "..22k22..",
+], ["P", "R", "T"], {"e": "crm2", "f": "crm1", "g": "crm3", "l": "yel3", "k": "yel2"})
 # The gifts for playing: a white clock face, its hands at ten past, lit from the top left.
 HAND("mini_clock", [
     "..44433..",

@@ -26,7 +26,7 @@ So every panel is a sheet in Random Bakery's manner with our own colours: cream 
 a scalloped hem, the panel's icon and title on the awning, a few of its things on a little driftwood shelf and a close
 mark, tabs as plates (the open one teal), headings in teal with a little wave after them, and rows a step lighter than
 the paper (§2). A new **Rewards** sheet (the menu bar's Gifts, a red dot while something waits) has the daily reward
-and its streak, gifts for playing, three daily tasks with a bonus, the Lucky Shell (a free spin a day), gifts for the
+and its streak, gifts for playing, three daily tasks with a bonus, the Lucky Spin (a free spin a day), gifts for the
 Index and codes; some rewards are timed boosts, Busy Day and Lucky Hour (§15). Farms, lumber camps and shops are one
 kind now, **work**: Build mode's Work tab has one list, any driftling works anywhere at its own pace, passives and
 mutations that helped at one kind help at all work, and every boost building boosts every workplace (§4, §6). The
@@ -372,7 +372,7 @@ requests of 2026-11-20. The save, the server and the code still call it `shells`
 reward's kind `"shells"`, the title ids `shellsaver`, `shellbaron`, `shelltycoon`, whose names are now Coin Saver,
 Coin Baron and Coin Tycoon), so no save changes; where an older note below says shells about money, read coins. The
 seashells on the islands stay seashells (the Shell Path, Shell Wall and Shell Pile, the Shell Cap and the other shell
-pieces, a snail's or a turtle's shell), and so does the Lucky Shell, the daily spin, which is a name.
+pieces, a snail's or a turtle's shell). The daily spin, the Lucky Shell for a while, is the Lucky Spin (§15).
 
 > The requests (2026-11-20): "change the currency to just coins", then "make coin icons coins now, including developer
 > products"
@@ -514,7 +514,7 @@ floor, it just looks noisy", 2026-11-14),
   usual, so none is cut short: the request of 2026-11-19, "it seems like the text gets cut off for some alerts";
   notices at the top stack one under another, each sliding into its place, the rest moving up as one goes, and below
   a new day's banner while it shows: they all landed on one spot before), a few of the panel's things on a little driftwood shelf
-  (the Tree of Life's eggs, the Store's crown, a shell and a ticket, the Rewards' egg, gift and Lucky Shell) and a
+  (the Tree of Life's eggs, the Store's crown, a coin and a ticket, the Rewards' egg, gift and lucky wheel) and a
   close mark (an X, its own sprite, on a deep teal button). Under it the panel is as before: light words in their own
   bright colours (a rarity's name in its colour), each row on a faint white veil, neutral buttons dark glass. Tabs are
   buttons in a row, each its icon and word, the open one teal, a small red dot on one with something waiting; a
@@ -538,7 +538,7 @@ floor, it just looks noisy", 2026-11-14),
   - Hover is a mouse's: on a touch screen a long press (0.35 s) shows what a hover shows (a driftling's card, a build
     piece's card), and a tap still does what a click does.
   - A list with more below than fits shows a small down arrow at its foot until it's scrolled to the end, and on a
-    phone the Lucky Shell's Spin comes first, under the heading (below the prizes it fell under a landscape screen's
+    phone the Lucky Spin's Spin comes first, under the heading (below the prizes it fell under a landscape screen's
     fold; the sweep of 2026-11-19).
   - Interactive things stay inside the safe area (the notch, Roblox's top bar): the HUD, panels and notices sit in
     ScreenGuis that keep Roblox's core UI insets. The game is landscape only (StarterGui `LandscapeSensor`).
@@ -3461,13 +3461,18 @@ something on it waits:
   hatch eggs, place pieces, earn shells (20 minutes of what the island makes when dealt), spend 15 minutes on the
   island, sell driftlings, hatch Hatchery eggs. Each counts from the moment it was dealt, with a bar, and is claimed
   when done (`reward.task`); all three claimed, the bonus (an epic egg, a spin and 6 min of shells: `reward.bonus`).
-- **Lucky Shell.** One free spin a day, more from the rewards (`reward.spin`). Nine prizes with their odds shown
-  (2, 6 or 12 min of shells, an uncommon, rare, epic or legendary egg, a Lucky Hour or a Busy Day of 15 min). A spin
+- **Lucky Spin.** One free spin a day, more from the rewards (`reward.spin`). Nine prizes with their odds shown
+  (2, 6 or 12 min of coins, an uncommon, rare, epic or legendary egg, a Lucky Hour or a Busy Day of 15 min). A spin
   runs a light over the prizes, two laps and on, slowing, and stops on the one won; only then does the sheet say what
   it gave. While the light runs, Spin turns into Skip: a tap lands the light on the prize at once (the prize was drawn
-  on the server when the spin began, so skipping changes nothing but the wait).
+  on the server when the spin began, so skipping changes nothing but the wait). Its icon (`mini_wheel`, on its tab,
+  its heading, the Spin button, a spin's prize and the sheet's shelf) is a prize wheel: six wedges of cream, coral red
+  and teal round a gold hub, a purple rim with gold bulbs round it and a red pointer at the top. It was the Lucky
+  Shell, its icon a beach ball turned like a wheel, until 2026-11-20.
 
   > The request (2026-11-20): "make a skip for lucky shell spinning"
+
+  > The request (2026-11-20): "rename it to lucky spin, and make the icon a lucky wheel"
 - **Index.** Gifts for kinds found (5, 10, 20, 35, 50, 75, 100, 125 and 145 kinds), each once (`reward.index`).
 - **Codes.** A box to type a code into and Redeem (`code.redeem`): trimmed and made upper case, each once a player,
   some with an end date (`Config/Codes`, on the server only: WELCOME, DRIFTLING, HATCHDAY, SPINME to start).
@@ -3480,7 +3485,7 @@ gifts for playing give 1.2, 2, 4, 6 and 12 minutes of shells, the Index 4 and 8)
 are as they were. The Store's gifts (VIP's daily gift, the group's) are not on this sheet and kept theirs.
 
 **The rewards themselves** are Data/Track's shapes (minutes of what the island makes now, an egg into the bag to hatch
-for nothing, a look, a title) and two of their own: spins of the Lucky Shell, and **timed boosts** (`Profile.boosts`,
+for nothing, a look, a title) and two of their own: spins of the Lucky Spin, and **timed boosts** (`Profile.boosts`,
 seconds left, running down only while the player is on the island, four hours at most): **Busy Day** (every shell x1.5,
 `TimedShells`) and **Lucky Hour** (+0.5 egg luck, `TimedLuck`). Every claim tells the player what came in the sheet's
 status line ("Daily reward: an uncommon egg and 657 shells."). The save keeps it all (`Profile.rewards`, version 20).

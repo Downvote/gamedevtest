@@ -7,7 +7,7 @@
 --                                    Tuning.RewardFloor a minute times EggTier by its tier)
 --     { kind = "egg", r = r }        an egg of rarity r into the bag, hatched for nothing whenever the player likes
 --     { kind = "look", id = id }     a cosmetic; { kind = "title", id = id } a title (Data/Titles, how "reward")
---     { kind = "spin", n = n }       n more spins of the Lucky Shell (Logic/Rewards.spin)
+--     { kind = "spin", n = n }       n more spins of the Lucky Spin (Logic/Rewards.spin)
 --     { kind = "boost", id = "shells" | "luck", mins = m }
 --                                    a timed boost for m minutes on the island (Profile.boosts; they run down while
 --                                    the player is here): every shell x (1 + Tuning.TimedShells), or the tree's eggs
@@ -18,7 +18,7 @@
 --   TASKS: three a day out of these (the ones the island is big enough for), each counting from the moment it is
 --   dealt: `stat` the Profile.stats field (or "play": minutes today), n = base + per x (tier - 1) up to max ("earned":
 --   `mins` minutes of what the island makes when dealt). BONUS when all three are claimed.
---   SPIN: the Lucky Shell's slices (weights add to 100); one free spin a day, more from the rewards.
+--   SPIN: the Lucky Spin's slices (weights add to 100); one free spin a day, more from the rewards.
 --   INDEX: kinds in the Index (Profile.seen), once each.
 --   Every shells gift here (and the codes' in Config/Codes) is 40% of what it was: "shell rewards in gifts are too
 --   good. cut all of them by 60%." (2026-11-19). Eggs, spins, boosts and titles kept theirs.
