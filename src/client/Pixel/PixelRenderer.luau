@@ -6090,6 +6090,25 @@ function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking:
 	}
 end
 
+-- Sims and previews: the static picture's buffers (its colour as shown, its depth, its ids; nil before a bake) and
+-- the ids the parts under `root` got, each with its part, and Shading.isInk (whether a pixel is an outline's).
+function PixelRenderer.debugStaticIds(root: Instance?): (Raster.Frame?, { [number]: BasePart }, (number) -> boolean)
+	local out: { [number]: BasePart } = {}
+	if root then
+		for _, d in root:GetDescendants() do
+			if d:IsA("BasePart") and staticIds[d] then
+				out[staticIds[d]] = d
+			end
+		end
+	else
+		for d, id in staticIds do
+			out[id] = d :: BasePart
+		end
+	end
+	local s = surf
+	return if s then s.static else nil, out, Shading.isInk
+end
+
 -- (Palette is read so the LUT carries the office themes' colours.)
 Shading.setPalette(Shading.defaultColors())
 Shading.setMode("day")

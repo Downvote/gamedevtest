@@ -1772,7 +1772,7 @@ end
 -- each other, wide roots that spread over the ground the way the limbs spread overhead (as above, so below), a ring
 -- of standing stones round its foot (the circle of life), a glowing hollow at the front (`Pod`), glowing marks winding
 -- up the bark, long limbs holding out clouds of leaves with sky between them, aerial roots and blossom hanging from
--- them, gold fruit glowing under them, a ring of light on the ground, and motes of light drifting round. Round the
+-- them, gold fruit glowing under them, a ring of light on the ground, and twinkles of light on its fruit. Round the
 -- ring of light a wide mossy lawn where its eggs lie (2026-11-13: "it now spawns eggs around it"): they are the
 -- client's (Controllers/EggView), on a circle DecorModels.EGG_RING studs from its middle. DecorModels.HOLLOW: the
 -- hollow's foot in the model's own frame.
@@ -1781,17 +1781,25 @@ end
 -- trunk, the big ones dipping into the ground and coming up again past the stones, with rootlets; stones with moss and
 -- lichen; a bigger glowing doorway in an arched frame, with a step and a lantern either side; a bird house on the
 -- trunk; leaf clouds of more puffs in three greens, lit on top and dark underneath; vines that sway as they hang, with
--- flowers; mushrooms, flowers, fallen blossom and fireflies among the roots. The eggs' ring (3 to 3.9 studs out, all
+-- flowers; mushrooms, flowers and fallen blossom among the roots. The eggs' ring (3 to 3.9 studs out, all
 -- the way round: the eggs lie on the south and east whichever way the tree is turned) stays clear of anything that
 -- stands up off the lawn; only the ring of light lies flat on it.
+-- Its edges cleaned on 2026-11-20 ("the tree has alot of jaggied outlines, and stray pixels around the outline,
+-- especially near the fruits"): no motes or fireflies cast as parts, the runes only where a strand faces the camera,
+-- blossom set into the clouds' faces, every fruit on its own stalk clear of the leaves, the stones' marks inside their
+-- faces, and the camera's side worked out in the tree's own frame so a turned tree keeps them in view (GAME_DESIGN 6).
 DecorModels.HOLLOW = Vector3.new(0, 0, 1.25)
 DecorModels.EGG_RING = 3.45
--- (the side the camera sees, on the ground: the view looks down from the south-east)
-local TREE_CAM = Vector3.new(1, 0, 1).Unit
+-- (the side the camera sees, on the ground: the view looks down from the south-east; in the world's frame)
+local CAM_W = Vector3.new(1, 0, 1).Unit
 -- (toward the sun, Render/Shading's: the lit side of a cloud of leaves)
-local TREE_SUN = Vector3.new(-0.45, 0.8, 0.35).Unit
+local SUN_W = Vector3.new(-0.45, 0.8, 0.35).Unit
 B.tree = function(m, f, stage)
 	local s = math.clamp(stage or 1, 1, 6)
+	-- the camera's side, the screen's right and the sun in the tree's own frame, so a tree turned on its lot keeps its
+	-- marks, knots and lit leaves on the side the camera sees (they stayed where an unturned tree has them)
+	local TREE_CAM = f:VectorToObjectSpace(CAM_W)
+	local TREE_SUN = f:VectorToObjectSpace(SUN_W)
 	-- what each stage adds (the ground, the stones and the roots stay inside the eggs' ring; the trunk rises, the
 	-- crown climbs and spreads, and the light and fruit grow with it)
 	local hs = ({ 1, 1.18, 1.36, 1.55, 1.68, 1.8 })[s] -- the top cloud's height
@@ -1878,11 +1886,13 @@ B.tree = function(m, f, stage)
 		part(Vector3.new(0.75, h, 0.5), at * CFrame.new(0, h / 2, 0), col, "Stone")
 		part(Vector3.new(0.5, 0.25, 0.25), at * CFrame.new(-0.125, h + 0.125, 0), if s >= 4 then "gold" else "moss", "StoneMoss")
 		part(Vector3.new(0.5, 0.5, 0.25), at * CFrame.new(-0.0625, h - 0.1875, 0.1875), "moss", "StoneMoss")
-		part(Vector3.new(0.25, 0.25, 0.25), at * CFrame.new(-0.25, 0.375, 0.25), if k % 2 == 0 then "straw" else "cream", "Lichen")
-		if k % glowEvery == 0 then
-			-- a glowing mark carved in the stone
-			part(Vector3.new(0.25, 0.5, 0.25), at * CFrame.new(0.3125, h * 0.5, 0.1875), "screen_on", "Glyph", true)
-			part(Vector3.new(0.25, 0.25, 0.25), at * CFrame.new(0, h * 0.5 - 0.125, 0.25), "screen_on", "Glyph", true)
+		-- (the fleck and the mark lie on the stone's face, a pixel or more inside its edges: at its corner they stuck out
+		-- past its outline as loose pixels, the request of 2026-11-20)
+		part(Vector3.new(0.25, 0.25, 0.125), at * CFrame.new(-0.1875, 0.25, 0.25), if k % 2 == 0 then "straw" else "cream", "Lichen")
+		if k % glowEvery == 0 and flat(a, 1, 0):Dot(TREE_CAM) > 0.5 then
+			-- a glowing mark carved in the stone, a stroke in the middle of its face (on the stones whose face the camera
+			-- sees; on one seen edge on, or by the moss over its top, the mark sat on an outline)
+			part(Vector3.new(0.25, 0.5, 0.125), at * CFrame.new(0.0625, h * 0.5 - 0.125, 0.25), "screen_on", "Glyph", true)
 		end
 	end
 
@@ -1950,24 +1960,31 @@ B.tree = function(m, f, stage)
 			end
 			local dir = (b - a).Unit
 			local rad = strandDia(i) / 2
-			if (i + st) % 3 == 0 and i < #pts - 1 then
+			if (i + st) % 3 == 0 and i < #pts - 1 and out:Dot(TREE_CAM) > 0.35 then
 				-- a knot: a swelling with a dark heart
 				local kn = (out - dir:Cross(out).Unit * 0.5).Unit
 				knob(b + kn * (rad - 0.12), 0.5 * ts, "skin4", "Knot")
 				knob(b + kn * (rad + 0.08), 0.25, "skin5", "Knot")
 			end
-			if i <= 3 then
+			if i <= 3 and out:Dot(TREE_CAM) > 0.35 then
 				knob(a + (out + UP * 0.6).Unit * (rad - 0.06), 0.5, "moss", "BarkMoss")
 			end
-			if out:Dot(TREE_CAM) > 0.2 then
+			if out:Dot(TREE_CAM) > 0.7 then
 				local n = (toCam - dir * toCam:Dot(dir)).Unit
 				for _, t in { 0.3, 0.75 } do
 					local p = a + (b - a) * t + n * (rad - 0.0625)
-					if p.Y > 1.9 and p.Y < base - 0.4 then
+					if p.Y > 1.9 and p.Y < base - 1.5 then
 						table.insert(runeSpots, { p = p, n = n })
 					end
 				end
 			end
+		end
+	end
+	-- (none by the bird house: a mark against its roof or its side was lost in their outlines)
+	local birdAt = flat(math.rad(50), 1.05 * ts + 0.375, 4.0 * ys)
+	for i = #runeSpots, 1, -1 do
+		if (runeSpots[i].p - birdAt).Magnitude < 1.2 then
+			table.remove(runeSpots, i)
 		end
 	end
 	table.sort(runeSpots, function(x, y)
@@ -2046,7 +2063,7 @@ B.tree = function(m, f, stage)
 	-- the limbs: round, narrowing, each bending up and out to its cloud, a twig forking off to the cloud's edge; the
 	-- trunk goes on up into the top cloud
 	local top = Vector3.new(0, base, 0)
-	local right = Vector3.new(1, 0, -1).Unit -- (the screen's right, on the ground)
+	local right = f:VectorToObjectSpace(Vector3.new(1, 0, -1).Unit) -- (the screen's right, on the ground)
 	local bends: { Vector3 } = {}
 	for k, c in clouds do
 		local big = sizeOf(k)
@@ -2093,13 +2110,14 @@ B.tree = function(m, f, stage)
 			knob(c + (UP + right * 0.7 + TREE_CAM * 0.3).Unit * 0.3 * big, 0.4 * big, "gold", "GoldLeaves")
 		end
 	end
-	-- blossom over the clouds (more as it grows)
+	-- blossom over the clouds (more as it grows), set into the face of the cloud the camera sees: further out, or round
+	-- the side, it hung off the crown's outline as loose blobs (the request of 2026-11-20)
 	for k = 0, 16 + 6 * (s - 1) do
 		local ci = k % #clouds + 1
 		local c, big = clouds[ci], sizeOf(ci)
 		local a = k * 2.4
-		local dir = Vector3.new(math.sin(a), 0.5 + (k % 3) * 0.35, math.cos(a)).Unit
-		knob(c + dir * 0.6 * big, if k % 3 == 0 then 0.5 else 0.375, if k % 3 == 0 then "pink" elseif k % 3 == 1 then "white" else "cherry", "Blossom")
+		local dir = (Vector3.new(math.sin(a), 0.5 + (k % 3) * 0.35, math.cos(a)).Unit + toCam * 1.2).Unit
+		knob(c + dir * 0.42 * big, if k % 3 == 0 then 0.5 else 0.375, if k % 3 == 0 then "pink" elseif k % 3 == 1 then "white" else "cherry", "Blossom")
 	end
 	-- aerial roots hanging from the clouds of the ring (the roots again, overhead), longer as it grows: each a thin
 	-- vine swaying a little as it hangs, with flowers along it and a bud at its tip
@@ -2113,23 +2131,28 @@ B.tree = function(m, f, stage)
 		local p2 = p0 - right * 0.125 * sg - UP * len * 0.7
 		local p3 = p0 + right * 0.125 * sg - UP * len
 		bough({ p0, p1, p2, p3 }, 0.25, 0.25, "chalk", "chalk", "Vine")
-		part(Vector3.new(0.25, 0.25, 0.25), CFrame.new(p1 + TREE_CAM * 0.125), if k % 2 == 0 then "pink" else "white", "VineFlower")
+		knob(p1 + TREE_CAM * 0.125, 0.375, if k % 2 == 0 then "pink" else "white", "VineFlower")
 		if len > 1.6 then
-			part(Vector3.new(0.25, 0.25, 0.25), CFrame.new(p2 + TREE_CAM * 0.125), if k % 2 == 0 then "white" else "pink", "VineFlower")
+			knob(p2 + TREE_CAM * 0.125, 0.375, if k % 2 == 0 then "white" else "pink", "VineFlower")
 		end
 		knob(p3 - UP * 0.125, 0.375, if k % 2 == 0 then "pink" else "cherry", "VineTip")
 	end
-	-- gold fruit glowing under the clouds (three a cloud from the third stage), hanging on stalks
+	-- gold fruit glowing under the clouds (three a cloud from the third stage), each hanging clear of the leaves on a
+	-- stalk up into them: tucked up against them a fruit's outline broke where it met the leaves, and the third hung
+	-- in the air on nothing (the request of 2026-11-20, "stray pixels around the outline, especially near the fruits").
+	-- The first fruit of every other cloud is a "Sparkle": a twinkle comes and goes on it now and then
+	-- (Controllers/AmbientView), the motes of light that drifted round the tree as loose specks before
 	for k = 2, #clouds do
 		local c, big = clouds[k], sizeOf(k)
 		local n = if s >= 3 then 3 else 2
+		-- (the leaves' underside where the fruit hang: the dark ball under the cloud, 0.32 of its size out from its middle)
+		local under = c.Y - 0.52 * big
 		for j = 0, n - 1 do
 			local a = j * (math.pi * 2 / n) + k
-			local x, y, z = c.X + math.sin(a) * 0.32 * big, c.Y - 0.62 * big - j * 0.2, c.Z + math.cos(a) * 0.32 * big
-			if j < 2 then
-				part(Vector3.new(0.25, 0.5, 0.25), CFrame.new(x, y + 0.45, z), "wood_dark", "Stalk")
-			end
-			ball(m, f, x, y, z, 0.5, "gold", "Fruit").Material = Enum.Material.Neon
+			local x, y, z = c.X + math.sin(a) * 0.32 * big, under - 0.5 - j * 0.25, c.Z + math.cos(a) * 0.32 * big
+			local len = under - y
+			part(Vector3.new(0.25, len, 0.25), CFrame.new(x, y + 0.2 + len / 2, z), "wood_dark", "Stalk")
+			ball(m, f, x, y, z, 0.5, "gold", if j == 0 and k % 2 == 0 then "Sparkle" else "Fruit").Material = Enum.Material.Neon
 		end
 	end
 	-- lanterns of light hanging from the lower limbs (from the second stage; under every limb from the fifth)
@@ -2170,7 +2193,10 @@ B.tree = function(m, f, stage)
 			part(Vector3.new(0.75, 0.5, 0.5), at * CFrame.new(0.0625, -0.375, 0), "rock_dark", "Floating")
 			part(Vector3.new(0.5, 0.25, 0.25), at * CFrame.new(0, -0.75, 0.0), "rock_dark", "Floating")
 			part(Vector3.new(0.75, 0.25, 0.5), at * CFrame.new(-0.125, 0.375, 0), "moss", "FloatingMoss")
-			part(Vector3.new(0.25, 0.25, 0.25), at * CFrame.new(0.25, 0, 0.4375), "screen_on", "Glyph", true)
+			if flat(a, 1, 0):Dot(TREE_CAM) > 0.5 then
+				-- (its mark on the face the camera sees, set into it: on a stone turned away it stuck out at its edge)
+				part(Vector3.new(0.25, 0.25, 0.125), at * CFrame.new(0.125, 0, 0.375), "screen_on", "Glyph", true)
+			end
 			part(Vector3.new(0.25, 0.75, 0.25), at * CFrame.new(-0.25, -0.75, 0.0625), "wood_dark", "Floating")
 			part(Vector3.new(0.25, 0.25, 0.25), CFrame.new(x + 0.2, y - 1.4, z - 0.1), "rock_dark", "Pebble")
 		end
@@ -2191,20 +2217,9 @@ B.tree = function(m, f, stage)
 	end
 
 	------------------------------------------------ the small life at its foot
-	-- motes of light drifting round it (more as it grows), and fireflies low among the roots
-	local motes = { { -2.4, 3.2, 1.6 }, { 2.2, 4.4, 1.2 }, { -1.6, 5.6, -2.0 }, { 2.6, 2.4, -1.0 }, { 0.6, 6.4, 2.4 }, { -2.8, 6.8, 0.2 } }
-	for k = 1, 3 * (s - 1) do
-		local a = k * 2.1
-		table.insert(motes, { math.sin(a) * (2.4 + (k % 3) * 0.5) * rs, 3 + (k % 5) * 1.3 * ys, math.cos(a) * (2.4 + (k % 3) * 0.5) * rs })
-	end
-	for k, c in motes do
-		part(Vector3.new(0.18, 0.18, 0.18), CFrame.new(c[1], c[2] * (if k <= 6 then ys else 1), c[3]), if k % 2 == 0 then "yellow" else "white", "Mote", true)
-	end
-	for k = 0, 2 + s // 2 do
-		local a = k * 1.9 + 0.9
-		local r = 1.3 * ts + 0.45 + (k % 2) * 0.2
-		part(Vector3.new(0.25, 0.25, 0.25), CFrame.new(math.sin(a) * r, 1.2 + (k % 4) * 0.4, math.cos(a) * r), "yellow", "Mote", true)
-	end
+	-- (the motes of light that drifted round it and the fireflies among the roots were parts until 2026-11-20: cast in
+	-- the picture they were loose two and three pixel squares round the trunk and the crown, "stray pixels around the
+	-- outline". The twinkles on its fruit stand in for them, and the islands' own fireflies come out at night.)
 	-- mushrooms in twos among the roots, and flowers
 	local caps = { { -1.45, 1.05, 1 }, { -1.7, 0.8, 2 }, { 1.65, -0.9, 1 }, { 1.45, -1.2, 2 } }
 	for k, c in caps do

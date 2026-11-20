@@ -1489,6 +1489,23 @@ crown has depth), vines that sway with pink and white flowers on them, and mushr
 fireflies among the roots. Nothing stands on the eggs' ring, so every egg shows; at the last stage the low stones with
 gold caps sit in the lawn's corners instead of round the eggs.
 
+**Clean edges** (the request of 2026-11-20: "the tree has alot of jaggied outlines, and stray pixels around the
+outline, especially near the fruits"). Its small details drew as loose specks on and round its outline, five causes in
+all. The motes of light and the fireflies were parts two or three pixels across, floating round the trunk and the crown
+as lone squares. The runes sat on the strands, and a strand only shows past the trunk's core where it passes the edge,
+so every rune that showed was on the outline (on a tree turned on its lot they stayed on the side an unturned one
+shows). Blossom hung off the crown's edge, in the air. A cloud's third gold fruit hung on no stalk, and the others were
+tucked against the leaves, so their outlines broke. The stones' marks and lichen stood out past their stones' corners.
+Now there are no motes or fireflies in the model: a twinkle comes and goes on every other cloud's first fruit instead
+(the islands' own fireflies still come out at night). The runes go only where a strand faces the camera head on, clear
+of the bird house and the limbs, and the camera's side, the screen's right and the sun are worked out in the tree's own
+frame, so a turned tree keeps its marks, knots and lit leaves where the camera sees them. Blossom is set into the face
+of each cloud. Every fruit hangs clear of the leaves on its own stalk, so it is round with its outline whole. The
+stones' marks are a stroke in the middle of the face, on the stones that face the camera, and the lichen and the
+floating stones' marks lie inside their faces. The vines' flowers are round, like their buds. Counted on the village's
+tree at the View slider's seventh notch (the preview `treeink=7`): 249 pixels of a glowing mark or a mote at an outline
+and 2 loose bits before, 1 and 0 after.
+
 **It grows with the island** (`Tree.stage`, `TreeStage` by tier: 1, 2, 2, 3, 3, 4 from the capital, 5 from Lantern Cove,
 6 from Amberfield): stage 2 on a Palm Isle and a Grand Isle, 3 on Harbor Town and Coral City, 4 from the capital to
 Driftling Haven. Each stage the trunk thickens, the crown spreads wider (half as wide again at the last) and climbs (the
