@@ -131,11 +131,13 @@ local function compile(key: string, out: string): Template?
 		return nil
 	end
 	table.insert(pieces, string.sub(key, pos))
-	-- a {n} glued to a letter ("Lv{1}", "{1}st", "{1}x", "{1}K") was a number: it only ever takes one
+	-- a {n} glued to a letter ("Lv{1}", "{1}st", "{1}x"), after a sign or a rank's mark ("+{1}% work", "#{1}") or
+	-- before a per cent sign was a number: it only ever takes one ("13.4K" too), so "+{1}% egg luck" is never the
+	-- whole of "+25% work, +4% egg luck"
 	local pattern = "^" .. escape(pieces[1])
 	for i = 1, #slots do
-		local tight = string.find(pieces[i], "%a$") ~= nil or string.find(pieces[i + 1], "^%a") ~= nil
-		pattern ..= (if tight then "(%d[%d%.,:]*)" else "(.-)") .. escape(pieces[i + 1])
+		local tight = string.find(pieces[i], "[%a%+%-#]$") ~= nil or string.find(pieces[i + 1], "^[%a%%]") ~= nil
+		pattern ..= (if tight then "(%d[%d%.,:]*[KMB]?)" else "(.-)") .. escape(pieces[i + 1])
 	end
 	pattern ..= "$"
 	local anchor, letters, marks = "", 0, 0
@@ -208,9 +210,9 @@ function Lang.set(code: string, words: { [string]: string }?): boolean
 				if tpl.name then
 					namePrefixes[string.sub(key, 1, -4)] = tpl
 				end
-			else
-				exact[key] = out
 			end
+			-- (every key as it is too: Lang.f looks its template up by its own words, "{1}, works x{2}")
+			exact[key] = out
 		end
 	end
 	table.sort(templates, function(a: Template, b: Template): boolean
@@ -293,7 +295,8 @@ local function viaTemplate(s: string, depth: number): string?
 						-- so "Your {1}" is "Your Lumber Camp", never the start of any sentence ("Your island ...")
 						for i = 1, caps.n do
 							local cap = caps[i]
-							if not string.find(cap, "^[%d%s%p]*$") and exact[cap] == nil and translate(cap, depth + 1) == cap then
+							-- (a number, "13.4K" too, or words the table knows)
+							if not string.find(cap, "^[%d%s%p]*[KMB]?$") and exact[cap] == nil and translate(cap, depth + 1) == cap then
 								ok = false
 								break
 							end

@@ -872,7 +872,9 @@ local function buildPal(body: Frame, arg: any?)
 			end
 			local _, lw = TierStars.label(body, m.name, m.tier, nx, y, { name = "Mut_" .. id })
 			local room = L - nx - lw - 6
-			if UIKit.textWidth(m.blurb) <= room then
+			-- (on a line of its own only while that leaves room above the foot's buttons: longer words in another
+			-- language, or smooth text, would push the last ones under them; else beside the name, cut to fit)
+			if UIKit.textWidth(m.blurb) <= room or my + 21 > H - 15 then
 				UIKit.text(body, m.blurb, UDim2.fromOffset(math.max(10, room), 10), UDim2.fromOffset(nx + lw + 6, y), { color = UIKit.color("text_dim"), name = "MutFx_" .. id })
 				my += 11
 			else
@@ -1109,7 +1111,7 @@ local function buildTree(body: Frame, arg: any?)
 	end
 	-- the eggs now, the rarest first: the bag's (bought, won or given: GAME_DESIGN 14, free to hatch) over the tree's
 	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })
-	UIKit.text(body, string.format("%d %s", #v.clutch, if #v.clutch == 1 then "egg" else "eggs"), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = UIKit.color("text_dim"), name = "EggCount" })
+	UIKit.text(body, if #v.clutch == 1 then "1 egg" else string.format("%d eggs", #v.clutch), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = UIKit.color("text_dim"), name = "EggCount" })
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
 	list.Name = "List"
 	UIKit.vlist(list, 2)

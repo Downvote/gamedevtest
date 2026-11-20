@@ -57,8 +57,9 @@ icons and the world stay pixel art.
 1. the exact string; the same words in capitals; the words with spaces round them (the spaces kept);
 2. a count, a rank or a number round a known name (`2x {name}`, `{name} ★3`, `{name} 0.5%`);
 3. the most specific template that matches (the most fixed letters), its `{n}` parts translated in turn; a `{n}`
-   glued to letters (`Lv{1}`) only takes a number; a short template (under five fixed letters: `{1} and {2}`) only
-   takes words the table knows, or numbers;
+   glued to letters (`Lv{1}`), after a sign or a rank's mark (`+{1}% work`, `#{1}`) or before a per cent sign only
+   takes a number (`13.4K` too), so `+{1}% egg luck` is never the whole of `+25% work, +4% egg luck`; a short
+   template (under five fixed letters: `{1} and {2}`, `{1}/min`) only takes words the table knows, or numbers;
 4. the same affixes round any words that translate; line by line and sentence by sentence when one of them is known;
    a name made of known names;
 5. else the English.
@@ -68,7 +69,8 @@ back slot on the My founder screen, apart from the Back button; `On@@auto` is th
 Settings' On; `{1}: {2}@@pair` (a passive and what it does) and `{1}: {2}.@@reward` (a reward notice) are layouts a
 language sets its own punctuation in. English shows the words before the `@@`.
 
-Results are cached, and what `t` returns is never translated again (`Lang.produced`). `Lang.keep(s)` marks words that
+Every key is also looked up as it is, so `Lang.f("{1}, works x{2}", ...)` finds its own template. Results are
+cached, and what `t` returns is never translated again (`Lang.produced`). `Lang.keep(s)` marks words that
 are already in the language on show; `Lang.f(template, ...)` fills a template's translation with values as they are
 (a value that needs translating goes through `t` first); `Lang.fmt` does the same with named slots; `Lang.an(anTpl,
 aTpl, name, ...)` picks "An {1} egg" or "A {1} egg" by the name in English and gives the language's own sentence

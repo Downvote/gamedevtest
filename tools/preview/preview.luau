@@ -186,6 +186,14 @@ local function setTier(p)
 		end
 		E.run(0.5)
 	end
+	-- (smooth: on a profile the scenario didn't seed too, set as a player's tap would)
+	if SMOOTH_ARG then
+		local res = H.req(p, "settings.set", { k = "text", v = "smooth" })
+		if not (res and res.ok) then
+			log("settings.set text smooth: %s", tostring(res and res.err))
+		end
+		E.run(0.5)
+	end
 end
 
 local function join(userId, name, opts)

@@ -1062,7 +1062,8 @@ local function onEggs(msg: { [string]: any })
 			UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
 		end
 	elseif more > 0 then
-		UIKit.notice(string.format("The tree laid %d more %s.", more, if more == 1 then "egg" else "eggs"), UIKit.color("good"), 3)
+		-- (one and many as whole sentences, so a language has its own words: Locale/Lang)
+		UIKit.notice(if more == 1 then "The tree laid 1 more egg." else string.format("The tree laid %d more eggs.", more), UIKit.color("good"), 3)
 		Audio.play("rare")
 	else
 		UIKit.notice("The Tree of Life has new eggs!", UIKit.color("good"), 3)
