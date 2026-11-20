@@ -3639,6 +3639,251 @@ end
 -- arrives with no ViewportSize event (the roots shrink by it on their own), (2) a phone turns and the camera's
 -- ViewportSize event comes before the roots are laid out again. The menu bar must stay wholly on screen, at the
 -- bottom, each time (frames late_inset, late_turn; the log says where it is).
+-- "treewalk[=<tier>][:expand][:sim]" (the report of 2026-11-20, "the tree still looks like this": creases inside
+-- the trunk and a ragged outline in play, which no fresh picture showed). An island at that tier (11 unless given) at
+-- midday, the founder walking as a player does with the view following: a loop round the Tree of Life, out across
+-- the island and back, standing still, an egg hatched (the hatch scene's stage and back), the View slider moved and
+-- put back, Build mode opened and shut (":expand": after one expansion first). The renderer's budgets read the real
+-- clock, as in the game (":sim": the simulator's). Every few frames the layer is checked against a fresh cast in the
+-- tree's box (PixelRenderer.debugCastCheck with the ink): the pixels off, by kind, the layer's outermost row and
+-- column apart. Frames treewalk_start, treewalk_worst (the check with the most pixels off inside the layer over the
+-- tree, if any), treewalk_end and treewalk_fresh (the same view baked afresh); TWMASK rows print the worst check's
+-- mask over the tree's box for tools/preview/tree_walk.py.
+local function treeWalk(arg: string)
+	local tier = tonumber(string.match(arg, "^(%d+)")) or 11
+	local expand = string.find(arg, ":expand", 1, true) ~= nil
+	-- (":sim": the renderer's budgets on the simulator's clock, so a bake or a re-cast finishes in the frame it starts;
+	-- by default they read the real clock, as in the game, and spread over frames the way a player sees them)
+	local simClock = string.find(arg, ":sim", 1, true) ~= nil
+	seedProfile(23, tier, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "gullfin" }, shells = 9e9, eggs = { 1, 6, 3, 4, 5, 7, 8, 9 } })
+	local p = join(23, "Walker")
+	settle(p, 60, 2)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local SU = modOr(p, "UI.SettingsUI")
+	local DLt = modOr(p, "Controllers.DayLight")
+	if PR == nil or PR.debugCastCheck == nil then
+		log("treewalk: no pixel filter")
+		return p
+	end
+	if DLt and DLt.debugSky then
+		H.inClient(p, DLt.debugSky, 0.45)
+	end
+	local s = H.session(p)
+	local Street = H.sharedServer("Data.Street")
+	local Tree = H.sharedServer("Logic.Tree")
+	local Plot = H.sharedServer("Logic.Plot")
+	if expand then
+		local PS = H.smod("PlotService")
+		local guard = 0
+		while not select(2, PS.debugNext(1)) and guard < 4000 do
+			guard += 1
+			E.step(E.dt)
+		end
+		for _ = 1, 600 do
+			E.step(E.dt)
+		end
+		local t0 = H.profile(p).tier
+		H.req(p, "island.expand", {})
+		settle(p, 60, 2)
+		log("treewalk: expanded from tier %d to %d", t0, H.profile(p).tier)
+		local plots = E.workspace:FindFirstChild("Plots")
+		local pm = plots and plots:FindFirstChild("Plot_" .. tostring(s.plot))
+		local trees = {}
+		for _, d in (if pm then pm:GetDescendants() else {}) do
+			if d:IsA("Model") and string.find(d.Name, ":tree:", 1, true) then
+				table.insert(trees, d:GetFullName() .. " (" .. #d:GetDescendants() .. ")")
+			end
+		end
+		log("treewalk: tree models after the expansion: %s", table.concat(trees, "; "))
+	end
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(s.plot)
+	local q = Tree.piece(prof)
+	local tx, tz = ox, oz
+	if q then
+		local w, d = Plot.footprint(q.id, q.rot)
+		tx, tz = ox + q.x - 1 + w / 2, oz + q.z - 1 + d / 2
+	end
+	local function walkLine(x0, z0, x1, z1, every, check)
+		local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
+		local n = math.max(1, math.floor(len / (16 / 60)))
+		for i = 1, n do
+			local u = i / n
+			p.Character:PivotTo(E.cf.new(x0 + (x1 - x0) * u, 3, z0 + (z1 - z0) * u))
+			E.step(1 / 60)
+			if i % every == 0 then
+				check(string.format("walk %.0f,%.0f", x0 + (x1 - x0) * u - tx, z0 + (z1 - z0) * u - tz))
+			end
+		end
+	end
+	p.Character:PivotTo(E.cf.new(tx - 12, 3, tz + 12))
+	E.run(1)
+	settle(p, 30, 1)
+	capture(p, "treewalk_start")
+	local realClock = os.clock
+	if not simClock and PR.debugClock then
+		H.inClient(p, PR.debugClock, realClock)
+	end
+	local st0 = H.inClient(p, PR.debugStatic)
+	local K, W, Hh = st0.K, st0.W, st0.H
+	local function treeBox(): (number, number, number, number)
+		local m = treeModelOf(p)
+		if m == nil then
+			return 0, 0, -1, -1
+		end
+		local cf, size = (m :: any):GetBoundingBox()
+		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		for _, sx in { -0.5, 0.5 } do
+			for _, sy in { -0.5, 0.5 } do
+				for _, sz in { -0.5, 0.5 } do
+					local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
+					local sp = H.inClient(p, PR.project, w.Position)
+					x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
+					x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+				end
+			end
+		end
+		return math.max(0, math.floor(x0) - 2), math.max(0, math.floor(y0) - 2), math.min(W - 1, math.ceil(x1) + 2), math.min(Hh - 1, math.ceil(y1) + 2)
+	end
+	local worst, worstLabel, total, checks, skipped, rimTotal = 0, "", 0, 0, 0, 0
+	local byKind = { 0, 0, 0, 0, 0 }
+	local tieLogged = false
+	local function check(label: string)
+		local cc = H.inClient(p, PR.debugCastCheck, true, true)
+		if (cc.off or -1) < 0 then
+			skipped += 1
+			return
+		end
+		checks += 1
+		local mk = cc.mask
+		local x0, y0, x1, y1 = treeBox()
+		local kinds = { 0, 0, 0, 0, 0 }
+		local off, rim = 0, 0
+		if mk and x1 >= x0 then
+			for y = y0, y1 do
+				for x = x0, x1 do
+					local c = buffer.readu8(mk, y * W + x)
+					if c > 0 then
+						kinds[c] += 1
+						if c ~= 5 then
+							-- (the layer's outermost row and column: a fresh cast inks them against nothing past the edge)
+							if x == 0 or y == 0 or x == W - 1 or y == Hh - 1 then
+								rim += 1
+							else
+								off += 1
+							end
+						end
+					end
+				end
+			end
+		end
+		for k = 1, 5 do
+			byKind[k] += kinds[k]
+		end
+		total += off
+		rimTotal += rim
+		if kinds[5] > 0 and not tieLogged then
+			tieLogged = true
+			log("treewalk %s: %d ties in the tree's box, e.g. %s", label, kinds[5], tostring(cc.tieEx))
+		end
+		if off > 0 then
+			log("treewalk %s: the tree's box %d,%d-%d,%d has %d off a fresh cast inside the layer and %d on its edge (%d sky over a part, %d a part over sky, %d other, %d ink alone; %d ties); %s", label, x0, y0, x1, y1, off, rim, kinds[1], kinds[2], kinds[3], kinds[4], kinds[5], tostring(cc.ex))
+		end
+		if off > worst then
+			worst, worstLabel = off, label
+			capture(p, "treewalk_worst")
+			print(string.format("TWBOX %d %d %d %d", x0, y0, x1, y1))
+			for y = y0, y1 do
+				local row = table.create(x1 - x0 + 1)
+				for x = x0, x1 do
+					table.insert(row, tostring(buffer.readu8(mk :: buffer, y * W + x)))
+				end
+				print("TWMASK " .. y .. " " .. table.concat(row, ""))
+			end
+		end
+	end
+	check("start")
+	-- the loop round the tree (in front of it, past its side, behind it, back), then out across the island and back
+	local R = 12
+	walkLine(tx - R, tz + R, tx + R, tz + R, 8, check)
+	walkLine(tx + R, tz + R, tx + R, tz - R, 8, check)
+	walkLine(tx + R, tz - R, tx - R, tz - R, 8, check)
+	walkLine(tx - R, tz - R, tx - R, tz + R, 8, check)
+	walkLine(tx - R, tz + R, tx + 40, tz + 30, 8, check)
+	walkLine(tx + 40, tz + 30, tx - 30, tz + 20, 8, check)
+	walkLine(tx - 30, tz + 20, tx - 2, tz + 9, 8, check)
+	-- standing still in front of it
+	for k = 1, 6 do
+		for _ = 1, 30 do
+			E.step(1 / 60)
+		end
+		check("standing " .. k)
+	end
+	-- an egg hatched (the hatch scene is a stage of its own: the island's picture is kept aside and comes back when
+	-- it closes)
+	local HS = modOr(p, "UI.HatchScene")
+	if HS then
+		H.inClient(p, function()
+			HS.play({ sp = "mossbun", muts = {}, r = 1, hr = 1, new = false }, nil)
+		end)
+		E.run(1.5)
+		for _ = 1, 40 do
+			if not H.inClient(p, HS.debugState).open then
+				break
+			end
+			H.inClient(p, HS.skip)
+			E.run(0.8)
+		end
+		for k = 1, 4 do
+			for _ = 1, 10 do
+				E.step(1 / 60)
+			end
+			check("after a hatch " .. k)
+		end
+		settle(p, 30, 1)
+		check("after a hatch, settled")
+	end
+	-- the View slider moved and put back
+	if SU then
+		for _, n in { 5, 9, 7 } do
+			H.inClient(p, SU.setZoom, n)
+			for k = 1, 8 do
+				for _ = 1, 15 do
+					E.step(1 / 60)
+				end
+				check(string.format("notch %d, %d", n, k))
+			end
+			settle(p, 30, 1)
+			check(string.format("notch %d settled", n))
+		end
+	end
+	-- Build mode opened and shut
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 30, 1)
+	check("build mode")
+	H.clickNamed(p, "BuildDone", { optional = true, wait = 0.5 })
+	settle(p, 30, 1)
+	check("build mode shut")
+	walkLine(tx - 2, tz + 9, tx + 6, tz + 10, 4, check)
+	settle(p, 30, 1)
+	check("end")
+	capture(p, "treewalk_end")
+	if PR.debugClock then
+		H.inClient(p, PR.debugClock, nil)
+	end
+	-- the same view baked afresh, to compare the whole picture (the moving models and effects over it too)
+	H.inClient(p, PR.rebake)
+	settle(p, 60, 1)
+	capture(p, "treewalk_fresh")
+	log("treewalk: %d checks (%d skipped while a bake ran), %d pixels off over the tree inside the layer and %d on its outermost row or column (by kind, both: %d sky over a part, %d a part over sky, %d other, %d ink alone; %d ties), the most at one check %d (%s)", checks, skipped, total, rimTotal, byKind[1], byKind[2], byKind[3], byKind[4], byKind[5], worst, worstLabel)
+	-- (a pixel or two at a shadow's edge, lit one way on the layer and the other in a fresh cast, is the usual: the
+	-- 2x2 blocks' shared sun rays; past 6 at one check something else is off)
+	if worst > 6 then
+		table.insert(E.warnings, { ctx = "preview", text = string.format("TREEWALK: %d pixels off a fresh cast over the tree, the most at one check %d (%s)", total, worst, worstLabel), t = 0, phase = "treewalk" })
+	end
+	return p
+end
+
 local function menuBarReport(p, tag)
 	local bar
 	for _, x in I.descendants(p:FindFirstChild("PlayerGui"), {}) do
@@ -4894,6 +5139,12 @@ for _, name in list do
 	if erArg then
 		fn = function()
 			return expandRim(erArg)
+		end
+	end
+	local twArg = string.match(name, "^treewalk=?([%d:%a]*)$")
+	if twArg then
+		fn = function()
+			return treeWalk(twArg)
 		end
 	end
 	local epArg = string.match(name, "^expandperf=(%d+)$")

@@ -1460,7 +1460,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   ray index's choice. With `full` the ink and contact shade are drawn again and the colour compared too, `inkOff`, and
   the pixels off sorted: `skyOver` nothing on the layer where a fresh cast meets a part, `ghost` the reverse, the 32 px
   `tiles` and the `box` they fall in, and with `mask` a byte a layer pixel: 1 sky over, 2 ghost, 3 another part or
-  depth, 4 ink alone, 5 a tie; the `expandrim` preview) and
+  depth, 4 ink alone, 5 a tie; the `expandrim` and `treewalk` previews) and
   `debugWaterCheck() -> { off, checked, wind }` (the water pixels showing a tone not the frame's, and the pixels the
   wind has painted). The `pan` preview walks the founder round a square twice (the second time over ground the pan
   cache has kept), then stands, and reports them.
