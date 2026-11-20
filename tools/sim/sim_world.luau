@@ -1766,9 +1766,95 @@ do
 	local pb = H.profile(b)
 	pb.shells = 1e6 + 1e5
 	H.push(b, 0.3)
+	-- The next island stands in the world before the expansion (the request of 2026-11-20: "Is there a way to make
+	-- island expansion seamless, with no lag? Could you pre render max expansion floors so that expanding simply
+	-- switches to that expansion level?"): workspace.Staged.Plot_<i> holds the chunks the next tier changes, in groups
+	-- that nothing collides with and only the pixel filter's pre-cast meets, hidden from Roblox's own picture; Bo's
+	-- client casts that island's picture ahead in its spare time, and the expansion pastes it in (tiles copied, no part
+	-- that came or went cast again), the picture then as a fresh cast of the layer has it (but where two faces lie at one
+	-- depth, which either cast may show)
+	E.phase = "staged"
+	do
+		local PSv = H.smod("PlotService")
+		local plotB = H.session(b).plot
+		for _ = 1, 600 do
+			if select(2, PSv.debugNext(plotB)) then
+				break
+			end
+			E.run(0.1)
+		end
+		local root = E.workspace:FindFirstChild("Staged")
+		local f = root and root:FindFirstChild("Plot_" .. plotB)
+		H.expect(f ~= nil and f:GetAttribute("Tier") == pb.tier + 1, "staged", "Bo's next island stands in workspace.Staged, marked with its tier", f and tostring(f:GetAttribute("Tier")))
+		local parts, wrongGroup, shown = 0, 0, 0
+		local sample: Instance? = nil
+		if f then
+			for _, d in f:GetDescendants() do
+				if d:IsA("BasePart") then
+					parts += 1
+					if d.CollisionGroup ~= "Staged" and d.CollisionGroup ~= "StagedBounds" then
+						wrongGroup += 1
+					end
+					if d.LocalTransparencyModifier < 1 then
+						shown += 1
+					end
+					if sample == nil and d.CollisionGroup == "Staged" and d.Transparency < 0.5 and d.Size.X > 2 and d.Size.Z > 2 then
+						sample = d
+					end
+				end
+			end
+		end
+		H.expect(parts > 100 and wrongGroup == 0, "staged", "its parts collide with nothing (Staged, StagedBounds)", string.format("%d parts, %d in other groups", parts, wrongGroup))
+		H.expect(shown == 0, "staged", "and are hidden from Roblox's own picture until they are on the island", tostring(shown))
+		-- a pixel ray and a plain ray pass through a staged part; the pre-cast's meets it
+		if sample then
+			local sp = sample :: BasePart
+			local from = sp.Position + E.v3(0, 30, 0)
+			local function hitWith(group: string?): boolean
+				local rp = E.types.RaycastParams.new()
+				rp.FilterType = E.Enum.RaycastFilterType.Include
+				rp.FilterDescendantsInstances = { sp }
+				if group then
+					rp.CollisionGroup = group
+				end
+				E.raycastParts = true -- (the simulator's rays meet parts only when asked)
+				local hit = E.workspace:Raycast(from, E.v3(0, -60, 0), rp) ~= nil
+				E.raycastParts = nil
+				return hit
+			end
+			H.expect(not hitWith("PixelRays") and not hitWith(nil) and hitWith("PreCast"), "staged", "only the pre-cast's rays meet a staged part", string.format("pixel %s, plain %s, pre-cast %s (its group %s; rules %s %s)", tostring(hitWith("PixelRays")), tostring(hitWith(nil)), tostring(hitWith("PreCast")), sp.CollisionGroup, tostring(E.collisionGroupsCollide("PixelRays", "Staged")), tostring(E.collisionGroupsCollide("Default", "Staged"))))
+		else
+			H.expect(false, "staged", "a staged part to aim a ray at")
+		end
+		-- (the next island's picture cast ahead and pasted in at the expansion is the previews' to measure: the pixel
+		-- filter is off here, the simulator's rays meeting no parts unless asked; tools/preview expandperf=<tier>)
+	end
+	E.phase = "limits"
 	local rx = H.req(b, "island.expand", {})
 	E.run(1.5)
 	H.expect(rx.ok and pb.tier == 2, "limits", "Bo's island grown to tier 2", tostring(rx.err))
+	E.phase = "staged"
+	do
+		local plots = E.workspace:FindFirstChild("Plots")
+		local land = plots and plots:FindFirstChild("Plot_" .. H.session(b).plot)
+		land = land and land:FindFirstChild("Static")
+		land = land and land:FindFirstChild("Land")
+		local staged, hidden = 0, 0
+		if land then
+			for _, d in land:GetDescendants() do
+				if d:IsA("BasePart") then
+					if d.CollisionGroup == "Staged" or d.CollisionGroup == "StagedBounds" then
+						staged += 1
+					end
+					if d.LocalTransparencyModifier > 0 then
+						hidden += 1
+					end
+				end
+			end
+		end
+		H.expect(land ~= nil and staged == 0 and hidden == 0, "staged", "on the island its parts are in their own groups again and shown", string.format("%d still staged, %d hidden", staged, hidden))
+	end
+	E.phase = "limits"
 	local T = pb.tier
 	local function count(g: string): number
 		local n = 0

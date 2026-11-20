@@ -273,7 +273,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.2: the follow's smooth time), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
   drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
@@ -881,7 +881,9 @@ Nothing happens while the player is away: the tree's clock runs only in a ready 
 
 ### 7.5 `PlotService` (the sea)
 `init()` registers the collision groups `Bounds` (the invisible seabed, shelves and world walls) and `PixelRays` (the
-pixel filter's rays), not colliding with each other, and builds the whole sea: `Workspace.Plots.Street` (every plot's
+pixel filter's rays), not colliding with each other, and `Staged`, `StagedBounds` (the next island built ahead, below:
+colliding with nothing) and `PreCast` (the pixel filter's rays that draw it ahead: meeting `Staged` and `Default`, not
+`Bounds` or `StagedBounds`), and builds the whole sea: `Workspace.Plots.Street` (every plot's
 water and seabed, `Road_<i>`, and the sea's ends) and open
 water on every plot (`Plot_<i>.Static.Land` = `EmptyLot`, attribute `Owner` 0). `claim(player) -> plot` (the lowest
 free index, 0 when the sea is full: Main kicks), `release(i)` (back to open water, every attribute cleared).
@@ -907,8 +909,14 @@ go from every client. The founder: `watchCharacters(player)`,
 is very slow and laggy, especially at higher levels"): the land is `StreetModels.landPlan(tier)`'s 16x16-cell chunks,
 each named for its cells (a chunk whose cells and margin did not change keeps its name from one tier to the next).
 After each `build` a plot that can still grow queues its next tier; one background thread builds only the chunks the
-current land lacks (`landModelOf(i)`, `Static.Land.Land`), paced by `Blocks.pace` (60 parts a frame), into a hold
-folder out of the workspace (`nextLand[i] = { tier, chunks, tree, hold, gen }`, the tree when the next tier grows it a stage; a newer plan or `release` destroys the hold).
+current land lacks (`landModelOf(i)`, `Static.Land.Land`), paced by `Blocks.pace` (60 parts a frame), each out of the
+world, then staged (`stageParts`: every part's group `Staged`, or `StagedBounds` for a `Bounds` one) and put in the
+hold, `workspace.Staged.Plot_<i>` (since 2026-11-20, GAME_DESIGN 4: "Is there a way to make island expansion seamless,
+with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?"), so
+every client receives the next island a chunk at a time long before it is wanted; the hold's `Tier` attribute is set
+once all of it is there (`nextLand[i] = { tier, chunks, tree, hold, gen }`, the tree when the next tier grows it a
+stage; a newer plan or `release` destroys the hold). The swap `unstage`s each prebuilt chunk (and the tree) before it
+moves it over.
 `planOf(tier)` caches each plan. The expansion's `build` then diffs the land in place: the new chunks go in first
 (prebuilt ones moved over, any missing built then), the sign and the plaza if their names changed, and only then the
 chunks the new plan no longer has are destroyed, so the island never shows a hole. A plot with no land model yet
@@ -1220,7 +1228,31 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   leaves it be), the growth's end and a new tier clear it (`clear`); `SG.tilesOk(s)`: only for the island's own view, no
   growth going, `Tuning.PixelPanCacheTiles` above 0. At most that many tiles (768, about 15.7 MB); past it the one used
   longest ago goes. `stats() -> { loaded, missed, saved, dropped, evicted, tiles }` (since the last read). Walking the
-  pan preview's square a second time, the strips' cast went from about 21 ms a frame to under 2.
+  pan preview's square a second time, the strips' cast went from about 21 ms a frame to under 2. `PanCache.new()` makes another
+  store with the same functions (the next tier cast ahead), `take(tx, ty)` / `put(tx, ty, tile)` move a whole tile
+  between stores, `full(tx, ty)` and `keys()`.
+- **The next tier, cast ahead** (`PC`, the request of 2026-11-20: "Is there a way to make island expansion seamless,
+  with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?").
+  The player's next island stands staged in the world (PlotService: `workspace.Staged.Plot_<i>`, collision groups
+  nothing collides with; `PC.watch` hides its parts from Roblox's own picture with `LocalTransparencyModifier` 1, which
+  `watchStatic` puts back to 0 when they land on an island). Once its `Tier` attribute says all of it is there, a job
+  (`PC.start`) pairs the staged models (chunks `Chunk_<cx>_<cz>_...`, the tree `<uid>:tree:...`) with the island's
+  models they replace and lists the tiles of `PanCache.TILE` the swap changes (each model's box and its shadow:
+  `SG.boxRect`). In the frame's spare time (no bake, re-cast or re-bake waiting; `Tuning.PixelPreCastMs`, 2 ms) the
+  tiles within `PC.MARGIN` (160) art px of the layer are cast nearest the view first (`PC.step`), each on a small layer
+  of the tile and 2 px round it (`castSample` in two phases, then `refineShadows`) with rays in the `PreCast` group
+  that pass the replaced models and every other plot's staged island, then its middle saved into a store of its own
+  (`PanCache.new()`); a tile with any open sky is left out. A part that comes or goes over a cast tile drops it
+  (`PC.drop`); a bake, a new view, a tier, a stage or a change to the staged island starts the job again (`preReset`:
+  the part ids and the grid it used are gone). The swap (`PC.swap`, from `watchStatic`): the first staged part landing
+  on the island `PC.apply`s the job: every cast tile goes into the pan cache (`take`/`put`) and, where the layer shows
+  it, onto the layer (`load`, then the ink, the contact shade, the water and the grade over it); the region's other
+  tiles on the layer are queued, joined into runs along each row; and the staged parts' coming and the replaced
+  models' parts' going (`oldParts`: kept as a set, a part going may be cut off from its model by then) cast nothing.
+  `debugPre() -> { tiles, rays, pasted, cast, skipped, reset, other, early, job? }`. The expansion preview
+  (`expandperf=<tier>`) waits for the job, swaps, and checks the picture against a fresh cast (`debugCastCheck`: the
+  differences left are faces lying at one depth, which the simulator's ray index, built per filter, may break either
+  way, and the layer's last column, whose shadow edges the fresh cast cannot see past).
 - **What a frame costs while the view pans** (the request of 2026-11-15: "the camera moving is always very laggy"):
   every pan composes and uploads the whole picture, so neither may cost the whole picture's Luau work. `SG` (one
   table: the main chunk is at 200 registers) holds `SG.buf`, the static layer graded (`gradeSpan` over `sColor`,

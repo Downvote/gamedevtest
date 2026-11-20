@@ -326,6 +326,9 @@ local Tuning = {
 	-- and at most this long a frame (a slow device or a slow stretch of rays spreads the re-cast over more frames: the
 	-- land's chunks an expansion swaps in used to cost one frame 200 ms in the simulator)
 	PixelInvalidateMs = 8,
+	-- ms a frame of spare time spent casting the next tier's picture ahead of an expansion (PixelRenderer's pre-cast:
+	-- the request of 2026-11-20, "make island expansion seamless, with no lag"); 0: off
+	PixelPreCastMs = 2,
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 80, -- dynamic models drawn afresh a tick at most (an island's driftlings and founders; the rest show their kept pictures)
 	PixelDynMs = 8, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short)

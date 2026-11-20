@@ -48,6 +48,7 @@ local AvatarView = require(script.Parent.Parent.Controllers.AvatarView)
 local Words = require(script.Parent.Words)
 
 local BuildUI = {}
+BuildUI.rebuilds = 0 -- (how many times the tray was built: the previews read it)
 BuildUI.Changed = Util.Signal() :: Types.Signal<boolean>
 
 local TRAY_H = 82
@@ -1441,6 +1442,7 @@ local function searchField(parent: Frame, w: number, pos: UDim2): Frame
 end
 
 rebuild = function()
+	BuildUI.rebuilds += 1
 	goalCard, goalTab = nil, nil
 	-- (the search box stays: it moves to the new tray)
 	if search then

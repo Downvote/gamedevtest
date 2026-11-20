@@ -2739,11 +2739,34 @@ local function expandPerf(tier: number)
 		while f < maxFrames do
 			local f0 = realClock()
 			if f == 0 and first then
+				local p0, b0, bm0 = realClock(), rs and rs.builds or 0, rs and rs.buildMs or 0
 				first() -- (the press itself counts in the first frame: the server's swap answers it at once here)
+				log("expandperf %s: the press (the server's answer, run at once here) %.0f ms; the simulator's raycast index %d rebuilds %.0f ms in it", label, (realClock() - p0) * 1000, (rs and rs.builds or 0) - b0, (rs and rs.buildMs or 0) - bm0)
 			end
+			local rb0, rbMs0 = rs and rs.builds or 0, rs and rs.buildMs or 0
+			local co0 = table.clone(E.coTime or {})
 			E.step(dt)
 			f += 1
 			table.insert(ms, (realClock() - f0) * 1000)
+			if first and f <= 3 then
+				-- (the first frames after the press, script by script: where an expansion's hitch goes)
+				local rows = {}
+				for k, v in E.coTime or {} do
+					local d = v - (co0[k] or 0)
+					if d > 0.0005 then
+						table.insert(rows, { k = (string.gsub(k, "^.*%.", "")), v = d * 1000 })
+					end
+				end
+				table.sort(rows, function(x, y)
+					return x.v > y.v
+				end)
+				local out = {}
+				for i = 1, math.min(8, #rows) do
+					table.insert(out, string.format("%s %.1f", rows[i].k, rows[i].v))
+				end
+				local BU = modOr(p, "UI.BuildUI")
+				log("expandperf %s frame %d: %.0f ms; scripts %s; the simulator's raycast index %d rebuilds %.0f ms; the Build tray built %d times so far", label, f, ms[#ms], table.concat(out, "; "), (rs and rs.builds or 0) - rb0, (rs and rs.buildMs or 0) - rbMs0, BU and BU.rebuilds or -1)
+			end
 			if stop and stop(f) then
 				break
 			end
@@ -2806,6 +2829,29 @@ local function expandPerf(tier: number)
 		H.inClient(p, WV0.debugCost)
 	end
 	run("standing before", 120)
+	-- the next tier's picture cast ahead in the frames' spare time (PixelRenderer's pre-cast): until it has every tile
+	-- near the view
+	if PR and PR.debugPre then
+		H.inClient(p, PR.debugPre)
+		local f, w0 = 0, realClock()
+		local st = H.inClient(p, PR.debugPre)
+		while f < 3000 do
+			E.step(dt)
+			f += 1
+			local now = H.inClient(p, PR.debugPre)
+			for k, v in now do
+				if type(v) == "number" then
+					st[k] = (st[k] or 0) + v
+				end
+			end
+			st.job = now.job
+			if now.job and now.job.done > 0 and now.job.queued == 0 then
+				break
+			end
+		end
+		local j = st.job
+		log("expandperf pre-cast: %d frames (%.1f s on the real clock), %d tiles cast (%d rays), %d resets; the job: tier %s, %d staged models over %d replaced, %d of the swap's %d tiles cast ahead", f, realClock() - w0, st.tiles or 0, st.rays or 0, st.reset or 0, j and tostring(j.tier) or "none", j and j.news or 0, j and j.olds or 0, j and j.done or 0, j and j.region or 0)
+	end
 	local bakes0 = PR and PR.debugStatic().bakes or 0
 	local tier0 = prof.tier
 	local tierAt, shownAt = -1, -1
@@ -2826,6 +2872,13 @@ local function expandPerf(tier: number)
 	end)
 	local bakes = PR and PR.debugStatic().bakes or 0
 	log("expandperf: tier %d -> %d: the tier changed on frame %d, the new land drawn by frame %d (%d re-bakes); %d land parts now", tier0, H.profile(p).tier, tierAt, shownAt, bakes - bakes0, landParts())
+	if PR and PR.debugPre then
+		local st = H.inClient(p, PR.debugPre)
+		log("expandperf swap: %d tiles pasted from the pre-cast, %d cast the old way, %d parts' comings and goings cast nothing; %d others, %d of the replaced models' before it; the view at the pre-cast %d,%d, at the swap %d,%d", st.pasted or 0, st.cast or 0, st.skipped or 0, st.other or 0, st.early or 0, st.qx or 0, st.qy or 0, st.ax or 0, st.ay or 0)
+		-- (the picture the swap pasted against a fresh cast of the whole layer)
+		local cc = H.inClient(p, PR.debugCastCheck)
+		log("expandperf swap check: %d of %d layer pixels differ from a fresh cast (%d part ids, %d of them two faces at one depth, %d sun, %d shades); others: %s", cc.off, cc.checked, cc.ids, cc.ties or 0, cc.lits, cc.shades, tostring(cc.ex))
+	end
 	run("standing after", 120)
 	E.coTime = nil
 	E.simClock = sim0

@@ -1113,6 +1113,21 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, Â
   piece's name every frame to find the Tree of Life (rebuilt last at its next stage), 38 ms a frame on a full tier 15
   island in the simulator, and the island's name over its sign was found by searching the whole island every frame
   (worse once the new land sat after the buildings). Both are kept now and looked up again only when they change.
+
+  > The request (2026-11-20): "Is there a way to make island expansion seamless, with no lag? Could you pre render max
+  > expansion floors so that expanding simply switches to that expansion level?"
+
+  It works that way now, one level ahead rather than all of them (the next level is the only one an expansion can
+  reach, and keeping every level's land would cost every player's machine the parts of all of them). The next island's
+  new chunks, and the Tree of Life's next stage when it has one, stand in the world as soon as they are built, sent
+  to every player a chunk at a time long before anyone taps Expand, in collision groups that nothing collides with and
+  no ray meets, hidden from Roblox's own picture. In the frames' spare time (2 ms a frame) the player's pixel filter
+  draws its own island as the next level will look, around the view, from those staged parts. The tap then moves the
+  staged chunks onto the island and the picture drawn ahead is copied in, tile by tile, the way a pan brings a strip
+  back: nothing is sent, nothing is drawn again. In the simulator the new land is up 22 frames after the tap at tier 3
+  and at tier 15 (it was 272 and 204 frames, with seven to ten seconds of slower frames), with 6,473 parts coming and
+  going at tier 15 and not one of them drawn again. If the player expands before the drawing ahead has reached
+  everything on screen, the rest is drawn the old way.
   Islands at the first tiers have a few more palms and shells than before; from about tier 10 the counts are as they
   were.
 

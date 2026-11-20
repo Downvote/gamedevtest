@@ -137,9 +137,46 @@ local function pieceAt(i: number, id: string, x: number, z: number, rot: number)
 	return CFrame.new(originOf(i) + Vector3.new(x + w / 2, Street.LAWN_Y, z + dd / 2)) * CFrame.Angles(0, math.rad(rot), 0)
 end
 
+-- The next island stands in the world before it is wanted (the request of 2026-11-20: "Is there a way to make island
+-- expansion seamless, with no lag? Could you pre render max expansion floors so that expanding simply switches to that
+-- expansion level?"): its parts go to every client ahead of time, in collision groups that nothing collides with and
+-- no ray meets but the pixel filter's pre-cast ("Staged", and "StagedBounds" for the invisible walls and shelves that
+-- are "Bounds" on the island), so the clients can draw it before the expansion. `unstage` gives them their groups back.
+local function stageParts(root: Instance)
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CollisionGroup = if d.CollisionGroup == "Bounds" then "StagedBounds" else "Staged"
+		end
+	end
+end
+local function unstage(root: Instance)
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") then
+			local g = d.CollisionGroup
+			if g == "StagedBounds" then
+				d.CollisionGroup = "Bounds"
+			elseif g == "Staged" then
+				d.CollisionGroup = "Default"
+			end
+		end
+	end
+end
+
+-- workspace.Staged: each plot's next island, Plot_<i> (attribute Tier when every part of it is there)
+local function stagedRoot(): Folder
+	local f = workspace:FindFirstChild("Staged")
+	if f == nil then
+		local nf = Instance.new("Folder")
+		nf.Name = "Staged"
+		nf.Parent = workspace
+		f = nf
+	end
+	return f :: Folder
+end
+
 -- Builds the queued next islands' new chunks one plot at a time, paced (Blocks.pace) so the server never stalls a
--- frame on them: the next tier's chunks that the island doesn't have now, into a folder of their own (not in the
--- world, so nobody receives them yet).
+-- frame on them: the next tier's chunks that the island doesn't have now, each built out of the world, staged and then
+-- put in workspace.Staged.Plot_<i>, so the clients receive them a chunk at a time long before the expansion.
 local function prebuildLoop()
 	if prebuilding then
 		return
@@ -151,6 +188,13 @@ local function prebuildLoop()
 		if slot and slot.gen == job.gen then
 			local plan = planOf(job.tier)
 			local hold = Instance.new("Folder")
+			hold.Name = "Plot_" .. job.plot
+			local old = stagedRoot():FindFirstChild(hold.Name)
+			if old then
+				old:Destroy()
+			end
+			hold.Parent = stagedRoot()
+			local work = Instance.new("Folder") -- (a chunk is built here, out of the world, then staged and moved over)
 			local made: { [string]: Model } = {}
 			local tree: Model? = nil
 			Blocks.pace(function()
@@ -164,7 +208,10 @@ local function prebuildLoop()
 					end
 					local lm = landModelOf(job.plot)
 					if lm == nil or lm:FindFirstChild(c.name) == nil then
-						made[c.name] = StreetModels.landChunk(hold, originOf(job.plot), job.tier, c)
+						local m = StreetModels.landChunk(work, originOf(job.plot), job.tier, c)
+						stageParts(m)
+						m.Parent = hold
+						made[c.name] = m
 					end
 				end
 				-- the tree at its next stage, where the next tier grows it one
@@ -173,15 +220,19 @@ local function prebuildLoop()
 				if t and stage ~= Tree.stage(job.tier - 1) then
 					local m = DecorModels.build(Tree.ID, pieceAt(job.plot, Tree.ID, t.x, t.z, t.rot), stage)
 					m.Name = pieceKey({ uid = t.uid, id = Tree.ID, x = t.x, z = t.z, rot = t.rot, lvl = stage })
+					stageParts(m)
 					m.Parent = hold
 					tree = m
 				end
 				return true
 			end)
 			Blocks.pace(nil)
+			work:Destroy()
 			local still = nextLand[job.plot]
 			if ok and still and still.gen == job.gen then
 				still.chunks, still.tree, still.hold = made, tree, hold
+				-- (every part is there: the clients may draw it now)
+				hold:SetAttribute("Tier", job.tier)
 			else
 				if not ok then
 					warn("next island build failed: " .. tostring(err))
@@ -244,7 +295,20 @@ function PlotService.init()
 		PhysicsService:RegisterCollisionGroup("Bounds")
 		PhysicsService:RegisterCollisionGroup("PixelRays")
 		PhysicsService:CollisionGroupSetCollidable("PixelRays", "Bounds", false)
+		-- the next island, built ahead (stageParts): it collides with nothing and only the pixel filter's pre-cast
+		-- ("PreCast") meets it, its walls and shelves not even that (the island's "Bounds" never meet a ray)
+		for _, g in { "Staged", "StagedBounds", "PreCast" } do
+			PhysicsService:RegisterCollisionGroup(g)
+		end
+		for _, g in { "Staged", "StagedBounds" } do
+			for _, o in { "Default", "Bounds", "PixelRays", "Staged", "StagedBounds", "PreCast" } do
+				PhysicsService:CollisionGroupSetCollidable(g, o, false)
+			end
+		end
+		PhysicsService:CollisionGroupSetCollidable("PreCast", "Staged", true)
+		PhysicsService:CollisionGroupSetCollidable("PreCast", "Bounds", false)
 	end)
+	stagedRoot()
 	local root = folder()
 	local street = Instance.new("Folder")
 	street.Name = "Street"
@@ -400,6 +464,7 @@ function PlotService.build(s: S)
 			-- (the tree built ahead at its next stage, kept out of the hold that planNext lets go below)
 			local t = if ready and ready.tier == tier then ready.tree else nil
 			if t then
+				unstage(t)
 				t.Parent = nil
 				ahead[t.Name] = t
 				ready.tree = nil
@@ -410,6 +475,7 @@ function PlotService.build(s: S)
 				if lm:FindFirstChild(c.name) == nil then
 					local pre = made[c.name]
 					if pre then
+						unstage(pre)
 						pre.Parent = lm
 						made[c.name] = nil
 					else

@@ -200,6 +200,7 @@ local bakeFin, bakeFinY = 0, 0
 local FIN_ROWS = 12
 local bakeRays = 0
 local rebakeAt = -1 -- SG.clock() when a pending re-bake starts (debounce)
+local preReset: () -> () = function() end -- (the next tier's pre-cast forgotten: set below, where it is kept)
 local rush = false -- a big change's re-bake: more ms a frame (the player is waiting to see it)
 -- A re-bake while a finished picture is on screen writes into these (fresh buffers and id tables) instead, so the
 -- picture keeps living meanwhile (the crew, driftlings, water and wind go on drawing over it at its camera); the
@@ -234,7 +235,7 @@ local stats = {
 	scrolls = 0,
 	scrollRays = 0,
 	recasts = 0,
-	perf = { frames = 0, panFrames = 0, invMs = 0, invFinMs = 0, pokeMs = 0, pokes = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
+	perf = { frames = 0, panFrames = 0, invMs = 0, invFinMs = 0, pokeMs = 0, pokes = 0, preMs = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
 }
 local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
 -- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
@@ -340,6 +341,7 @@ end
 local SG = {
 	-- (the pan cache, Pixel/PanCache: a pan's strips that were on screen before are copied back, not cast again)
 	Tiles = require(script.Parent.PanCache),
+	exclVer = 0, -- (refreshExclude's count: the pre-cast's filter follows it)
 	panAt = -1, -- SG.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
 	need = {} :: { Dyn }, -- (a compose's models to draw afresh, in their order)
 	-- (the water's tone tables, and whether its next frame shades every water pixel: SG.waterSlice)
@@ -1488,10 +1490,12 @@ local function startBake()
 	end
 	-- (the smooth models' balls gathered again: the island may have changed)
 	SmoothParts.reset()
-	-- (a new picture of the island: the pan cache starts again; a stage's bake leaves the island's be)
+	-- (a new picture of the island: the pan cache starts again, and the next tier's pre-cast, its part ids renumbered; a
+	-- stage's bake leaves the island's be)
 	if not s.view.stage then
 		SG.Tiles.setMax(Tuning.PixelPanCacheTiles)
 		SG.Tiles.clear()
+		preReset()
 	end
 	if s.view.empty then
 		-- an empty see-through stage (CameraController's Stage.empty: only moving things in front of a 2D picture, the
@@ -1584,10 +1588,12 @@ local function refreshExclude()
 		end
 	end
 	params.FilterDescendantsInstances = excluded
+	SG.exclVer += 1
 end
 
 -- A layer for the camera's view: buffers, image and a fresh bake (or the kept street picture when its view comes back).
 local function buildSurf(v: CameraController.View)
+	preReset() -- (another view: another grid)
 	refreshExclude()
 	lightStale = true
 	local old = surf
@@ -4306,9 +4312,9 @@ end
 
 ------------------------------------------------------------------ invalidation
 -- The global art px rect a part and its sun shadow on the lawn cover (nil when the view has none yet).
-local function partRect(part: BasePart): Rect?
+function SG.boxRect(cf: CFrame, full: Vector3): Rect?
 	local v = CameraController.view()
-	local cf, size = part.CFrame, part.Size / 2
+	local size = full / 2
 	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
 	local sun = SUN_V
 	local ground = Street.WATER_Y -- the lowest ground a shadow lands on (the sea), so the rect holds it wherever it falls
@@ -4331,6 +4337,9 @@ local function partRect(part: BasePart): Rect?
 		return nil
 	end
 	return { x0 = math.floor(x0) - 2, y0 = math.floor(y0) - 2, x1 = math.ceil(x1) + 2, y1 = math.ceil(y1) + 2 }
+end
+local function partRect(part: BasePart): Rect?
+	return SG.boxRect(part.CFrame, part.Size)
 end
 
 local function queueRect(r: Rect)
@@ -4468,6 +4477,514 @@ local function processInvalidation()
 	end
 end
 
+
+------------------------------------------------------------------ the next tier, cast ahead
+-- The request of 2026-11-20: "Is there a way to make island expansion seamless, with no lag? Could you pre render max
+-- expansion floors so that expanding simply switches to that expansion level?" PlotService puts the player's next
+-- island in the world ahead of time (workspace.Staged.Plot_<i>: the chunks the next tier changes, and the Tree of
+-- Life's next stage when it grows one) in collision groups that nothing collides with and no ray meets but "PreCast".
+-- Here, in the frames' spare time, the picture of the island as the next tier will have it is cast tile by tile of the
+-- pan cache's grid (into a store of its own, PanCache.new) around the view: the bake's own casts on a small layer of
+-- a tile and 2 px round it, its rays in "PreCast" and past the chunks and the tree the staged ones replace. When the
+-- expansion moves them onto the island, those tiles go into the pan cache and onto the layer the way a pan brings a
+-- strip back (no ray at all), and the comings and goings of the parts under them cast nothing. Whatever the pre-cast
+-- had not reached by then is cast the old way. Every bake, view, tier or stage starts it again (the part ids and the
+-- grid it used are gone), and a part that comes or goes over a pre-cast tile drops that tile.
+local PC = {}
+PC.store = SG.Tiles.new()
+PC.TILE = SG.Tiles.TILE
+PC.PAD = 2
+PC.SIDE = PC.TILE + PC.PAD * 2
+PC.MARGIN = 160 -- art px round the layer the pre-cast covers (where the view may be when the island grows)
+type PreJob = {
+	folder: Instance,
+	tier: number,
+	newSet: { [Instance]: boolean }, -- the staged models (chunks, the tree)
+	oldSet: { [Instance]: boolean }, -- the island's models they replace
+	region: { [number]: { number } }, -- every tile the swap changes, by key: { tx, ty }
+	modelTiles: { [Instance]: { number } }, -- each model's tile keys
+	queue: { { number } }, -- tiles to cast, nearest the view first
+	done: { [number]: boolean },
+	cur: { tx: number, ty: number, phase: number, x: number, y: number }?,
+	params: RaycastParams,
+	exclVer: number,
+	ps: any, -- the small layer a tile is cast on
+	olds: { Instance }, -- (oldSet as a list: the rays' filter)
+	oldParts: { [Instance]: boolean }, -- every part of the replaced models (a part going may be cut off from its model by then)
+	switched: boolean,
+	untilT: number, -- (after the swap: kept this long for the parts' comings and goings)
+}
+PC.job = nil :: PreJob?
+PC.dirty = true
+PC.tried = -math.huge -- (when a job was last looked for: once a second while there is none)
+PC.stats = { tiles = 0, rays = 0, pasted = 0, cast = 0, skipped = 0, reset = 0, other = 0, early = 0, qx = 0, qy = 0, ax = 0, ay = 0 }
+
+function PC.key(tx: number, ty: number): number
+	return (tx + 32768) * 65536 + (ty + 32768)
+end
+
+-- Forget the pre-cast (it starts again when the frames have time).
+preReset = function()
+	if PC.job and PC.job.switched and os.clock() < PC.job.untilT then
+		return -- (a swap is landing: its sets still answer for the parts coming and going)
+	end
+	PC.store.clear()
+	PC.job = nil
+	PC.dirty = true
+	PC.stats.reset += 1
+end
+
+function PC.myStaged(): Instance?
+	local root = workspace:FindFirstChild("Staged")
+	local i = Players.LocalPlayer:GetAttribute("Plot")
+	if root == nil or type(i) ~= "number" then
+		return nil
+	end
+	return root:FindFirstChild("Plot_" .. i)
+end
+
+-- The model of the staged set (or of the ones it replaces) a part belongs to, if any.
+function PC.modelOf(job: PreJob, d: Instance): Instance?
+	local m: Instance? = d
+	for _ = 1, 8 do
+		if m == nil then
+			return nil
+		end
+		if job.newSet[m] or job.oldSet[m] then
+			return m
+		end
+		m = m.Parent
+	end
+	return nil
+end
+
+function PC.modelRect(m: Instance): Rect?
+	if m:IsA("Model") then
+		local cf, size = m:GetBoundingBox()
+		return SG.boxRect(cf, size)
+	elseif m:IsA("BasePart") then
+		return partRect(m)
+	end
+	return nil
+end
+
+-- A job for the staged next island, once all of it is there (its Tier attribute) and the island's picture is up.
+function PC.start(s: Surf): boolean
+	PC.dirty = false
+	local folder = PC.myStaged()
+	local tierAttr = if folder then folder:GetAttribute("Tier") else nil
+	if folder == nil or type(tierAttr) ~= "number" then
+		return false
+	end
+	local i = Players.LocalPlayer:GetAttribute("Plot")
+	local plots = workspace:FindFirstChild("Plots")
+	local pm = plots and plots:FindFirstChild("Plot_" .. tostring(i))
+	local static = pm and pm:FindFirstChild("Static")
+	local landF = static and static:FindFirstChild("Land")
+	local land = landF and landF:FindFirstChild("Land")
+	local decor = static and static:FindFirstChild("Decor")
+	if land == nil then
+		return false
+	end
+	local job: PreJob = {
+		folder = folder,
+		tier = tierAttr,
+		newSet = {},
+		oldSet = {},
+		region = {},
+		modelTiles = {},
+		queue = {},
+		done = {},
+		cur = nil,
+		params = RaycastParams.new(),
+		exclVer = -1,
+		ps = nil,
+		olds = {},
+		oldParts = {},
+		switched = false,
+		untilT = 0,
+	}
+	-- the staged models and the island's ones they stand in for: a chunk by its place (Chunk_<cx>_<cz>_...), the tree
+	-- by its piece (<uid>:tree:...)
+	local olds: { Instance } = {}
+	for _, m in folder:GetChildren() do
+		job.newSet[m] = true
+		local cxz = string.match(m.Name, "^(Chunk_%-?%d+_%-?%d+_)")
+		local uid = string.match(m.Name, "^(%d+:tree:)")
+		local from = if cxz then land elseif uid then decor else nil
+		local prefix = cxz or uid
+		if from and prefix then
+			for _, o in from:GetChildren() do
+				if o.Name ~= m.Name and string.sub(o.Name, 1, #prefix) == prefix then
+					job.oldSet[o] = true
+					table.insert(olds, o)
+				end
+			end
+		end
+	end
+	-- the tiles each of them covers (with its shadow)
+	for m in job.newSet do
+		job.modelTiles[m] = {}
+	end
+	for m in job.oldSet do
+		job.modelTiles[m] = {}
+	end
+	for m, keys in job.modelTiles do
+		local r = PC.modelRect(m)
+		if r then
+			for ty = r.y0 // PC.TILE, r.y1 // PC.TILE do
+				for tx = r.x0 // PC.TILE, r.x1 // PC.TILE do
+					local k = PC.key(tx, ty)
+					job.region[k] = { tx, ty }
+					table.insert(keys, k)
+				end
+			end
+		end
+	end
+	-- the rays: as the bake's, past the replaced models and every other plot's staged island, meeting the staged parts
+	job.params.FilterType = Enum.RaycastFilterType.Exclude
+	job.params.IgnoreWater = true
+	job.params.CollisionGroup = "PreCast"
+	job.olds = olds
+	for _, o in olds do
+		for _, d in o:GetDescendants() do
+			if d:IsA("BasePart") then
+				job.oldParts[d] = true
+			end
+		end
+	end
+	local n = PC.SIDE * PC.SIDE
+	job.ps = {
+		W = PC.SIDE,
+		H = PC.SIDE,
+		K = s.K,
+		view = s.view,
+		look = s.look,
+		skyRef = s.skyRef,
+		cam = s.cam,
+		sShade = buffer.create(n * 4),
+		sAlbedo = buffer.create(n * 4),
+		sDepth = buffer.create(n * 4),
+		sNormal = buffer.create(n),
+		sLit = buffer.create(n),
+		sId = buffer.create(n * 2),
+		sShare = buffer.create(n),
+		sWClass = buffer.create(n),
+		sWave = buffer.create(n),
+	}
+	PC.store.setMax(900)
+	PC.store.clear()
+	PC.job = job
+	return true
+end
+
+-- The tiles of the region near the layer not cast yet, nearest the middle of the view first.
+function PC.queue(job: PreJob, s: Surf)
+	PC.stats.qx, PC.stats.qy = s.cam.gx, s.cam.gy
+	local gx0, gy0 = s.cam.gx - PC.MARGIN, s.cam.gy - PC.MARGIN
+	local gx1, gy1 = s.cam.gx + s.W - 1 + PC.MARGIN, s.cam.gy + s.H - 1 + PC.MARGIN
+	local mx, my = (s.cam.gx + s.W / 2) / PC.TILE, (s.cam.gy + s.H / 2) / PC.TILE
+	local q = {}
+	for k, t in job.region do
+		local tx, ty = t[1], t[2]
+		if not job.done[k] and tx * PC.TILE + PC.TILE - 1 >= gx0 and tx * PC.TILE <= gx1 and ty * PC.TILE + PC.TILE - 1 >= gy0 and ty * PC.TILE <= gy1 then
+			table.insert(q, { tx, ty, (tx + 0.5 - mx) ^ 2 + (ty + 0.5 - my) ^ 2 })
+		end
+	end
+	table.sort(q, function(a, b)
+		return a[3] < b[3]
+	end)
+	job.queue = q
+end
+
+-- Cast pre-cast tiles until `deadline`.
+function PC.step(s: Surf, deadline: number)
+	if PC.job == nil then
+		if not PC.dirty and os.clock() - PC.tried < 1 then
+			return
+		end
+		PC.tried = os.clock()
+		if not PC.start(s) then
+			return
+		end
+	end
+	local job = PC.job
+	if job == nil or job.switched then
+		return
+	end
+	if job.exclVer ~= SG.exclVer then
+		job.exclVer = SG.exclVer
+		local list = table.clone(excluded)
+		for _, o in job.olds do
+			table.insert(list, o)
+		end
+		local root = workspace:FindFirstChild("Staged")
+		if root then
+			for _, f in root:GetChildren() do
+				if f ~= job.folder then
+					table.insert(list, f)
+				end
+			end
+		end
+		job.params.FilterDescendantsInstances = list
+	end
+	if job.cur == nil and #job.queue == 0 then
+		PC.queue(job, s)
+		if #job.queue == 0 then
+			return
+		end
+	end
+	local shadows = tierSpec(tier).shadows
+	local ps = job.ps
+	local saved = params
+	params = job.params
+	local r0 = bakeRays
+	while SG.clock() < deadline do
+		local c = job.cur
+		if c == nil then
+			local nxt = table.remove(job.queue, 1)
+			if nxt == nil then
+				break
+			end
+			if job.done[PC.key(nxt[1], nxt[2])] then
+				continue
+			end
+			local v = s.view
+			ps.cam = Raster.gridCam(v.rot12, CameraController.gridAt(nxt[1] * PC.TILE - PC.PAD, nxt[2] * PC.TILE - PC.PAD), PC.SIDE, PC.SIDE, s.K, Tuning.CamRayBack)
+			c = { tx = nxt[1], ty = nxt[2], phase = 1, x = 0, y = 0 }
+			job.cur = c
+		end
+		local cc = c :: { tx: number, ty: number, phase: number, x: number, y: number }
+		local gx0, gy0 = ps.cam.gx, ps.cam.gy
+		local n = 0
+		while cc.phase <= 2 do
+			n += 1
+			if n % 24 == 0 and SG.clock() >= deadline then
+				break
+			end
+			local gx, gy = cc.x + gx0, cc.y + gy0
+			if (gx % 2 == 0 and gy % 2 == 0) == (cc.phase == 1) then
+				castSample(ps, gx, gy, gx, gy, false, shadows)
+			end
+			cc.x += 1
+			if cc.x >= PC.SIDE then
+				cc.x = 0
+				cc.y += 1
+				if cc.y >= PC.SIDE then
+					cc.y = 0
+					cc.phase += 1
+				end
+			end
+		end
+		if cc.phase == 3 then
+			-- the tile's shadow edges (its 2 px border sees the neighbours'), then its middle into the store
+			if shadows then
+				refineShadows(ps, 0, 0, PC.SIDE - 1, PC.SIDE - 1)
+			end
+			PC.store.save(ps, gx0, gy0, PC.PAD, PC.PAD, PC.PAD + PC.TILE - 1, PC.PAD + PC.TILE - 1)
+			-- (a pixel of open sky is drawn by the layer's own height: a tile with any is left to the old way)
+			local sky = false
+			for y = PC.PAD, PC.PAD + PC.TILE - 1 do
+				for x = PC.PAD, PC.PAD + PC.TILE - 1 do
+					if buffer.readu16(ps.sId, (y * PC.SIDE + x) * 2) == 0 then
+						sky = true
+						break
+					end
+				end
+				if sky then
+					break
+				end
+			end
+			local k = PC.key(cc.tx, cc.ty)
+			if sky then
+				PC.store.take(cc.tx, cc.ty)
+			else
+				job.done[k] = true
+				PC.stats.tiles += 1
+			end
+			job.cur = nil
+		end
+	end
+	params = saved
+	PC.stats.rays += bakeRays - r0
+end
+
+-- A part came or went over the pre-cast: the tiles under it are cast again (before the swap).
+function PC.drop(r: Rect)
+	local job = PC.job
+	if job == nil or job.switched then
+		return
+	end
+	for ty = r.y0 // PC.TILE, r.y1 // PC.TILE do
+		for tx = r.x0 // PC.TILE, r.x1 // PC.TILE do
+			local k = PC.key(tx, ty)
+			if job.done[k] then
+				job.done[k] = nil
+				PC.store.take(tx, ty)
+			end
+		end
+	end
+	if job.cur then
+		local c = job.cur :: { tx: number, ty: number, phase: number, x: number, y: number }
+		if c.tx >= r.x0 // PC.TILE and c.tx <= r.x1 // PC.TILE and c.ty >= r.y0 // PC.TILE and c.ty <= r.y1 // PC.TILE then
+			job.cur = nil
+		end
+	end
+	job.queue = {}
+end
+
+-- The swap: every pre-cast tile of the region into the pan cache and onto the layer (as a pan copies a strip back);
+-- the region's other tiles are cast the old way.
+function PC.apply(job: PreJob)
+	job.switched = true
+	job.untilT = os.clock() + 8
+	local s = surf
+	if s == nil then
+		return
+	end
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local lx1, ly1 = gx0 + s.W - 1, gy0 + s.H - 1
+	PC.stats.ax, PC.stats.ay = gx0, gy0
+	local pasted: { Rect } = {}
+	local rows: { [number]: { number } } = {}
+	for k, t in job.region do
+		local tx, ty = t[1], t[2]
+		local x0, y0 = tx * PC.TILE, ty * PC.TILE
+		local x1, y1 = x0 + PC.TILE - 1, y0 + PC.TILE - 1
+		local tile = if job.done[k] then PC.store.take(tx, ty) else nil
+		if tile then
+			SG.Tiles.put(tx, ty, tile)
+			if x1 >= gx0 and y1 >= gy0 and x0 <= lx1 and y0 <= ly1 then
+				local q = { x0 = math.max(x0, gx0) - gx0, y0 = math.max(y0, gy0) - gy0, x1 = math.min(x1, lx1) - gx0, y1 = math.min(y1, ly1) - gy0 }
+				if SG.Tiles.load(s, gx0, gy0, q.x0, q.y0, q.x1, q.y1) then
+					table.insert(pasted, q)
+					PC.stats.pasted += 1
+				else
+					queueRect({ x0 = x0, y0 = y0, x1 = x1, y1 = y1 })
+				end
+			end
+		else
+			job.done[k] = nil
+			SG.Tiles.drop(x0, y0, x1, y1)
+			if x1 >= gx0 and y1 >= gy0 and x0 <= lx1 and y0 <= ly1 then
+				PC.stats.cast += 1
+				local row = rows[ty]
+				if row == nil then
+					row = {}
+					rows[ty] = row
+				end
+				table.insert(row, tx)
+			end
+		end
+	end
+	-- (the tiles on the layer not cast ahead, joined into runs along each row: a few rects to queue, not hundreds)
+	for ty, row in rows do
+		table.sort(row)
+		local i = 1
+		while i <= #row do
+			local j = i
+			while j < #row and row[j + 1] == row[j] + 1 do
+				j += 1
+			end
+			queueRect({ x0 = row[i] * PC.TILE, y0 = ty * PC.TILE, x1 = row[j] * PC.TILE + PC.TILE - 1, y1 = ty * PC.TILE + PC.TILE - 1 })
+			i = j + 1
+		end
+	end
+	if #pasted > 0 then
+		-- the ink and the contact shade over the pasted tiles and their edges, the water's frames, the grade
+		for _, q in pasted do
+			reoutline(s, q.x0, q.y0, q.x1, q.y1)
+			SG.waterFix(s, q.x0 - 1, q.y0 - 1, q.x1 + 1, q.y1 + 1)
+			SG.rect(s, q.x0 - 3, q.y0 - 3, q.x1 + 3, q.y1 + 3)
+		end
+		SG.ver += 1
+		buffer.fill(s.sShadowC, 0, 0)
+		lightStale = true
+		staticChanged()
+		needFull = true
+	end
+end
+
+-- Whether part d's coming or going is the swap's and already in the picture (true: nothing to cast for it).
+function PC.swap(d: Instance): boolean
+	local job = PC.job
+	if job == nil then
+		return false
+	end
+	if job.oldParts[d] then
+		if not job.switched then
+			PC.stats.early += 1
+			return false -- (a replaced model's part going before the swap: an ordinary change)
+		end
+		PC.stats.skipped += 1
+		return true
+	end
+	local m = PC.modelOf(job, d)
+	if m == nil then
+		PC.stats.other += 1
+		return false
+	end
+	if not job.switched then
+		if not job.newSet[m] or d:IsDescendantOf(job.folder) then
+			PC.stats.early += 1
+			return false -- (an old model's part going before the swap: an ordinary change)
+		end
+		PC.apply(job)
+	end
+	-- (a part of a model some of whose tiles were not pre-cast: those were queued by preApply)
+	PC.stats.skipped += 1
+	return true
+end
+
+-- The staged islands (workspace.Staged): their parts hidden from Roblox's own picture (it shows when the pixel filter
+-- is off) until they are on an island (watchStatic shows them again), and the player's own pre-cast started again
+-- when theirs changes (built afresh, or let go after a swap).
+function PC.watch()
+	local root = workspace:WaitForChild("Staged", 60)
+	if root == nil then
+		return
+	end
+	local function hide(d: Instance)
+		if d:IsA("BasePart") then
+			d.LocalTransparencyModifier = 1
+		end
+	end
+	for _, d in root:GetDescendants() do
+		hide(d)
+	end
+	local function mine(d: Instance): boolean
+		local f = PC.myStaged()
+		return f ~= nil and (d == f or d:IsDescendantOf(f))
+	end
+	root.DescendantAdded:Connect(function(d: Instance)
+		hide(d)
+		if mine(d) then
+			preReset()
+		end
+	end)
+	root.DescendantRemoving:Connect(function(d: Instance)
+		-- (a staged part moving onto the island at a swap is the swap's own: watchStatic sees it land)
+		if d:IsA("Folder") and mine(d) then
+			preReset()
+		end
+	end)
+	root.ChildAdded:Connect(function(f: Instance)
+		f.AttributeChanged:Connect(function(name: string)
+			if name == "Tier" and mine(f) then
+				PC.dirty = true
+			end
+		end)
+	end)
+	for _, f in root:GetChildren() do
+		f.AttributeChanged:Connect(function(name: string)
+			if name == "Tier" and mine(f) then
+				PC.dirty = true
+			end
+		end)
+	end
+	Players.LocalPlayer:GetAttributeChangedSignal("Plot"):Connect(preReset)
+end
+
 ------------------------------------------------------------------ tiers
 local function effective(t: string): Types.PixelTier
 	if t == "off" then
@@ -4497,6 +5014,7 @@ local function applyTier(want: string)
 	end
 	if before ~= tier then
 		SG.Tiles.clear() -- (another tier casts its shadows its own way)
+		preReset()
 		PixelRenderer.Changed:Fire(tier)
 	end
 end
@@ -4535,6 +5053,12 @@ local function frameStep(dt: number)
 		local i0 = SG.clock()
 		processInvalidation()
 		stats.perf.invMs += (SG.clock() - i0) * 1000
+		-- the frame's spare time: the next tier's picture, cast ahead (nothing else is waiting to be cast)
+		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and Tuning.PixelPreCastMs > 0 then
+			local p0 = SG.clock()
+			PC.step(s, p0 + Tuning.PixelPreCastMs / 1000)
+			stats.perf.preMs += (SG.clock() - p0) * 1000
+		end
 	end
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
 	if s and tier ~= "low" then
@@ -4605,6 +5129,11 @@ local function watchStatic()
 			if st then
 				st.dirty = true
 			end
+			preReset()
+			return
+		end
+		-- (the next island's parts landing, and the ones they replace going: already in the picture, pre-cast)
+		if PC.swap(d) then
 			return
 		end
 		if rebakeAt >= 0 then
@@ -4614,11 +5143,18 @@ local function watchStatic()
 		local r = partRect(d)
 		if r then
 			queueRect(r)
+			PC.drop(r)
 		end
 		stats.perf.pokes += 1
 		stats.perf.pokeMs += (SG.clock() - p0) * 1000
 	end
-	plots.DescendantAdded:Connect(poke)
+	plots.DescendantAdded:Connect(function(d: Instance)
+		-- (a staged part, hidden from Roblox's own picture while it waited, is on the island now)
+		if d:IsA("BasePart") and d.LocalTransparencyModifier ~= 0 then
+			d.LocalTransparencyModifier = 0
+		end
+		poke(d)
+	end)
 	plots.DescendantRemoving:Connect(function(d: Instance)
 		poke(d)
 		staticIds[d] = nil
@@ -4684,6 +5220,7 @@ function PixelRenderer.start()
 		end
 	end)
 	task.spawn(watchStatic)
+	task.spawn(PC.watch)
 end
 
 ------------------------------------------------------------------ API
@@ -5143,6 +5680,33 @@ function PixelRenderer.debugPerf(): { frames: number, panFrames: number, scrollM
 	return out
 end
 
+-- The next tier's pre-cast: its counts since the last call (tiles cast, their rays, tiles pasted at a swap, tiles cast
+-- the old way at a swap, parts whose coming or going cast nothing, resets) and the job now (nil: none).
+function PixelRenderer.debugPre(): { tiles: number, rays: number, pasted: number, cast: number, skipped: number, reset: number, job: { tier: number, region: number, done: number, queued: number, switched: boolean, news: number, olds: number }? }
+	local out: any = table.clone(PC.stats)
+	for k in PC.stats do
+		PC.stats[k] = 0
+	end
+	local job = PC.job
+	if job then
+		local region, done, news, olds = 0, 0, 0, 0
+		for _ in job.region do
+			region += 1
+		end
+		for _ in job.done do
+			done += 1
+		end
+		for _ in job.newSet do
+			news += 1
+		end
+		for _ in job.oldSet do
+			olds += 1
+		end
+		out.job = { tier = job.tier, region = region, done = done, queued = #job.queue, switched = job.switched, news = news, olds = olds }
+	end
+	return out
+end
+
 -- Sims and previews: the sea as the water pass leaves it against shading every water pixel for the frame now (off:
 -- the water pixels showing a tone not the frame's; ink and the wind's paint are not water colours and are left out).
 function PixelRenderer.debugWaterCheck(): { off: number, checked: number, wind: number }
@@ -5176,9 +5740,9 @@ end
 -- Sims and previews: the static layer against casting all of it afresh at the pan it is at (a pan's strips, cast or
 -- taken back from the pan cache, should give the same pixels as one whole cast). off: the pixels whose part, depth,
 -- normal, light, water or shade differ. The layer is put back as it was afterwards.
-function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: number, lits: number, shades: number }
+function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: number, lits: number, shades: number, ties: number?, ex: string? }
 	local s = surf
-	local out = { off = -1, checked = 0, ids = 0, lits = 0, shades = 0 }
+	local out: any = { off = -1, checked = 0, ids = 0, lits = 0, shades = 0 }
 	if s == nil or baking then
 		return out
 	end
@@ -5215,10 +5779,31 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 		if shadeOff then
 			out.shades += 1
 		end
+		-- (two parts' faces at the very same depth: which one a ray meets first is the ray index's to say, and an index
+		-- built for other filters may say the other)
+		local tie = idOff and math.abs(buffer.readf32(s.sDepth, i * 4) - buffer.readf32(saved.sDepth, i * 4)) <= 1e-3
+		if tie then
+			out.ties = (out.ties or 0) + 1
+		end
 		if idOff or litOff or shadeOff or other then
 			out.off += 1
+			if not tie and (out.real or 0) < 8 then
+				out.real = (out.real or 0) + 1
+				-- (a few of them, for the log: the part each cast met and how deep)
+				local rev: { [number]: string } = out.rev or {}
+				if out.rev == nil then
+					for part, id in staticIds do
+						local par = (part :: Instance).Parent
+						rev[id] = (part :: Instance).Name .. "@" .. (if par then par.Name else "?")
+					end
+					out.rev = rev
+				end
+				local a, b = buffer.readu16(saved.sId, i * 2), buffer.readu16(s.sId, i * 2)
+				out.ex = (out.ex or "") .. string.format("[%d,%d %s %.2f / %s %.2f%s%s] ", i % s.W, i // s.W, tostring(rev[a]), buffer.readf32(saved.sDepth, i * 4), tostring(rev[b]), buffer.readf32(s.sDepth, i * 4), if shadeOff then " shade" else "", if litOff then " sun" else "")
+			end
 		end
 	end
+	out.rev = nil
 	out.checked = n
 	for _, k in names do
 		buffer.copy(sa[k], 0, saved[k], 0)
