@@ -1089,6 +1089,10 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 > shading at the bottom of the sea of clouds". So each ridge is one flat colour, the farther ones fainter, with no
 > lit edge and no darker underside.
 
+> Then: "Increase the contrast between cloud sea layers". So the ridges step evenly in colour from the back (the
+> clouds' shade sunk into the sky's lower colours) to the front (between the clouds' body and their lit tone), each
+> one standing apart from the one behind it.
+
 The island floats in the sky and grows with its tier: tier 1 a small oval about 30 by 24 studs round the Tree of Life,
 then circles round the heart from 19 studs across the radius to 60 at Everdrift (`Data/Street`'s isles, each edge with
 its own wobble), each tier's island the union of its shape and every smaller one's, so it only ever grows and nothing
@@ -1120,7 +1124,7 @@ little flock of birds now and then. In front of it far islets float in the haze 
 little trees and a pine, a round belly narrowing to ragged points, stones floating under it; one colour leaning from
 the sky's toward the hour's dark, its top edge a step lighter), then the sea of clouds along the bottom: five ridges of one heaped, billowing
 mass (big round billows, lower ones rounding off the notches, small puffs on top, bigger toward the front), each
-ridge one flat colour, the farther ones fading into the sky. No
+ridge one flat colour in even steps from the farthest, sunk into the sky, to the nearest and brightest. No
 clouds drift across the sky since 2026-11-20. Each weather pulls the colours toward its own grey, hides the stars in
 rain, storm and fog and veils the sun and moon. The island keeps its bright
 light at every hour. (From 2026-11-20 the island was whole from the start

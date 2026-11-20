@@ -2643,9 +2643,11 @@ K screen px each).
   plus the highest of: big round domes (half ellipses 0.8 to 1 as tall as half wide), a lower row of domes set half a
   step between them, small domes heaped on the big ones, and a floor at three tenths of the nearest big peak, so the
   notches stay rounded and never cut to the foot; the domes grow toward the front (`k` 0.6 to 1.6) and every lobe wraps
-  round the width, so the picture tiles; each ridge one flat colour, the clouds' body faded `SEA_FADE` 0.6, 0.45, 0.3,
-  0.15 and 0 toward the sky's last stop: no lit edge along the top and no darker underside since the requests "no
-  need to make the outlines on top of each layer" and "remove the dark shading at the bottom of the sea of clouds"). The clouds drifting across the sky (streaks and puffs) went with the last request above.
+  round the width, so the picture tiles; each ridge one flat colour, no lit edge along the top and no darker underside
+  since the requests "no need to make the outlines on top of each layer" and "remove the dark shading at the bottom
+  of the sea of clouds"; the ridges step evenly from `far` (the clouds' shade mixed 0.45 toward the sky's fourth stop,
+  then 0.2 (more in haze) toward its last) to `near` (the clouds' body 0.6 of the way to their lit tone) since
+  "Increase the contrast between cloud sea layers"). The clouds drifting across the sky (streaks and puffs) went with the last request above.
 - **A notch** (`newJob`, `colourRows`, `finish`): small lookup tables (the sky's 256 classes, the front's); the two
   pictures coloured `ROW_PIXELS` (25,000) pixels a frame and uploaded together once whole, so the old picture shows
   until the new one is done. Measured in the previews at 640 x 360: the shapes 137 ms (a new screen size), a notch
