@@ -1662,7 +1662,11 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   scroll step, finished re-cast, stash return and new layer: what a layer works out from the static picture may be
   kept until it changes), `now`, `dt` (clamped to 0.25), `idOf(part)` and its book of written pixels. Effects write
   colour only (`Fx.put`; a light's pixel also writes `Fx.GLOW_ID`, 65535, which `isGlow` treats as Neon, so the
-  night's grade keeps its colour). Two books swap every tick: last tick's pixels go back to the static picture
+  night's grade keeps its colour). A see-through effect (`Fx.mix`, a faded sprite) goes on with `Fx.blendOver(over,
+  under, a)`: over an opaque pixel the usual mix (`Fx.blend`); over the clear sky (alpha 0, where the painted sky
+  behind the layer shows) its own colour at opacity a, so the sky shows through it (the report of 2026-11-20, "fog
+  becomes black when outside of the island": mixed as if the clear pixel were black, the mist over the sky came out
+  dark grey). Two books swap every tick: last tick's pixels go back to the static picture
   (`fxRestore`, colour and id) before the dynamic layer is drawn. `fxShown` (u32 a pixel) holds the effect colour the
   image shows there, its top byte the tick's mark (1 or 2): a pixel written this tick in a new colour, or one last
   tick's effects left, marks its 16 x 8 tile (`FX_TW`, `FX_TH`); the tiles go up in runs along their rows (a gap of one

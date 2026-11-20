@@ -94,6 +94,21 @@ return function()
 		end
 	end)
 
+	T.it("a mist over the clear sky keeps its colour and lets the sky behind show (not mixed with black)", function()
+		-- (the report of 2026-11-20: "fog becomes black when outside of the island")
+		local fog = Fx.pack(0xF6F8FC)
+		local over = Fx.blendOver(fog, 0, 0.34)
+		T.eq(Fx.unpack(over), 0xF6F8FC, "the mist's own colour")
+		T.eq(over // 16777216, 87, "a third opaque, the rest the sky behind")
+		T.eq(Fx.blendOver(fog, Fx.pack(0x000000), 0.5), Fx.blend(fog, Fx.pack(0x000000), 0.5), "over an opaque pixel the usual mix")
+		local ctx = ctxOf(4, 4, 50)
+		buffer.writeu32(ctx.f.color, 0, 0) -- (pixel 0, 0: the clear sky)
+		Fx.mix(ctx, 0, 0, 0, fog, 0.34, 1e9)
+		local c = buffer.readu32(ctx.f.color, 0)
+		T.eq(Fx.unpack(c), 0xF6F8FC, "Fx.mix over the sky")
+		T.eq(c // 16777216, 87)
+	end)
+
 	T.it("sprites: drawn at their anchor, depth-tested, recorded, flipped, tinted and faded", function()
 		-- a 3 x 2 sprite: a red pixel, a tone-3 marker, a tone-4 marker; a clear one
 		local s = Fx.define("spec_a", { data({ "01.", ".22" }, { 0xFF0000, TN[3], TN[4] }) }, "bottom")

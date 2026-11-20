@@ -3070,7 +3070,9 @@ and a flatter, slightly cooler underside, thick in the middle and thinning to it
 crawls; the clouds scroll with the island when the view pans, fade in through the same dither, and one that drifts off
 comes back from upwind with a new shape (and subtle since the request of 2026-11-20, "the fog effect is too strong.
 make it subtle": fewer clouds, a light veil a third over what is under it, about every other pixel at a cloud's
-thickest and never solid, and a lighter pale wash over the day); blossom wind blows pink petals across, falling
+thickest and never solid, and a lighter pale wash over the day; where a cloud drifts past the island's edge it stays
+the same pale mist over the sky, the sky showing through it: the report of 2026-11-20, "fog becomes black when outside
+of the island", when it was mixed with the empty sky pixels as if they were black); blossom wind blows pink petals across, falling
 leaves orange and red leaves, heat haze sends pale motes up off the ground, a breeze sends a few wisps of wind across
 (never more than seven at once: a near-white line with one small step in it, its ends fading, fading in and out as it
 goes; there used to be some fifty faint streaks that looked like a broken picture in a still frame) and leaves. Each

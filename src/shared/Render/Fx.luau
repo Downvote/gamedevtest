@@ -89,6 +89,30 @@ local function blend(over: number, under: number, a: number): number
 end
 Fx.blend = blend
 
+-- Packed colour `over` at opacity a (0..1) on packed colour `under` that may be see-through (the clear sky of a
+-- floating island's view, alpha 0, where the painted sky behind the layer shows): the colour over it keeps its own
+-- tone and the pixel takes the opacity the two make together, so the picture behind shows through. (Mixed as if the
+-- clear pixel were opaque, a pale mist over the sky came out dark grey: the report of 2026-11-20, "fog becomes black
+-- when outside of the island".)
+local function blendOver(over: number, under: number, a: number): number
+	local ua = bit32.rshift(under, 24) / 255
+	if ua >= 0.999 then
+		return blend(over, under, a)
+	end
+	local k = if a < 0 then 0 elseif a > 1 then 1 else a
+	local oa = k + ua * (1 - k)
+	if oa <= 0 then
+		return 0
+	end
+	local ku = ua * (1 - k) / oa
+	local ko = k / oa
+	local r = bit32.band(over, 0xFF) * ko + bit32.band(under, 0xFF) * ku
+	local g = bit32.band(bit32.rshift(over, 8), 0xFF) * ko + bit32.band(bit32.rshift(under, 8), 0xFF) * ku
+	local b = bit32.band(bit32.rshift(over, 16), 0xFF) * ko + bit32.band(bit32.rshift(under, 16), 0xFF) * ku
+	return math.floor(r + 0.5) + math.floor(g + 0.5) * 256 + math.floor(b + 0.5) * 65536 + math.floor(oa * 255 + 0.5) * 16777216
+end
+Fx.blendOver = blendOver
+
 -- The four packed tones of a colour (0xRRGGBB) a tinted sprite is drawn in: Render/Ramp's hue-shifted ramp (a dark and
 -- a shadow step cooler, the colour itself, a light step warmer). Cached.
 local toneCache: { [number]: { number } } = {}
@@ -223,7 +247,7 @@ function Fx.mix(ctx: Ctx, x: number, y: number, d: number, c: number, a: number,
 	end
 	local i = (y * ctx.W + x) * 4
 	if d - (tol or 0.05) < buffer.readf32(ctx.f.depth, i) then
-		put(ctx, x, y, if a >= 0.98 then c else blend(c, buffer.readu32(ctx.f.color, i), a))
+		put(ctx, x, y, if a >= 0.98 then c else blendOver(c, buffer.readu32(ctx.f.color, i), a))
 	end
 end
 
@@ -325,7 +349,7 @@ function Fx.drawSprite(ctx: Ctx, s: Sprite, frame: number, x: number, y: number,
 					c = if tint then tint[-c] else PLAIN
 				end
 				if a < 0.98 then
-					c = blend(c, buffer.readu32(color, o * 4), a)
+					c = blendOver(c, buffer.readu32(color, o * 4), a)
 				end
 				buffer.writeu32(color, o * 4, c)
 				buffer.writeu32(book, n * 4, o)
