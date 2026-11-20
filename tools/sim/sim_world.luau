@@ -277,7 +277,7 @@ for k, p in { a, b } do
 	local sx, sz = Street.spawn()
 	local ox, oz = Street.origin(k)
 	local root = rootOf(p)
-	H.expect(root ~= nil and math.abs(root.Position.X - (ox + sx)) < 0.5 and math.abs(root.Position.Z - (oz + sz)) < 0.5, "islands", p.Name .. ": the founder appears on their plaza", root and tostring(root.Position))
+	H.expect(root ~= nil and math.abs(root.Position.X - (ox + sx)) < 0.5 and math.abs(root.Position.Z - (oz + sz)) < 0.5, "islands", p.Name .. ": the founder appears in front of their tree", root and tostring(root.Position))
 	H.checkProfile(p, "island " .. p.Name)
 	settled(p)
 	H.checkMirror(p, "island " .. p.Name)
@@ -585,72 +585,24 @@ do
 	H.expect(#blockers == 0, "walk", "the sea between two islands is open to swim", table.concat(blockers, ", "))
 	H.expect(holes == 0, "walk", "the seabed under all of it", tostring(holes))
 end
--- the rock over the ground not open yet (since 2026-11-20: the island whole from the start, the founder in the middle
--- of it): invisible walls in the "Bounds" group on the rock, high over a jump, and none on the open ground
+-- the land not open yet (since 2026-11-20: the island whole from the start, the founder in the middle of it; the
+-- request of 2026-11-20: "Remove the rocks and make it a gradient dark filter instead"): no rock, no rock wall and no
+-- trail on the land, the dark land walked on like the rest
 do
 	local ox = Street.origin(1)
-	local walls, open, under = 0, 0, false
-	local lockedX, lockedZ = nil, nil
-	for z = -40, 40, 2 do
-		if Street.locked(1, 0, z) and lockedZ == nil then
-			lockedX, lockedZ = 0, z
-		end
-	end
+	local rocky = 0
 	for _, d in plots:GetDescendants() do
-		if d:IsA("BasePart") and d.Name == "RockWall" and math.abs(d.Position.X - ox) < Street.SPACING / 2 then
-			if d.CollisionGroup == "Bounds" and d.CanCollide and d.Transparency >= 1 and d.Position.Y + d.Size.Y / 2 > Street.LAWN_Y + 20 then
-				walls += 1
-			end
-			local c, sz = d.Position, d.Size
-			for _, q in { { 0, 6 }, { 3, 12 } } do
-				if math.abs(ox + q[1] + 0.5 - c.X) < sz.X / 2 and math.abs(q[2] + 0.5 - c.Z) < sz.Z / 2 then
-					open += 1
-				end
-			end
-			if lockedZ and math.abs(ox + lockedX + 0.5 - c.X) < sz.X / 2 and math.abs(lockedZ + 0.5 - c.Z) < sz.Z / 2 then
-				under = true
-			end
+		if d:IsA("BasePart") and (d.Name == "Rock" or d.Name == "RockWall" or d.Name == "Trail") and math.abs(d.Position.X - ox) < Street.SPACING / 2 then
+			rocky += 1
 		end
 	end
-	H.expect(walls > 0 and under and open == 0, "walk", "rock walls stand on the rock round a first island's open ground, none on the open ground", string.format("%d walls, the rock at z %s under one: %s, %d on the open ground", walls, tostring(lockedZ), tostring(under), open))
-end
--- the trail across the island through the rocks (the request of 2026-11-20: "make a path across each plot that goes
--- through the rocks"): its cells clear of every rock wall from the open ground out to the beach both ways, and drawn
--- (the Trail slabs)
-do
-	local ox = Street.origin(1)
-	local cells: { { number } } = {}
-	local b = Street.cellBounds(1)
-	for x = b.x0, b.x1 do
-		local z = math.floor(Street.trailMid(x + 0.5))
-		if Street.trail(1, x, z) then
-			table.insert(cells, { x, z })
+	local walk = 0
+	for x = -40, 40 do
+		if Street.layer(1, x, 6) == Street.GRASS and Street.walkable(1, x, 6) then
+			walk += 1
 		end
 	end
-	local walled, slabs = 0, 0
-	local west, east = false, false
-	for _, c in cells do
-		if c[1] < 0 then
-			west = true
-		else
-			east = true
-		end
-	end
-	for _, d in plots:GetDescendants() do
-		if d:IsA("BasePart") and math.abs(d.Position.X - ox) < Street.SPACING / 2 then
-			if d.Name == "RockWall" then
-				local p, sz = d.Position, d.Size
-				for _, c in cells do
-					if math.abs(ox + c[1] + 0.5 - p.X) < sz.X / 2 and math.abs(c[2] + 0.5 - p.Z) < sz.Z / 2 then
-						walled += 1
-					end
-				end
-			elseif d.Name == "Trail" then
-				slabs += 1
-			end
-		end
-	end
-	H.expect(#cells > 20 and west and east and walled == 0 and slabs > 0, "walk", "the trail runs through the rocks both ways, no wall on it, drawn as earth", string.format("%d cells on its line, %d walled, %d slabs", #cells, walled, slabs))
+	H.expect(rocky == 0 and walk > 60, "walk", "no rock, rock wall or trail on a first island; its grass walked on out into the dark", string.format("%d rock parts, %d grass cells walked on along z 6", rocky, walk))
 end
 -- a founder in that sea swims (AvatarView: the ground under them is the sea, the rig sunk to its chest at the
 -- surface, the strokes heard, a ring of foam round them; the HUD holds the jump and slows them to Tuning.SwimSpeed);
@@ -679,7 +631,7 @@ do
 	H.expect(ringPart ~= nil and math.abs(ringPart.Position.Y - Street.WATER_Y) < 0.2, "walk", "a ring of foam round them on the water", ringPart and string.format("%.2f", ringPart.Position.Y))
 	H.expect(s1 > s0, "walk", "the strokes heard", string.format("%d -> %d", s0, s1))
 	H.expect(hum ~= nil and hum.WalkSpeed == Tuning.SwimSpeed and hum.JumpHeight == 0, "walk", "slower in the water, and no jump", hum and string.format("speed %s jump %s", tostring(hum.WalkSpeed), tostring(hum.JumpHeight)))
-	-- back home on the plaza for the camera's checks
+	-- back home by the tree for the camera's checks
 	local hx, hz = Street.spawn()
 	local hox, hoz = Street.origin(1)
 	a.Character:PivotTo(E.cf.new(hox + hx, 3, hoz + hz))
@@ -763,7 +715,7 @@ E.run(0.5)
 local sx, sz = Street.spawn()
 local ox1, oz1 = Street.origin(1)
 local root = rootOf(a)
-H.expect(root ~= nil and math.abs(root.Position.X - (ox1 + sx)) < 0.5 and math.abs(root.Position.Z - (oz1 + sz)) < 0.5, "walk", "home: back on the plaza", root and tostring(root.Position))
+H.expect(root ~= nil and math.abs(root.Position.X - (ox1 + sx)) < 0.5 and math.abs(root.Position.Z - (oz1 + sz)) < 0.5, "walk", "home: back in front of the tree", root and tostring(root.Position))
 res = H.req(a, "char.home", {})
 H.expect(not res.ok and res.err == "cooldown", "walk", "a second home within the cooldown", tostring(res.err))
 E.run(3)
@@ -919,7 +871,7 @@ do
 		E.run(3)
 		local b2 = H.inClient(a, AVa.birds, myPlot)[k]
 		H.expect(b2.state == "away", "ambient", "and is gone a little later", b2.state)
-		-- the founder back on the plaza: the birds come back
+		-- the founder back by the tree: the birds come back
 		a.Character:PivotTo(E.cf.new(ox1 + sx, 3, oz1 + sz))
 		E.run(1)
 		H.inClient(a, AVa.debugHurry)
@@ -995,11 +947,11 @@ H.expect(modelS ~= nil, "build", "the server built it as " .. keyOf(stall))
 res = H.req(a, "plot.place", { id = "stall", x = gx, z = gz, rot = 0 })
 H.expect(not res.ok and res.err == "blocked", "build", "not on another piece", tostring(res.err))
 res = H.req(a, "plot.place", { id = "flowers", x = 0, z = 4, rot = 0 })
-H.expect(not res.ok and res.err == "blocked", "build", "not on the plaza", tostring(res.err))
+H.expect(not res.ok and res.err == "blocked", "build", "not on the Tree of Life in the middle", tostring(res.err))
 do
-	-- (the land where the path to the jetty ran, x -2 .. 2 south of the plaza: buildable now)
+	-- (the land where the path to the jetty ran, x -2 .. 2 south of the tree: buildable now)
 	local free = false
-	for z = Street.PLAZA.z1, Street.PLAZA.z1 + 6 do
+	for z = 12, 18 do
 		for x = -2, 1 do
 			free = free or Plot.fits(1, prof.plot.placed, "torch", x, z, 0)
 		end
@@ -1273,7 +1225,7 @@ H.inClient(a, function()
 end)
 E.run(0.3)
 fpGhost = ghostFootprint()
-H.expect(edgeColor(fpGhost) == Blocks.color("berry_red"), "build", "red on the plaza", tostring(edgeColor(fpGhost)))
+H.expect(edgeColor(fpGhost) == Blocks.color("berry_red"), "build", "red on the Tree of Life in the middle", tostring(edgeColor(fpGhost)))
 local placeBtn = H.buttonNamed(a, "Place", true)
 H.expect(placeBtn ~= nil and getD(placeBtn).props.AutoButtonColor == false, "build", "Place is off where it does not fit")
 H.clickNamed(a, "Cancel")
@@ -2219,7 +2171,7 @@ do
 	refused("a bigger island's fence", "locked", "plot.fence", { id = "crystalfence", edges = free })
 	refused("a fence off the grid", "blocked", "plot.fence", { id = "picket", edges = string.format("%d,%d,0", (ex or 0) + 1, ez or 0) })
 	refused("a fence off the island", "blocked", "plot.fence", { id = "picket", edges = "60,0,0" })
-	refused("a fence across the plaza", "blocked", "plot.fence", { id = "picket", edges = "-2,6,0" })
+	refused("a fence through the Tree of Life in the middle", "blocked", "plot.fence", { id = "picket", edges = "-2,6,0" })
 	refused("a fence down the middle of the path", "blocked", "plot.fence", { id = "picket", edges = "0,12,90" })
 	refused("a fence taken down with an id", "bad_payload", "plot.unfence", { id = "picket", edges = free })
 	refused("a fence taken down at 45 degrees", "bad_payload", "plot.unfence", { edges = "0,-4,45" })

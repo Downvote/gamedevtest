@@ -6,8 +6,8 @@
 --   "small"  a whole number in [1, 32] (a look index)
 --   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 9)
 --   "key"    a settings key ("pixel", "music", "sfx", "zoom")
---   "coord"  a whole number in [-240, 160] (a plot-local stud: the whole island reaches far north and south of the
---            plaza since 2026-11-20)
+--   "coord"  a whole number in [-240, 160] (a plot-local stud: the whole island reaches far north and south of its
+--            heart since 2026-11-20)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
 --   "index"  a whole number in [1, 8192] (a placed piece: pieces, tiles and fences)
 --   "cells"  1 to 40 cells "x,z" joined by ";", each a coord (path or water tiles drawn or erased: Logic/Plot.paint)

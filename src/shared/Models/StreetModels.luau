@@ -4,17 +4,18 @@
 --   road(parent, origin)          a plot's water: its lot's and the open sea's, and the invisible seabed under it
 --                                 (every plot, occupied or not)
 --   land(parent, origin, tier)    an occupied plot: the island (Data/Street's coast: grass in two tones, the sand
---                                 beach, the wet sand at the waterline, a ring of foam, the light shallows), the plaza
---                                 with its campfire, log seats and flag, the island's sign on its south beach (its
---                                 board named "SignBoard"), palms, rocks, shells, starfish, driftwood, seaweed and
---                                 flowers round the coast (never where a building may stand)
+--                                 beach, the wet sand at the waterline, a ring of foam, the light shallows), the
+--                                 island's sign on its south beach (its board named "SignBoard"), palms, rocks, shells,
+--                                 starfish, driftwood, seaweed and flowers round the coast (never where a building may
+--                                 stand). The same on every tier: the land not open yet is dark in the pixel filter
+--                                 (Data/Street.darkness), not covered (no rocks, no plaza since 2026-11-20)
 --   emptyLot(parent, origin)      an unclaimed plot: open water and a little sandbar with a palm and a sign
 --   ends(parent)                  the sea at both ends of the row and the invisible walls round the world
 -- The island's layers are whole-stud cells merged into as few boxes as they make (greedy rectangles), each layer a
 -- little lower than the one inside it, so the coast steps down to the sea. Their outlines are bevelled (the request of
 -- 2026-11-13: "could you bevel these to make them smoother, with rounded corners?"): every notch of a layer's stairs is
 -- half filled by a flat triangle (a wedge on its side) and a square corner cut back, so each edge runs straight, on a
--- diagonal or along the grid, and turns in 45 degree steps (`bevelled`; the plaza's ring of sand too). The palms'
+-- diagonal or along the grid, and turns in 45 degree steps (`bevelled`). The palms'
 -- trunks are smooth curves of round segments with a ring at each joint. The sea, the shallows and the foam carry a
 -- "PixelWater" attribute (1, 2, 3): the pixel filter animates them. There are no docks: each island stands alone in
 -- the sea (the request of 2026-11-13: "remove the docks area, it should just be an island. players can swim around
@@ -618,250 +619,6 @@ local function sign(m: Instance, at: CFrame, words: string?)
 	s.Parent = m
 end
 
--- The plaza round the campfire: a ring of sand on the grass and in its middle the fire pit, a ring of stones of all
--- sizes (two greys, some mossy) round a bed of ash, the charcoal glowing with embers, four logs crossed with a stick
--- over them and their flames (WorldView puts a flickering flame and its smoke over the middle: `fireOn`), a kettle
--- warming on a stone at the back and a marshmallow toasting on a stick. Round it three log benches (round logs with
--- their tops planed flat, cut ends showing their rings, a knot, a cushion, a folded blanket, mugs), a stack of
--- firewood, a chopping stump with its axe, a bucket, a stump stool with a cushion on a woven mat; the flagpole on its
--- cairn with the island's pennant, and two tiki torches. The south side stays open toward the island's sign, where
--- the founder appears.
-local function plaza(m: Instance, o: CFrame)
-	local c = Street.CENTER
-	local function inRing(x: number, z: number): boolean
-		local dx, dz = x + 0.5 - c.x, z + 0.5 - c.z
-		return dx * dx + dz * dz <= 12.5
-	end
-	bevelled(m, o, { x0 = c.x - 5, z0 = c.z - 5, x1 = c.x + 4, z1 = c.z + 4 }, { top = Street.LAWN_Y + 0.04, h = 0.1, name = "PlazaSand", colors = { "sand_dark" }, solid = true }, function(x, z)
-		return if inRing(x, z) then 1 else 0
-	end)
-	local at = o * CFrame.new(c.x, Street.LAWN_Y + 0.04, c.z)
-	-- (the sand's top here: Blocks snaps its 0.1 deep slabs to 0.25, so it stands at LAWN_Y + 0.115)
-	local SAND = 0.075
-	-- a part in the plaza's frame (`cf` relative to the fire's middle); the small things never collide
-	local function part(cf: CFrame, w: number, h: number, d: number, color: string, name: string, shape: ("Cylinder" | "Ball")?, neon: boolean?, solid: boolean?): BasePart
-		return Blocks.part(m, { size = Vector3.new(w, h, d), cf = at * cf, color = color, name = name, shape = shape, neon = neon, collide = solid == true })
-	end
-	-- an upright round slab (dia across, h high) centred at (x, y, z)
-	local function disc(x: number, y: number, z: number, dia: number, h: number, color: string, name: string, solid: boolean?): BasePart
-		return part(CFrame.new(x, y, z) * CFrame.Angles(0, 0, math.pi / 2), h, dia, dia, color, name, "Cylinder", nil, solid)
-	end
-	-- a round rod (a log, a stick) from a to b, dia thick, a quarter longer so it ends past both points
-	local function rod(a: Vector3, b: Vector3, dia: number, color: string, name: string, solid: boolean?): BasePart
-		return part(CFrame.lookAt((a + b) / 2, b) * CFrame.Angles(0, math.pi / 2, 0), (b - a).Magnitude + 0.25, dia, dia, color, name, "Cylinder", nil, solid)
-	end
-	-- a cut end on the rod a -> b at its b end: pale wood a step proud of the bark, a darker ring a step prouder
-	local function cutEnd(a: Vector3, b: Vector3, dia: number)
-		local u = (b - a).Unit
-		local e = b + u * 0.125
-		local spin = CFrame.Angles(0, math.pi / 2, 0)
-		part(CFrame.lookAt(e - u * 0.0625, e) * spin, 0.25, dia - 0.25, dia - 0.25, "sand_dark", "LogEnd", "Cylinder")
-		if dia >= 0.75 then
-			part(CFrame.lookAt(e, e + u) * spin, 0.25, 0.25, 0.25, "wood", "LogRing", "Cylinder")
-		end
-	end
-
-	------------------------------------------------------------------ the fire pit
-	-- the bed of ash, the charcoal, the embers glowing in it
-	disc(0, 0.0625, 0, 2.25, 0.25, "pavement", "Ash")
-	disc(0.05, 0.125, -0.05, 1.25, 0.25, "rock_dark", "Charcoal")
-	local EMBERS: { { x: number, z: number, c: string } } = {
-		{ x = 0.5, z = 0.2, c = "lava" },
-		{ x = -0.3, z = 0.45, c = "berry_red" },
-		{ x = -0.45, z = -0.25, c = "orange" },
-		{ x = 0.2, z = -0.5, c = "lava" },
-		{ x = 0.55, z = -0.15, c = "berry_red" },
-	}
-	for _, e in EMBERS do
-		part(CFrame.new(e.x, 0.25, e.z), 0.25, 0.25, 0.25, e.c, "Ember", nil, true)
-	end
-	-- the ring of stones: at an angle (degrees), of a kind (1 round, 2 flat and round, 3 a block), a size, a height, a
-	-- grey, mossy or not
-	local STONES: { { a: number, k: number, s: number, h: number, c: string, moss: boolean } } = {
-		{ a = 0, k = 2, s = 0.75, h = 0.5, c = "rock", moss = true },
-		{ a = 34, k = 1, s = 0.5, h = 0, c = "rock_dark", moss = false },
-		{ a = 63, k = 3, s = 0.75, h = 0.5, c = "rock", moss = false },
-		{ a = 96, k = 1, s = 0.75, h = 0, c = "rock", moss = false },
-		{ a = 128, k = 2, s = 0.5, h = 0.5, c = "rock_dark", moss = false },
-		{ a = 160, k = 3, s = 0.5, h = 0.5, c = "rock", moss = true },
-		{ a = 194, k = 1, s = 0.75, h = 0, c = "rock_dark", moss = false },
-		{ a = 226, k = 2, s = 0.75, h = 0.25, c = "rock", moss = false },
-		{ a = 258, k = 3, s = 0.75, h = 0.5, c = "rock_dark", moss = false },
-		{ a = 290, k = 1, s = 0.5, h = 0, c = "rock", moss = true },
-		{ a = 323, k = 2, s = 0.75, h = 0.5, c = "rock_dark", moss = false },
-	}
-	for _, st in STONES do
-		local a = math.rad(st.a)
-		local x, z = math.cos(a) * 1.3, math.sin(a) * 1.3
-		local kind, size, h, grey = st.k, st.s, st.h, st.c
-		local top
-		if kind == 1 then
-			-- (a round stone a third sunk in the sand)
-			part(CFrame.new(x, SAND + size * 0.2, z), size, size, size, grey, "FireStone", "Ball", nil, true)
-			top = SAND + size * 0.7
-		elseif kind == 2 then
-			disc(x, SAND + h / 2 - 0.05, z, size, h, grey, "FireStone", true)
-			top = SAND + h - 0.05
-		else
-			part(CFrame.new(x, SAND + h / 2 - 0.05, z) * CFrame.Angles(0, -a, 0.15), size, h, 0.5, grey, "FireStone", nil, nil, true)
-			top = SAND + h - 0.02
-		end
-		if st.moss then
-			if kind == 1 then
-				part(CFrame.new(x * 0.97, top - 0.14, z * 0.97), 0.5, 0.5, 0.5, "moss", "Moss", "Ball")
-			else
-				disc(x, top - 0.0625, z, 0.5, 0.25, "moss", "Moss")
-			end
-		end
-	end
-	-- four logs crossed in the middle (an X from the view), rising a little to where they burn, their outer ends cut,
-	-- and a stick across them
-	for k = 0, 3 do
-		local a = k * math.pi / 2
-		local u = Vector3.new(math.cos(a), 0, math.sin(a))
-		local foot, tip = u * 0.95 + Vector3.new(0, 0.4, 0), u * 0.1 + Vector3.new(0, 0.55, 0)
-		rod(tip, foot, 0.5, if k % 2 == 0 then "wood_dark" else "hair_brown", "Log", true)
-		cutEnd(tip, foot, 0.5)
-	end
-	rod(Vector3.new(-0.55, 0.62, 0.45), Vector3.new(0.5, 0.7, -0.4), 0.25, "wood", "Log")
-	-- the flames: a glowing bed on the logs, tongues round it in yellow and red-orange showing either side of the
-	-- flickering flame that stands in the middle, a hot yellow heart
-	part(CFrame.new(0, 0.55, 0) * CFrame.Angles(0, math.rad(45), 0), 0.75, 0.25, 0.75, "lava", "Flame", nil, true)
-	local TONGUES: { { a: number, r: number, h: number, c: string } } = {
-		{ a = 70, r = 0.38, h = 0.5, c = "yellow" },
-		{ a = 160, r = 0.4, h = 0.75, c = "orange" },
-		{ a = 250, r = 0.36, h = 0.5, c = "lava" },
-		{ a = 340, r = 0.4, h = 0.75, c = "orange" },
-		{ a = 20, r = 0.3, h = 0.5, c = "yellow" },
-	}
-	for _, t in TONGUES do
-		local a = math.rad(t.a)
-		local x, z = math.cos(a) * t.r, math.sin(a) * t.r
-		part(CFrame.new(x, 0.55 + t.h / 2, z) * CFrame.Angles(z * 0.5, 0, -x * 0.5), 0.25, t.h, 0.25, t.c, "Flame", nil, true)
-	end
-	part(CFrame.new(0, 0.8, 0), 0.25, 0.5, 0.25, "yellow", "Flame", nil, true)
-	-- a kettle warming on the flat stone at the back of the ring: its body, lid and knob, spout and handle
-	do
-		local ka = math.rad(226)
-		local kx, kz = math.cos(ka) * 1.3, math.sin(ka) * 1.3
-		local ky = SAND + 0.2 -- (the stone's top)
-		disc(kx, ky + 0.25, kz, 0.5, 0.5, "black", "Kettle")
-		disc(kx, ky + 0.5, kz, 0.75, 0.25, "steel_dark", "KettleLid")
-		part(CFrame.new(kx, ky + 0.7, kz), 0.25, 0.25, 0.25, "steel", "KettleKnob", "Ball")
-		part(CFrame.new(kx + 0.32, ky + 0.38, kz + 0.32) * CFrame.Angles(0, math.rad(-45), math.rad(35)), 0.5, 0.25, 0.25, "black", "KettleSpout")
-		part(CFrame.new(kx - 0.05, ky + 0.85, kz - 0.05) * CFrame.Angles(0, math.rad(45), 0), 0.75, 0.25, 0.25, "steel_dark", "KettleHandle")
-	end
-	-- a stick propped on a stone on the west side (clear of the fire's front), a marshmallow toasting on it
-	do
-		local a = math.rad(158)
-		local u = Vector3.new(math.cos(a), 0, math.sin(a))
-		local base, tip = u * 2.0 + Vector3.new(0, SAND + 0.12, 0), u * 0.65 + Vector3.new(0, 0.9, 0)
-		rod(base, tip, 0.25, "wood", "Stick")
-		part(CFrame.lookAt(tip, tip + (tip - base)) * CFrame.new(0, 0, -0.15), 0.25, 0.25, 0.25, "cream", "Marshmallow")
-	end
-
-	------------------------------------------------------------------ the seats
-	-- a log bench along its frame's X, `len` long: a round log on the sand, its top planed flat, its cut ends showing
-	-- their rings, a knot and a patch of moss on its bark
-	local function bench(f: CFrame, len: number)
-		local function at2(x: number, y: number, z: number): Vector3
-			return (f * CFrame.new(x, y, z)).Position
-		end
-		local ya = SAND + 0.3
-		part(f * CFrame.new(0, ya, 0), len, 0.75, 0.75, "wood_dark", "Seat", "Cylinder", nil, true)
-		part(f * CFrame.new(0, ya + 0.35, 0), len - 0.5, 0.25, 0.5, "wood", "SeatTop", nil, nil, true)
-		for _, sx in { 1, -1 } do
-			-- (cutEnd works from a rod's points, a quarter inside its ends)
-			cutEnd(at2(0, ya, 0), at2(sx * (len / 2 - 0.125), ya, 0), 0.75)
-		end
-		part(f * CFrame.new(len * 0.2, ya + 0.05, 0.4) * CFrame.Angles(0, math.pi / 2, 0), 0.25, 0.25, 0.25, "wood", "Knot", "Cylinder")
-		part(f * CFrame.new(-len * 0.3, ya + 0.2, -0.3) * CFrame.Angles(0.7, 0, 0), 0.5, 0.25, 0.25, "moss", "Moss")
-	end
-	local west = CFrame.new(-2.75, 0, 0.5) * CFrame.Angles(0, math.pi / 2, 0)
-	local east = CFrame.new(2.75, 0, 0.25) * CFrame.Angles(0, math.pi / 2, 0)
-	local north = CFrame.new(0, 0, -2.75)
-	bench(west, 2.25)
-	bench(east, 2)
-	bench(north, 2.25)
-	local seat = SAND + 0.775 -- (a bench's planed top)
-	-- on the benches: a folded blanket and a mug on the west one, a cushion on the north one, two mugs on the east one
-	part(west * CFrame.new(-0.5, seat + 0.125, 0), 0.75, 0.25, 0.75, "berry_red", "Blanket")
-	part(west * CFrame.new(-0.5, seat + 0.1875, 0), 0.25, 0.25, 1, "cream", "BlanketStripe")
-	disc((west * CFrame.new(0.55, 0, 0.05)).Position.X, seat + 0.125, (west * CFrame.new(0.55, 0, 0.05)).Position.Z, 0.25, 0.25, "white", "Mug")
-	part(north * CFrame.new(-0.45, seat + 0.125, 0) * CFrame.Angles(0, 0.3, 0), 0.75, 0.25, 0.5, "cherry", "Cushion")
-	for _, mz in { -0.35, 0.05 } do
-		local p = (east * CFrame.new(mz, 0, 0.05)).Position
-		disc(p.X, seat + 0.125, p.Z, 0.25, 0.25, if mz < 0 then "blue" else "pot", "Mug")
-	end
-	-- a little stack of firewood north-east between two benches, its cut ends toward the view
-	-- (each log: across the stack, its row, its wood)
-	local WOOD: { { z: number, row: number, c: string } } = {
-		{ z = -0.25, row = 0, c = "wood_dark" },
-		{ z = 0.25, row = 0, c = "hair_brown" },
-		{ z = 0, row = 1, c = "wood_dark" },
-	}
-	for _, l in WOOD do
-		local z = -1.95 + l.z
-		local y = SAND + 0.25 + l.row * 0.42
-		local a, b = Vector3.new(1.75, y, z), Vector3.new(2.5, y, z)
-		rod(a, b, 0.5, l.c, "Firewood", true)
-		cutEnd(a, b, 0.5)
-	end
-	-- the chopping stump, north-west, its axe stuck in it
-	disc(-2.05, SAND + 0.2, -2.05, 0.75, 0.5, "wood_dark", "Stump", true)
-	disc(-2.05, SAND + 0.4, -2.05, 0.5, 0.25, "sand_dark", "StumpTop")
-	part(CFrame.new(-2, SAND + 0.85, -2) * CFrame.Angles(0, 0.6, 0.5), 0.25, 0.75, 0.25, "wood", "AxeHandle")
-	part(CFrame.new(-2.1, SAND + 0.55, -2.07) * CFrame.Angles(0, 0.6, 0), 0.25, 0.25, 0.5, "steel", "AxeHead")
-	-- a tin bucket of water, south-east
-	disc(2.3, SAND + 0.2, 1.95, 0.5, 0.5, "steel", "Bucket", true)
-	disc(2.3, SAND + 0.375, 1.95, 0.25, 0.25, "water", "BucketWater")
-	part(CFrame.new(2.3, SAND + 0.6, 1.95) * CFrame.Angles(0, 0.8, 0), 0.5, 0.25, 0.25, "steel_dark", "BucketHandle")
-	-- a stump stool with a cushion, south-west, and a woven mat under it (three stripes side by side)
-	-- (the bark, the cut top a little proud of it, the cushion on that: no two sides of one width overlap)
-	disc(-2.2, SAND + 0.2, 2.2, 0.75, 0.5, "wood_dark", "Stool", true)
-	disc(-2.2, SAND + 0.425, 2.2, 0.5, 0.25, "sand_dark", "StoolTop")
-	disc(-2.2, SAND + 0.675, 2.2, 0.75, 0.25, "sofa", "StoolCushion")
-	for k, col in { "straw", "berry_red", "straw" } do
-		part(CFrame.new(-2.2, SAND + 0.05, 2.2) * CFrame.Angles(0, math.rad(45), 0) * CFrame.new((k - 2) * 0.25, 0, 0), 0.25, 0.25, 1.25, col, "Mat")
-	end
-
-	------------------------------------------------------------------ the flag and the torches
-	-- the flagpole on a little cairn, its gold knob, the island's pennant and its mark (a step proud both sides)
-	part(CFrame.new(3, 2.5, -3), 0.25, 5, 0.25, "wood_dark", "FlagPole", nil, nil, true)
-	part(CFrame.new(3, 5.1, -3), 0.5, 0.5, 0.5, "gold", "PoleKnob", "Ball")
-	for k, r in { { 2.7, -2.75, 0.5 }, { 3.25, -2.7, 0.5 }, { 3.05, -3.3, 0.75 } } do
-		part(CFrame.new(r[1], SAND + 0.05, r[2]), r[3], r[3], r[3], if k == 2 then "rock_dark" else "rock", "Cairn", "Ball")
-	end
-	-- the flag itself (the request of 2026-11-17: "make the flag look like an actual flag"; it was a red slab a
-	-- quarter stud thick with a white cube through it): thin cloth hung from just under the knob, from the pole's face
-	-- out to the south, in four panels turned a little each way so the light picks out its folds, the free end hanging a
-	-- touch lower; red with a white band through the middle. Named Pennant..., so the wind ripples it (Blocks.windy).
-	local FOLD = { 0, 0.16, 0, 0.16, 0.04 } -- each fold line's step out from the cloth's plane (studs, +X)
-	local PANEL = 0.42
-	for k = 1, 4 do
-		local a = Vector3.new(3 + FOLD[k], 4.45 - 0.035 * (k - 1), -2.875 + PANEL * (k - 1))
-		local b = Vector3.new(3 + FOLD[k + 1], 4.45 - 0.035 * k, -2.875 + PANEL * k)
-		local mid = (a + b) / 2
-		local face = CFrame.lookAt(mid, Vector3.new(b.X, mid.Y, b.Z))
-		local len = Vector2.new(b.X - a.X, b.Z - a.Z).Magnitude + 0.02 -- (a hair over, so the panels meet)
-		part(face * CFrame.new(0, 0.32, 0), 0.12, 0.36, len, "berry_red", "Pennant")
-		part(face, 0.12, 0.28, len, "white", "PennantBand")
-		part(face * CFrame.new(0, -0.32, 0), 0.12, 0.36, len, "berry_red", "Pennant")
-	end
-	-- two tiki torches at the plaza's south edge: a pole bound with straw, a carved cup, a flame
-	for _, tx in { -2.5, 2.5 } do
-		local tf = o * CFrame.new(tx, Street.LAWN_Y, Street.PLAZA.z1 - 0.5)
-		box(m, tf, 0, 0.95, 0, 0.25, 2, 0.25, "wood_dark", "TorchPole")
-		for _, y in { 0.6, 1.45 } do
-			Blocks.part(m, { size = Vector3.new(0.5, 0.25, 0.5), cf = tf * CFrame.new(0, y, 0), color = "straw", name = "TorchBinding", collide = false })
-		end
-		box(m, tf, 0, 2, 0, 0.5, 0.5, 0.5, "wood", "TorchCup")
-		Blocks.part(m, { size = Vector3.new(0.75, 0.25, 0.75), cf = tf * CFrame.new(0, 2.25, 0), color = "wood_dark", name = "TorchRim", collide = false })
-		Blocks.part(m, { size = Vector3.new(0.5, 0.5, 0.5), cf = tf * CFrame.new(0, 2.45, 0), color = "orange", name = "TorchFlame", neon = true, collide = false })
-		Blocks.part(m, { size = Vector3.new(0.25, 0.25, 0.25), cf = tf * CFrame.new(0.03, 2.7, 0.03), color = "yellow", name = "TorchFlame", neon = true, collide = false })
-	end
-end
-
 -- Things round the coast, never on a cell a building may use: palms at the grass's edge, rocks in the shallows,
 -- shells and starfish on the beach, driftwood, seaweed on the wet sand, tufts and flowers on the grass's rim. Each
 -- cell decides for itself from a hash of where it is (no sequence of random draws across the island), so a part of
@@ -911,7 +668,8 @@ local function scatterOk(k: ScatterKind, tier: number, x: number, z: number, sx:
 	elseif id == "weed" then
 		return l == Street.WET
 	end
-	return l == Street.GRASS and not Street.buildable(tier, x, z) and not Street.locked(tier, x, z) and not Street.trail(tier, x, z)
+	-- (the grass's rim, the stud nearest the beach: the same on every tier)
+	return l == Street.GRASS and Street.cellDist(tier, x, z) > -1
 end
 
 -- The way out to sea from cell (x, z) (radians, as a palm leans): down the layers round it, grass to sea.
@@ -992,154 +750,15 @@ local function scatterIn(m: Instance, o: CFrame, tier: number, b: Rect)
 	end
 end
 
------------------------------------------------------------------- the rocks over the ground not open yet
--- The island is whole from the start; the grass past the open ground (Street.locked) lies under rock (the request of
--- 2026-11-20: "make the player start in the middle of the island first, which is surrounded by rocks. expanding
--- removes these rocks to give space to the player to build"): shelves of rock stepping up the further they are from
--- the open ground (ROCK_STEPS: past each distance from its edge, a shelf ROCK_RISE higher, bevelled like the coast,
--- one tone each, so they merge into few parts), boulders along the edge and fewer, plainer ones on the shelves, moss on
--- top. (A first island is mostly rock: its parts are kept in check, the world sim's "a whole island's land and rocks
--- stay light".) Invisible walls in the
--- "Bounds" group stand on every rock cell, so nobody walks or jumps onto them (the pixel filter's rays pass them).
--- Every choice comes from the cell (a hash, its distance from the open ground's edge), so a chunk the next tier leaves
--- as it was comes out the same.
-local ROCK_STEPS = { 0, 2.6, 5.2 } -- (the distances from the open ground's edge past which each shelf starts)
-local ROCK_RISE = 1.3
--- the openDist bands a chunk's rocks read (its signature: `cellCode`)
-local ROCK_BANDS = { -1, -0.6, 0, 0.5, 1.2, 2.6, 3.5, 5.2 }
-type RockKind = { id: string, salt: number, p: number, gap: number, d0: number, d1: number }
-local ROCK_THINGS: { RockKind } = {
-	-- big boulders astride the edge, a stud either side of it, so the shelves' straight runs break up
-	{ id = "edge", salt = 101, p = 0.42, gap = 2.6, d0 = -0.6, d1 = 1.2 },
-	-- boulders on the shelves, a stone and a cap each
-	{ id = "boulder", salt = 113, p = 0.35, gap = 4.6, d0 = 1.6, d1 = math.huge },
-	-- moss on the rock
-	{ id = "moss", salt = 127, p = 0.25, gap = 3.6, d0 = 0.5, d1 = math.huge },
-}
-
--- The height of the rock's top over a cell at a distance d from the open ground's edge (the lawn's below the first).
-local function rockTop(d: number): number
-	local top = Street.LAWN_Y
-	for k, edge in ROCK_STEPS do
-		if d > edge then
-			top = Street.LAWN_Y + ROCK_RISE * k
-		end
-	end
-	return top
-end
-
-local function rockCover(m: Instance, o: CFrame, tier: number, b: Rect)
-	local key = Street.cellKey
-	-- (how far from the ground walked on: the open ground and the trail, so the rocks step up from both)
-	local function open(x: number, z: number): number
-		return Street.rockDist(tier, x, z)
-	end
-	local function onRock(x: number, z: number): boolean
-		return Street.locked(tier, x, z)
-	end
-	-- the shelves, each over the cells past its distance, two tones in patches
-	for k, edge in ROCK_STEPS do
-		local top = Street.LAWN_Y + ROCK_RISE * k
-		bevelled(m, o, b, { top = top, h = ROCK_RISE + 0.12, name = "Rock", colors = { "rock" }, solid = true }, function(x: number, z: number): number
-			return if onRock(x, z) and open(x, z) > edge then 1 else 0
-		end)
-	end
-	-- the walls: over every rock cell, from the lawn up past any jump
-	for _, r in greedy(b, onRock) do
-		local f = Blocks.part(m, {
-			size = Vector3.new(r.x1 - r.x0, WALL_H, r.z1 - r.z0),
-			cf = o * CFrame.new((r.x0 + r.x1) / 2, Street.LAWN_Y + WALL_H / 2, (r.z0 + r.z1) / 2),
-			color = "white",
-			name = "RockWall",
-			transparency = 1,
-			query = false,
-		})
-		f.CastShadow = false
-		f.CollisionGroup = "Bounds"
-	end
-	-- the trail through them (Street.trail): trodden earth flush with the grass, as the Dirt Path piece, a pebble here
-	-- and there
-	local function onTrail(x: number, z: number): boolean
-		return Street.trail(tier, x, z)
-	end
-	for _, r in greedy(b, onTrail) do
-		slab(m, o, r.x0, r.z0, r.x1, r.z1, Street.LAWN_Y + 0.04, 0.06, "sand_dark", "Trail")
-	end
-	for z = b.z0, b.z1 do
-		for x = b.x0, b.x1 do
-			if onTrail(x, z) and hash01(x, z, 141) < 0.09 then
-				local px = x + 0.25 + math.floor(hash01(x, z, 142) * 3) * 0.25
-				local pz = z + 0.25 + math.floor(hash01(x, z, 143) * 3) * 0.25
-				box(m, o, px, Street.LAWN_Y + 0.07, pz, 0.25, 0.06, 0.25, if hash01(x, z, 144) < 0.5 then "rock" else "rock_dark", "Pebble")
-			end
-		end
-	end
-	-- boulders, moss and tufts, each where its hash is the lowest of its kind within its gap
-	for _, k in ROCK_THINGS do
-		local g = math.ceil(k.gap)
-		local cand: { [number]: number } = {}
-		for z = b.z0 - g, b.z1 + g do
-			for x = b.x0 - g, b.x1 + g do
-				local d = open(x, z)
-				-- (none on the trail or at its edge: it stays clear to walk)
-				if d > k.d0 and d <= k.d1 and Street.layer(tier, x, z) == Street.GRASS and Street.trailDist(x, z) > 0.3 then
-					local h = hash01(x, z, k.salt)
-					if h < k.p then
-						cand[key(x, z)] = h
-					end
-				end
-			end
-		end
-		local g2 = k.gap * k.gap
-		for z = b.z0, b.z1 do
-			for x = b.x0, b.x1 do
-				local h = cand[key(x, z)]
-				if h == nil then
-					continue
-				end
-				local lowest = true
-				for dz = -g, g do
-					for dx = -g, g do
-						if (dx ~= 0 or dz ~= 0) and dx * dx + dz * dz < g2 then
-							local other = cand[key(x + dx, z + dz)]
-							if other and (other < h or (other == h and (dz < 0 or (dz == 0 and dx < 0)))) then
-								lowest = false
-							end
-						end
-					end
-				end
-				if not lowest then
-					continue
-				end
-				local px, pz = x + 0.5, z + 0.5
-				local top = rockTop(open(x, z))
-				local turn = hash01(x, z, k.salt + 1) * 6
-				local rng = Util.newRng(math.floor(hash01(x, z, k.salt + 3) * 2147483647))
-				if k.id == "edge" then
-					rocks(m, o * CFrame.new(px, top, pz) * CFrame.Angles(0, turn, 0), 1.0 + hash01(x, z, k.salt + 2) * 0.7, rng)
-				elseif k.id == "boulder" then
-					local bs = 1.1 + hash01(x, z, k.salt + 2) * 0.9
-					local at = o * CFrame.new(px, top, pz) * CFrame.Angles(0, turn, 0)
-					box(m, at, 0, 0.35 * bs, 0, 1.5 * bs, 1.0 * bs, 1.25 * bs, if hash01(x, z, k.salt + 4) < 0.5 then "rock" else "rock_dark", "Stone")
-					box(m, at, 0.1 * bs, 0.9 * bs, -0.05 * bs, 1.0 * bs, 0.25 * bs, 0.75 * bs, "rock", "Stone")
-				else
-					local w = 0.75 + math.floor(hash01(x, z, k.salt + 2) * 3) * 0.25
-					box(m, o * CFrame.new(px, top, pz) * CFrame.Angles(0, math.floor(turn) * math.pi / 2, 0), 0, 0.05, 0, w, 0.12, w * 0.75, "moss", "Moss")
-				end
-			end
-		end
-	end
-end
-
 ------------------------------------------------------------------ the land in chunks
 -- The island's land is built in chunks of CHUNK x CHUNK cells (plot-local, on a grid from the plot's origin), each a
 -- model of its own named for what it holds: Chunk_<cx>_<cz>_<signature>, the signature a hash of the layer and
 -- coast-distance band of every cell in it and LAND_MARGIN cells round it (all its bevels, tones and scatter read), and
--- of the sign's place when it is near. A bigger tier leaves most of the island as it was (Street.coast: an island only
--- gains land), so most of its chunks come out with the same names, and the server keeps those (PlotService.build): an
--- expansion builds, sends and re-draws only the chunks that changed (the request of 2026-11-19: "Expansion is very
--- slow and laggy, especially at higher levels. Is it possible to optimize and speed it up?"). The plaza and the sign
--- are children of their own. Splitting the ground at a chunk's edge draws no line: the pixel filter inks only where
+-- of the sign's place when it is near. Since 2026-11-20 nothing in them depends on the tier (the land not open yet is
+-- the pixel filter's dark, no rock: the request "Remove the rocks and make it a gradient dark filter instead ... This
+-- should also make it much less laggy when expanding"), so an expansion keeps every chunk: the server builds, sends
+-- and re-draws none of them (PlotService.build; the request of 2026-11-19: "Expansion is very slow and laggy,
+-- especially at higher levels" first made it build only the chunks that changed). The sign is a child of its own. Splitting the ground at a chunk's edge draws no line: the pixel filter inks only where
 -- the depth jumps.
 StreetModels.CHUNK = 16
 local LAND_MARGIN = SCATTER_REACH + 1
@@ -1154,19 +773,8 @@ local function cellCode(tier: number, x: number, z: number): number
 		return 0
 	end
 	local d = Street.cellDist(tier, x, z)
-	local code = l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
-	if l == Street.GRASS then
-		-- (and how far from the ground walked on, in the bands the rocks read: rockCover; the trail's cells are rock-free)
-		local od = Street.rockDist(tier, x, z)
-		local band = 0
-		for _, e in ROCK_BANDS do
-			if od > e then
-				band += 1
-			end
-		end
-		code += 64 * band + (if Street.trail(tier, x, z) then 1024 else 0)
-	end
-	return code
+	-- (nothing on the land depends on the tier since the dark took the rocks' place: an expansion changes no chunk)
+	return l * 8 + (if d <= -1 then 1 else 0) + (if d > -0.9 then 2 else 0) + (if d < 1.2 then 4 else 0)
 end
 
 -- The lot's cells (a neighbour's water is theirs).
@@ -1231,17 +839,7 @@ function StreetModels.landChunk(parent: Instance, origin: Vector3, tier: number,
 		return Street.cellDist(tier, x, z)
 	end)
 	scatterIn(m, o, tier, c.rect)
-	rockCover(m, o, tier, c.rect)
 	Blocks.windy(m) -- palms and tufts sway
-	m.Parent = parent
-	return m
-end
-
--- The plaza round the campfire (the same on every tier).
-function StreetModels.landPlaza(parent: Instance, origin: Vector3): Model
-	local m = Blocks.model(nil, "Plaza")
-	plaza(m, CFrame.new(origin))
-	Blocks.windy(m) -- the plaza's pennant ripples
 	m.Parent = parent
 	return m
 end
@@ -1255,13 +853,12 @@ function StreetModels.landSign(parent: Instance, origin: Vector3, tier: number):
 	return m
 end
 
--- The whole island at a tier: every chunk of its land, the plaza and the sign, under one model "Land".
+-- The whole island at a tier: every chunk of its land and the sign, under one model "Land".
 function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Model
 	local m = Blocks.model(nil, "Land")
 	for _, c in StreetModels.landPlan(tier).chunks do
 		StreetModels.landChunk(m, origin, tier, c)
 	end
-	StreetModels.landPlaza(m, origin)
 	StreetModels.landSign(m, origin, tier)
 	m.Parent = parent
 	return m

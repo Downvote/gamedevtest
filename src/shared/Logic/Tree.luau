@@ -45,7 +45,11 @@ type ErrCode = Types.ErrCode
 local Tree = {}
 
 Tree.ID = "tree" -- its piece (Data/Buildings)
-Tree.SPOT = { x = -4, z = -6 } -- where a new island's tree goes (the nearest free spot: behind the campfire)
+-- where a new island's tree goes (the nearest free spot): in the island's middle, its 8 x 8 centred on Street.CENTER
+-- (the request of 2026-11-20: "Remove the campfire in the middle and put the tree in the middle instead"; behind the
+-- campfire, x -4 z -6, till then: Tree.OLD_SPOT, where Schema's step to version 22 moves it from)
+Tree.SPOT = { x = -4, z = 2 }
+Tree.OLD_SPOT = { x = -4, z = -6 }
 
 ------------------------------------------------------------------ its numbers
 -- The huts' driftlings' luck and cost shares together (Data/Traits: Lucky, Thrifty and their kin, passives too), each

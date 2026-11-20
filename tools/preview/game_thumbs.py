@@ -271,9 +271,9 @@ def thumb_build(sc, pics):
     return cv
 
 
-def thumb_rocks(sc, pics):
-    cv = sc["rocks"]
-    thumb_caption(cv, "Clear the rocks to grow your island", top=True)
+def thumb_dark(sc, pics):
+    cv = sc["dark"]
+    thumb_caption(cv, "Light up more of your island", top=True)
     return cv
 
 
@@ -375,7 +375,7 @@ def main():
             sys.exit("no scene " + p)
         return load_scene(p)
 
-    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "rocks")}
+    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "dark")}
     os.makedirs(a.out, exist_ok=True)
     made = [
         ("thumb_1_title", thumb_title(sc, pics)),
@@ -383,7 +383,7 @@ def main():
         ("thumb_3_collect", thumb_collect(sc, pics, kinds)),
         ("thumb_4_build", thumb_build(sc, pics)),
         ("thumb_5_eggs", thumb_eggs(sc, pics)),
-        ("thumb_6_rocks", thumb_rocks(sc, pics)),
+        ("thumb_6_dark", thumb_dark(sc, pics)),
     ]
     imgs = []
     for name, cv in made:

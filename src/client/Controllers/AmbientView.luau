@@ -114,7 +114,7 @@ type Isle = {
 	box: { x0: number, z0: number, x1: number, z1: number }, -- world: the island and its shallows
 	visible: boolean,
 	seenAt: number,
-	lawn: { number }, -- flat x, z (world): grass cells a bird may stand on (off the pieces and the plaza)
+	lawn: { number }, -- flat x, z (world): grass cells a bird may stand on (off the pieces)
 	sand: { number }, -- flat x, z: the dry beach
 	shore: { number }, -- flat x, z, y: water near the shore (a fish jumps there)
 	chunks: { Chunk },
@@ -128,7 +128,7 @@ type Isle = {
 	fish: Fish?,
 	fishAt: number,
 	decor: Instance?,
-	landModel: Instance?, -- the island's land model (its chunks, plaza and sign: StreetModels.land)
+	landModel: Instance?, -- the island's land model (its chunks and sign: StreetModels.land)
 	seen: { [Instance]: any }, -- each model's spots (Spots), looked at once
 	conns: { RBXScriptConnection },
 	scanDirty: boolean,
@@ -332,8 +332,8 @@ local function buildLand(I: Isle)
 	for z = b.z0, b.z1 do
 		for x = b.x0, b.x1 do
 			local l = Street.layer(tier, x, z)
-			if l == Street.GRASS and Street.walkable(tier, x, z) and not Street.trail(tier, x, z) then
-				-- (the open ground's: none under the rocks, none on the trail's earth through them)
+			if l == Street.GRASS and Street.openDist(tier, x, z) <= 0 then
+				-- (the open ground's: none out in the dark, where nobody looks)
 				local key = (x // 8) * 1000 + z // 8
 				local ch = chunks[key]
 				if ch == nil then
@@ -478,7 +478,7 @@ local function scan(I: Isle)
 	local static = if m then m:FindFirstChild("Static") else nil
 	local land = if static then static:FindFirstChild("Land") else nil
 	-- (the island's land is built in chunks since 2026-11-19 and an expansion swaps only those that changed: each chunk,
-	-- the plaza and the sign is looked at on its own, once; an empty lot's sandbar is one model)
+	-- the sign is looked at on its own, once; an empty lot's sandbar is one model)
 	local landModel = if land then (land:FindFirstChild("Land") or land:FindFirstChild("EmptyLot")) else nil
 	local decor = if static then static:FindFirstChild("Decor") else nil
 	if decor ~= I.decor or landModel ~= I.landModel then
@@ -559,13 +559,12 @@ local function scan(I: Isle)
 			end
 		end
 	end
-	-- the lawn a bird stands on: the grass a stud in from its edge, off the pieces and the plaza
+	-- the lawn a bird stands on: the grass a stud in from its edge, off the pieces (the Tree of Life among them)
 	local lawn: { number } = {}
 	local b = Street.plot(I.tier)
-	local pz = Street.PLAZA
 	for z = b.z0, b.z1 - 1 do
 		for x = b.x0, b.x1 - 1 do
-			if Street.buildable(I.tier, x, z) and not covered[Street.cellKey(x, z)] and not (x >= pz.x0 and x < pz.x1 and z >= pz.z0 and z < pz.z1) then
+			if Street.buildable(I.tier, x, z) and not covered[Street.cellKey(x, z)] then
 				table.insert(lawn, I.ox + x + 0.5)
 				table.insert(lawn, I.oz + z + 0.5)
 			end

@@ -1,4 +1,4 @@
--- The main simulation: a new island end to end through the real client and its UI (the campfire, the sign, the Tree of
+-- The main simulation: a new island end to end through the real client and its UI (the sign, the Tree of
 -- Life with its first lot of eggs round its roots, the HUD with the tree's card, the tips), building what the tips ask
 -- in their order (a lumber camp, a veggie patch, a hut, then an egg hatched by tapping it, then a snack stall: the
 -- starting shells cover them; Build mode turns its tray to Work's Workplaces row, then Huts, then back), the
@@ -60,7 +60,20 @@ local plot1 = E.workspace:FindFirstChild("Plots") and E.workspace.Plots:FindFirs
 local static = plot1 and plot1:FindFirstChild("Static")
 local land1 = static and static:FindFirstChild("Land")
 H.expect(land1 ~= nil and land1:FindFirstChild("Land") ~= nil and static:FindFirstChild("Office") == nil, "join", "the island is built under Plots.Plot_1.Static.Land (no house)")
-H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) ~= nil and land1:FindFirstChild("PlotSign", true) ~= nil, "join", "its plaza's campfire and its sign")
+H.expect(land1 ~= nil and land1:FindFirstChild("FireStone", true) == nil and land1:FindFirstChild("Plaza", true) == nil and land1:FindFirstChild("PlotSign", true) ~= nil, "join", "its sign, no campfire or plaza (the Tree of Life in the middle since 2026-11-20)")
+do
+	-- the Tree of Life in the island's middle (the request of 2026-11-20: "Remove the campfire in the middle and put the
+	-- tree in the middle instead"), no rock and no rock wall on the land (the dark is the pixel filter's)
+	local tq = prof.plot.placed[1]
+	H.expect(tq ~= nil and tq.id == "tree" and tq.x + 4 == Street.CENTER.x and tq.z + 4 == Street.CENTER.z, "join", "the Tree of Life stands in the island's middle", tq and string.format("%d,%d", tq.x, tq.z))
+	local rocky = 0
+	for _, d in (land1 and land1:GetDescendants() or {}) do
+		if d.Name == "Rock" or d.Name == "RockWall" or d.Name == "Trail" then
+			rocky += 1
+		end
+	end
+	H.expect(rocky == 0, "join", "no rock, rock wall or trail on the land", tostring(rocky))
+end
 H.expect(land1 ~= nil and land1:FindFirstChild("JettyPlank", true) == nil and land1:FindFirstChild("Mailbox", true) == nil and land1:FindFirstChild("Bound", true) == nil, "join", "no docks: no jetty, no mailbox, no coast walls (the founders swim)")
 H.expect(plot1 and plot1:GetAttribute("StudioName") == "Pixel's Isle", "join", "the island's name", tostring(plot1 and plot1:GetAttribute("StudioName")))
 local dyn = E.workspace:FindFirstChild("PixelDynamic")
@@ -379,7 +392,7 @@ local function paid(sh1, want, t1, rate)
 	local got = prof.shells - sh1
 	return got >= want - 0.5 and got <= want + earnedSince(t1, rate)
 end
--- the Tree of Life (GAME_DESIGN 6): every island has one behind the campfire, its model by its stage. Its first lot of
+-- the Tree of Life (GAME_DESIGN 6): every island has one in its middle, its model by its stage. Its first lot of
 -- eggs is laid the moment the island wakes (Tree.count by the tier, the first two cheap commons on a new island), the
 -- next lot Tree.secs away. The view carries the eggs with their prices; the HUD's tree card shows the time to the next
 -- lot and the best three (EggView.best); EggView lays every egg on a ring round the tree, the price tags over them
@@ -3147,14 +3160,11 @@ do
 	ok, out = H.raw(p, "plot.fence", { edges = string.format("%d,%d,0", fx0, fz0) })
 	expectRefused("a fence request without its id", ok, out, "bad_payload")
 	do
-		-- (through the Tree of Life, through the plaza round the campfire)
+		-- (through the Tree of Life in the island's middle)
 		local tq = treePiece()
 		local ex, ez = math.floor((tq.x + 2) / 2) * 2, math.floor((tq.z + 4) / 2) * 2
 		ok, out = H.raw(p, "plot.fence", { id = "picket", edges = string.format("%d,%d,0", ex, ez) })
 		expectRefused("a fence through the Tree of Life", ok, out, "blocked")
-		local px, pz = math.floor((Street.PLAZA.x0 + 2) / 2) * 2, math.floor((Street.PLAZA.z0 + Street.PLAZA.z1) / 4) * 2
-		ok, out = H.raw(p, "plot.fence", { id = "picket", edges = string.format("%d,%d,0", px, pz) })
-		expectRefused("a fence across the plaza", ok, out, "blocked")
 	end
 	ok, out = H.raw(p, "plot.unfence", { edges = string.format("%d,%d,45", fx0, fz0) })
 	expectRefused("taking down a fence turned 45", ok, out, "bad_payload")

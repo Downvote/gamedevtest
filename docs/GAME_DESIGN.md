@@ -234,7 +234,7 @@ stands alone in the sea, and the land where the path ran is the island's to buil
 beach any more: they walk off the sand into the sea and swim (§8), head and shoulders above the water, a ring of foam
 round them, crawling when they move and treading water when they stop, slower than on land and with no jump. They swim
 over to anyone's island and climb out on its beach. The island's sign moved to its south beach and still carries its
-name; a founder now appears on the plaza, and Home brings them back there.
+name; a founder now appears on the plaza (in front of the Tree of Life since 2026-11-20), and Home brings them back there.
 
 > The request (2026-11-13): "make it such that each creature can work at any place, and is no longer
 > restricted."
@@ -338,8 +338,8 @@ from kariosoft and make a simplified version of it in gamedevtest. dont touch th
 reference"), the pixel art rules (§2) and the polish requests (§11). The game studio of the earlier versions is gone
 (§10: an old save starts a fresh island).
 
-Driftling Isle is a small island-village management game for Roblox. You wash up on a little island with a campfire on
-its grass and a Tree of Life behind the fire, the sea all round. Every few minutes the tree lays **eggs**
+Driftling Isle is a small island-village management game for Roblox. You wash up in the middle of an island, by the
+Tree of Life, with the rest of the island in the dark round you and the sea all round. Every few minutes the tree lays **eggs**
 round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
 then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build lumber camps, farms and shops,
 which all sell for shells, and huts for the driftlings you hatch; each one works wherever you send it, a little faster at
@@ -367,7 +367,7 @@ offline progress).
 
 ## 2. Look and feel
 
-- **World:** one island per player in a row on the open sea (no docks: you swim between them), each of its own shape with a campfire at
+- **World:** one island per player in a row on the open sea (no docks: you swim between them), each with the Tree of Life at
   its heart, its grass, a sand beach and a shore stepping down into a moving sea (§8), seen from the Random Bakery
   camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
@@ -780,7 +780,7 @@ two figures: a Lumber Camp 110, a Veggie Patch 60, a Driftling Hut 85, a Snack S
 Driftling Citadel 140,000,000 and the Crown of the Sea 1,100,000,000. The farms' and shops' shells go into building
 too now, and a big island's buildings pay for themselves in minutes, so building costs more shells than it did wood,
 the more the bigger the piece's tier (§10 measured it). Pieces go down on whole studs of the island's grass (a stud or more in from the sand), turned a
-quarter at a time, off the campfire's plaza, off every other piece and off water unless it
+quarter at a time, off every other piece (the Tree of Life in the middle among them) and off water unless it
 is made to go over or on it (§4.3). Paths are the one thing a piece may share a spot with (a paved yard, below).
 
 **The limits.** Each sort of thing has its own limit, and each grows with the island (§4.4 has them by tier): the pieces
@@ -979,7 +979,7 @@ lump of stone or a cane, by the fence) that the next length shares, so a run joi
 drag makes steps); **Box** runs a fence all the way round the box from the press to the finger; **Erase** takes
 lengths down into the inventory. Drawing another fence over a length swaps it. A length goes where each of its two
 studs has grass on one side or the other, so a fence can run along the island's edge; it never runs through a
-building or the plaza, but it may run along a building's side and past paths and water, and a
+building (the Tree of Life among them), but it may run along a building's side and past paths and water, and a
 building can't be put down across a fence. A length picked up turns between east and south with Rotate (R). The
 seventeen run from a rope sagging between two posts to a crystal fence with glowing points, by way of white pickets,
 split rails, a bamboo screen, bleached driftwood, woven willow, a clipped hedgerow, a garden gate under a little arch,
@@ -1031,17 +1031,26 @@ fifth lower again: Palm Isle 480 wood, Harbor Town 48,000, Coral City 128,000, t
 
 > The request (2026-11-20): "also, make a path across each plot that goes through the rocks"
 
+> The request (2026-11-20): "Remove the campfire in the middle and put the tree in the middle instead. Remove the rocks
+> and make it a gradient dark filter instead, with the darkness retreating as it expands. This should also make it much
+> less laggy when expanding". So the Tree of Life stands where the campfire's plaza was (a save's tree still at its
+> old spot moves there), the rocks, their walls and the trail through them are gone, and the dark is drawn by the
+> pixel filter. A tier 3 to 4 expansion on a full island took 22 frames over 4.8 s (the worst frame 1,028 ms, 33 land
+> models built again and cast); now 22 frames over 1.3 s (the worst 335 ms, the server's answer and the Build tray),
+> no land model built, and a second later the island draws as fast as before it grew.
+
 The island is whole from the first day and round: about 132 studs across, its beaches, palms and shallows all round.
-The founder starts in the middle of it, on a meadow round the plaza and the Tree of Life, and rock covers the rest of
-the grass: shelves of grey stone that step up the further they are from the meadow, boulders along the edge and on
-top, moss and tufts. Nobody walks or builds on the rock. Each tier opens a wider ring round the plaza (`Data/Street`'s
-isles: the first a small oval, then circles from 19 studs across the radius to 60, each edge with its own wobble), so
-the open ground grows outward evenly every way, and growing to a tier clears the rocks off its ring. A trail runs
-across every island from the west beach to the east one through the plaza's row, wandering a little, four studs wide
-(`Street.trail`): where the rocks still stand it is trodden earth like the Dirt Path with a pebble here and there, the
-rock stepping up from it on both sides as it does from the meadow, so a founder who swims over from a neighbour walks
-up off the beach and in. Nothing is built on it and no tufts grow on it; as the rings open it becomes meadow like the
-rest, and at Everdrift none of it is left. The rings open as
+The founder starts in the middle of it, by the Tree of Life, on a meadow round it, and the rest of the grass lies in
+the dark: the pixel filter darkens the land past the open ground toward a deep night blue, from nothing at the meadow's
+edge to its darkest six studs out (`Street.DARK_RAMP`), and lighter again over the last three studs before the beach, so
+the beach and the sea stay lit (`Street.darkness`; a founder or a driftling out there is half as dark, so it stays
+readable). Anyone may walk out into the dark; nobody builds there. Each tier opens a wider ring round the tree
+(`Data/Street`'s isles: the first a small oval, then circles from 19 studs across the radius to 60, each edge with its
+own wobble), so the open ground grows outward evenly every way, and growing to a tier pushes the dark back off its
+ring: the edge eases out over about a second and a half while the picture is graded again a band at a time. The land
+itself is the same on every tier, so an expansion builds, sends and draws no land at all. (Until the same day the
+grass past the open ground was under rock, shelves of stone with invisible walls, and a trail ran through it from beach
+to beach; both went with the request below.) The rings open as
 much ground as the islands used to gain (the table's grass), so the limits and prices still fit. The ring reaches the
 beaches about Sunspire Capital and the whole island is open at Everdrift: 12,193 cells. The islands stand 170 studs
 apart (80 before, when a new island was small), so open sea still runs between two neighbours. A piece may stand
@@ -1106,7 +1115,7 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
 | 20 | Driftling Citadel | Grand Vineyard (19 until 2026-11-19) | | Crown of the Sea |
 
 - **Expand** (in the tray's header, its price in shells under it; "Island max" on Everdrift): the island grows,
-  its coast reaching further out round the same campfire. A piece that no longer fits moves to the nearest free spot
+  its coast reaching further out round the same heart. A piece that no longer fits moves to the nearest free spot
   (none is lost; one with no spot left would be cleared with its whole price back, and so would a path, water tile or
   fence that no longer fits, since those are never moved). The Tree of Life keeps its place, the rest make room round
   it, and it lays the bigger island's extra eggs at once (§6). The moment the server says yes: "Your island grew into
@@ -1145,7 +1154,7 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   placed cell by cell from a hash of where it is, so a part of the island the bigger tier leaves alone comes out the
   same. An island only ever gains land, so most chunks stay: past the first few tiers an expansion swaps about 25 of
   the island's 50 to 80 chunks, all of them at the growing north end, built ahead in the background as before. The
-  pixel filter re-draws only what changed where it shows, so expanding from the plaza of a big island redraws nothing
+  pixel filter re-draws only what changed where it shows, so expanding from the middle of a big island redraws nothing
   on screen. That re-draw now stops each frame after 8 ms as well as after its 4,000 rays, and finishes its outlines
   and shadow edges a dozen rows at a time; the end of a whole re-bake does too (it used to be one 340 to 410 ms frame).
   The ambient life (tufts, birds, butterflies) keeps what it knows of the island when the island grows, where it used
@@ -1319,7 +1328,8 @@ It sits on top of everything, solid, by the pointer (above the finger on a phone
 or the finger lifts.
 
 **The Tree of Life** (`Logic/Tree`; its own piece in `Data/Buildings`: "tree", 8 x 8 studs, charm 6, never in the
-build tray). Every island has one. A new island has it behind the campfire (`Tree.SPOT`, the nearest free spot); a
+build tray). Every island has one. A new island has it in its middle (`Tree.SPOT`, the nearest free spot: behind the
+campfire until the campfire went on 2026-11-20, when a tree still there moved into the middle, save version 22); a
 save from the tide gets one there too, and if the island is built full the pieces nearest that spot make room (paths
 first, then decor, then the buildings nobody lives in, each with its whole price back). Build mode can move it but
 not clear it away (`fixed`) or replace it, and it doesn't count toward the piece limit. When the island grows it keeps
@@ -2204,8 +2214,8 @@ text (the requests and how each was met) is in the history of this file, up to c
 - **Islands like islands:** each island's coast is a wobbly oval of whole-stud cells (four sine wobbles), with its
   bays and points. From the coast inward is the grass; outward a sand beach, wet sand, the foam line and the shallows,
   each a little lower than the one inside it, so the shore steps down into the sea. Since 2026-11-20 the whole island
-  is there from the start, rock over the grass past the open ground round the plaza (4.4); buildings stand on the open
-  grass a stud or more in from the sand and from the rock.
+  is there from the start, the grass past the open ground round the island's heart in the dark (4.4; rock until the
+  same day's later request); buildings stand on the open grass a stud or more in from the sand and from the dark.
 - **Rounded shores** (the request of 2026-11-13, with a picture of the stepped shore and a palm's trunk of stacked
   boxes):
 
@@ -2215,13 +2225,14 @@ text (the requests and how each was met) is in the history of this file, up to c
   Each band's edge was a staircase of whole studs. Now every inner corner of the stairs is filled with a flat
   triangle of that band, and a square outer corner is cut back the same way, so each edge runs straight along the
   grid or on a diagonal and turns in 45 degree steps: the island reads round, and a stretch at 45 degrees is one clean
-  line. The lawn's dark rim and darker patches, the shallows, the foam and the plaza's ring of sand are bevelled the
+  line. The lawn's dark rim and darker patches, the shallows and the foam are bevelled the
   same way, and the moving water runs over the new corners like the rest of it. You walk and swim exactly where you
   did: the triangles are only looked at. The palms' trunks are one smooth curve of round rings joined end to end,
   rising from the sand, leaning out and straightening under the crown, the rings in two woods in turn and a little
   narrower going up; the catalog's trees lost their steps too (§4).
-- **No house:** the island's heart is a plaza round a campfire (fire stones, logs, a flame with smoke, seats, a flag
-  and torches). Your sign stands on the south beach with the island's name over it. There are no docks (2026-11-13): the island stands alone in the sea.
+- **No house:** the island's heart is the Tree of Life (a plaza round a campfire, with fire stones, logs, a flame with
+  smoke, seats, a flag and torches, until the request of 2026-11-20: "Remove the campfire in the middle and put the
+  tree in the middle instead"). Your sign stands on the south beach with the island's name over it. There are no docks (2026-11-13): the island stands alone in the sea.
 - **The water moves:** the sea, the shallows and the foam are redrawn a few times a second by the pixel filter: swells
   roll across in bands with crests catching the light and dark troughs, and the foam laps at the sand. The fishing
   pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) move the same way.
@@ -2240,7 +2251,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   barrels, sacks and pots, its own touches (the patch's scarecrow, the pier's fishing hut and pond, the hut on stilts,
   the stall's awning, the lighthouse's lamp) and, from Lv 2, a pennant at its back corner (gold at Lv 3, with a lit
   lantern on top of its pole). Driftlings have shiny eyes, cheeks and a mouth.
-- **Palms and the campfire rebuilt** (the requests of 2026-11-15: "can you also rebuild the tree of life, and palm
+- **Palms and the campfire rebuilt** (the campfire went on 2026-11-20; the requests of 2026-11-15: "can you also rebuild the tree of life, and palm
   trees?" and "also, the campfire and seats in the middle"). A palm's ringed trunk leans out in one smooth curve and
   comes upright under its crown; its fronds rise, arch and droop with leaflets along them, two young ones spear up in
   the middle, a dead frond or two hangs brown, and a bunch of coconuts sits under them. The campfire in the middle of
@@ -2340,7 +2351,7 @@ text (the requests and how each was met) is in the history of this file, up to c
   sea, an invisible shelf under the foam is the step back up onto the wet sand, and only the world's edge stops you).
   In the water the founder shows from the chest up with a ring of foam round them, crawls when moving and treads water
   when still, splashing, the strokes heard; they swim at `SwimSpeed` (11, against 16 on land) and can't jump. Home
-  sends you back to your own plaza. A tap on a sign shows that island's
+  sends you back to your own tree. A tap on a sign shows that island's
   day, driftlings at home and charm.
 
 ### 8.1 The island's small lives (`Controllers/AmbientView`, `Render/Fx`)
@@ -2504,7 +2515,7 @@ pieces, the path and water tiles together, the fence lengths, one Tree of Life),
 dropped), and a path or water tile off the even studs cleared with its whole price back. A version 13 save (before the
 catalog) loses the old one-piece Picket Fence and Hedge: fences are drawn now (§4.2), so each one standing comes up with
 its whole price back in wood (25 for the fence, 120 for the hedge). A version 12 save (the tide's) gets its Tree of Life
-back behind the campfire (on an island built full, the nearest pieces make room with their whole price back) and no eggs
+back where a new island's goes (`Tree.SPOT`: behind the campfire then, the middle now; on an island built full, the nearest pieces make room with their whole price back) and no eggs
 yet, its clock at nothing, so the tree lays its first lot as the player arrives; the driftlings it took in off the tide
 count as hatched (`stats.taken`). A version 11 save loses the old tree's levels and growth and its food, and gets a new
 tree as a version 12 save does. Every driftling waiting in its pen is sold for its price (`Tree.price`: the shells added
@@ -2765,7 +2776,7 @@ reason.
   blue instead?"), leaves
   sway and flags ripple in the wind, sailboats (the boats of §8, their flags fluttering) rock on the swell as they
   cross both ways, gulls cross now and then (from either side, at their own height, weaving and gliding, a
-  different crossing each time); each island's campfire flickers and smokes. (No clouds' shadows: the player asked for the "random
+  different crossing each time). (No campfire flickers since 2026-11-20, and no clouds' shadows: the player asked for the "random
   shadow that appears sometimes" gone.)
 - **Small lives** (§8.1): birds alight, peck and fly off as you come near, a gull lands on the beach, tufts and
   flowers lean in the gusts, butterflies by day and fireflies at night, leaves drift down from the trees, chimneys

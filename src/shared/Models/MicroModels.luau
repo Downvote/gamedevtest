@@ -457,7 +457,7 @@ BUILD.light = function(o)
 	return t
 end
 
--- (the campfire's: WorldView squashes it by thirds. Wide at the foot and narrowing in two steps to a tip, a little
+-- (the loading card's campfire: loading_art squashes it by thirds. Wide at the foot and narrowing in two steps to a tip, a little
 -- off true so it seems to lick sideways, its yellow heart showing at the front; as tall as it always was)
 BUILD.flame = function(_o)
 	local t = new("flame", 1, 0.3)

@@ -30,47 +30,50 @@ local function spot(p: any, id: string): (number, number)
 end
 
 return function()
-	T.it("the trail: a path across the island through the rocks, walked on, never built on, gone as the rocks go", function()
-		-- (the request of 2026-11-20: "make a path across each plot that goes through the rocks")
-		for _, tier in { 1, 5, 12 } do
-			local land = Street.cellBounds(tier)
-			local cut, west, east = 0, false, false
+	T.it("the dark over the land not open yet: from the open ground's edge to the beach, retreating tier by tier", function()
+		-- (the request of 2026-11-20: "Remove the rocks and make it a gradient dark filter instead, with the darkness
+		-- retreating as it expands")
+		local c = Street.CENTER
+		T.eq(Street.darkness(1, c.x, c.z), 0, "the island's heart is lit")
+		local land = Street.cellBounds(1)
+		local deep, lit, beach = 0, 0, 0
+		for z = land.z0, land.z1 do
 			for x = land.x0, land.x1 do
-				-- every column of the island's grass has walkable ground on the trail's line: open ground or the cut
-				local mid = math.floor(Street.trailMid(x + 0.5))
-				if Street.layer(tier, x, mid) == Street.GRASS then
-					T.truthy(Street.walkable(tier, x, mid), string.format("tier %d: walkable at x %d on the trail's line", tier, x))
-					T.truthy(not Street.locked(tier, x, mid), "no rock on it")
+				local d = Street.darkness(1, x + 0.5, z + 0.5)
+				T.truthy(d >= 0 and d <= 1, "in range")
+				local l = Street.layer(1, x, z)
+				if Street.buildable(1, x, z) then
+					T.truthy(d < 0.2, string.format("open ground barely dark at %d,%d (%.2f)", x, z, d))
+					lit += 1
 				end
-				for z = land.z0, land.z1 do
-					if Street.trail(tier, x, z) then
-						cut += 1
-						T.truthy(Street.walkable(tier, x, z) and not Street.locked(tier, x, z) and not Street.buildable(tier, x, z), "the cut: walked on, no rock, not built on")
-						T.truthy(Street.trailDist(x, z) <= 0, "on the trail")
-						T.truthy(Street.openDist(tier, x, z) > 0, "past the open ground")
-						if x < 0 then
-							west = true
-						else
-							east = true
-						end
-					end
+				if l ~= Street.GRASS then
+					-- (a hair at most where the grass ends: the radii are kept in direction bins)
+					T.truthy(d < 0.03, string.format("no dark past the grass at %d,%d (%.3f)", x, z, d))
+					beach += 1
+				elseif Street.openDist(1, x, z) > Street.DARK_RAMP + 1 and Street.cellDist(1, x, z) < -Street.DARK_COAST - 1 then
+					T.truthy(d == 1, string.format("deep in the dark at %d,%d (%.2f)", x, z, d))
+					deep += 1
 				end
-			end
-			T.truthy(cut > 0 and west and east, string.format("tier %d: the cut runs out both ways (%d cells)", tier, cut))
-		end
-		-- the top tier's island is all open: no cut left
-		local top = Street.cellBounds(Street.TOP)
-		local left = 0
-		for z = top.z0, top.z1 do
-			for x = top.x0, top.x1 do
-				if Street.trail(Street.TOP, x, z) then
-					left += 1
-				end
+				T.truthy(Street.walkable(1, x, z) == (l == Street.GRASS or l == Street.SAND or l == Street.WET), "walked on anywhere on the island")
 			end
 		end
-		T.eq(left, 0, "every rock gone, the trail is open ground")
-		T.truthy(Street.trail(1, -40, math.floor(Street.trailMid(-39.5))), "(a cell of the first island's cut)")
-		T.truthy(not Plot.fits(1, {}, "torch", -40, math.floor(Street.trailMid(-39.5)), 0), "nothing built on the cut")
+		T.truthy(deep > 1000 and lit > 100 and beach > 500, string.format("%d deep, %d lit, %d past the grass", deep, lit, beach))
+		-- a point in the dark gets lighter (never darker) as the island grows, and at the top tier none is left
+		for _, pt in { { 30, 6 }, { 0, -30 }, { -40, 20 }, { 50, 6 } } do
+			local last = 2
+			for tier = 1, Street.TOP do
+				local d = Street.darkness(tier, pt[1], pt[2])
+				T.truthy(d <= last + 1e-9, string.format("(%d, %d) lighter at tier %d", pt[1], pt[2], tier))
+				last = d
+			end
+			T.eq(last, 0, "all lit at the top tier")
+		end
+		-- the radii the pixel filter keeps agree with openDist (the distance from the heart less the open radius)
+		for _, pt in { { 10, 3 }, { -20, 30 }, { 33, -12 } } do
+			local b, rho = Street.darkBin(pt[1] + 0.5, pt[2] + 0.5)
+			T.near(rho - Street.openRadii(5)[b], Street.openDist(5, pt[1], pt[2]), 0.6, "a bin's radius")
+		end
+		T.truthy(not Plot.fits(1, {}, "torch", 30, 6, 0), "nothing built in the dark")
 	end)
 	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
 	T.it("the tips' snack stall: free while the tips ask for a shop, full price before and after", function()
@@ -96,7 +99,7 @@ return function()
 		T.eq(select(1, Plot.footprint("bench", 90)), 2)
 		T.eq(select(2, Plot.footprint("bench", 270)), 3)
 	end)
-	T.it("fits: on the island's buildable grass, on the grid, off the plaza and other pieces", function()
+	T.it("fits: on the island's buildable grass, on the grid, off the tree and other pieces", function()
 		T.truthy(Plot.fits(1, {}, "flowers", 8, 4, 0), "the east lawn")
 		T.eq(select(2, Plot.fits(1, {}, "flowers", 18, 5, 0)), "outside", "past the east coast")
 		T.eq(select(2, Plot.fits(1, {}, "flowers", 0, 22, 0)), "outside", "on the beach")
@@ -104,7 +107,9 @@ return function()
 		T.eq(select(2, Plot.fits(1, {}, "flowers", 8, 4, 45)), "outside", "quarter turns")
 		T.eq(select(2, Plot.fits(1, {}, "dirtpath", 9, 4, 0)), "outside", "a tile on the even studs")
 		T.truthy(Plot.fits(1, {}, "dirtpath", 8, 4, 0))
-		T.eq(select(2, Plot.fits(1, {}, "torch", 0, 4, 0)), "blocked", "on the plaza")
+		T.truthy(Plot.fits(1, {}, "torch", 0, 4, 0), "the middle is the island's own: no plaza since 2026-11-20")
+		local tree = { { uid = 9, id = "tree", x = -4, z = 2, rot = 0, lvl = 1 } }
+		T.eq(select(2, Plot.fits(1, tree, "torch", 0, 4, 0)), "overlap", "not on the Tree of Life in the middle")
 		T.truthy(Plot.fits(1, {}, "torch", 0, 12, 0), "where the path to the jetty ran: the island's to build on now")
 		local placed = { { uid = 1, id = "flowers", x = 8, z = 4, rot = 0, lvl = 1 } }
 		T.eq(select(2, Plot.fits(1, placed, "torch", 9, 5, 0)), "overlap")
@@ -216,8 +221,8 @@ return function()
 			end
 		end
 		T.truthy(#free >= 12, "room for a dozen tiles")
-		-- a line of six cells, one of them over the plaza (passed over)
-		local line = { free[1], free[2], free[3], free[4], free[5], { Street.PLAZA.x0, Street.PLAZA.z0 } }
+		-- a line of six cells, one of them out in the dark (passed over)
+		local line = { free[1], free[2], free[3], free[4], free[5], { 40, 6 } }
 		local shells0 = p.shells
 		local ok, out = Plot.paint(p, "dirtpath", line)
 		T.truthy(ok, "a line goes down")
@@ -283,7 +288,7 @@ return function()
 		T.eq(select(2, Plot.place(p, "torch", 8, 4, 0)), "blocked", "on another piece")
 		T.truthy(Plot.move(p, 1, 8, 8, 90))
 		T.eq(p.plot.placed[1].z, 8)
-		T.eq(select(2, Plot.move(p, 1, 0, 4, 0)), "blocked", "not onto the plaza")
+		T.truthy(not (Plot.move(p, 1, 40, 6, 0)), "not out into the dark")
 		T.eq(select(2, Plot.move(p, 9, 8, 8, 0)), "bad_payload")
 		local before = p.shells
 		local okS, dataS = Plot.store(p, 1)
@@ -388,7 +393,7 @@ return function()
 		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 4, 0)), "overlap", "one fence an edge")
 		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 9, 4, 0)), "outside", "the even grid")
 		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", 8, 4, 180)), "outside", "east or south")
-		T.eq(select(2, Plot.fits(1, p.plot.placed, "picket", -2, 4, 0)), "blocked", "not across the plaza")
+		T.truthy(Plot.fits(1, p.plot.placed, "picket", -2, 4, 0), "across the middle: no plaza there now")
 		-- a building where the fence runs through refused; one beside it fine; a fence through a building refused
 		T.eq(select(2, Plot.fits(1, p.plot.placed, "patch", 8, 3, 0)), "overlap", "a fence through it")
 		T.truthy(Plot.fits(1, p.plot.placed, "patch", 8, 5, 0), "a fence along its side")

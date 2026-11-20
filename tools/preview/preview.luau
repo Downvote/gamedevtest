@@ -307,16 +307,21 @@ function SCEN.island()
 	settle(p)
 	E.run(1)
 	capture(p, "island")
-	-- the trail through the rocks west of the meadow, the founder on it (the request of 2026-11-20: "make a path across
-	-- each plot that goes through the rocks"): island_trail
+	-- the founder out in the dark west of the open ground (the request of 2026-11-20: "make it a gradient dark filter
+	-- instead"): island_dark
 	local Street = H.sharedServer("Data.Street")
 	local ox, oz = Street.origin(H.session(p).plot)
 	if p.Character then
-		p.Character:PivotTo(E.cf.new(ox - 26, 3, oz + Street.trailMid(-25.5)))
+		p.Character:PivotTo(E.cf.new(ox - 24, 3, oz + 6))
 		E.run(2)
 		settle(p, 30, 1)
 		E.run(1)
-		capture(p, "island_trail")
+		capture(p, "island_dark")
+	end
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR and PR.debugDark then
+		local d = H.inClient(p, PR.debugDark)
+		log("island dark: %d keyed pixels, %d dark, %d off the rule, version %d", d.keyed, d.dark, d.off, d.ver)
 	end
 	return p
 end
@@ -2937,7 +2942,17 @@ local function expandPerf(tier: number)
 		local cc = H.inClient(p, PR.debugCastCheck)
 		log("expandperf swap check: %d of %d layer pixels differ from a fresh cast (%d part ids, %d of them two faces at one depth, %d sun, %d shades); others: %s", cc.off, cc.checked, cc.ids, cc.ties or 0, cc.lits, cc.shades, tostring(cc.ex))
 	end
+	if PR and PR.debugDark then
+		local d = H.inClient(p, PR.debugDark)
+		local isl = d.islands[1]
+		log("expandperf dark after the expansion: island 1 at tier %s, %s; %d keyed pixels, %d dark, %d off the rule, %s rows left to grade", tostring(isl and isl.tier), if isl and isl.moving then "its edge moving" else "still", d.keyed, d.dark, d.off, tostring(d.left))
+	end
 	run("standing after", 120)
+	if PR and PR.debugDark then
+		local d = H.inClient(p, PR.debugDark)
+		local isl = d.islands[1]
+		log("expandperf dark at the end: island 1 at tier %s, %s; %d dark, %d off the rule, %s rows left to grade", tostring(isl and isl.tier), if isl and isl.moving then "its edge moving" else "still", d.dark, d.off, tostring(d.left))
+	end
 	E.coTime = nil
 	E.simClock = sim0
 	settle(p, 20, 1)

@@ -96,6 +96,34 @@ return function()
 		T.eq((p :: any).wood, nil, "no wood: one store")
 		T.deepEq(Schema.default(1, 5).plot.placed, Schema.default(1, 5).plot.placed, "the same place every time")
 	end)
+	T.it("version 22: a tree still behind the old campfire moves into the island's middle; one moved elsewhere stays", function()
+		-- (the request of 2026-11-20: "Remove the campfire in the middle and put the tree in the middle instead")
+		local p = Schema.default(0, 1)
+		local tq = nil
+		for _, q in p.plot.placed do
+			if q.id == "tree" then
+				tq = q
+			end
+		end
+		T.truthy(tq ~= nil and tq.x == -4 and tq.z == 2, "a new island's tree in the middle")
+		local raw: any = table.clone(p)
+		raw.v = 21
+		raw.plot = { placed = { { uid = 5, id = "tree", x = -4, z = -6, rot = 0, lvl = 1 }, { uid = 6, id = "torch", x = 8, z = 4, rot = 0, lvl = 1 } } }
+		local q = Schema.reconcile(Schema.migrate(raw), 0, 1)
+		T.eq(q.v, 22)
+		local moved = nil
+		for _, x in q.plot.placed do
+			if x.id == "tree" then
+				moved = x
+			end
+		end
+		T.truthy(moved ~= nil and moved.uid == 5 and moved.x == -4 and moved.z == 2, "into the middle, its uid kept")
+		local raw2: any = table.clone(p)
+		raw2.v = 21
+		raw2.plot = { placed = { { uid = 5, id = "tree", x = 4, z = 2, rot = 0, lvl = 1 } } }
+		local q2 = Schema.reconcile(Schema.migrate(raw2), 0, 1)
+		T.truthy(q2.plot.placed[1].x == 4 and q2.plot.placed[1].z == 2, "a tree the player put elsewhere stays")
+	end)
 	T.it("reconcile keeps a played profile as it is", function()
 		local p = played()
 		T.truthy(#built(p) == 4 and treeCount(p) == 1 and #p.pals == 2)

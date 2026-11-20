@@ -2,14 +2,14 @@
 -- The islands on the sea (docs/ARCHITECTURE.md 7.5; GAME_DESIGN 8). At start the whole sea is built: every island
 -- plot's water and the seabed the founders swim on (Workspace.Plots.Street) and an empty sandbar on every plot; no
 -- docks (2026-11-13): each island stands alone and the founders swim between them. A player who joins takes the
--- lowest free plot: Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its grass and coast, the plaza
--- and campfire, the sign on its beach) and their buildings and decor
+-- lowest free plot: Workspace.Plots.Plot_<i>.Static gets their island (Static.Land: its grass and coast, the sign on
+-- its beach: the same on every tier since the dark took the rocks' place, 2026-11-20) and their buildings and decor
 -- (Static.Decor, one model a piece, named by its uid, kind, place and level); the island is rebuilt only when its tier
 -- changes, the pieces by difference, so a client's renderer re-casts as little as possible. A new part
 -- goes up before an old one comes down. A player who leaves leaves an empty sandbar. Plot_<i>'s attributes tell every
 -- client who is there and who lives there (WorldView draws every island's driftlings from them):
 -- Owner, OwnerName, StudioName (the island's name), Tier, Day, Charm, Pals (the driftlings in its huts). The founder (the player's
--- character) appears on their own island's plaza.
+-- character) appears in front of their own island's Tree of Life (Plot.spawn).
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -109,7 +109,7 @@ local function replace(parent: Instance, name: string, make: (f: Folder) -> ())
 	end
 end
 
--- Plot i's island model (Static.Land.Land: its land's chunks, the plaza and the sign); nil on an empty lot.
+-- Plot i's island model (Static.Land.Land: its land's chunks and the sign); nil on an empty lot.
 local function landModelOf(i: number): Model?
 	local f = staticOf(i):FindFirstChild("Land")
 	local m = if f then f:FindFirstChild("Land") else nil
@@ -469,7 +469,7 @@ function PlotService.build(s: S)
 				ahead[t.Name] = t
 				ready.tree = nil
 			end
-			local want: { [string]: boolean } = { Plaza = true, [plan.sign] = true }
+			local want: { [string]: boolean } = { [plan.sign] = true }
 			for _, c in plan.chunks do
 				want[c.name] = true
 				if lm:FindFirstChild(c.name) == nil then
@@ -485,9 +485,6 @@ function PlotService.build(s: S)
 			end
 			if lm:FindFirstChild(plan.sign) == nil then
 				StreetModels.landSign(lm, o, tier)
-			end
-			if lm:FindFirstChild("Plaza") == nil then
-				StreetModels.landPlaza(lm, o)
 			end
 			for _, ch in lm:GetChildren() do
 				if not want[ch.Name] then
@@ -555,9 +552,10 @@ function PlotService.sync(s: S)
 end
 
 ------------------------------------------------------------------ the founder
--- Where a session's founder appears (world CFrame): on their island's plaza, south of the campfire.
+-- Where a session's founder appears (world CFrame): in front of their island's Tree of Life (Plot.spawn: the free spot
+-- nearest a stud south of it).
 function PlotService.spawnCFrame(s: S): CFrame
-	local x, z = Street.spawn()
+	local x, z = Plot.spawn(s.profile.tier, s.profile.plot.placed)
 	local o = originOf(s.plot)
 	return CFrame.new(o + Vector3.new(x, 3, z))
 end
@@ -569,7 +567,7 @@ function PlotService.placeCharacter(s: S)
 	end
 end
 
--- "Go home" (char.home): the founder back on their own island's plaza (from a swim, a neighbour's island), at most
+-- "Go home" (char.home): the founder back by their own island's tree (from a swim, a neighbour's island), at most
 -- once every Tuning.HomeCooldown seconds.
 function PlotService.home(s: S): (boolean, any)
 	local now = os.clock()

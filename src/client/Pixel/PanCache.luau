@@ -7,7 +7,7 @@
 -- The view is orthographic and pans by whole art px, so a static pixel at a global art px (gx, gy) is the same
 -- wherever the view stands: PixelRenderer's scroll only shifts its buffers. This keeps what scrolls off the layer in
 -- tiles of TILE x TILE global art px, each channel the cast writes (the shade without ink, albedo, depth, normal, sun,
--- part id, the share flag, the water's class and phase) in its own plane, a byte a pixel saying it is good. The ink
+-- part id, the share flag, the water's class and phase, the darkness's key) in its own plane, a byte a pixel saying it is good. The ink
 -- and the contact shade are drawn again over a strip, so they are not kept.
 --
 -- PixelRenderer drops the tiles under every rect it queues for a re-cast (on screen or off it), and clears the lot
@@ -33,10 +33,11 @@ export type Bufs = {
 	sShare: buffer,
 	sWClass: buffer,
 	sWave: buffer,
+	sDark: buffer,
 }
 -- (the pixel's bytes in each plane; a tile's planes one after another)
-local NAMES = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave" }
-local BYTES = { 4, 4, 4, 1, 1, 2, 1, 1, 1 }
+local NAMES = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave", "sDark" }
+local BYTES = { 4, 4, 4, 1, 1, 2, 1, 1, 1, 4 }
 local PLANE: { number } = {}
 local STRIDE = 0
 for i, b in BYTES do

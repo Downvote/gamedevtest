@@ -1,6 +1,6 @@
 --!strict
 -- The island's tiers (GAME_DESIGN 4; docs/ARCHITECTURE.md 5): each tier's name (the island card's title). Pure. The
--- island has no house any more: its heart is the plaza round the campfire (Data/Street). (The module keeps its old
+-- island has no house any more: its heart is the Tree of Life (Data/Street). (The module keeps its old
 -- name: it was the studio's office, then the lodge.)
 local Street = require(script.Parent.Street)
 

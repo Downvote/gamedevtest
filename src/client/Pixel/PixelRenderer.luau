@@ -119,6 +119,7 @@ type Surf = {
 	sShare: buffer, -- u8 1: the pixel's sun visibility was copied from its 2x2 block's anchor (refined at edges)
 	sWClass: buffer, -- u8 water class (0: not water; PixelWater)
 	sWave: buffer, -- u8 the water's wave phase (from the world position)
+	sDark: buffer, -- u32 the darkness key (SG.DK.keyOf: the island, the direction and distance from its heart; 0 none)
 	static: Raster.Frame,
 	frame: Raster.Frame,
 	ready: boolean?, -- a finished bake is in its buffers (a re-bake then works behind it: `back`)
@@ -438,7 +439,221 @@ local SG = {
 	sync = (nil :: any) :: (s: Surf, i: number, old: number, new: number) -> (),
 	px = (nil :: any) :: (s: Surf, i: number) -> (),
 	rect = (nil :: any) :: (s: Surf, x0: number, y0: number, x1: number, y1: number) -> (),
+	gradePx = (nil :: any) :: (s: Surf, i: number) -> (),
 }
+
+-- The darkness over the land not open yet (the request of 2026-11-20: "Remove the rocks and make it a gradient dark
+-- filter instead, with the darkness retreating as it expands. This should also make it much less laggy when
+-- expanding"; Data/Street.darkness has the rule). Each static pixel the street's view casts keeps a key (sDark, u32): the
+-- island its hit point lies on, the direction from that island's heart (one of Street.DARK_BINS) and its distance
+-- (sixteenths of a stud), or 0 off every island. The grade (gradeSpan) darkens a pixel by how far it lies past its
+-- island's open radius in that direction (`cur`: per plot, DARK_BINS radii; nil, no darkness: an empty lot, a whole
+-- island open, a stage) in LEVELS steps toward a deep night blue (what moves, half as many steps: a founder out there
+-- stays readable; its pixel takes the key of the ground behind it), so the land itself never changes with the tier and
+-- an expansion casts no ray: `step` sees the plot's Tier attribute change and eases its radii out to the new tier's
+-- over SECS, grading ROWS of the picture again a frame meanwhile (the moving edge sweeps across in a few frames).
+SG.DK = {
+	LEVELS = 16,
+	MAX = 0.74, -- (how far the darkest step goes toward the night colour)
+	NIGHT = { r = 22, g = 26, b = 52 },
+	SECS = 1.4,
+	ROWS = 30, -- (picture rows looked over a frame while an edge moves: a sweep of the picture about every 12 frames)
+	band = {} :: { [number]: { lo: { number }, hi: { number } } }, -- (per moving island: its radii before and after the step)
+	coast = Street.openRadii(Street.TOP) :: { number },
+	cur = {} :: { [number]: { number } }, -- (the radii graded with now, per plot)
+	plots = {} :: { [number]: { tier: number, from: { number }, to: { number }, t0: number, moving: boolean } },
+	map = {} :: { [number]: number }, -- (a colour darkened by a level, worked out once: c + level * 2^32)
+	row = 0, -- (the next row to grade again)
+	left = 0, -- (rows still to grade again after the edge stopped)
+	checkAt = 0,
+	ver = 0, -- (bumped when any island's radii change: debugDark)
+	gx = 0, -- (where the picture stood at the last step: a pan mid-sweep starts the sweep again)
+	gy = 0,
+}
+
+-- A static pixel's key from its hit point (world x, z): 0 off every island's reach (the sea between the islands, a
+-- point past its grass and the beach's fade).
+function SG.DK.keyOf(wx: number, wz: number): number
+	local i = Street.plotAt(wx, wz)
+	if i == 0 or i > 63 then
+		return 0
+	end
+	local ox, oz = Street.origin(i)
+	local b, rho = Street.darkBin(wx - ox, wz - oz)
+	local DK = SG.DK
+	if rho > DK.coast[b] + 1 then
+		return 0
+	end
+	return i * 67108864 + (b - 1) * 65536 + math.min(65535, math.floor(rho * 16 + 0.5))
+end
+
+-- How dark (0 .. LEVELS) a key is with the radii now.
+function SG.DK.level(key: number): number
+	local DK = SG.DK
+	local pl = DK.cur[key // 67108864]
+	if pl == nil then
+		return 0
+	end
+	local b = (key // 65536) % 1024 + 1
+	local d = Street.darkAt((key % 65536) / 16, pl[b], DK.coast[b])
+	return math.floor(d * DK.LEVELS + 0.5)
+end
+
+-- A colour (u32, its alpha byte kept) darkened by `lvl` steps: a little greyer, then toward the night colour.
+function SG.DK.darken(c: number, lvl: number): number
+	local DK = SG.DK
+	local key = c + lvl * 4294967296
+	local have = DK.map[key]
+	if have then
+		return have
+	end
+	local r, g, b = c % 256, (c // 256) % 256, (c // 65536) % 256
+	local a = c - c % 16777216
+	local f = lvl / DK.LEVELS * DK.MAX
+	local l = 0.3 * r + 0.59 * g + 0.11 * b
+	local grey = 0.4 * f
+	r, g, b = r + (l - r) * grey, g + (l - g) * grey, b + (l - b) * grey
+	local N = DK.NIGHT
+	r, g, b = r + (N.r - r) * f, g + (N.g - g) * f, b + (N.b - b) * f
+	local o = math.clamp(math.floor(r + 0.5), 0, 255) + math.clamp(math.floor(g + 0.5), 0, 255) * 256 + math.clamp(math.floor(b + 0.5), 0, 255) * 65536 + a
+	DK.map[key] = o
+	return o
+end
+
+-- Every frame: each island's tier (its Plot model's Tier and Owner, looked at ten times a second). An island first seen
+-- (or gone) grades the whole picture again at once. A new tier eases the island's radii out (or in) to its tier's over
+-- SECS: the picture is graded again in sweeps of ROWS rows a frame (the incremental compose redraws and uploads just
+-- those rows: SG.dirty), and the edges move on only when a sweep is done, so the picture always shows one moment of
+-- them; a pan mid-sweep starts the sweep over (rows it had not reached moved past it).
+function SG.DK.step(s: Surf?)
+	local DK = SG.DK
+	local now = os.clock()
+	if now >= DK.checkAt then
+		DK.checkAt = now + 0.1
+		local plots = workspace:FindFirstChild("Plots")
+		for i = 1, Street.MAX do
+			local m = plots and plots:FindFirstChild("Plot_" .. i)
+			local owner = if m then tonumber(m:GetAttribute("Owner")) or 0 else 0
+			local t = if m and owner ~= 0 then tonumber(m:GetAttribute("Tier")) else nil
+			local st = DK.plots[i]
+			if t == nil then
+				if st then
+					DK.plots[i] = nil
+					DK.cur[i] = nil
+					DK.ver += 1
+					-- (an island gone, or one first seen below: the whole picture graded again at once)
+					SG.ok = false
+					needFull = true
+				end
+			elseif st == nil then
+				local to = Street.openRadii(t)
+				DK.plots[i] = { tier = t, from = to, to = to, t0 = now, moving = false }
+				if t >= Street.TOP then
+					DK.cur[i] = nil
+				else
+					DK.cur[i] = table.clone(to)
+				end
+				DK.ver += 1
+				SG.ok = false
+				needFull = true
+			elseif st.tier ~= t then
+				st.from = DK.cur[i] or Street.openRadii(Street.TOP)
+				st.to = Street.openRadii(t)
+				st.tier, st.t0, st.moving = t, now, true
+				DK.cur[i] = table.clone(st.from)
+			end
+		end
+	end
+	if s == nil then
+		return
+	end
+	local panned = s.cam.gx ~= DK.gx or s.cam.gy ~= DK.gy
+	DK.gx, DK.gy = s.cam.gx, s.cam.gy
+	if DK.left <= 0 then
+		-- (a sweep done: the moving edges on to this moment, and the next sweep over the pixels between where each edge
+		-- was and where it is now, the ramp beyond (`band`: only those can change); none moving, nothing to do)
+		local moving = false
+		table.clear(DK.band)
+		local whole = Street.openRadii(Street.TOP)
+		for i, st in DK.plots do
+			if st.moving then
+				moving = true
+				local a = math.clamp((now - st.t0) / DK.SECS, 0, 1)
+				-- (eased: quick at first, settling at the end)
+				local e = 1 - (1 - a) ^ 3
+				local cur = DK.cur[i]
+				local was = if cur then table.clone(cur) else whole
+				if cur then
+					local f, t = st.from, st.to
+					for b = 1, Street.DARK_BINS do
+						cur[b] = f[b] + (t[b] - f[b]) * e
+					end
+				end
+				DK.ver += 1
+				if a >= 1 then
+					st.moving = false
+					if st.tier >= Street.TOP then
+						DK.cur[i] = nil
+					end
+				end
+				DK.band[i] = { lo = was, hi = DK.cur[i] or whole }
+			end
+		end
+		if not moving then
+			return
+		end
+		DK.left = s.H
+	elseif panned then
+		DK.left = s.H
+	end
+	-- the sweep's rows: each pixel in a band graded again, into the graded picture and the image's copy (the frame's
+	-- pixel there, a model's or the ground's), and the image uploaded whole by the next compose (as the water's frames)
+	local y0 = DK.row % s.H
+	local y1 = math.min(s.H - 1, y0 + math.min(DK.ROWS, s.H) - 1)
+	local live = SG.live(s)
+	local sd, W = s.sDark, s.W
+	local RAMP = Street.DARK_RAMP + 0.1
+	local changed = 0
+	local sg = SG.buf
+	if SG.ok and SG.on == s and sg then
+		for y = y0, y1 do
+			for i = y * W, y * W + W - 1 do
+				local key = buffer.readu32(sd, i * 4)
+				if key ~= 0 then
+					local bd = DK.band[key // 67108864]
+					if bd then
+						local b = (key // 65536) % 1024 + 1
+						local rho = (key % 65536) * 0.0625
+						local lo, hi = bd.lo[b], bd.hi[b]
+						if lo > hi then
+							lo, hi = hi, lo
+						end
+						if rho > lo - 0.1 and rho < hi + RAMP then
+							local old = buffer.readu32(sg, i * 4)
+							SG.px(s, i)
+							if buffer.readu32(sg, i * 4) ~= old then
+								changed += 1
+								if live then
+									SG.gradePx(s, i)
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	if changed > 0 then
+		-- (up with the next compose, at the tier's rate: no compose of its own)
+		if live then
+			SG.upWhole = true
+		else
+			needFull = true
+		end
+	end
+	DK.row = (y1 + 1) % s.H
+	DK.left -= y1 - y0 + 1
+end
 
 -- the wind's paint on the static layer (the wind section): undone before a scroll, a stash or a bake
 local windSaved: { [number]: number } = {} -- pixel -> its colour before the wind
@@ -788,8 +1003,11 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 			wph = waterPhase(wx, wz)
 		end
 	end
+	-- the darkness's key (the street's view only: a stage has none)
+	local dkey = if part ~= nil and not s.view.stage then SG.DK.keyOf(ox + cam.lx * depth, oz + cam.lz * depth) else 0
 	buffer.writeu8(s.sWClass, idx, wcls)
 	buffer.writeu8(s.sWave, idx, wph)
+	buffer.writeu32(s.sDark, idx * 4, dkey)
 	buffer.writeu8(s.sShare, idx, if shared then 1 else 0)
 	buffer.writeu16(s.sId, idx * 2, id)
 	buffer.writef32(s.sDepth, idx * 4, depth)
@@ -806,6 +1024,7 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 				buffer.writeu8(s.sShare, b, 1)
 				buffer.writeu8(s.sWClass, b, wcls)
 				buffer.writeu8(s.sWave, b, wph)
+				buffer.writeu32(s.sDark, b * 4, dkey)
 				buffer.writeu16(s.sId, b * 2, id)
 				buffer.writef32(s.sDepth, b * 4, depth)
 				buffer.writeu32(s.sAlbedo, b * 4, albedo)
@@ -1082,15 +1301,49 @@ local function gradeSpan(src: buffer, fid: buffer, i0: number, n: number, out: b
 	local lm = if g and g.lamps > 0 then lightMap else nil
 	local map = gradeMap
 	local dmap = dimMap
-	-- (a run of one colour of one part under one pool, as pixel art is mostly: graded once)
-	local lastC, lastId, lastL, lastO = -1, -1, -1, 0
+	-- (the darkness over the land not open yet, SG.DK: the street's keys, when any island has some dark; the level is
+	-- SG.DK.level's, worked out here inline)
+	local DK = SG.DK
+	local sv = surf
+	local cur = DK.cur
+	local kb = if sv and not sv.view.stage and next(cur) ~= nil and buffer.len(sv.sDark) >= (i0 + n) * 4 then sv.sDark else nil
+	local coast = DK.coast
+	local LEVELS = DK.LEVELS
+	local RAMP = Street.DARK_RAMP
+	local RATIO = Street.DARK_RAMP / Street.DARK_COAST
+	local LSCALE = LEVELS / RAMP
+	-- (a run of one colour of one part under one pool and one darkness, as pixel art is mostly: graded once)
+	local lastC, lastId, lastL, lastD, lastO = -1, -1, -1, -1, 0
 	for k = 0, n - 1 do
 		local i = i0 + k
 		local c = buffer.readu32(src, i * 4)
 		local id = buffer.readu16(fid, i * 2)
 		local lvl = if lm then buffer.readu8(lm, i) else 0
+		local dl = 0
+		if kb then
+			local key = buffer.readu32(kb, i * 4)
+			if key ~= 0 then
+				local pl = cur[key // 67108864]
+				if pl then
+					local b = (key // 65536) % 1024 + 1
+					local rho = (key % 65536) * 0.0625
+					local past = rho - pl[b]
+					local back = (coast[b] - rho) * RATIO
+					if back < past then
+						past = back
+					end
+					if past > 0 then
+						dl = if past >= RAMP then LEVELS else math.floor(past * LSCALE + 0.5)
+						-- (what moves, a founder or a driftling, half as dark: it stays readable out there)
+						if id >= DYN_ID0 then
+							dl = dl // 2
+						end
+					end
+				end
+			end
+		end
 		local o = c
-		if c == lastC and id == lastId and lvl == lastL then
+		if c == lastC and id == lastId and lvl == lastL and dl == lastD then
 			o = lastO
 		else
 			if c ~= 0 and not isGlow(id) then
@@ -1111,7 +1364,10 @@ local function gradeSpan(src: buffer, fid: buffer, i0: number, n: number, out: b
 					o = d
 				end
 			end
-			lastC, lastId, lastL, lastO = c, id, lvl, o
+			if dl > 0 and c ~= 0 then
+				o = DK.darken(o, dl)
+			end
+			lastC, lastId, lastL, lastD, lastO = c, id, lvl, dl, o
 		end
 		buffer.writeu32(out, (o0 + k) * 4, o)
 	end
@@ -1338,6 +1594,7 @@ local function finishBake(s: Surf, b: Surf, done: boolean?)
 		s.sColor, s.sShade, s.sShadowC, s.sAlbedo = b.sColor, b.sShade, b.sShadowC, b.sAlbedo
 		s.sNormal, s.sLit, s.sDepth, s.sId = b.sNormal, b.sLit, b.sDepth, b.sId
 		s.sShare, s.sWClass, s.sWave, s.static = b.sShare, b.sWClass, b.sWave, b.static
+		s.sDark = b.sDark
 		windOn = nil
 		table.clear(windSaved)
 		table.clear(windWrote)
@@ -1510,6 +1767,7 @@ local function startBake()
 		buffer.fill(s.sShare, 0, 0)
 		buffer.fill(s.sWClass, 0, 0)
 		buffer.fill(s.sWave, 0, 0)
+		buffer.fill(s.sDark, 0, 0)
 		for i = 0, n - 1 do
 			buffer.writef32(s.sDepth, i * 4, FAR)
 		end
@@ -1547,6 +1805,7 @@ local function startBake()
 			sShare = buffer.create(n),
 			sWClass = buffer.create(n),
 			sWave = buffer.create(n),
+			sDark = buffer.create(n * 4),
 			static = { W = s.W, H = s.H, color = sColor, depth = sDepth, id = sId },
 			frame = s.frame,
 		}
@@ -1696,6 +1955,7 @@ local function buildSurf(v: CameraController.View)
 		sShare = buffer.create(n),
 		sWClass = buffer.create(n),
 		sWave = buffer.create(n),
+		sDark = buffer.create(n * 4),
 		static = { W = W, H = H, color = sColor, depth = sDepth, id = sId },
 		frame = frame,
 	}
@@ -4228,6 +4488,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	shift(s.sShare, W, H, 1, sx, sy)
 	shift(s.sWClass, W, H, 1, sx, sy)
 	shift(s.sWave, W, H, 1, sx, sy)
+	shift(s.sDark, W, H, 4, sx, sy)
 	local sg = SG.buf
 	if SG.ok and SG.on == s and sg and buffer.len(sg) == W * H * 4 then
 		shift(sg, W, H, 4, sx, sy) -- (the strips it uncovers are graded once cast, below)
@@ -4671,6 +4932,7 @@ function PC.start(s: Surf): boolean
 		sShare = buffer.create(n),
 		sWClass = buffer.create(n),
 		sWave = buffer.create(n),
+		sDark = buffer.create(n * 4),
 	}
 	PC.store.setMax(900)
 	PC.store.clear()
@@ -5097,6 +5359,12 @@ local function frameStep(dt: number)
 			stats.perf.waterMs += (w1 - w0) * 1000
 			stats.perf.windMs += (w2 - w1) * 1000
 		end
+	end
+	-- the darkness over the land not open yet: each island's tier, its edge easing out after an expansion (SG.DK)
+	if s and not s.view.stage then
+		local d0 = SG.clock()
+		SG.DK.step(s)
+		stats.perf.gradeMs += (SG.clock() - d0) * 1000
 	end
 	local hz = tierSpec(tier).hz
 	tickAcc += dt
@@ -5631,6 +5899,47 @@ function PixelRenderer.setDim(k: number)
 	SG.ok = false
 end
 
+-- Sims and previews: the darkness over the land not open yet (SG.DK) as it stands: the islands it knows (each its
+-- tier and whether its edge still moves), the times their radii changed, and a check of the picture: of the street's
+-- static pixels with a key, how many are dark, and how many have a level other than Data/Street.darkness gives at
+-- their hit point for their island's tier now (none once the edges have stopped and a sweep has gone by).
+function PixelRenderer.debugDark(): { islands: { [number]: { tier: number, moving: boolean } }, ver: number, keyed: number, dark: number, off: number, left: number }
+	local DK = SG.DK
+	local out = { islands = {}, ver = DK.ver, keyed = 0, dark = 0, off = 0, left = DK.left }
+	for i, st in DK.plots do
+		out.islands[i] = { tier = st.tier, moving = st.moving }
+	end
+	local s = surf
+	if s == nil or s.view.stage then
+		return out
+	end
+	for i = 0, s.W * s.H - 1 do
+		local key = buffer.readu32(s.sDark, i * 4)
+		if key ~= 0 then
+			out.keyed += 1
+			local lv = DK.level(key)
+			if lv > 0 then
+				out.dark += 1
+			end
+			local p = key // 67108864
+			local st = DK.plots[p]
+			local want = 0
+			if st then
+				local b = (key // 65536) % 1024 + 1
+				local rho = (key % 65536) / 16
+				want = math.floor(Street.darkAt(rho, Street.openRadii(st.tier)[b], DK.coast[b]) * DK.LEVELS + 0.5)
+				if st.tier >= Street.TOP then
+					want = 0
+				end
+			end
+			if not (st and st.moving) and lv ~= want then
+				out.off += 1
+			end
+		end
+	end
+	return out
+end
+
 -- Sims and previews: the founders' rims last tick (how many, the white pixels laid, the ms they took) and the models
 -- registered with a rim now.
 function PixelRenderer.debugRims(): { drawn: number, px: number, ms: number, registered: number }
@@ -5750,7 +6059,7 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 	SG.windVoid = true
 	table.clear(SG.windPend)
 	local saved: { [string]: buffer } = {}
-	local names = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave" }
+	local names = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave", "sDark" }
 	local sa = s :: any
 	for _, k in names do
 		saved[k] = buffer.create(buffer.len(sa[k]))
@@ -5770,6 +6079,7 @@ function PixelRenderer.debugCastCheck(): { off: number, checked: number, ids: nu
 			or buffer.readu32(s.sAlbedo, i * 4) ~= buffer.readu32(saved.sAlbedo, i * 4)
 			or buffer.readu8(s.sWClass, i) ~= buffer.readu8(saved.sWClass, i)
 			or buffer.readu8(s.sWave, i) ~= buffer.readu8(saved.sWave, i)
+			or buffer.readu32(s.sDark, i * 4) ~= buffer.readu32(saved.sDark, i * 4)
 		if idOff then
 			out.ids += 1
 		end

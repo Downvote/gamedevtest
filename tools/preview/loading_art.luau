@@ -8,7 +8,8 @@
 --   * five driftlings of the beach and the meadow (MicroModels.driftling: Frondle, Pebblit, Clawdle, Mossbun, Gullfin)
 --     on the move, as the island shows them (MicroModels.animate "walk" and their hop), facing left and right, and a
 --     Conchy cheering by the fire ("cheer": no villagers since 2026-11-12);
---   * the campfire (a ring of stones, crossed logs and MicroModels' flame flickering in thirds, as WorldView's);
+--   * a campfire (a ring of stones, crossed logs and MicroModels' flame flickering in thirds; the card's alone since the
+--     island's campfire went on 2026-11-20);
 --   * the island's pieces (DecorModels): two palms, a Driftling Hut, a Cozy Burrow, a Tiki Torch, a Flower Bed and the
 --     Tree of Life (its hollow, fruit and marks glowing, then dimmer; its lawn only as wide as its stones: the eggs'
 --     ring is the island's, not the card's);
@@ -144,7 +145,7 @@ return function(env)
 			end
 			blk(m, 1.6, 0.3, 0.35, CFrame.new(0, 0.2, 0) * CFrame.Angles(0, math.rad(35), 0), "wood_dark")
 			blk(m, 1.6, 0.3, 0.35, CFrame.new(0, 0.3, 0) * CFrame.Angles(0, math.rad(-55), 0), "wood")
-			-- (the flame half again the plaza's size: the card's fire is the scene's middle)
+			-- (the flame half again its own size: the card's fire is the scene's middle)
 			local flame = MM.build("flame")
 			MM.scale(flame, Vector3.new(1.5, 1.5 * (0.85 + ((i - 1) % 3) * 0.15), 1.5))
 			MM.place(flame, CFrame.new(0, 0.45, 0))

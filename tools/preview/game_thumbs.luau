@@ -265,9 +265,9 @@ return function(env)
 		return p
 	end
 
-	-- the rocks: a Grand Isle (tier 3, the harbour island's pieces) with its town in the open ground round the plaza and
-	-- the rock all round it, from a little further out: frame gth_rocks
-	if mode == "rocks" then
+	-- the dark: a Grand Isle (tier 3, the harbour island's pieces) with its town in the open ground round the tree and
+	-- the dark all round it, from a little further out: frame gth_dark
+	if mode == "dark" then
 		env.seedProfile(7310, 3, { pieces = env.harbor, pals = env.pals, shells = 65000 })
 		local p = env.join(7310, "Rocky")
 		env.settle(p, 60, 1)
@@ -304,7 +304,7 @@ return function(env)
 		E.run(1)
 		env.settle(p, 60, 1)
 		E.run(1.5)
-		capture(p, "gth_rocks")
+		capture(p, "gth_dark")
 		return p
 	end
 

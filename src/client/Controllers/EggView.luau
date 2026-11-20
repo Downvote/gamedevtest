@@ -848,7 +848,7 @@ function EggView.where(plot: number, id: number): Vector3?
 end
 
 -- Where island i's last hatched egg was (world, on the lawn): where its driftling comes from. Else in front of the
--- tree's hollow, else the plaza's south edge.
+-- tree's hollow, else where a founder appears on an island with no tree.
 function EggView.hatchPoint(i: number): (number, number)
 	local p = lastHatch[i]
 	if p then
@@ -860,7 +860,8 @@ function EggView.hatchPoint(i: number): (number, number)
 		return f.X, f.Z
 	end
 	local ox, oz = Street.origin(i)
-	return ox + Street.CENTER.x, oz + Street.PLAZA.z1
+	local sx, sz = Street.spawn()
+	return ox + sx, oz + sz
 end
 
 return EggView

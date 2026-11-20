@@ -228,7 +228,7 @@ local function buildTop()
 	x = chip("season", x, widths.season, "sun")
 	x = chip("weather", x, widths.weather, "sun")
 	layoutTop()
-	-- Home: shown while the founder is off their own island (char.home sends them back to their plaza)
+	-- Home: shown while the founder is off their own island (char.home sends them back to their tree)
 	local hb = UIKit.button(canvas, "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(EDGE + w + GAP, CHIP_Y), function()
 		local res = StateClient.request("char.home", {})
 		if not res.ok and res.err ~= "cooldown" then

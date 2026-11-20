@@ -3,12 +3,12 @@
 -- (paid in shells: Data/Buildings), moving and clearing them away. Pure. Positions are plot-local whole studs: a piece's
 -- (x, z) is its footprint's north-west corner, its rot a quarter turn (0, 90, 180, 270; 90 and 270 swap the
 -- footprint's width and depth). A piece stands wholly on the island's buildable cells (Data/Street: the grass a stud
--- in from its edge, the island's shape by its tier), off the plaza round the campfire and the path to the jetty, and
--- off every other piece. Paths and water are 2 x 2 tiles drawn on the even studs (paint / unpaint): water makes rivers and
+-- in from its edge and from the dark, by the island's tier) and off every other piece (the Tree of Life among them, in
+-- the island's middle since the campfire's plaza went on 2026-11-20). Paths and water are 2 x 2 tiles drawn on the even studs (paint / unpaint): water makes rivers and
 -- ponds ("add the ability to add water to make rivers"), a piece marked `water = "over"` (a bridge, a dock) may stand
 -- over water tiles as well as grass and one marked "on" (lily pads, a rowboat) only on water. Fences are 2-stud lengths
--- along the even grid lines (fence / unfence: rot 0 runs east from (x, z), rot 90 south), never through a building,
--- the plaza or the path; tiles and fences never get in each other's way, and a fence may run along a building's side.
+-- along the even grid lines (fence / unfence: rot 0 runs east from (x, z), rot 90 south), never through a building;
+-- tiles and fences never get in each other's way, and a fence may run along a building's side.
 -- Paths and water count together against Tuning.PathPieces, fences against Tuning.FencePieces, the rest against the
 -- piece limit. The Tree of Life (Data/Buildings kind "tree": every island's, Logic/Tree) may be moved like any
 -- piece, but is never bought, cleared away or replaced, and isn't counted in the piece limit. Clearing a hut away (or
@@ -207,10 +207,60 @@ local function overlaps(a: Rect, b: Rect): boolean
 	return a.x0 < b.x1 and b.x0 < a.x1 and a.z0 < b.z1 and b.z0 < a.z1
 end
 
--- The fixed things on an island no piece may cover (plot-local): the plaza round the campfire (the same on every tier;
--- the path south to the jetty went with the docks on 2026-11-13).
+-- The fixed things on an island no piece may cover (plot-local): none since 2026-11-20 (the request: "Remove the
+-- campfire in the middle and put the tree in the middle instead": the plaza round the campfire was one; the Tree of
+-- Life in its place is a piece like the rest). The path south to the jetty went with the docks on 2026-11-13.
+local NO_BLOCKERS: { Rect } = table.freeze({})
 function Plot.blockers(_tier: number): { Rect }
-	return { Street.PLAZA }
+	return NO_BLOCKERS
+end
+
+-- Where a founder appears on an island (plot-local x, z): a stud in front of the Tree of Life where it stands (south of
+-- its middle), else the nearest spot round there that no piece but a path tile covers; Street.spawn on an island
+-- with no tree.
+function Plot.spawn(tier: number, placed: { Piece }): (number, number)
+	local cx, cz = Street.spawn()
+	for _, q in placed do
+		if q.id == "tree" then
+			local r = Plot.rect(q.id, q.x, q.z, q.rot)
+			cx, cz = (r.x0 + r.x1) / 2, r.z1 + 1.5
+		end
+	end
+	local function free(x: number, z: number): boolean
+		if not Street.walkable(tier, math.floor(x), math.floor(z)) then
+			return false
+		end
+		for _, q in placed do
+			if not Plot.isPath(q.id) then
+				local r = Plot.rect(q.id, q.x, q.z, q.rot)
+				if x > r.x0 - 0.5 and x < r.x1 + 0.5 and z > r.z0 - 0.5 and z < r.z1 + 0.5 then
+					return false
+				end
+			end
+		end
+		return true
+	end
+	if free(cx, cz) then
+		return cx, cz
+	end
+	for ring = 1, 30 do
+		local best, bx, bz = math.huge, cx, cz
+		for dz = -ring, ring do
+			for dx = -ring, ring do
+				if math.max(math.abs(dx), math.abs(dz)) == ring then
+					local x, z = cx + dx, cz + dz
+					local d = dx * dx + dz * dz
+					if d < best and free(x, z) then
+						best, bx, bz = d, x, z
+					end
+				end
+			end
+		end
+		if best < math.huge then
+			return bx, bz
+		end
+	end
+	return cx, cz
 end
 
 local ROT_OK: { [number]: boolean } = { [0] = true, [90] = true, [180] = true, [270] = true }
@@ -239,7 +289,7 @@ local function onWater(r: Rect, placed: { Piece }, skip: number?): boolean
 end
 
 -- A fence length at (x, z, rot): on the even grid, rot 0 (east) or 90 (south), each of its two studs with buildable
--- grass on at least one side; not through the plaza, the path or a piece (it may run along one's side, and past tiles),
+-- grass on at least one side; not through a piece (it may run along one's side, and past tiles),
 -- and not where a fence stands already.
 local function fenceFits(tier: number, placed: { Piece }, x: number, z: number, rot: number, skip: number?): (boolean, string?)
 	if x % 2 ~= 0 or z % 2 ~= 0 or (rot ~= 0 and rot ~= 90) then
@@ -293,7 +343,7 @@ end
 
 -- Whether piece `id` fits at (x, z, rot) on an island of `tier` with these pieces (skip = the index of the piece
 -- being moved). Returns true, or false and why: "outside" (off the buildable grass or not on the grid; a piece that
--- floats, off the water), "blocked" (the plaza or the path), "overlap" (another piece), "unknown" (no such piece).
+-- floats, off the water), "blocked" (a fixed thing: none now), "overlap" (another piece), "unknown" (no such piece).
 function Plot.fits(tier: number, placed: { Piece }, id: string, x: number, z: number, rot: number, skip: number?): (boolean, string?)
 	local def = Buildings.byId[id]
 	if def == nil then

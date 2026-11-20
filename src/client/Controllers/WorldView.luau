@@ -69,9 +69,6 @@ type Walker = {
 }
 
 local walkers: { [string]: Walker } = {} -- key: "<plot>:p<id>"
--- Each peopled island's campfire: a flickering flame over the static fire, three puffs of smoke rising from it.
-type Fire = { flame: MicroModels.Thing, smoke: Model, puffs: { BasePart }, x: number, z: number, ph: number }
-local fires: { [number]: Fire } = {}
 local signLabels: { [number]: TextLabel } = {}
 local myPlot = 0
 -- studs from the view's centre an island is peopled within: the next island either side (100 when they were 80 apart)
@@ -278,76 +275,26 @@ local function spotsOf(i: number): { [number]: Spot }
 	return out
 end
 
--- A random point on island i's grass (world), off the plaza's campfire.
+-- A random point on island i's open grass (world), off the Tree of Life (spotsOf: where it stands).
 local function strollPoint(i: number, rng: Types.Rng): (number, number)
 	local m = plotModel(i)
 	local tier = if m then (m:GetAttribute("Tier") :: number?) or 1 else 1
 	local r = Street.plot(tier)
 	local ox, oz = Street.origin(i)
-	local c = Street.CENTER
+	local tx, tz, th = Street.CENTER.x, Street.CENTER.z, 0
+	for _, sp in spotsOf(i) do
+		if sp.id == "tree" then
+			tx, tz, th = sp.cx - ox, sp.cz - oz, math.max(sp.w, sp.d) / 2 + 1
+		end
+	end
 	for _ = 1, 12 do
 		local x, z = r.x0 + rng:next() * (r.x1 - r.x0), r.z0 + rng:next() * (r.z1 - r.z0)
-		if Street.buildable(tier, math.floor(x), math.floor(z)) and (x - c.x) ^ 2 + (z - c.z) ^ 2 > 6 then
+		if Street.buildable(tier, math.floor(x), math.floor(z)) and (math.abs(x - tx) > th or math.abs(z - tz) > th) then
 			return ox + x, oz + z
 		end
 	end
-	return ox + c.x + 3, oz + c.z + 3
-end
-
-local function fireOn(i: number, on: boolean)
-	local f = fires[i]
-	if on and f == nil then
-		local ox, oz = Street.origin(i)
-		local c = Street.CENTER
-		local flame = MicroModels.build("flame")
-		flame.model.Name = "Campfire_" .. i
-		flame.model.Parent = dyn()
-		PixelRenderer.registerDynamic(flame.model)
-		local smoke = Instance.new("Model")
-		smoke.Name = "CampSmoke_" .. i
-		local puffs: { BasePart } = {}
-		for k = 1, 3 do
-			local p = Instance.new("Part")
-			p.Name = "Puff" .. k
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-			p.CastShadow = false
-			p.Material = Enum.Material.SmoothPlastic
-			p.Color = if k == 2 then Color3.fromRGB(214, 220, 228) else Color3.fromRGB(240, 244, 248)
-			p.Size = Vector3.new(0.5, 0.5, 0.5)
-			p.CFrame = CFrame.new(ox + c.x, -50, oz + c.z)
-			p.Parent = smoke
-			table.insert(puffs, p)
-		end
-		smoke.Parent = dyn()
-		PixelRenderer.registerDynamic(smoke)
-		fires[i] = { flame = flame, smoke = smoke, puffs = puffs, x = ox + c.x, z = oz + c.z, ph = i * 1.7 }
-	elseif not on and f then
-		PixelRenderer.unregisterDynamic(f.flame.model)
-		f.flame.model:Destroy()
-		PixelRenderer.unregisterDynamic(f.smoke)
-		f.smoke:Destroy()
-		fires[i] = nil
-	end
-end
-
--- The flame flickers in whole steps (its size by thirds), the smoke rises, drifts and shrinks, then starts again.
-local function stepFire(f: Fire, t: number)
-	local k = math.floor(t * 10 + f.ph) % 3
-	MicroModels.scale(f.flame, Vector3.new(1, 0.85 + k * 0.15, 1))
-	MicroModels.place(f.flame, CFrame.new(f.x, Street.LAWN_Y + 0.55, f.z))
-	-- (the smoke moves ten times a second, with the flame: in between the pixel filter shows its kept picture; the stress
-	-- test of 2026-11-17 found it drawn afresh every frame, before every driftling)
-	local tq = math.floor(t * 10) / 10
-	for n, p in f.puffs do
-		local a = (tq * 0.35 + n / 3 + f.ph) % 1
-		local size = if a < 0.45 then 0.5 else 0.25
-		p.Size = Vector3.new(size, size, size)
-		p.CFrame = CFrame.new(f.x + a * 1.5 + math.sin(tq + n) * 0.25, Street.LAWN_Y + 1.6 + a * 4.5, f.z - a * 0.75)
-		p.Transparency = if a > 0.8 then 1 else 0
-	end
+	local sx, sz = Street.spawn()
+	return ox + sx, oz + sz
 end
 
 local function drop(key: string)
@@ -1107,8 +1054,6 @@ function WorldView.start()
 				local ox = Street.origin(i)
 				local near = math.abs(ox - c.X) <= NEAR
 				syncPlot(i, near)
-				local m = plotModel(i)
-				fireOn(i, near and m ~= nil and (tonumber(m:GetAttribute("Owner")) or 0) ~= 0)
 			end
 		end
 		local k0 = WorldView.clock()
@@ -1118,9 +1063,6 @@ function WorldView.start()
 		local k1 = WorldView.clock()
 		posePals(t)
 		local k2 = WorldView.clock()
-		for _, f in fires do
-			stepFire(f, t)
-		end
 		stepBits(dt)
 		updateSigns()
 		stepHover(t)

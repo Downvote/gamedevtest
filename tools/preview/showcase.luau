@@ -4,11 +4,11 @@
 -- own rules (Logic/Plot.fits for every piece, tile and fence; the piece, tile and fence limits, the huts' room, the
 -- places at work and the Hatcheries, as Plot.place counts them).
 --
--- The plan, from the plaza out north and south (the open ground grows round the plaza: since 2026-11-20 every tier's
--- is a ring round the island's heart, the rocks past it):
--- * The Tree of Life framed by a path round it and the plaza; a main avenue north from it up the island's middle,
+-- The plan, from the tree out north and south (the open ground grows round the island's middle: since 2026-11-20 every tier's
+-- is a ring round the island's heart, the dark past it):
+-- * The Tree of Life in the middle, framed by a path round it; a main avenue north from it up the island's middle,
 --   cross streets every 20 studs east to west, each a paving of its tier (dirt, cobble, brick, marble).
--- * The blocks between them, nearest the plaza first, are districts: huts (in rows facing the street, a front garden
+-- * The blocks between them, nearest the tree first, are districts: huts (in rows facing the street, a front garden
 --   and a tree between each two, a lane between two rows), work (farms fenced in, the wood camps among pines, the
 --   shops by the avenue, the boost buildings and the Hatcheries among them), parks (a pond with its floats and a
 --   bridge, a path round it, trees, benches and lamps, or a fountain square with flower beds) and themed yards (a
@@ -193,35 +193,30 @@ return function(env)
 				add(id, x, z, 0)
 			end
 		end
-		-- (the tree's ring, round wherever the tree stands: on the first island it can't stand behind the campfire)
-		local tr = { x0 = -4, z0 = -6, x1 = 4, z1 = 2 }
+		-- (the tree's ring, round wherever the tree stands: in the island's middle since 2026-11-20)
+		local tr = { x0 = -4, z0 = 2, x1 = 4, z1 = 10 }
 		for _, q in placed do
 			if def(q.id) and def(q.id).kind == "tree" then
 				tr = Plot.rect(q.id, q.x, q.z, q.rot)
 			end
 		end
 		local rx0, rx1 = tr.x0 - 2 - (tr.x0 % 2), tr.x1 + (tr.x1 % 2)
-		local rz0, rz1 = tr.z0 - 2 - (tr.z0 % 2), math.max(tr.z1, Street.PLAZA.z1)
+		local rz0, rz1 = tr.z0 - 2 - (tr.z0 % 2), tr.z1
 		tileCol(STREET, rx0, rz0, rz1)
 		tileCol(STREET, rx1, rz0, rz1)
 		tileRow(STREET, rz0, rx0, rx1)
-		-- the avenue, up the middle and down from the plaza
-		tileCol(AVENUE, -2, zN, -10)
-		tileCol(AVENUE, 0, zN, -10)
-		tileCol(AVENUE, -2, Street.PLAZA.z1 + 2, zS)
-		tileCol(AVENUE, 0, Street.PLAZA.z1 + 2, zS)
-		-- the cross streets, every 20 studs north of the tree and south of the plaza
+		-- the avenue, up the middle to the tree's ring and down from it
+		tileCol(AVENUE, -2, zN, rz0 - 2)
+		tileCol(AVENUE, 0, zN, rz0 - 2)
+		tileCol(AVENUE, -2, rz1 + 2, zS)
+		tileCol(AVENUE, 0, rz1 + 2, zS)
+		-- the cross streets, every 20 studs north and south of the tree
 		local streets: { number } = {}
 		local z = -8
 		while z > zN + 4 do
 			table.insert(streets, z)
-			if z ~= -8 then
-				tileRow(STREET, z, -40, -3)
-				tileRow(STREET, z, 2, 40)
-			else
-				tileRow(STREET, z, -40, -7)
-				tileRow(STREET, z, 6, 40)
-			end
+			tileRow(STREET, z, -40, -3)
+			tileRow(STREET, z, 2, 40)
 			z -= 20
 		end
 		local southStreets: { number } = {}
@@ -249,11 +244,11 @@ return function(env)
 				end
 			end
 		end
-		-- the old town round the plaza (between the first streets north and south)
+		-- the old town round the tree (between the first streets north and south)
 		local core0 = if #streets > 0 then -6 else zN
 		local core1 = if #southStreets > 0 then southStreets[1] - 1 else zS - 1
-		block(-60, Street.PLAZA.x0 - 1, core0, core1, "west", 0)
-		block(Street.PLAZA.x1 + 2, 60, core0, core1, "east", 0)
+		block(-60, tr.x0 - 1, core0, core1, "west", 0)
+		block(tr.x1 + 2, 60, core0, core1, "east", 0)
 		for i, sz in streets do
 			local north = streets[i + 1]
 			local z0 = if north then north + 2 else zN
@@ -626,7 +621,7 @@ return function(env)
 			return true
 		end
 
-		------------------------------------------------------------------ the districts, nearest the plaza first
+		------------------------------------------------------------------ the districts, nearest the tree first
 		table.sort(blocks, function(a, b)
 			if a.band ~= b.band then
 				return a.band < b.band
@@ -669,7 +664,7 @@ return function(env)
 			end
 		end
 		-- any huts or workplaces still owed (a small island's blocks are cut up by the tree and the coast): wherever they
-		-- fit, nearest the plaza first
+		-- fit, nearest the tree first
 		local spots: { { x: number, z: number } } = {}
 		for zz = zS - 1, zN, -1 do
 			for xx = -34, 34 do
@@ -724,8 +719,8 @@ return function(env)
 			end
 		end
 
-		------------------------------------------------------------------ round the plaza and along the streets
-		-- the tree's ring: lamps at its corners, flower beds and seats facing the plaza
+		------------------------------------------------------------------ round the tree and along the streets
+		-- the tree's ring: lamps at its corners, flower beds and seats facing the tree
 		add(LAMP, -7, -10, 0)
 		add(LAMP, 6, -10, 0)
 		add(LAMP, -7, 9, 0)
@@ -748,7 +743,7 @@ return function(env)
 			n += 1
 			add(LAMP, if n % 2 == 0 then -3 else 2, zz, 0)
 		end
-		-- the streets: a smaller lamp every 14 studs on their side away from the plaza
+		-- the streets: a smaller lamp every 14 studs on their side away from the tree
 		for _, sz in streets do
 			for x = -38, 38, 14 do
 				if math.abs(x) > 8 then

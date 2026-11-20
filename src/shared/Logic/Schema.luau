@@ -31,8 +31,9 @@ local Schema = {}
 -- 11: no villagers (the driftlings do all the work); 12: the tide (no Tree of Life, no pen, no food); 13: the Tree of
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
--- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15)
-Schema.VERSION = 21
+-- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15);
+-- 22: the Tree of Life in the island's middle (no campfire)
+Schema.VERSION = 22
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -132,7 +133,7 @@ end
 
 ------------------------------------------------------------------ default
 -- A new island: Tuning.StartWood (enough for the tips' buildings) and StartShells (the first eggs), no driftling yet,
--- its Tree of Life behind the campfire (Logic/Tree.plant) about to lay its first eggs.
+-- its Tree of Life in the island's middle (Logic/Tree.plant) about to lay its first eggs.
 function Schema.default(now: number, seed: number): Profile
 	local rng = Util.newRng(seed)
 	local p: Profile = {
@@ -473,6 +474,22 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	-- is absent for its default, so an older look reads as it was; reconcile starts the outfits empty.
 	if v < 21 then
 		v = 21
+	end
+	-- 21 -> 22: the Tree of Life to the island's middle (the request of 2026-11-20: "Remove the campfire in the middle
+	-- and put the tree in the middle instead"): a tree still where a new island's stood (behind the campfire,
+	-- Tree.OLD_SPOT) moves onto the campfire's plaza, Tree.SPOT. Nothing stood there (the plaza was no piece's), so it
+	-- always fits; a tree the player moved elsewhere stays where they put it.
+	if v < 22 then
+		local plot = raw.plot
+		local placed = if type(plot) == "table" then plot.placed else nil
+		if type(placed) == "table" then
+			for _, q in placed do
+				if type(q) == "table" and q.id == Tree.ID and q.x == Tree.OLD_SPOT.x and q.z == Tree.OLD_SPOT.z then
+					q.x, q.z = Tree.SPOT.x, Tree.SPOT.z
+				end
+			end
+		end
+		v = 22
 	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw

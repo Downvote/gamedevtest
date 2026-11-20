@@ -164,7 +164,7 @@ return function()
 			T.eq(lost, 0, "cells lost going to tier " .. (tier + 1))
 		end
 	end)
-	T.it("the sea: islands alone inside their lots, growing by tier, the plaza and the spawn on the grass, the sign on the beach", function()
+	T.it("the sea: islands alone inside their lots, growing by tier, the tree's spot and the spawn on the grass, the sign on the beach", function()
 		T.eq(Street.MAX, Tuning.MaxPlots)
 		local lot = Street.LOT
 		local prevCells = 0
@@ -182,17 +182,17 @@ return function()
 			end
 			T.truthy(cells > prevCells + 200, string.format("island %d grows: %d buildable cells", tier, cells))
 			prevCells = cells
-			-- the plaza and the spawn are on the grass; the sign stands on the south beach
-			local pl = Street.PLAZA
-			for z = pl.z0, pl.z1 - 1 do
-				for x = pl.x0, pl.x1 - 1 do
-					T.truthy(Street.layer(tier, x, z) == Street.GRASS, string.format("plaza on the grass at %d,%d (tier %d)", x, z, tier))
+			-- the Tree of Life's spot in the middle is open ground on every tier (a new island's tree fits there), the
+			-- spawn just south of it on the grass; the sign stands on the south beach
+			for z = 2, 9 do
+				for x = -4, 3 do
+					T.truthy(Street.buildable(tier, x, z), string.format("the tree's spot open at %d,%d (tier %d)", x, z, tier))
 				end
 			end
 			local sx, sz = Street.spawn()
-			T.truthy(Street.layer(tier, sx, sz) == Street.GRASS and sz >= pl.z0 and sz < pl.z1, "the spawn is on the plaza's grass (tier " .. tier .. ")")
+			T.truthy(Street.layer(tier, math.floor(sx), math.floor(sz)) == Street.GRASS and sz > 10, "the spawn on the grass south of the tree (tier " .. tier .. ")")
 			local gx, gz = Street.sign(tier)
-			T.truthy(Street.layer(tier, math.floor(gx), math.floor(gz)) == Street.SAND and gz > pl.z1, "the sign on the south beach (tier " .. tier .. ")")
+			T.truthy(Street.layer(tier, math.floor(gx), math.floor(gz)) == Street.SAND and gz > 10, "the sign on the south beach (tier " .. tier .. ")")
 			-- the coast's layers go outward in order along any ray from the centre
 			local c = Street.CENTER
 			for k = 0, 15 do
