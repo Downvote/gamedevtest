@@ -5,7 +5,7 @@
 # game's own driftlings, eggs and islands, drawn as pixel illustrations under the standing rules (one art grid a
 # picture, 1 px outlines a darker step of what they ring, anti-aliasing where they step, nothing scaled):
 #   * thumb_rarity: the rarity ladder (three panels split by slanted bars, the same kind of creature grander in each,
-#     its rarity's name over it and a bigger number under it);
+#     on one of the game's own floating islets, its rarity's name over it and a bigger number under it);
 #   * thumb_hero: one big face filling the frame, rays behind it, two more at the frame's edges looking in;
 #   * thumb_hatch: an egg, a big curved arrow, what hatched from it, a short line of words;
 #   * thumb_lucky: a field full of one common kind with one eternal among them, glowing, its rarity in rainbow letters;
@@ -373,14 +373,516 @@ def sparkles(cv, pts, c, free=None):
             G.sparkle_big(cv, x, y, arm, c)
 
 
+# ---------------------------------------------------------------- shading passes over the game's own pictures
+# (the rarity ladder's: the request of 2026-11-21, "detail the creatures much more, along with what you did with the
+# previous thumbnail")
+def _hsv(c):
+    return colorsys.rgb_to_hsv(c[0] / 255, c[1] / 255, c[2] / 255)
+
+
+def _rgb(h, s, v):
+    return tuple(int(round(x * 255)) for x in colorsys.hsv_to_rgb(h % 1.0, min(1.0, max(0.0, s)), min(1.0, max(0.0, v))))
+
+
+def materials(count):
+    """A picture's colours grouped by material. The renderer draws a material's bands (lit, mid, shadow and the darker
+    crevices) as one hue and saturation at several values, so colours sharing those are one material; the greys are
+    one. `count` maps a colour to its pixels. Returns {colour: (material, its brightest value, the colour's rank among
+    the material's values, 0 the brightest)}."""
+    groups = []
+    for c in sorted(count, key=lambda q: -count[q]):
+        h, s, _ = _hsv(c)
+        grey = s < 0.08
+        for g in groups:
+            if (g["grey"] and grey) or (not g["grey"] and not grey and abs(((h - g["h"] + 0.5) % 1.0) - 0.5) < 0.03 and abs(s - g["s"]) < 0.07):
+                g["cs"].append(c)
+                break
+        else:
+            groups.append({"h": h, "s": s, "grey": grey, "cs": [c]})
+    out = {}
+    for i, g in enumerate(groups):
+        vs = sorted({round(_hsv(c)[2], 3) for c in g["cs"]}, reverse=True)
+        for c in g["cs"]:
+            out[c] = (i, vs[0], vs.index(round(_hsv(c)[2], 3)))
+    return out
+
+
+def hue_shade(c, vmax, strength=1.0, lift=0.2):
+    """One band of a material shaded again with hue shifting: the lit band a touch warmer, each darker one turned
+    toward blue violet (further the darker it is, about 25 degrees at most) and more saturated, a grey taking a violet
+    tint, the shadows lifted a little toward the lit value so the colour carries them more than the darkness."""
+    h, s, v = _hsv(c)
+    k = v / max(0.01, vmax)
+    if k > 0.93:
+        if s < 0.08:
+            return _rgb(HS_WARM, s + 0.05 * strength, v)
+        d = ((HS_WARM - h + 0.5) % 1.0) - 0.5
+        return _rgb(h + max(-0.015, min(0.015, d * 0.2)) * strength, s * (1 - 0.04 * strength), v)
+    t = (1 - k) * strength
+    if s < 0.08:
+        h2, s2 = HS_COOL, s + 0.06 + t * 0.3
+    else:
+        d = ((HS_COOL - h + 0.5) % 1.0) - 0.5
+        cap = 0.12 * t
+        h2, s2 = h + max(-cap, min(cap, d * 0.9 * t)), s + t * 0.22
+    return _rgb(h2, s2, v + (vmax - v) * lift * strength)
+
+
+class Painted:
+    """A picture painted over (`paint`): its pixels by place, the outline ring round them, and the whole shape."""
+
+    def __init__(self, layer, body):
+        self.layer, self.body = layer, body
+
+    def moved(self, ox, oy):
+        L = IL.Layer()
+        L.px = {(x + ox, y + oy): c for (x, y), c in self.layer.px.items()}
+        L.edge = {(x + ox, y + oy) for (x, y) in self.layer.edge}
+        return Painted(L, {(x + ox, y + oy) for (x, y) in self.body})
+
+    def mask(self):
+        return set(self.layer.px)
+
+
+def paint(pix, strength=1.0, dither=True, rim=0.32, bounce=None):
+    """The game's own picture of something (`pix`: {(x, y): colour}, its 1 px ink ring included) painted over as an
+    illustration under the standing rules: the ring taken off, every band of every material hue shifted
+    (`hue_shade`), the step from one band to the next dithered where both are two pixels deep (the lighter reaching a
+    pixel into the darker in a checker, the darker a quarter into the lighter: thin marks keep their shape), a rim of
+    light just inside the edges that face the light (the top left) and a dithered row inside it, `bounce` (a colour)
+    mixed into the bottom edge as light thrown up from what it stands on, then a new 1 px outline, each pixel a darker
+    step of the colour it rings."""
+    body = {q: c for q, c in pix.items() if all((q[0] + dx, q[1] + dy) in pix for dx, dy in IL.N4)}
+    count = {}
+    for c in body.values():
+        count[c] = count.get(c, 0) + 1
+    mat = materials(count)
+    new = {q: hue_shade(c, mat[c][1], strength) for q, c in body.items()}
+    out = dict(new)
+    if dither:
+        for (x, y), c in body.items():
+            m, _, r = mat[c]
+            for dx, dy in IL.N4:
+                q = (x + dx, y + dy)
+                c2 = body.get(q)
+                if c2 is None or mat[c2][0] != m or mat[c2][2] != r + 1:
+                    continue
+                far = body.get((x + 2 * dx, y + 2 * dy))
+                back = body.get((x - dx, y - dy))
+                if far is not None and mat[far][0] == m and mat[far][2] == r + 1 and (q[0] + q[1]) % 2 == 0:
+                    out[q] = new[(x, y)]
+                if back is not None and mat[back][0] == m and mat[back][2] == r and BAYER4[y % 4][x % 4] < 4:
+                    out[(x, y)] = new[q]
+
+    def inside(x, y):
+        return (x, y) in body
+
+    for (x, y) in body:
+        c = out[(x, y)]
+        if not inside(x, y - 1) or not inside(x - 1, y):
+            c = hs_light(c, rim)
+        elif (not inside(x, y - 2) or not inside(x - 2, y)) and (x + y) % 2 == 0:
+            c = hs_light(c, rim * 0.45)
+        if bounce is not None and not inside(x, y + 1) and inside(x, y - 1):
+            c = mix(c, bounce, 0.3)
+        out[(x, y)] = c
+    L = IL.Layer()
+    for q, c in out.items():
+        L.put(q[0], q[1], c)
+    L.outline(eight=False)
+    return Painted(L, set(body))
+
+
+# ---------------------------------------------------------------- the driftlings as pixel illustrations
+# (the request of 2026-11-21: "detail the creatures like you would a pixel art illustration instead of a 3d model,
+# making them more accurate and detailed and polished and recognizable")
+def parse_gbuf(path):
+    """The ladder driftlings' picture data from the cast's log (gthumbs=cast: `@@GTHG` and `@@GTHS` lines): for each,
+    its size, art px a stud, and per pixel its colour before shading, whether it glows, which way it faces in the view
+    (right, up, toward the viewer), its depth in studs (None where nothing is) and its solid, with each solid's kind
+    (e eye, g glow, b blended body)."""
+    out = {}
+    with open(path) as f:
+        for line in f:
+            if line.startswith("@@GTHG "):
+                _, name, w, h, hx = line.split(" ", 4)
+                W, H = int(w), int(h)
+                hx = hx.strip()
+                alb = [[None] * W for _ in range(H)]
+                glow = [[False] * W for _ in range(H)]
+                nrm = [[None] * W for _ in range(H)]
+                dep = [[None] * W for _ in range(H)]
+                ids = [[0] * W for _ in range(H)]
+                for i in range(W * H):
+                    q = hx[i * 26:(i + 1) * 26]
+                    sid = int(q[22:26], 16)
+                    if sid == 0:
+                        continue
+                    dq = int(q[14:22], 16)
+                    y, x = divmod(i, W)
+                    a = int(q[0:8], 16)
+                    alb[y][x] = ((a >> 16) & 255, (a >> 8) & 255, a & 255)
+                    glow[y][x] = bool(a & 0x1000000)
+                    nrm[y][x] = tuple(int(q[8 + 2 * k:10 + 2 * k], 16) / 127.0 - 1 for k in range(3))
+                    dep[y][x] = dq / 256.0
+                    ids[y][x] = sid
+                out.setdefault(name, {}).update(W=W, H=H, alb=alb, glow=glow, n=nrm, d=dep, id=ids)
+            elif line.startswith("@@GTHS "):
+                parts = line.split()
+                kinds = {}
+                for t in parts[3:]:
+                    i, k = t.split(":")
+                    kinds[int(i)] = k
+                out.setdefault(parts[1], {}).update(scale=float(parts[2]), kinds=kinds)
+    return out
+
+
+def _norm(v):
+    m = math.sqrt(sum(c * c for c in v)) or 1.0
+    return tuple(c / m for c in v)
+
+
+def paint_driftling(g, rim_tint=(214, 236, 255), bounce=(170, 226, 160)):
+    """A driftling drawn again as a pixel illustration from what the game's picture engine knows of each pixel (its
+    colour before shading, which way it faces, its depth, its part), the way a pixel artist would shade it rather than
+    as a lit 3D model:
+      * one light from the top left, in front: each material in a ramp of five hue-shifted steps (deep shade, shade,
+        base, light, highlight; the shades toward violet and more saturated, the lights warmer), each part shaded as
+        the round form it is, from its own facing;
+      * the steps in clean clusters: a pixel alone in its step among neighbours that agree takes theirs, and the
+        steps' borders smoothed, never across a material's edge; between base and its neighbours a pixel wide seam in
+        the ordered dither where the form turns slowly;
+      * shade where a part tucks under another (the depth round a pixel stepping toward the viewer: under the chin,
+        between the legs, where the head meets the body) and where one part stands between another and the light
+        (traced across the picture's depths), light thrown up from the lawn on what faces down, a rim of
+        cool back light on the edges turned away, a glint where the light meets the form square on;
+      * the eyes, the blush and what glows kept as painted;
+      * a line where one part passes in front of another (the depth stepping more than a tenth of a stud), a darker
+        step of the part behind, softer than the outline, so legs, arms, ears, mane and tail read on their own;
+      * a 1 px outline round it all, each pixel a darker step of the colour it rings."""
+    W, H = g["W"], g["H"]
+    alb, glow, nrm, dep, ids = g["alb"], g["glow"], g["n"], g["d"], g["id"]
+    kinds = g.get("kinds", {})
+    scale = g.get("scale", 80.0)
+    L = _norm((-0.5, 0.6, 0.64))
+    Hh = _norm((L[0], L[1], L[2] + 1.0))
+    Rb = _norm((0.75, -0.1, -0.65))
+    inside = [[alb[y][x] is not None for x in range(W)] for y in range(H)]
+
+    def at(x, y):
+        return 0 <= x < W and 0 <= y < H and inside[y][x]
+
+    painted = {}
+    for y in range(H):
+        for x in range(W):
+            if not inside[y][x]:
+                continue
+            k = kinds.get(ids[y][x], "")
+            if glow[y][x] or "e" in k:
+                painted[(x, y)] = True
+    # ambient occlusion: how much of the ring 3 and 6 px round a pixel stands nearer the viewer than it by a stretch
+    near_k = 0.08 * 80.0 / scale  # (studs nearer that count: about a tenth of a stud)
+    dirs = [(math.cos(a), math.sin(a)) for a in (i * math.pi / 4 for i in range(8))]
+    ao = [[0.0] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            if not inside[y][x]:
+                continue
+            d0 = dep[y][x]
+            occ = 0
+            for r in (3, 6):
+                for (cx, cy) in dirs:
+                    qx, qy = int(round(x + cx * r)), int(round(y + cy * r))
+                    if at(qx, qy) and dep[qy][qx] < d0 - near_k * (r / 3):
+                        occ += 1
+            ao[y][x] = occ / 16.0
+    # cast shadows: from each pixel toward the light across the picture, a part standing nearer the viewer than the
+    # light's ray (with a little give) shades it, so the head shades the chest and the mane the back
+    hl = math.hypot(L[0], L[1])
+    sx, sy = L[0] / hl, -L[1] / hl
+    rise = (L[2] / hl) / scale
+    bias = 0.06 * 80.0 / scale
+    shadow = [[False] * W for _ in range(H)]
+    for y in range(H):
+        for x in range(W):
+            if not inside[y][x] or painted.get((x, y)):
+                continue
+            d0 = dep[y][x]
+            for t in range(3, 48):
+                qx, qy = int(round(x + sx * t)), int(round(y + sy * t))
+                if not (0 <= qx < W and 0 <= qy < H):
+                    break
+                if inside[qy][qx] and dep[qy][qx] < d0 - t * rise - bias:
+                    shadow[y][x] = True
+                    break
+    # each pixel's light: wrapped lambert, less where it is tucked in or in a cast shadow; its step, 0 deep ..
+    # 4 highlight
+    lv = [[None] * W for _ in range(H)]
+    tval = [[0.0] * W for _ in range(H)]
+    EDGES = (0.1, 0.3, 0.6, 0.86)
+    for y in range(H):
+        for x in range(W):
+            if not inside[y][x]:
+                continue
+            n = nrm[y][x]
+            d = n[0] * L[0] + n[1] * L[1] + n[2] * L[2]
+            v = (d + 0.35) / 1.35
+            v -= ao[y][x] * 0.55
+            if shadow[y][x]:
+                v = min(v, 0.26)
+            spec = max(0.0, n[0] * Hh[0] + n[1] * Hh[1] + n[2] * Hh[2]) ** 28
+            if spec > 0.6:
+                v = max(v, 0.9)
+            # (a continuous step for the dither: k + how far toward the next)
+            k = sum(1 for e in EDGES if v >= e)
+            lo = EDGES[k - 1] if k > 0 else EDGES[0] - 0.2
+            hi = EDGES[k] if k < 4 else EDGES[3] + 0.2
+            tval[y][x] = k + min(0.999, max(0.0, (v - lo) / (hi - lo))) - 0.5
+            lv[y][x] = k
+    # clean clusters: one pass of the commonest step round each pixel (same material only), then lone pixels go
+    def same_mat(x, y, qx, qy):
+        return at(qx, qy) and alb[qy][qx] == alb[y][x] and not painted.get((qx, qy))
+
+    for _ in range(2):
+        new = [row[:] for row in lv]
+        for y in range(H):
+            for x in range(W):
+                if lv[y][x] is None or painted.get((x, y)):
+                    continue
+                cnt = {}
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        if same_mat(x, y, x + dx, y + dy):
+                            k = lv[y + dy][x + dx]
+                            cnt[k] = cnt.get(k, 0) + (2 if dx == 0 and dy == 0 else 1)
+                best = max(cnt, key=lambda k: (cnt[k], k == lv[y][x]))
+                if cnt[best] >= 6:
+                    new[y][x] = best
+        lv = new
+    for y in range(H):
+        for x in range(W):
+            if lv[y][x] is None or painted.get((x, y)):
+                continue
+            nb = [lv[y + dy][x + dx] for dx, dy in IL.N4 if same_mat(x, y, x + dx, y + dy)]
+            if len(nb) >= 3 and all(k == nb[0] for k in nb) and nb[0] != lv[y][x]:
+                lv[y][x] = nb[0]
+    # the dithered seam: where the continuous step sits right at a border, a checker of the two steps
+    for y in range(H):
+        for x in range(W):
+            if lv[y][x] is None or painted.get((x, y)):
+                continue
+            t = tval[y][x]
+            f = t - math.floor(t)
+            if abs(f - 0.5) < 0.08 and lv[y][x] in (1, 2, 3) and (x + y) % 2 == 0:
+                up = round(t) if round(t) != lv[y][x] else None
+                if up is not None and 0 <= up <= 4:
+                    lv[y][x] = up
+
+    ramps = {}
+
+    def ramp(c):
+        r = ramps.get(c)
+        if r is None:
+            r = (hs_dark(c, 0.7), hs_dark(c, 0.85), c, hs_light(c, 0.2), hs_light(c, 0.5))
+            ramps[c] = r
+        return r
+
+    col = {}
+    for y in range(H):
+        for x in range(W):
+            if not inside[y][x]:
+                continue
+            c = alb[y][x]
+            if painted.get((x, y)):
+                col[(x, y)] = c
+                continue
+            r = ramp(c)
+            c2 = r[lv[y][x]]
+            n = nrm[y][x]
+            # light thrown up from the lawn on what faces down, the cool back light on the edges turned away
+            if n[1] < -0.35 and lv[y][x] <= 2:
+                c2 = mix(c2, bounce, 0.16)
+            edge = any(not at(x + dx * k, y + dy * k) for dx, dy in IL.N4 for k in (1, 2))
+            if edge and (n[0] * Rb[0] + n[1] * Rb[1] + n[2] * Rb[2]) > 0.45 and lv[y][x] <= 1:
+                c2 = mix(r[2], rim_tint, 0.25)
+            col[(x, y)] = c2
+    # the lines where one part passes in front of another: on the pixel behind, a softer darker step of it
+    jump = 0.1 * 80.0 / scale * 1.4
+    lines = {}
+    for y in range(H):
+        for x in range(W):
+            if not inside[y][x] or painted.get((x, y)):
+                continue
+            d0 = dep[y][x]
+            for dx, dy in IL.N4:
+                qx, qy = x + dx, y + dy
+                if at(qx, qy) and dep[qy][qx] < d0 - jump and (ids[qy][qx] != ids[y][x] or dep[qy][qx] < d0 - 2 * jump):
+                    lines[(x, y)] = mix(ink_of(col[(x, y)]), col[(x, y)], 0.3)
+                    break
+    col.update(lines)
+    Ly = IL.Layer()
+    for q, c in col.items():
+        Ly.put(q[0], q[1], c)
+    body = set(col)
+    Ly.outline(eight=False)
+    # (the outline on the lit side, above and left of the shape, a lighter darker step: the pixel artist's selective
+    # outline, so the light seems to wrap round the edge)
+    for (x, y) in Ly.edge:
+        inner = [col[q] for q in ((x + 1, y), (x, y + 1)) if q in col]
+        if inner and (x - 1, y) not in col and (x, y - 1) not in col:
+            Ly.px[(x, y)] = mix(Ly.px[(x, y)], inner[0], 0.35)
+    return Painted(Ly, body)
+
+
+def pic_pixels(pic):
+    return {(x, y): c for y, row in enumerate(pic) for x, c in enumerate(row) if c is not None}
+
+
+def feet_shadow(cv, fx, fy, rx, ry):
+    """A shadow under feet on the lawn: two hue-shifted steps darker, passing from one to the next and out to the lawn
+    in the ordered dither."""
+    for y in range(int(fy - ry * 1.1) - 1, int(fy + ry * 1.1) + 2):
+        for x in range(int(fx - rx * 1.1) - 1, int(fx + rx * 1.1) + 2):
+            d = ((x + 0.5 - fx) / rx) ** 2 + ((y + 0.5 - fy) / ry) ** 2
+            if d > 1.2 or cv.get(x, y) is None:
+                continue
+            lv = min(2, dither_step(min(2.0, max(0.0, (1.2 - d) / 0.55 * 2)), x, y, 0.7))
+            if lv > 0:
+                cv.px[y][x] = hs_dark(cv.px[y][x], (1.0, 0.86, 0.72)[lv])
+
+
+def dither_bands(cv, top, bottom, y0, y1, n, clip=None, zone=0.6):
+    """Flat bands from `top` at y0 to `bottom` at y1, each passing into the next in the ordered dither (the request of
+    2026-11-21: "use dithering if you want to make gradients and light bands"); only where `clip(x, y)` holds."""
+    cols = [tuple(int(round(top[i] + (bottom[i] - top[i]) * k / (n - 1))) for i in range(3)) for k in range(n)]
+    for y in range(cv.h):
+        t = min(n - 1.0, max(0.0, (y - y0) / max(1, y1 - y0) * (n - 1)))
+        for x in range(cv.w):
+            if clip is None or clip(x, y):
+                cv.px[y][x] = cols[min(n - 1, dither_step(t, x, y, zone))]
+    return cols
+
+
+def dither_rays(cv, cx, cy, n, ks, reach, tint, clip, turn=0.1):
+    """Rays fanning out from (cx, cy): every other wedge of `n` mixed toward `tint` by ks[level], the level falling off
+    out to `reach` px and passing from one to the next in the ordered dither; a wedge's side a checker a pixel wide,
+    so its straight edge never stairs."""
+    step = 2 * math.pi / n
+    top = len(ks) - 1
+    for y in range(max(0, int(cy - reach)), min(cv.h, int(cy + reach) + 1)):
+        for x in range(max(0, int(cx - reach)), min(cv.w, int(cx + reach) + 1)):
+            if not clip(x, y):
+                continue
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            d = math.hypot(dx, dy)
+            if d > reach:
+                continue
+            a = (math.atan2(dy, dx) + math.pi + turn) / step
+            i = math.floor(a)
+            if i % 2:
+                continue
+            f = a - i
+            if min(f, 1 - f) * step * d < 1.0 and (x + y) % 2:
+                continue
+            lv = min(top, dither_step(top * (1 - d / reach), x, y, 0.7))
+            if lv > 0:
+                cv.px[y][x] = mix(cv.px[y][x], tint, ks[lv])
+
+
+def shadowed(cv, draw, reach=6, tone=None):
+    """`draw()` (words drawn onto `cv`) with a soft shadow round what it drew: within 3 px a darker hue-shifted step of
+    the picture under it, out to `reach` px a lighter one in a checker, then the words back over it. With `tone` (a
+    colour, for a light sky) the shadow is that colour mixed in instead, two pixels solid and two in a checker, so it
+    reads as the sky's own shade and not a grey box. Returns what `draw` returned."""
+    before = [row[:] for row in cv.px]
+    out = draw()
+    W, H = cv.w, cv.h
+    text = {(x, y) for y in range(H) for x in range(W) if cv.px[y][x] != before[y][x]}
+    words = {q: cv.px[q[1]][q[0]] for q in text}
+    for y in range(H):
+        cv.px[y] = before[y][:]
+    if tone is not None:
+        reach = 4
+    dist = IL.distance_to(lambda x, y: (x, y) in text, W, H, reach)
+    for y in range(H):
+        for x in range(W):
+            d = dist[y][x]
+            if d is None or d == 0 or d > reach:
+                continue
+            if tone is not None:
+                if d <= 2:
+                    cv.px[y][x] = mix(cv.px[y][x], tone, 0.42)
+                elif (x + y) % 2 == 0:
+                    cv.px[y][x] = mix(cv.px[y][x], tone, 0.24)
+            elif d <= 3:
+                cv.px[y][x] = hs_dark(cv.px[y][x], 0.62)
+            elif (x + y) % 2 == 0 or d == 4:
+                cv.px[y][x] = hs_dark(cv.px[y][x], 0.78)
+    for (x, y), c in words.items():
+        cv.px[y][x] = c
+    return out
+
+
 # ---------------------------------------------------------------- the rarity ladder
-def thumb_rarity(pics):
-    """Three panels split by slanted white bars, a common, a rare and an eternal driftling each on a little floating
-    island, each panel's sky grander than the last, the rarity's name over it in its colour and how much faster it
-    works under it (Tuning.RarityWork), with a coin."""
-    W, H = G.TW, G.TH
+def islets(frame):
+    """The pedestals (gthumbs=pedestal: three of the game's own floating islets in a row, left to right, on the
+    stage's plain backdrop): each one's pixels and its lawn's middle (where the green of its top is, above its rock).
+    The backdrop is a few flat colours a row (dithered where two bands meet) that the islets never reach the sides
+    of, so a pixel is backdrop when its row's margins hold its colour."""
+    W, H = frame.w, frame.h
+    sky = G.Art(W, H)
+    for y in range(H):
+        cols = {frame.px[y][x] for x in list(range(0, 24)) + list(range(W - 24, W))}
+        for x in range(W):
+            c = frame.px[y][x]
+            sky.px[y][x] = c if c in cols else (-1, -1, -1)
+    m = IL.island_mask(frame, sky, min_part=400)
+    seen = set()
+    parts = []
+    for y in range(H):
+        for x in range(W):
+            if not m[y][x] or (x, y) in seen:
+                continue
+            stack, part = [(x, y)], []
+            seen.add((x, y))
+            while stack:
+                q = stack.pop()
+                part.append(q)
+                for dx, dy in IL.N8:
+                    n = (q[0] + dx, q[1] + dy)
+                    if 0 <= n[0] < W and 0 <= n[1] < H and m[n[1]][n[0]] and n not in seen:
+                        seen.add(n)
+                        stack.append(n)
+            if len(part) > 2000:
+                parts.append(part)
+    out = []
+    for part in sorted(parts, key=lambda pt: min(q[0] for q in pt)):
+        y0 = min(q[1] for q in part)
+        y1 = max(q[1] for q in part)
+        lawn = [q for q in part if q[1] < y0 + (y1 - y0) * 0.4 and frame.px[q[1]][q[0]][1] > frame.px[q[1]][q[0]][0] + 25 and frame.px[q[1]][q[0]][1] > frame.px[q[1]][q[0]][2] + 10]
+        lx = sum(q[0] for q in lawn) // len(lawn)
+        ly = sum(q[1] for q in lawn) // len(lawn)
+        out.append(({q: frame.px[q[1]][q[0]] for q in part}, (lx, ly)))
+    return out
+
+
+def thumb_rarity(pics, sc, gbuf=None):
+    """Three panels split by slanted white bars, a common, a rare and an eternal driftling each standing on one of the
+    game's own floating islets (gthumbs=pedestal: the unclaimed plot's islet, each a step bigger; the request of
+    2026-11-21: "make the islands the creatures are sitting on more like the ingame islands"), each panel's sky
+    grander than the last, the rarity's name over it and how much faster it works under it (Tuning.RarityWork) with a
+    coin. Drawn on the 960 x 540 grid as a pixel illustration like the big number ("detail the creatures much more,
+    along with what you did with the previous thumbnail"): the driftlings drawn at twice the pixels and shaded again
+    by hand's rules from the picture engine's own data (`paint_driftling`, from `gbuf`: "detail the creatures like you
+    would a pixel art illustration instead of a 3d model"; without it, `paint` over the cast's picture), the islets
+    hue shifted and outlined again, every sky, ray and glow passing from step to step in the
+    ordered dither, the words in hue-shifted bands dithered down their faces with a soft shadow round them, the
+    eternal's in a rainbow a letter each, and the big coin by each number."""
+    from PIL import ImageFont
+
+    W, H = 960, 540
     cv = G.Art(W, H)
-    B1, B2, BW, STEP = 180, 340, 6, 8
+    B1, B2, BW, STEP = 360, 680, 10, 8
 
     def panel(x, y):
         if x < B1 - y // STEP:
@@ -389,44 +891,95 @@ def thumb_rarity(pics):
             return 1
         return 2
 
-    skies = (((122, 180, 238), (198, 230, 252)), ((40, 150, 196), (150, 228, 226)), ((84, 50, 146), (240, 136, 204)))
-    for i, (top, bottom) in enumerate(skies):
-        bands(cv, top, bottom, 0, H, 9, clip=lambda x, y, i=i: panel(x, y) == i)
-    rarities = ((1, "COMMON", PAL["text_dim"], "lad_1", 96, None), (3, "RARE", light(PAL["button"], 0.15), "lad_2", 106, None), (9, "ETERNAL", PAL["eternal"], "lad_3", 118, rainbow))
-    # the panels' middles at the creature's height and at the words'
-    mids = ((B1 - 17) // 2, (B1 + B2) // 2 - 17, (B2 - 17 + W) // 2)
-    tops = ((B1 - 2) // 2, (B1 + B2) // 2, (B2 + W) // 2 + 2)
-    # rays in the rare panel and the eternal one, sparkles round the eternal
-    rays(cv, mids[1], 120, 12, 0.14, 0.08, 70, WHITE, lambda x, y: panel(x, y) == 1)
-    rays(cv, mids[2], 118, 16, 0.2, 0.12, 80, (255, 236, 252), lambda x, y: panel(x, y) == 2, turn=0.3)
-    for i, (r, name, col, key, iw, hue) in enumerate(rarities):
-        cx = mids[i]
-        ty = 132 - i * 4
-        isl, (fx, fy) = big_islet(cx, ty, iw, seed=3 + i)
-        isl.stamp(cv)
-        mask = set()
-        place_feet(cv, pics[key], fx, fy + 2, mask)
-        if i == 2:
-            rings(cv, mask, ((2, 0.3), (5, 0.16), (9, 0.07)), (255, 244, 255), clip=lambda x, y: panel(x, y) == 2)
-            IL.rim_light(cv, lambda x, y: (x, y) in mask, 0.2)
-        # the name over it
-        room = (B1 - 24) if i == 0 else ((B2 - B1 - 20) if i == 1 else (W - B2 - 12))
-        size = fit_size(name, 30, room)
-        G.title(cv, name, size, col, cx=tops[i], top=10, depth=3, glint=i > 0, chars=rainbow_chars(name) if hue else None)
-        # how much faster it works, under it, with a coin
-        num = "x" + RARITY_WORK[r]
-        nsize = (26, 30, 36)[i]
-        from PIL import ImageFont
+    def mid(i, y):
+        """The panel's middle at row y."""
+        d = y // STEP
+        return ((B1 - d) // 2, (B1 - d + BW + B2 - d) // 2, (B2 - d + BW + W) // 2)[i]
 
-        ft = ImageFont.truetype(G.TITLE_FONT, nsize)
-        l, _, rr, _ = ft.getbbox(num)
+    # ---- the skies: clean bands in the ordered dither, the rarer the deeper
+    skies = (((104, 160, 234), (204, 234, 252)), ((26, 120, 186), (156, 232, 226)), ((60, 30, 128), (246, 146, 206)))
+    for i, (top, bottom) in enumerate(skies):
+        dither_bands(cv, top, bottom, 0, H - 40, 10, clip=lambda x, y, i=i: panel(x, y) == i)
+    rnd = IL._rand(23)
+    # stars in the eternal's sky: single pixels and a few crosses, fewer further down
+    for _ in range(260):
+        x, y = int(rnd() * W), int(rnd() * H * 0.55)
+        if panel(x, y) != 2 or rnd() < y / (H * 0.55):
+            continue
+        cv.put(x, y, mix(cv.get(x, y), (255, 240, 250), 0.45 + 0.5 * rnd()))
+    for _ in range(14):
+        x, y = int(rnd() * W), int(rnd() * H * 0.4)
+        if panel(x - 2, y) == 2 and panel(x + 2, y) == 2:
+            cv.put(x, y, (255, 246, 252))
+            for dx, dy in IL.N4:
+                cv.put(x + dx, y + dy, mix(cv.get(x + dx, y + dy), (255, 236, 250), 0.5))
+    # far islets, flat and a step darker than the sky behind them
+    for (fx, fy, fw, i) in ((56, 232, 30, 0), (290, 168, 20, 0), (402, 250, 26, 1), (622, 196, 18, 1), (728, 300, 22, 2), (928, 214, 20, 2)):
+        if panel(fx, fy) == i:
+            IL.far_islet(cv, fx, fy, fw, mix(cv.get(fx, fy), skies[i][0], 0.5))
+    # rays behind the rare one and the eternal
+    LY = (366, 358, 350)
+    dither_rays(cv, mid(1, 250), 250, 14, (0.0, 0.05, 0.1, 0.16), 300, WHITE, lambda x, y: panel(x, y) == 1)
+    dither_rays(cv, mid(2, 236), 236, 18, (0.0, 0.06, 0.12, 0.2, 0.28), 330, (255, 236, 252), lambda x, y: panel(x, y) == 2, turn=0.3)
+    # the sea of clouds under them, in each sky's own colour, flat with a lit rim on each puff (the game's way)
+    for i, (top, bottom) in enumerate(skies):
+        back = mix(bottom, WHITE, 0.35)
+        front = mix(bottom, WHITE, 0.62)
+        IL.cloud_sea(cv, ((452, 22, back, mix(back, WHITE, 0.5)), (488, 26, front, mix(front, WHITE, 0.6))), seed=11 + i, clip=lambda x, y, i=i: panel(x, y) == i)
+    # ---- the islets and the driftlings on them
+    pedestals = islets(sc["pedestal"])
+    rarities = (
+        (1, "COMMON", PAL["text_dim"], "lad_1", None, None),
+        (3, "RARE", light(PAL["button"], 0.15), "lad_2", (WHITE, 26, (0.0, 0.07, 0.14, 0.22)), None),
+        (9, "ETERNAL", PAL["eternal"], "lad_3", ((255, 236, 252), 44, (0.0, 0.06, 0.12, 0.2, 0.3, 0.42)), True),
+    )
+    eternal = None
+    for i, (r, name, col, key, glow_at, rainbow_words) in enumerate(rarities):
+        pix, (lx, ly) = pedestals[i]
+        cx, cy = mid(i, LY[i]), LY[i]
+        isl = paint(pix, strength=0.7, dither=False, rim=0.2).moved(cx - lx, cy - ly)
+        pic = pics[key]
+        last, foot_mid, span = G.bottom_of(pic)
+        if gbuf and key in gbuf:
+            drift = paint_driftling(gbuf[key]).moved(cx - foot_mid, cy + 2 - last)
+        else:
+            drift = paint(pic_pixels(pic), bounce=(150, 226, 150)).moved(cx - foot_mid, cy + 2 - last)
+        if glow_at is not None:
+            tint, reach, ks = glow_at
+            dither_glow(cv, drift.mask(), reach, ks, tint)
+        isl.layer.stamp(cv)
+        feet_shadow(cv, cx, cy + 2, max(14, span * 0.5), max(5, span * 0.12))
+        drift.layer.stamp(cv)
+        if i == 2:
+            eternal = (cx, cy, drift)
+    # ---- the eternal's sparkle: motes rising round it, twinkles
+    ex, ey, drift = eternal
+    m = drift.mask()
+    ys = [q[1] for q in m]
+    for _ in range(40):
+        fx = int(ex + (rnd() - 0.5) * 230)
+        fy = int(min(ys) + rnd() * (ey - min(ys)))
+        if (fx, fy) not in m and panel(fx, fy) == 2:
+            c = ((255, 240, 170), (255, 200, 236), (214, 255, 236))[int(rnd() * 3)]
+            cv.put(fx, fy, c)
+            cv.put(fx, fy + 1, mix(cv.get(fx, fy + 1), c, 0.5))
+    sparkles(cv, ((ex - 118, 150, 7), (ex + 108, 196, 6), (ex + 84, 112, 4), (ex - 92, 262, 4), (ex + 126, 290, 3), (mid(1, 160) + 112, 170, 4), (mid(1, 240) - 120, 236, 3)),
+             (255, 250, 230), free=lambda x, y: (x, y) not in m)
+    # ---- the words: the rarity's name over each, how much faster it works under it with a coin
+    for i, (r, name, col, key, glow_at, rainbow_words) in enumerate(rarities):
+        room = (B1 - 40) if i == 0 else ((B2 - B1 - 40) if i == 1 else (W - B2 - 28))
+        size = fit_size(name, 62, room)
+        tone = hs_dark(skies[i][0], 0.7)
+        shadowed(cv, lambda: G.title(cv, name, size, col, cx=mid(i, 50), top=22, depth=5, glint=i > 0, chars=rainbow_chars(name) if rainbow_words else None, dither=True, shade=HUE_SHADE), tone=tone)
+        num = "x" + RARITY_WORK[r]
+        nsize = (54, 62, 74)[i]
+        l, _, rr, _ = ImageFont.truetype(G.TITLE_FONT, nsize).getbbox(num)
         nw = rr - l
-        cr = (8, 9, 11)[i]
-        x0 = cx - (nw + 2 * cr + 5) // 2
-        ny = (190, 186, 182)[i]
-        G.title(cv, num, nsize, WHITE if i == 0 else col, x0=x0, top=ny, depth=3, glint=i > 0, chars=rainbow_chars(num) if hue else None)
-        coin(cv, x0 + nw + cr + 6, ny + nsize // 2 + 2, cr)
-    sparkles(cv, ((mids[2] - 58, 70, 4), (mids[2] + 54, 96, 3), (mids[2] + 40, 54, 2), (mids[2] - 44, 128, 2), (mids[1] + 52, 80, 2)), (255, 250, 230))
+        cr = (19, 22, 26)[i]
+        ny = 522 - int(nsize * 0.74) - 5
+        x0 = mid(i, ny + 30) - (nw + 2 * cr + 16) // 2
+        box = shadowed(cv, lambda: G.title(cv, num, nsize, WHITE if i == 0 else col, x0=x0, top=ny, depth=5, glint=i > 0, chars=rainbow_chars(num) if rainbow_words else None, dither=True, shade=HUE_SHADE), tone=tone)
+        big_coin(cv, box[2] + 16 + cr, (box[1] + box[3] - 7) // 2, cr)
     slant_bar(cv, B1, BW, STEP)
     slant_bar(cv, B2, BW, STEP)
     return cv

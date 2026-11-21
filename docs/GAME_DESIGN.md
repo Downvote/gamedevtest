@@ -3342,6 +3342,32 @@ another game's (`tools/preview/genre_thumbs.py`), drawn as pixel illustrations l
 - `thumb_1_rarity.png`: COMMON, RARE and ETERNAL (the last in rainbow letters) over Puddlet, Thistlemane and
   Everwyrm, each on a small floating island in its own sky (plain blue, teal with rays, violet to pink with rays and
   sparkles), and under each how much faster it works, x1, x2.5 and x40 (`Tuning.RarityWork`), with a coin.
+
+  > The request (2026-11-21, on it): "now, do this to this thumbnail. detail the creatures much more, along with
+  > what you did with the previous thumbnail. make the islands the creatures are sitting on more like the ingame
+  > islands"
+
+  > Then: "detail the creatures like you would a pixel art illustration instead of a 3d model, making them more
+  > accurate and detailed and polished and recognizable"
+
+  So it moved to the 960 x 540 grid, the big number's, and the driftlings are drawn at twice the pixels and shaded
+  again the way a pixel artist would, not as a lit model. The cast run keeps what the game's picture engine knows of
+  every pixel (its colour before shading, which way it faces, its depth, which part it is), and the layout shades
+  from that: one light from the top left in front, each material in a ramp of five hue-shifted steps (deep shade and
+  shade toward violet, base, light and highlight warmer), every part shaded as its own round form; the steps in clean
+  clusters with lone pixels taken out, a pixel wide dithered seam where a form turns slowly; shade where a part tucks
+  under another and where one stands between another and the light (the head's shadow on the chest, the mane's on the
+  back); a line where one part passes in front of another, softer than the outline, so legs, arms, ears, mane and
+  tail read on their own; light thrown up from the lawn on what faces down, a cool back light on the edges turned
+  away, a glint where the light meets a form square on; the eyes, the blush and what glows kept as painted; and a 1 px
+  outline, a darker step of what it rings, lighter on the lit side. The
+  islands under them are the game's own: the unclaimed plot's islet (`StreetModels.emptyLot`, without its sign) at
+  three sizes, drawn by the pixel filter at about the game's own 12 art px a stud (`gthumbs=pedestal`), cut from the
+  stage's backdrop, hue shifted and outlined again: the boulder rim with its turf, vines and hanging stones, flowers
+  and bushes on the lawn. Round them, the big number's treatment: the skies, rays and glows passing from step to step
+  in the ordered dither, far islets, stars in the eternal's sky, the sea of clouds under each panel in that sky's
+  colour, the words in hue-shifted bands dithered down their faces with a shadow in the sky's own deep colour, the
+  eternal's numbers and name a rainbow a letter each, and the big coin by each number.
 - `thumb_2_hero.png`: Starmane's face big in the middle of a bright sky, rays behind its head and a glow round it,
   Skyfox and Emberpup cut by the frame's edges looking in, clouds under them. No words, as the genre's own.
 - `thumb_3_hatch.png`: the eternal egg on its nest on a little island, a big blue arrow curving to Nightwhale, the

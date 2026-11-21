@@ -11,6 +11,8 @@
 --     driftlings on it cheering, framed close by a stage view: gth_lawn.
 --   * "gthumbs=field": a meadow full of Puddlets with one eternal (Dawnwing) in the middle, for the genre's "one rare
 --     among many" frame: gth_field, gth_field_sky and gth_field_star (the eternal alone), at 2 screen px an art px.
+--   * "gthumbs=pedestal": three of the game's little floating islets in a row, each bigger than the last, for the
+--     rarity ladder: gth_pedestal, at 2 screen px an art px.
 --   * "gthumbs=day100:<tier>" also logs the island's coins a minute (the big number thumbnail's).
 --   * "gthumbs=cast": driftlings (and the rarest egg) drawn alone through Pixel/Snapshot (the world's palette, bands,
 --     shadows and its 1 px ink outline) at the sizes the thumbnails show them, mid-cheer, logged as
@@ -27,7 +29,7 @@ return function(env)
 	-- 4 screen px an art px for the scenes laid out on the 480 x 270 grid, 2 for the before-and-after pair on its
 	-- 960 x 540 one (the request of 2026-11-21: "could you increase the pixel resolution of the islands?"). The game
 	-- picks 3 at 1080p (Tuning.PixelScaleSides), which the layout once read as 4, resampling every frame unevenly.
-	local artK = if mode == "day1" or mode == "icon" or mode == "field" or string.sub(mode, 1, 6) == "day100" then 2 else 4
+	local artK = if mode == "day1" or mode == "icon" or mode == "field" or mode == "pedestal" or string.sub(mode, 1, 6) == "day100" then 2 else 4
 	-- (the icon's island drawn at ICON_SMALL art px a stud while this is on, the widest View notch answering that in
 	-- place of 5, under a tree drawn bigger: the requests of 2026-11-21, "Make the island small enough for the whole
 	-- island to be in frame of the icon, without changing the tree size", "Zoom in to this level for the icon. Also,
@@ -68,12 +70,14 @@ return function(env)
 	-- the sizes the thumbnails show them on their 480 x 270 grid (the request of 2026-11-21: "do more thumbnail
 	-- research, and replicate popular game thumbnails with the same genre type"; tools/preview/game_thumbs.py). (Drawn
 	-- at twice that for the 960 grid they read as flat shapes more than pixel art: a creature close up keeps the
-	-- chunkier grid.)
+	-- chunkier grid.) The rarity ladder's are on the 960 grid since its request (2026-11-21: "detail the creatures much
+	-- more, along with what you did with the previous thumbnail"): twice the pixels, with the layout's own shading
+	-- passes over them (tools/preview/genre_thumbs.py).
 	local CAST = {
 		-- the rarity ladder's three, a common, a rare and an eternal, each bigger than the last
-		{ "lad_1", "puddlet", 78, 28, 0.15 },
-		{ "lad_2", "thistlemane", 100, 28, 0.3 },
-		{ "lad_3", "everwyrm", 126, 26, 0.1 },
+		{ "lad_1", "puddlet", 156, 28, 0.15 },
+		{ "lad_2", "thistlemane", 200, 28, 0.3 },
+		{ "lad_3", "everwyrm", 252, 26, 0.1 },
 		-- the close-up: one big face in the middle, two more at the frame's edges looking in
 		{ "hero_big", "starmane", 250, 14, 0.12 },
 		{ "hero_lf", "skyfox", 140, 34, 0.35 },
@@ -103,11 +107,28 @@ return function(env)
 			end
 		end
 		local jobs = {}
+		-- (the rarity ladder's driftlings are painted again as pixel illustrations from what the picture engine knows of
+		-- every pixel: each picture's job is kept as it is made, named by the model built just before it)
+		local Picture = env.cshared(p, "Render.Picture")
+		local building: string? = nil
+		local gbuf: { [string]: any } = {}
+		local new0 = Picture.new
+		Picture.new = function(solids, cam, o)
+			local job = new0(solids, cam, o)
+			if building then
+				gbuf[building] = job
+				building = nil
+			end
+			return job
+		end
 		H.inClient(p, function()
 			Snapshot.setBudget(1000)
 			for _, c in list do
 				local name, sp, size, yaw, time = c[1], c[2], c[3], c[4], c[5]
 				local snap = Snapshot.get("gth:" .. name, function()
+					if string.sub(name, 1, 4) == "lad_" then
+						building = name
+					end
 					if string.sub(sp, 1, 3) == "egg" then
 						local r = tonumber(string.sub(sp, 4)) or Traits.RMAX
 						local m = EggModels.build(r)
@@ -145,6 +166,42 @@ return function(env)
 				out[i + 1] = string.format("%08x", buffer.readu32(buf, i * 4))
 			end
 			print(string.format("@@GTH %s %d %d %s", j.name, snap.w, snap.h, table.concat(out)))
+		end
+		Picture.new = new0
+		-- what the picture engine knows of each ladder driftling's pixels, as `@@GTHG <name> <w> <h> <hex>`: per pixel
+		-- its colour before shading (8 hex, 0x1000000 set where it glows), which way it faces in the view (right, up,
+		-- toward the viewer: 3 bytes, 0 .. 254 for -1 .. 1), its depth (8 hex, 1/256 studs) and its solid (4 hex, 0
+		-- where none is); then `@@GTHS <name> <art px a stud>` with each solid's index and what it is (e eye, g glow,
+		-- b blended body)
+		for name, job in gbuf do
+			if not job.done then
+				log("gthumbs: %s has no picture data", name)
+				continue
+			end
+			local W, Hh, cam = job.W, job.H, job.cam
+			local n = W * Hh
+			local out = table.create(n)
+			for i = 0, n - 1 do
+				local a = buffer.readu32(job.albedo, i * 4)
+				local nx = buffer.readf32(job.normal, i * 12)
+				local ny = buffer.readf32(job.normal, i * 12 + 4)
+				local nz = buffer.readf32(job.normal, i * 12 + 8)
+				local vr = nx * cam.rx + ny * cam.ry + nz * cam.rz
+				local vu = nx * cam.ux + ny * cam.uy + nz * cam.uz
+				local vt = -(nx * cam.lx + ny * cam.ly + nz * cam.lz)
+				local function byte(v: number): number
+					return math.clamp(math.floor((v + 1) * 127 + 0.5), 0, 254)
+				end
+				local d = buffer.readf32(job.frame.depth, i * 4)
+				local dq = if d > 1e20 then 0xFFFFFFFF else math.clamp(math.floor(d * 256 + 0.5), 0, 0xFFFFFFFE)
+				out[i + 1] = string.format("%08x%02x%02x%02x%08x%04x", a, byte(vr), byte(vu), byte(vt), dq, buffer.readu16(job.frame.id, i * 2))
+			end
+			print(string.format("@@GTHG %s %d %d %s", name, W, Hh, table.concat(out)))
+			local sol = {}
+			for i, sd in job.solids do
+				table.insert(sol, string.format("%d:%s%s%s", i, if sd.eye then "e" else "", if sd.glow then "g" else "", if sd.blend then "b" else ""))
+			end
+			print(string.format("@@GTHS %s %.4f %s", name, cam.s / cam.K, table.concat(sol, " ")))
 		end
 		log("gthumbs: %d pictures, %d not drawn", #jobs, bad)
 		return p
@@ -423,6 +480,60 @@ return function(env)
 			capture(p, "gth_field_star")
 		end
 		log("gthumbs: field with %d driftlings", #things)
+		return p
+	end
+
+	-- the pedestals: three of the game's own little floating islets (StreetModels.emptyLot, the unclaimed plot's,
+	-- without its sign), each a step bigger than the last, in a row on the painted sky, for the rarity ladder to stand
+	-- its driftlings on (the request of 2026-11-21: "make the islands the creatures are sitting on more like the
+	-- ingame islands"): frame gth_pedestal (a stage paints its own plain backdrop, which the layout cuts them from)
+	if mode == "pedestal" then
+		env.seedProfile(7316, 1, {})
+		local p = env.join(7316, "Ladder")
+		env.settle(p, 30, 1)
+		for _, g in p.PlayerGui:GetChildren() do
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
+				g.Enabled = false
+			end
+		end
+		local StreetModels = env.cshared(p, "Models.StreetModels")
+		local Blocks = env.cshared(p, "Models.Blocks")
+		local Street = env.cshared(p, "Data.Street")
+		local CC = H.cmod(p, "Controllers.CameraController")
+		local OX, OZ = 0, 9400
+		local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+		local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+		local function at(u: number, v: number): (number, number)
+			return OX + ux * u + vx * v, OZ + uz * u + vz * v
+		end
+		-- (half sizes in studs and where along the row, studs to the right)
+		local LOTS = { { r = 6, u = -23 }, { r = 7, u = 0 }, { r = 8, u = 24 } }
+		local n = 0
+		H.inClient(p, function()
+			local f = Blocks.model(nil, "ThumbPedestals")
+			for i, l in LOTS do
+				local x, z = at(l.u, 0)
+				local ox, oz = math.floor(x - Street.CENTER.x + 0.5), math.floor(z - Street.CENTER.z + 0.5)
+				StreetModels.emptyLot(f, Vector3.new(ox, 0, oz), { rx = l.r, rz = l.r, sign = false })
+				n = i
+			end
+			f.Parent = E.workspace
+			local pts = {}
+			-- (a box wider than the row, so the view draws them at about the game's own 12 art px a stud)
+			for _, q in { { -38, -11 }, { 40, -11 }, { -38, 11 }, { 40, 11 } } do
+				for _, y in { Street.LAWN_Y + 1, -15 } do
+					local x, z = at(q[1], q[2])
+					table.insert(pts, x)
+					table.insert(pts, y)
+					table.insert(pts, z)
+				end
+			end
+			CC.setStage({ name = "thumbs", origin = Vector3.new(OX, 0, OZ), pts = pts, tight = nil, top = 0, bottom = 0 })
+		end)
+		env.settle(p, 90, 0.5)
+		E.run(0.5)
+		capture(p, "gth_pedestal")
+		log("gthumbs: %d pedestals", n)
 		return p
 	end
 

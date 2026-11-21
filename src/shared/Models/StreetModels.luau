@@ -11,7 +11,7 @@
 --                                 invisible wall just past the grass, and the island's sign on its south rim (its
 --                                 board named "SignBoard"); built in chunks (landPlan, landChunk, landSign) so an
 --                                 expansion changes only the chunks along the edge
---   emptyLot(parent, origin)      an unclaimed plot: a little islet built the same way, with a sign
+--   emptyLot(parent, origin, opts?) an unclaimed plot: a little islet built the same way, with a sign
 -- The request of 2026-11-20: "Never mind, make it a floating island instead, with a 2d skybox. Expanding makes the
 -- island bigger." (the sea, the beaches, the swimming and the boats went with it; UI/SkyBackdrop paints the sky), then
 -- "also, detail and polish the edges and the bottom of the island more" and, with a picture of an island held up by
@@ -946,21 +946,29 @@ function StreetModels.land(parent: Instance, origin: Vector3, tier: number): Mod
 end
 
 ------------------------------------------------------------------ an unclaimed plot
--- A little islet floating where an island will be, built as the islands are, with a sign.
-function StreetModels.emptyLot(parent: Instance, origin: Vector3): Model
+-- A little islet floating where an island will be, built as the islands are, with a sign. `opts` (the game's
+-- thumbnails, tools/preview/game_thumbs.luau): its half sizes rx and rz in studs (7 and 5.5) and sign false for none.
+export type LotOpts = { rx: number?, rz: number?, sign: boolean? }
+function StreetModels.emptyLot(parent: Instance, origin: Vector3, opts: LotOpts?): Model
 	local m = Blocks.model(nil, "EmptyLot")
 	local o = CFrame.new(origin)
-	local cx, cz, rx, rz = Street.CENTER.x, Street.CENTER.z, 7, 5.5
+	local cx, cz = Street.CENTER.x, Street.CENTER.z
+	local rx, rz = (opts and opts.rx) or 7, (opts and opts.rz) or 5.5
+	local signed = not (opts and opts.sign == false)
 	local dist = cached(function(x: number, z: number): number
 		local dx, dz = x + 0.5 - cx, z + 0.5 - cz
 		local a = math.atan2(dz, dx)
 		local er = 1 / math.sqrt((math.cos(a) / rx) ^ 2 + (math.sin(a) / rz) ^ 2)
 		return math.sqrt(dx * dx + dz * dz) - er * (1 + 0.1 * math.sin(3 * a + 1)) - 0.01
 	end)
-	local b = { x0 = cx - 10, z0 = cz - 9, x1 = cx + 9, z1 = cz + 8 }
+	local b = { x0 = cx - math.ceil(rx) - 3, z0 = cz - math.ceil(rz + 0.5) - 3, x1 = cx + math.ceil(rx) + 2, z1 = cz + math.ceil(rz + 0.5) + 2 }
 	layers(m, o, b, dist)
-	scatterIn(m, o, b, dist, 0.5, cz + 2.5)
-	sign(m, o * CFrame.new(0.5, Street.LAWN_Y, cz + 2.5), "empty")
+	if signed then
+		scatterIn(m, o, b, dist, 0.5, cz + 2.5)
+		sign(m, o * CFrame.new(0.5, Street.LAWN_Y, cz + 2.5), "empty")
+	else
+		scatterIn(m, o, b, dist)
+	end
 	m.Parent = parent
 	return m
 end

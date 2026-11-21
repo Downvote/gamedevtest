@@ -619,14 +619,14 @@ def main():
         p = os.path.join(a.scenes, "gth_%s_desktop.png" % name)
         if not os.path.exists(p):
             sys.exit("no scene " + p)
-        return load_scene(p, 2 if name.split("_")[0] in ("day1", "day100", "icon", "icontree", "field", "rich") else K)
+        return load_scene(p, 2 if name.split("_")[0] in ("day1", "day100", "icon", "icontree", "field", "rich", "pedestal") else K)
 
-    sc = {n: scene(n) for n in ("day1", "day100", "day1_sky", "day100_sky", "icon", "icon_sky", "icontree", "icontree_sky", "field", "field_star", "rich", "rich_sky", "rich_tree")}
+    sc = {n: scene(n) for n in ("day1", "day100", "day1_sky", "day100_sky", "icon", "icon_sky", "icontree", "icontree_sky", "field", "field_star", "rich", "rich_sky", "rich_tree", "pedestal")}
     os.makedirs(a.out, exist_ok=True)
     # the before and after first, then the genre's other frames (tools/preview/genre_thumbs.py)
     made = [
         ("thumb_0_days", thumb_days(sc)),
-        ("thumb_1_rarity", genre_thumbs.thumb_rarity(pics)),
+        ("thumb_1_rarity", genre_thumbs.thumb_rarity(pics, sc, genre_thumbs.parse_gbuf(a.castlog))),
         ("thumb_2_hero", genre_thumbs.thumb_hero(pics)),
         ("thumb_3_hatch", genre_thumbs.thumb_hatch(pics)),
         ("thumb_4_lucky", genre_thumbs.thumb_lucky(sc)),

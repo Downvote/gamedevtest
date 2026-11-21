@@ -177,7 +177,7 @@ is `PixelIsland-<short hash>.rbxl`.)
   and driftlings and eggs drawn alone through Pixel/Snapshot, laid out as pixel illustrations by
   `tools/preview/game_thumbs.py`, `genre_thumbs.py` and `illustrate.py`, every word lettered on its picture's own grid;
   `thumb_0_days.png` leads, the genre's before and after on a 2x grid; `thumb_1_rarity` .. `thumb_5_rich` are the
-  genre's other frames, the ladder, the close-up and the egg on the 4x grid, the meadow and the big number on the 2x
+  genre's other frames, the close-up and the egg on the 4x grid, the ladder, the meadow and the big number on the 2x
   one; the icon is on a 256 x 256 grid; GAME_DESIGN 11.1).
   Every outline in these and in the loading card's art is a darker step of the colour beside it, never flat ink
   (GAME_DESIGN 2): `product_icons.py`'s `Canvas.edge` and `outline` draw a shape's outline in ink and `Canvas.finish`
@@ -459,7 +459,8 @@ Models (`src/shared/Models`, Roblox modules):
   one model of its own: out of the chunks, so a chunk's box (what the pixel filter draws again or ahead when it comes
   or goes) is only as big as what shows of it), `landSign(parent, origin, tier)` (the model `signName(tier)`,
   "Sign_<2x>_<2z>", holding the `PlotSign` with its `SignBoard` on the south rim, `Street.sign`), `emptyLot(parent,
-  origin)` (an unclaimed plot: a little islet built the same way, 14 by 11, with a sign), `LIP_BOT` (-3) and
+  origin, opts?)` (an unclaimed plot: a little islet built the same way, 14 by 11, with a sign; `opts` `{ rx, rz,
+  sign }` gives other half sizes in studs and `sign = false` none, for the rarity ladder thumbnail's islets), `LIP_BOT` (-3) and
   `BOTTOM` (-16.75: the deepest course's underside). Since 2026-11-20 ("for the floating island, detail the rocks and
   below like this too", with a picture) the edge is boulders: `layers(m, o, b, dist)` builds the `Lawn` (`LAWN_H` 0.5
   thick, top at `Street.LAWN_Y`, the founders stand on it; tone 2 dark along its rim and in patches, 1 light

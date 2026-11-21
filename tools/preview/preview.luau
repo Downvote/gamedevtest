@@ -4472,12 +4472,12 @@ local function piconsScenario(arg: string?)
 	return require("./product_icons")(env)
 end
 SCEN.picons = piconsScenario
--- "gthumbs" / "gthumbs=<shot>,<shot>" (tree crowd town work) / "gthumbs=cast" / "gthumbs=cast:<id>,<id>" / "gthumbs=day1" / "gthumbs=day100" / "gthumbs=icon" / "gthumbs=field": the game's
+-- "gthumbs" / "gthumbs=<shot>,<shot>" (tree crowd town work) / "gthumbs=cast" / "gthumbs=cast:<id>,<id>" / "gthumbs=day1" / "gthumbs=day100" / "gthumbs=icon" / "gthumbs=field" / "gthumbs=pedestal": the game's
 -- thumbnails' scenes and the driftlings drawn over them (tools/preview/game_thumbs.luau; sh tools/preview/game_thumbs.sh
 -- lays them out with the title and the captions)
 local function gthumbsScenario(arg: string?)
 	local env = { E = E, H = H, log = log, capture = capture, join = join, settle = settle, cshared = cshared, modOr = modOr, seedProfile = seedProfile, harbor = HARBOR, pals = PALS }
-	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "sky" or arg == "day1" or arg == "icon" or arg == "field" or string.sub(arg, 1, 6) == "day100") then
+	if arg and (string.sub(arg, 1, 4) == "cast" or arg == "hatch" or arg == "lawn" or arg == "sky" or arg == "day1" or arg == "icon" or arg == "field" or arg == "pedestal" or string.sub(arg, 1, 6) == "day100") then
 		env.mode = arg
 	elseif arg then
 		env.only = {}
