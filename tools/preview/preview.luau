@@ -2545,11 +2545,11 @@ function SCEN.build()
 		tapWorld(E.v3(ox + 0.5, Street.LAWN_Y, oz + 6.5))
 		settle(p, 10, 0.5)
 		capture(p, "build_red")
-		-- the tips in Build mode: the stall's tip (the island has none yet) turns the tray to the Shops tab, the stall
-		-- pulsing
+		-- the tips in Build mode: the workplace's tip turns the tray to Work's Workplaces row, the best workplace the
+		-- island has (Plot.tipWork) pulsing and free
 		H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
 		H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
-		prof.tut = 5
+		prof.tut = Plot.TIP_WORK
 		H.push(p, 0.4)
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
 		settle(p, 10, 0.5)
@@ -2558,10 +2558,10 @@ function SCEN.build()
 		-- at the Tree of Life ("auto close the build tab when going to the hatching step and point towards the tree of
 		-- life for the player to click")
 		H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
-		prof.tut = 3
+		prof.tut = Plot.TIP_HUT
 		H.push(p, 0.4)
 		H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
-		prof.tut = 4
+		prof.tut = Plot.TIP_HATCH
 		H.push(p, 0.4)
 		settle(p, 10, 1.4)
 		capture(p, "tip_tree")
