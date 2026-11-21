@@ -1007,8 +1007,8 @@ function SCEN.stress(legs: number?)
 	return p
 end
 
--- "tabout": the window shrunk the way a minimised one can be (a title bar's strip, 1 x 1, 0 x 0), held a while, then
--- back; after each step the pixel layer's state (its size, baking, shown, the image's transparency) and how much of
+-- "tabout": the window shrunk the way a minimised one can be (a title bar's strip, 1 x 1, 0 x 0), then out of
+-- fullscreen to 1280 x 720, each held a while, then back; after each step the pixel layer's state (its size, baking, shown, the image's transparency) and how much of
 -- the island its picture shows (the user's report of 2026-11-21, "the island sometimes disappeared when the player
 -- tabs out")
 function SCEN.tabout()
@@ -1049,7 +1049,15 @@ function SCEN.tabout()
 	end
 	report("settled")
 	capture(p, "tabout_before")
-	for _, small in { E.v2(160, 28), E.v2(1, 1), E.v2(0, 0) } do
+	-- (an unfocused window can be held to a few frames a second at the same size: long frames, then normal ones)
+	for _ = 1, 4 do
+		E.step(1.5)
+	end
+	report("after four 1.5 s frames")
+	E.run(1)
+	report("after four 1.5 s frames, then 1 s")
+	-- (then a real change of size, a window out of fullscreen and back: the picture comes back at once)
+	for _, small in { E.v2(160, 28), E.v2(1, 1), E.v2(0, 0), E.v2(1280, 720) } do
 		E.viewport = small
 		E.guiViewport = small
 		I.firePropChanged(cam, getD(cam), "ViewportSize")

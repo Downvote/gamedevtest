@@ -1687,10 +1687,37 @@ local function buildSurf(v: CameraController.View)
 		local due = baking or rebakeAt >= 0
 		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), texs = table.clone(texs), nextId = nextId, dirty = due, inv = invQueue, cur = invCur }
 		rebakeAt = -1 -- (the island's re-bake waits for the island; the stage bakes its own picture now)
+	elseif old and old.ready and not old.view.stage and not v.stage and old.view.plot == v.plot and old.view.key ~= v.key and (old.K ~= v.K or old.view.fullX ~= v.fullX or old.view.fullY ~= v.fullY) then
+		-- the screen changed size (a window made smaller or bigger, fullscreen and back): the island's picture is kept,
+		-- and if the screen comes back to that size it shows again at once, baked again behind it (the world may
+		-- have changed meanwhile). The report of 2026-11-21, "the island sometimes disappeared when the player tabs
+		-- out": each size had its picture baked from nothing, the island hidden until it was done.
+		stash = { key = old.view.key, surf = old, ids = table.clone(staticIds), albedos = table.clone(albedos), waters = table.clone(waters), texs = table.clone(texs), nextId = nextId, dirty = true, inv = invQueue, cur = invCur }
+		rebakeAt = -1
 	end
 	local st = stash
+	if st and st.surf.view.plot ~= v.plot then
+		-- (another island: its picture will not be wanted)
+		stash, st = nil, nil
+	elseif st and not v.stage and st.key ~= v.key then
+		-- (not its view yet: it waits, kept for when the screen comes back to its size; the world may change meanwhile)
+		st.dirty = true
+		st = nil
+	end
 	if st and not v.stage then
 		stash = nil
+		if st.key == v.key and not (img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H) then
+			-- (the image went with the other size: one of this size again, the picture sent up whole below)
+			local _, im0 = ensureLayer()
+			local ni = ImageMemory.create(st.surf.W, st.surf.H, "world")
+			if ni then
+				if img then
+					img:Destroy()
+				end
+				img = ni
+				im0.ImageContent = Content.fromObject(ni)
+			end
+		end
 		if st.key == v.key and img and img.Size.X == st.surf.W and img.Size.Y == st.surf.H then
 			surf = st.surf
 			staticIds, albedos, waters, texs, nextId = st.ids, st.albedos, st.waters, st.texs, st.nextId
@@ -1709,7 +1736,12 @@ local function buildSurf(v: CameraController.View)
 				image.Visible = true
 				image.ImageTransparency = 0
 				image.Size = UDim2.fromOffset(st.surf.vw, st.surf.vh)
+				local psz0 = image:FindFirstChildOfClass("UIScale")
+				if psz0 then
+					psz0.Scale = st.surf.K
+				end
 			end
+			shown = true
 			showWindow(st.surf)
 			if st.dirty then
 				-- (on screen at once, baked again behind it)
@@ -1739,6 +1771,11 @@ local function buildSurf(v: CameraController.View)
 		end
 		img = newImg
 		im.ImageContent = Content.fromObject(newImg)
+		shown = false
+		im.ImageTransparency = 1
+	elseif old and not old.view.stage and not v.stage and (old.K ~= K or old.vw ~= W0 or old.vh ~= H0) then
+		-- (the same image for another screen size or pixel size: what it holds is the old picture, drawn for the other
+		-- size; hidden until the new one is baked)
 		shown = false
 		im.ImageTransparency = 1
 	end

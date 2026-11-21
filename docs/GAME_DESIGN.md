@@ -688,6 +688,14 @@ canvas kept inside the safe area knows how far right of the screen's edge it sta
 preview's `notch` device (932 x 430, 47 px margins, a viewport that leaves them out) checks it: its log says the pixel
 layer covers the screen.
 
+> The report (2026-11-21): "the island sometimes disappeared when the player tabs out"
+
+A window minimised or tabbed away from can tell the game its screen is 0 x 0, 1 x 1 or a thin strip. The pixel layer
+was made again for that size, then again on the way back, and each time the island's picture was baked from nothing
+with the island hidden until it was done, several seconds. Now a size that small is not taken for a screen (the last
+real one stands), and when the screen really does change size (out of fullscreen and back) the island's finished
+picture is kept and shows again the moment the screen is back at its size, refreshed behind it.
+
 **What mobile tycoons and simulators share in landscape** (looked at for this: Pet Simulator 99, Grow a Garden, Bee
 Swarm Simulator, Adopt Me, Tycoon games on Roblox, and Roblox's own touch controls):
 - the money in a pill at the top left, with a "+" that opens the store;

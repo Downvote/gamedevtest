@@ -1425,6 +1425,13 @@ was due, or with a part come or gone since (`dirty`), still comes back at once a
 then immediately hatching somthing after, which causes the filter to be disabled". Such a picture used to be dropped,
 so the island came back to a bake from nothing with the hatch scene's last frame left over the 3D world meanwhile.)
 Back from a stage with nothing kept (the screen changed size), the layer stays hidden until its bake fades in.
+The screen changing size (a window out of fullscreen, made smaller or bigger) keeps the island's finished picture the
+same way (the stash, always `dirty`): back at that size, it shows at once and is baked again behind itself. A stash
+whose view has not come back waits (marked dirty); another island's is let go. Meanwhile the new size's picture is
+hidden until baked, the image too when it is the same size as before (1280 x 720 at K 2 and 1920 x 1080 at K 3 both make
+a 664 x 384 layer: it held the old picture at the wrong scale). Before (the report of 2026-11-21, "the island sometimes
+disappeared when the player tabs out"), each size was baked from nothing with the island hidden, and a minimised
+window's strip was one (`Pixel/ScreenSize` ignores those now). The preview `tabout` checks both.
 `watchStage(root)` (unused now: a stage's static parts that come or go while it is in view re-cast their rects; a rect over one
 already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
@@ -1880,7 +1887,10 @@ in the bottom right corner, the newest lowest, `NOTICE_FOOT` over the canvas's b
 `Pixel/ScreenSize`: `full() -> Vector2` (the whole screen in UI units: the larger of `Camera.ViewportSize` and a probe
 ScreenGui that ignores every inset, so a notched phone's side margins count), `Changed` (fires when it changes),
 `start()`. `CameraController.screenSize`, `PixelRenderer`'s layer, `SkyBackdrop`, `HatchBackdrop`, UIKit's viewport and
-`LoadingCard` read it (the right-edge bar of 2026-11-21).
+`LoadingCard` read it (the right-edge bar of 2026-11-21). A size under `MIN_SIDE` (100) on either axis is not a screen
+(a window minimised or tabbed away from says 0 x 0, 1 x 1 or a title bar's strip): `full()` gives the last real size
+meanwhile, so nothing is laid out or baked again for it (the report of 2026-11-21, "the island sometimes disappeared
+when the player tabs out").
 `UI/Hud` on a touch screen: `MenuBar` (a row of `Menu_<panel>` squares along the bottom on a `Dock` of glass: pals,
 hatch, index, looks, top, settings, build; centred between the left 30% of the screen and the jump button, a tablet's
 `Label_<panel>` names only where they fit; `Menu_build` mint with a `BuildRing` outline under it; the camera keeps the
