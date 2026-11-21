@@ -4122,6 +4122,30 @@ do
 	local f = sheet()
 	local cs = H.inClient(p, UIKitC.size, "Modal")
 	H.expect(f ~= nil and f.Size.X.Offset == cs.X and f.Size.Y.Offset == cs.Y, "touch", "a phone: the panel fills the screen", string.format("%s vs %dx%d", if f then tostring(f.Size) else "none", cs.X, cs.Y))
+	do
+		-- (2026-11-21: "When a menu is opened, flush it upwards, such that it sits on the roblox icon instead of avoiding
+		-- it. The title of each menu can be shifted right to accomodate for the roblox buttons"): the sheet's top at the
+		-- screen's top (a GUI's AbsolutePosition counts from under the top bar, so the bar's height above that), its
+		-- title right of Roblox's buttons (UIKit's 176 screen px where TopbarInset reads 0, as here), its body under them
+		-- (in UI px from the Modal canvas, the engine's AbsoluteSize leaving the canvas's UIScale out: u, then K screen px
+		-- a UI px)
+		local title = f and f:FindFirstChild("Title", true)
+		local body = f and f:FindFirstChild("Body")
+		local mg = p.PlayerGui:FindFirstChild("Modal")
+		local mc = mg and mg:FindFirstChild("Canvas")
+		local Km = H.inClient(p, UIKitC.P)
+		local u = if mc then math.max(1e-6, mc.AbsoluteSize.X / math.max(1, cs.X)) else 1
+		local function ui(g: GuiObject?, axis: string): number
+			if g == nil or mc == nil then
+				return -999
+			end
+			return if axis == "x" then (g.AbsolutePosition.X - mc.AbsolutePosition.X) / u else (g.AbsolutePosition.Y - mc.AbsolutePosition.Y) / u
+		end
+		local canvasTop = if mc then mc.AbsolutePosition.Y + E.inset else 999
+		H.expect(f ~= nil and math.abs(canvasTop) < 1 and math.abs(ui(f, "y")) < 0.5, "touch", "a phone: the panel reaches the screen's top, under Roblox's buttons", string.format("canvas %.0f below the screen's top, sheet %.1f below it", canvasTop, ui(f, "y")))
+		H.expect(title ~= nil and ui(title, "x") * Km >= 176, "touch", "its title starts right of Roblox's buttons", string.format("title at %.0f screen px", ui(title, "x") * Km))
+		H.expect(body ~= nil and ui(body, "y") * Km >= E.inset, "touch", "its body starts under them", string.format("body at %.0f screen px, the top bar %d", ui(body, "y") * Km, E.inset))
+	end
 	local wallet = f and f:FindFirstChild("Wallet", true)
 	local shells = wallet and wallet:FindFirstChild("Shells", true)
 	H.expect(shells ~= nil and shells.Text == NumbersC.short(math.floor(prof.shells)), "touch", "with the shells on its awning", shells and shells.Text)

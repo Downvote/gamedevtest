@@ -598,6 +598,12 @@ DEFAULT.Highlight = { Enabled = true, FillTransparency = 0.5, OutlineTransparenc
 local function guiAbs(self)
 	local d = getD(self)
 	if I.isA(d.cls, "LayerCollector") then
+		-- (ignoring the top bar but keeping the device's safe area, as a touch screen's menus do: from the screen's top,
+		-- the notch's margins kept at the sides)
+		if d.props.IgnoreGuiInset == true and d.props.ScreenInsets == Enum.ScreenInsets.DeviceSafeInsets then
+			local sx = E.safe or 0
+			return v2(sx, -E.inset), v2(E.viewport.X - 2 * sx, E.viewport.Y)
+		end
 		local full = d.props.IgnoreGuiInset == true or d.props.ScreenInsets == Enum.ScreenInsets.None
 		if full then
 			return v2(0, -E.inset), E.viewport

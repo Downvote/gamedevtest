@@ -534,9 +534,17 @@ floor, it just looks noisy", 2026-11-14),
   - A finger needs about 44 points (Apple) or 48 dp (Android) to hit something; the tap area can be bigger than what
     shows. On a touch screen every button smaller than that gets a see-through pad round it, 44 screen px each way, so
     it looks the same and is easy to hit.
-  - On a phone every panel fills the screen under Roblox's top bar (no margin, square corners), its awning 4 px taller
-    for a 20 px exit button (with its pad, a fingertip wide) and the shells beside it, kept up to date while it's open.
-    The props shelf steps aside for them.
+  - On a phone every panel fills the screen (no margin, square corners), its awning 4 px taller for a 20 px exit
+    button (with its pad, a fingertip wide) and the shells beside it, kept up to date while it's open. The props shelf
+    steps aside for them. Since 2026-11-21 it reaches right up to the screen's top: Roblox's own round button and its
+    menu and chat pill sit on the awning, and the panel's icon and title start to the right of them (their right edge
+    from GuiService.TopbarInset, or about 176 screen px into the safe area where a client reads 0); the panel's body
+    starts below them. A notched phone's side margins are still kept. On a tablet the centred panel only moves its
+    title the same way if it reaches up under those buttons.
+
+    > The request (2026-11-21, with a picture of the Rewards panel on a phone, a strip of the island showing above it
+    > under Roblox's buttons): "When a menu is opened, flush it upwards, such that it sits on the roblox icon instead
+    > of avoiding it. The title of each menu can be shifted right to accomodate for the roblox buttons"
   - On a tablet a panel is about a third bigger than on a computer (within the screen less a margin), with the shells
     and the bigger exit too, so the room a tablet has goes to bigger lists instead of empty sea.
   - Hover is a mouse's: on a touch screen a long press (0.35 s) shows what a hover shows (a driftling's card, a build
