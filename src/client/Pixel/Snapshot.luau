@@ -52,7 +52,9 @@
 --   true); priority (default 0); flat (a Color3: every drawn pixel in that one colour, fully opaque, and the ones on
 --   the picture's rim, next to the background, in flatEdge (default flat): a pixel-clean silhouette, e.g. the Recipe
 --   Book's recipes not made yet); keep (true: the cache never evicts the picture, only Snapshot.release forgets it:
---   for pictures a screen holds on to and shows later, e.g. the Recipe Desk's cake looks, its turned views and layers).
+--   for pictures a screen holds on to and shows later, e.g. the Recipe Desk's cake looks, its turned views and layers);
+--   place, textures and grade (Render/Picture's: a picture drawn as the world draws a moving model, a driftling's
+--   texture on it and the world's light, for one that sits in the world, the hatch scene's baked driftling).
 -- The cache keeps MAX_CACHE pictures: past that the least recently used ones that no label shows (and nobody keeps) go.
 -- When the device runs out of image memory (a long session), every such picture goes, then, one at a time and least
 -- recently used first, kept ones no label shows (they fail: their holders ask for their keys again), until the new
@@ -66,6 +68,7 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local EyeTex = require(ReplicatedStorage.Shared.Render.EyeTex)
+local DynTex = require(ReplicatedStorage.Shared.Render.DynTex)
 local Picture = require(ReplicatedStorage.Shared.Render.Picture)
 local PixelRenderer = require(script.Parent.PixelRenderer)
 local ImageMemory = require(script.Parent.ImageMemory)
@@ -83,6 +86,9 @@ export type Options = {
 	anchor: Vector2?,
 	outline: string?,
 	shadows: boolean?,
+	place: number?,
+	textures: boolean?,
+	grade: ((rgba: number) -> number)?,
 	priority: number?,
 	flat: Color3?,
 	flatEdge: Color3?,
@@ -180,6 +186,15 @@ local function readSolids(root: Instance): { Picture.Solid }
 		local blend = p:GetAttribute("PixelBlend")
 		if type(blend) == "number" and blend > 0 then
 			sol.blend = blend * math.max(size.X, size.Y, size.Z)
+		end
+		-- (a driftling's surface texture, Render/DynTex: drawn when Options.textures asks)
+		local texName = p:GetAttribute("PixelTex")
+		if type(texName) == "string" and p.Material ~= Enum.Material.Neon then
+			local tv, ts, tsoft = p:GetAttribute("PixelTexV"), p:GetAttribute("PixelTexSeed"), p:GetAttribute("PixelTexSoft")
+			sol.tex = DynTex.kind(texName)
+			sol.texV = if type(tv) == "number" then tv else nil
+			sol.texSeed = if type(ts) == "number" then ts else nil
+			sol.texSoft = if type(tsoft) == "number" then tsoft else nil
 		end
 		-- (a driftling's eye, painted as it is drawn: Render/EyeTex)
 		local eyeStyle = p:GetAttribute("PixelEye")
@@ -353,7 +368,7 @@ local function prepare(g: Group): boolean
 	local cams = Picture.fit(rots, solids, first.w, first.h, pad, o.scale, if at then { at.X, at.Y } else nil)
 	local jobs: { Picture.Job } = {}
 	for k in g.snaps do
-		table.insert(jobs, Picture.new(solids, cams[k], { outline = o.outline, shadows = o.shadows }))
+		table.insert(jobs, Picture.new(solids, cams[k], { outline = o.outline, shadows = o.shadows, place = o.place, textures = o.textures, grade = o.grade }))
 	end
 	g.jobs = jobs
 	return true
