@@ -10,7 +10,7 @@
 --   * "gthumbs=lawn": a round islet far from the others (palms, bushes, flowers, two rare eggs) with twenty
 --     driftlings on it cheering, framed close by a stage view: gth_lawn.
 --   * "gthumbs=cast": driftlings (and the rarest egg) drawn alone through Pixel/Snapshot (the world's palette, bands,
---     shadows and its 1 px ink outline) at the sizes the thumbnails and the icon show them, mid-cheer, logged as
+--     shadows and its 1 px ink outline) at the sizes the thumbnails show them, mid-cheer, logged as
 --     `@@GTH <name> <w> <h> <RGBA hex>` lines with a `gthumbs: <n> kinds` line for the captions.
 --     "gthumbs=cast:<id>,<id>" (an id may carry its cheer's time, "skyfox@0.3") draws those at 64 px to choose from.
 -- Frames are captured at the device's size (desktop: 1920 x 1080, 4 screen px an art px). tools/preview/game_thumbs.py
@@ -24,7 +24,7 @@ return function(env)
 	-- 4 screen px an art px for the scenes laid out on the 480 x 270 grid, 2 for the before-and-after pair on its
 	-- 960 x 540 one (the request of 2026-11-21: "could you increase the pixel resolution of the islands?"). The game
 	-- picks 3 at 1080p (Tuning.PixelScaleSides), which the layout once read as 4, resampling every frame unevenly.
-	local artK = if mode == "day1" or string.sub(mode, 1, 6) == "day100" then 2 else 4
+	local artK = if mode == "day1" or mode == "icon" or string.sub(mode, 1, 6) == "day100" then 2 else 4
 	local join0 = env.join
 	env.join = function(uid: number, name: string)
 		local p = join0(uid, name)
@@ -45,9 +45,6 @@ return function(env)
 
 	-- the cast: { name, species (or "egg<r>": an egg of rarity r, "egg": the rarest), size, yaw, cheer's time }
 	local CAST = {
-		-- the icon: its hero and the rarest egg beside it
-		{ "icon_main", "emberpup", 100, 26, 0.5 },
-		{ "icon_egg", "egg", 44, 0, 0 },
 		-- the title thumbnail's two in front, and a third smaller between them
 		{ "hero_l", "blazemane", 150, 32, 0.1 },
 		{ "hero_r", "skyfox", 136, -30, 0.3 },
@@ -344,19 +341,24 @@ return function(env)
 	-- "research other island building games, and make a thumbnail referencing their framing as close as possible":
 	-- the genre's most liked builders split the frame into a first island alone in open sky and a full one bleeding off
 	-- the edge). day1: a new island (the tree and its first eggs, nothing built); day100: a decorated tier 8 town
-	-- (tools/preview/showcase.luau; "day100:<tier>" another tier). Both whole, the View slider far out, a clear morning sky, the HUD off and the
-	-- founder parked off the island: frames gth_day1 and gth_day100.
-	if mode == "day1" or string.sub(mode, 1, 6) == "day100" then
+	-- (tools/preview/showcase.luau; "day100:<tier>" another tier). Both whole, the View slider far out, a clear morning
+	-- sky, the HUD off and the founder parked off the island: frames gth_day1 and gth_day100. "gthumbs=icon": the icon's
+	-- island (the request of 2026-11-21: "make an icon, with the island being the centerpiece"), a first island
+	-- furnished by tools/preview/icon_island.luau, whole in the middle at the widest View notch: gth_icon. Each frame is
+	-- captured twice, the second time with the world's layer hidden (gth_<name>_sky): where the two differ is the
+	-- island, which tools/preview/game_thumbs.py outlines and sets in front of a sky it paints itself.
+	if mode == "day1" or mode == "icon" or string.sub(mode, 1, 6) == "day100" then
 		local Plot = H.sharedServer("Logic.Plot")
 		local Street = H.sharedServer("Data.Street")
 		local Buildings = H.sharedServer("Data.Buildings")
 		local Creatures = H.sharedServer("Data.Creatures")
 		local Traits = H.sharedServer("Data.Traits")
-		local big = mode ~= "day1"
+		local icon = mode == "icon"
+		local big = mode ~= "day1" and not icon
 		-- (the full island's tier: "day100:<tier>" to try another; 8 by default, the widest View notch keeping its
 		-- buildings readable while it runs off the frame's edge)
 		local bigTier = tonumber(string.match(mode, "^day100:(%d+)$")) or 8
-		local uid = if big then 7313 else 7312
+		local uid = if icon then 7314 elseif big then 7313 else 7312
 		if big then
 			local plan = require("./showcase")({ Plot = Plot, Buildings = Buildings, Street = Street, log = log })
 			local pals = {}
@@ -371,11 +373,21 @@ return function(env)
 				shells = 9e9,
 				eggs = { Traits.RMAX, Traits.RMAX - 1, Traits.RMAX - 2, Traits.RMAX, Traits.RMAX - 3, Traits.RMAX - 1 },
 			})
+		elseif icon then
+			local plan = require("./icon_island")({ Plot = Plot, Buildings = Buildings, Street = Street, log = log })
+			env.seedProfile(uid, 1, {
+				fill = function(prof)
+					plan(prof)
+				end,
+				pals = { "emberpup", "mossbun", "skyfox", "pebblit", "bloomoth", "snowpuff", "gullfin", "sunsprite" },
+				shells = 9e6,
+				eggs = { Traits.RMAX, Traits.RMAX - 1, Traits.RMAX - 2, Traits.RMAX - 3, Traits.RMAX - 1, Traits.RMAX - 4, Traits.RMAX - 2 },
+			})
 		else
 			env.seedProfile(uid, 1, { pals = {}, shells = 600 })
 		end
-		local p = env.join(uid, if big then "Later" else "Sooner")
-		env.settle(p, if big then 120 else 60, 2)
+		local p = env.join(uid, if icon then "Icon" elseif big then "Later" else "Sooner")
+		env.settle(p, if big or icon then 120 else 60, 2)
 		E.run(2)
 		local ox = Street.origin(H.session(p).plot)
 		-- the middle of what is on the island (the land's own middle for an empty one)
@@ -386,6 +398,10 @@ return function(env)
 			x0, z0, x1, z1 = math.min(x0, r.x0), math.min(z0, r.z0), math.max(x1, r.x1), math.max(z1, r.z1)
 		end
 		local cx, cz = if x0 < math.huge then (x0 + x1) / 2 else 0, if z0 < math.huge then (z0 + z1) / 2 else Street.CENTER.z
+		if icon then
+			-- (the icon centres on the island itself; the layout crops round it)
+			cx, cz = Street.CENTER.x, Street.CENTER.z
+		end
 		log("gthumbs: %s pieces %d, middle %.1f, %.1f", mode, #prof.plot.placed, cx, cz)
 		local function hud()
 			for _, g in p.PlayerGui:GetChildren() do
@@ -403,8 +419,9 @@ return function(env)
 		H.openPanel(p, "settings")
 		E.run(0.4)
 		if SU then
-			-- (about the widest notch's span of sky at twice the pixels: 7 art px a stud, notch 3, on the 960 x 540 grid)
-			H.inClient(p, SU.setZoom, 3)
+			-- (about the widest notch's span of sky at twice the pixels: 7 art px a stud, notch 3, on the 960 x 540 grid;
+			-- the icon's first island whole on its 256 x 256 grid at 5 a stud, notch 1)
+			H.inClient(p, SU.setZoom, if icon then 1 else 3)
 		end
 		E.run(0.8)
 		H.closePanel(p)
@@ -422,7 +439,7 @@ return function(env)
 		-- (each island moved inside its half of the frame by the camera, so the sky behind stays whole: the first one
 		-- left of the divide, the full one right of it and lower, under the words; studs along the ground's
 		-- screen-right and away-from-the-viewer directions)
-		local shift = if big then { -30, 18 } else { 30, 0 }
+		local shift = if icon then { 0, 0 } elseif big then { -30, 18 } else { 30, 0 }
 		local rx, rz = math.sqrt(0.5), -math.sqrt(0.5)
 		local ax, az = -math.sqrt(0.5), -math.sqrt(0.5)
 		local fx = ox + cx + rx * shift[1] + ax * shift[2]
@@ -448,7 +465,15 @@ return function(env)
 			log("gthumbs: %s baked after %d s more, K %s, cast check off %s of %s", mode, t, tostring(H.inClient(p, PRd.pixelScale)), tostring(cc and cc.off), tostring(cc and cc.checked))
 		end
 		E.run(1.5)
-		capture(p, if big then "gth_day100" else "gth_day1")
+		local name = if icon then "gth_icon" elseif big then "gth_day100" else "gth_day1"
+		capture(p, name)
+		-- the same frame with the world's layer hidden: the sky alone, nothing stepped in between
+		local layer = p.PlayerGui:FindFirstChild("PixelLayer")
+		if layer then
+			layer.Enabled = false
+			capture(p, name .. "_sky")
+			layer.Enabled = true
+		end
 		return p
 	end
 

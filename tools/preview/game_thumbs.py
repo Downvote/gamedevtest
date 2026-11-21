@@ -14,8 +14,12 @@
 #     the title in HUGE (the BIG face doubled the way BIG doubles SMALL: every diagonal step kept to a 1 px stair) and
 #     the captions in BIG (scripts/gen_pixelfont.py), each in a ramp with a 1 px outline and depth under it in a
 #     darker step of its face.
-#   * the icon is 128 x 128 art px, 4x: 512 x 512: a driftling cheering on a little floating island in the sky, the
-#     rarest egg beside it.
+#   * the before and after (thumb_0_days) and the icon are drawn as pixel illustrations round the game's own pictures
+#     of the islands (illustrate.py: the island cut from its sky-only capture and outlined, a sky painted in clean
+#     bands, the sun, far islets, small floating rocks, gulls, a sea of clouds; the bar, the arrow and the words
+#     anti-aliased where their outlines step), on grids of twice the pixels: 960 x 540 and 256 x 256, 2x.
+#   * the icon is 256 x 256 art px, 2x: 512 x 512: the icon's island whole in the middle of the sky (the request of
+#     2026-11-21: "make an icon, with the island being the centerpiece").
 #
 # Usage: python3 tools/preview/game_thumbs.py <scenes dir> <cast log> <out dir> [--sheet sheet.png]
 #   scenes dir: the PNGs of the "gthumbs" and "gthumbs=hatch" runs (gth_<name>_desktop.png)
@@ -27,12 +31,13 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 from gen_portraits import parse  # noqa: E402
-from product_icons import PAL, WHITE, mix, dark, light, ink_of, pick_beside, TEXT_KEEP, TEXT_ADD  # noqa: E402
+from product_icons import PAL, WHITE, mix, dark, light, ink_of, lum, pick_beside, TEXT_KEEP, TEXT_ADD  # noqa: E402
 import gen_pixelfont  # noqa: E402
+import illustrate as IL  # noqa: E402
 
 K = 4
 TW, TH = 480, 270  # a thumbnail's art grid
-IW = 128  # the icon's
+IW = 256  # the icon's (2x: 512 x 512)
 
 
 # ---------------------------------------------------------------- the canvas
@@ -310,13 +315,15 @@ def div_x(y):
     return DIV_X - y // DIV_STEP
 
 
-def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5):
+def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True):
     """Words drawn on the art grid itself, one art pixel at a time (the request of 2026-11-21: "make the text respect
-    the pixel grid instead of using mixels"): the font traced at `size` art px into a clean mask (half covered or
-    more), an anti-aliasing pixel in each inside corner of a stair (between the face and its outline, where the font
-    covers it a little), the face in a ramp lit from the top (a lit row on every top edge), `depth` px of depth under
-    it a darker step, and a 1 px outline round all of it, a darker step of the face (selective outlining, the game's
-    words). Returns the box drawn."""
+    the pixel grid instead of using mixels", then "polish and detail it as if it is a pixel art illustration"): the
+    font traced at `size` art px into a clean mask (half covered or more), an anti-aliasing pixel in each inside corner
+    of a stair (between the face and its outline, where the font covers it a little), the face in a ramp of four bands
+    lit from the top with a lit row on every top edge and a bevel (its left edges a step lighter, its right and bottom
+    edges a step darker), a glint at each letter's top left, `depth` px of depth under it a darker step, a 1 px outline
+    round all of it, a darker step of the face (the game's words), and anti-aliasing outside the outline where its
+    stairs step (only where the font's ideal edge cuts through the pixel). Returns the box drawn."""
     from PIL import Image, ImageDraw, ImageFont
 
     ft = ImageFont.truetype(TITLE_FONT, size)
@@ -325,6 +332,14 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5):
     img = Image.new("L", (w, h), 0)
     ImageDraw.Draw(img).text((2 - l, 2 - t), s, font=ft, fill=255)
     cov = img.load()
+    # the same words four times bigger with a stroke one art px wide: how much of each pixel the face and its outline
+    # cover, for the anti-aliasing outside the outline
+    S = 4
+    ft4 = ImageFont.truetype(TITLE_FONT, size * S)
+    l4, t4, _, _ = ft4.getbbox(s)
+    big = Image.new("L", (w * S, h * S), 0)
+    ImageDraw.Draw(big).text((2 * S - l4, 2 * S - t4), s, font=ft4, fill=255, stroke_width=S, stroke_fill=255)
+    stroked = big.resize((w, h), Image.BOX).load()
     face = {(x, y) for y in range(h) for x in range(w) if cov[x, y] >= 128}
     aa = set()
     for y in range(h):
@@ -346,32 +361,68 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5):
         for d in range(1, depth + 1):
             if (x, y + d) not in body:
                 deep.add((x, y + d))
-    edge_c = ink_of(fill, TEXT_KEEP, TEXT_ADD)
     deep_c = dark(fill, 0.62)
-    hi, lo, top_c = light(fill, 0.42), dark(fill, 0.8), light(fill, 0.72)
+    bands = (light(fill, 0.6), light(fill, 0.3), fill, dark(fill, 0.84))
+    top_c = light(fill, 0.8)
     hh = y1f - y0f + 1
-    allp = body | deep
-    for (x, y) in allp:
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                q = (x + dx, y + dy)
-                if q not in allp:
-                    cv.put(q[0] + ox, q[1] + oy, edge_c)
-    for (x, y) in deep:
-        cv.put(x + ox, y + oy, deep_c)
 
     def face_c(x, y):
         ry = (y - y0f) / hh
-        c = hi if ry < 0.3 else (lo if ry > 0.62 else fill)
+        c = bands[0] if ry < 0.17 else (bands[1] if ry < 0.4 else (bands[2] if ry < 0.66 else bands[3]))
         if (x, y - 1) not in face:
-            c = top_c
+            return top_c
+        if (x - 1, y) not in face:
+            return light(c, 0.3)
+        if (x + 1, y) not in face or (x, y + 1) not in face:
+            return dark(c, 0.88)
         return c
 
+    L = IL.Layer()
+    for (x, y) in deep:
+        L.put(x + ox, y + oy, deep_c)
     for (x, y) in face:
-        cv.put(x + ox, y + oy, face_c(x, y))
+        L.put(x + ox, y + oy, face_c(x, y))
+    # (the inside corners' pixels sit between the face and its outline, so they go in before the outline rings it)
+    edge_c = ink_of(fill, TEXT_KEEP, TEXT_ADD)
     for (x, y) in aa:
         near = [face_c(qx, qy) for (qx, qy) in ((x, y - 1), (x, y + 1), (x - 1, y), (x + 1, y)) if (qx, qy) in face]
-        cv.put(x + ox, y + oy, mix(near[0], edge_c, 0.5))
+        L.put(x + ox, y + oy, mix(near[0], edge_c, 0.5))
+    L.outline(eight=True, keep=TEXT_KEEP, add=TEXT_ADD)
+    # a glint at each letter's top left: a short diagonal of white with a lit pixel either side, inside the face
+    if glint:
+        seen = set()
+        for p0 in sorted(face, key=lambda q: (q[0] + q[1], q[1])):
+            if p0 in seen:
+                continue
+            part, stack = [], [p0]
+            seen.add(p0)
+            while stack:
+                q = stack.pop()
+                part.append(q)
+                for dx, dy in IL.N4:
+                    n = (q[0] + dx, q[1] + dy)
+                    if n in face and n not in seen:
+                        seen.add(n)
+                        stack.append(n)
+            if len(part) < 40:
+                continue
+            gx, gy = min(part, key=lambda q: (q[0] + q[1], q[1]))
+            arm = max(2, size // 28)
+            for k in range(arm + 1):
+                for (dx, dy, c) in ((0, 0, WHITE), (1, 0, light(fill, 0.85)), (0, 1, light(fill, 0.85))):
+                    q = (gx + 3 + k + dx, gy + 3 + k + dy)
+                    if q in face and (q[0], q[1] - 1) in face and (q[0] - 1, q[1]) in face:
+                        L.put(q[0] + ox, q[1] + oy, c)
+
+    def cover(x, y):
+        best = 0
+        for d in range(0, depth + 1):
+            mx, my = x - ox, y - oy - d
+            if 0 <= mx < w and 0 <= my < h:
+                best = max(best, stroked[mx, my])
+        return best / 255
+
+    L.stamp(cv, cover=cover)
     return (min(xs) + ox - 1, oy - 1, max(xs) + ox + 1, y1f + oy + depth + 1)
 
 
@@ -394,7 +445,9 @@ def sparkle_big(cv, x, y, arm, c):
 
 def arrow(cv, pts, color, r=6.6, head=34, half=15):
     """A thick curved arrow through the quadratic curve `pts` (three points), its head at the end: the colour in a
-    ramp (the upper side lit, the lower in the shade), a 1 px outline a darker step of it (selective outlining)."""
+    ramp (the upper side lit, the lower in the shade, a lit row along its top), a 1 px outline a darker step of it,
+    anti-aliased where the outline's stairs step (illustrate.Layer: a pixel between the outline and the sky behind,
+    only where the ideal edge cuts through it), and a shadow a step darker than what lies under it."""
     (x0, y0), (x1, y1), (x2, y2) = pts
     line = []
     for i in range(241):
@@ -408,50 +461,178 @@ def arrow(cv, pts, color, r=6.6, head=34, half=15):
     tip = (x2 + tx * head, y2 + ty * head)
     c1 = (x2 + nx * half, y2 + ny * half)
     c2 = (x2 - nx * half, y2 - ny * half)
+    body = line[:-8]
 
-    def in_tri(px, py):
+    def tri_dist(px, py):
+        """0 inside the head, else the distance to its nearest side."""
         def side(ax, ay, bx, by):
             return (bx - ax) * (py - ay) - (by - ay) * (px - ax)
 
         d1, d2, d3 = side(*tip, *c1), side(*c1, *c2), side(*c2, *tip)
-        return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
+        if not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0)):
+            return 0.0
+        best = 1e9
+        for (a, b) in ((tip, c1), (c1, c2), (c2, tip)):
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            t = max(0.0, min(1.0, ((px - a[0]) * ex + (py - a[1]) * ey) / (ex * ex + ey * ey)))
+            best = min(best, math.hypot(px - a[0] - ex * t, py - a[1] - ey * t))
+        return best
 
-    shape = {}
+    def near_line(px, py):
+        best, off = 1e9, 0.0
+        for (lx, ly) in body:
+            d = (px - lx) ** 2 + (py - ly) ** 2
+            if d < best:
+                best, off = d, py - ly
+        return math.sqrt(best), off
+
     xs = [p[0] for p in line] + [tip[0], c1[0], c2[0]]
     ys = [p[1] for p in line] + [tip[1], c1[1], c2[1]]
-    for y in range(int(min(ys)) - 8, int(max(ys)) + 9):
-        for x in range(int(min(xs)) - 8, int(max(xs)) + 9):
-            cx, cy = x + 0.5, y + 0.5
-            best, off = 1e9, 0.0
-            for (lx, ly) in line[:-8]:
-                d = (cx - lx) ** 2 + (cy - ly) ** 2
-                if d < best:
-                    best, off = d, cy - ly
-            if best <= r * r:
+    X0, X1, Y0, Y1 = int(min(xs)) - 8, int(max(xs)) + 9, int(min(ys)) - 8, int(max(ys)) + 9
+    shape = {}
+    for y in range(Y0, Y1):
+        for x in range(X0, X1):
+            d, off = near_line(x + 0.5, y + 0.5)
+            if d <= r:
                 shape[(x, y)] = off
-            elif in_tri(cx, cy):
-                shape[(x, y)] = (cy - (y2 + ty * head * 0.3)) * 0.5
+            elif tri_dist(x + 0.5, y + 0.5) == 0.0:
+                shape[(x, y)] = (y + 0.5 - (y2 + ty * head * 0.3)) * 0.5
+
+    def cover(x, y):
+        """How much of the pixel the ideal arrow with its outline covers (4 x 4 samples)."""
+        hit = 0
+        for j in range(4):
+            for i in range(4):
+                px, py = x + (i + 0.5) / 4, y + (j + 0.5) / 4
+                if near_line(px, py)[0] <= r + 1 or tri_dist(px, py) <= 1:
+                    hit += 1
+        return hit / 16
+
     hi, lo = light(color, 0.38), dark(color, 0.74)
-    for (x, y) in shape:
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                if (x + dx, y + dy) not in shape:
-                    cv.put(x + dx, y + dy, ink_of(color))
+    L = IL.Layer()
     for (x, y), off in shape.items():
         c = hi if off < -2.4 else (lo if off > 2.4 else color)
         if (x, y - 1) not in shape:
             c = light(color, 0.6)
-        cv.put(x, y, c)
+        L.put(x, y, c)
+    L.outline(eight=True)
+    # the shadow: the whole arrow 3 px down, a step darker than what is under it
+    for (x, y) in list(L.px):
+        q = (x, y + 3)
+        if q not in L.px:
+            under = cv.get(*q)
+            if under is not None:
+                cv.put(q[0], q[1], dark(under, 0.86))
+    L.stamp(cv, cover=cover)
+
+
+def find_sun(ref, default=(296, 168, 15)):
+    """Where the game's sky put the sun (its disc: the brightest pixels above the clouds) and how big it is."""
+    pts = [(x, y) for y in range(int(ref.h * 0.6)) for x in range(ref.w) if ref.px[y][x] is not None and lum(ref.px[y][x]) > 245]
+    if len(pts) < 20:
+        return default
+    cx = sum(p[0] for p in pts) / len(pts)
+    cy = sum(p[1] for p in pts) / len(pts)
+    return int(round(cx)), int(round(cy)), max(6, int(round(math.sqrt(len(pts) / math.pi))))
+
+
+class Busy:
+    """The places already taken (islands, words, the bar, the arrow), for putting small things in the sky clear of them."""
+
+    def __init__(self, w, h):
+        self.w, self.h = w, h
+        self.cells = [[False] * w for _ in range(h)]
+
+    def mark_mask(self, m, clip=None):
+        for y, row in enumerate(m):
+            for x, on in enumerate(row):
+                if on and (clip is None or clip(x, y)):
+                    self.cells[y][x] = True
+
+    def mark_box(self, x0, y0, x1, y1):
+        for y in range(max(0, y0), min(self.h, y1)):
+            for x in range(max(0, x0), min(self.w, x1)):
+                self.cells[y][x] = True
+
+    def free(self, x0, y0, x1, y1, pad=6):
+        if x0 - pad < 0 or y0 - pad < 0 or x1 + pad > self.w or y1 + pad > self.h:
+            return False
+        return not any(self.cells[y][x] for y in range(y0 - pad, y1 + pad) for x in range(x0 - pad, x1 + pad))
+
+
+def sky_scene(cv, ref, horizon, bands, sun_at=None):
+    """The painted sky for a frame of the game (illustrate.paint_sky): the game's own top and low colours, read off
+    its sky-only capture, in clean bands; the sun where `sun_at` says (or where the game had it)."""
+    cols = range(0, ref.w, 5)
+    top = IL.row_colour(ref, 1, cols)
+    low = IL.row_colour(ref, int(ref.h * 0.62), cols)
+    IL.paint_sky(cv, top, low, 0, horizon, bands=bands)
+    sx, sy, sr = sun_at or find_sun(ref)
+    IL.sun(cv, sx, sy, sr)
+    return low
+
+
+def cloud_tones(low):
+    return (mix(low, WHITE, 0.38), mix(low, WHITE, 0.52)), (mix(low, WHITE, 0.66), mix(low, WHITE, 0.8)), ((246, 250, 255), WHITE)
+
+
+def island_tones(frame, m):
+    grass = IL.common_colour(frame, m, lambda c: c[1] > c[0] + 30 and c[1] > c[2] + 30) or (120, 200, 96)
+    rock = IL.common_colour(frame, m, lambda c: abs(c[0] - c[1]) < 26 and c[0] > c[2] + 4 and 110 < lum(c) < 200) or (176, 160, 146)
+    return grass, rock
 
 
 def thumb_days(sc):
+    """The before and after (GAME_DESIGN 11.1), drawn as a pixel illustration (the request of 2026-11-21: "polish and
+    detail it as if it is a pixel art illustration, with the pixel art rules i gave you"): both islands the game's own
+    pictures, cut from the sky by their sky-only captures and given a whole 1 px outline; the sky painted in clean
+    bands round them (no dither across it), the sun and its rings, far islets, small floating rocks near each island,
+    a few gulls and a sea of clouds the first island sinks into; the bar, the arrow and the words anti-aliased where
+    their outlines step."""
     small, full = sc["day1"], sc["day100"]
+    ms = IL.island_mask(small, sc["day1_sky"])
+    mf = IL.island_mask(full, sc["day100_sky"])
+    IL.outline_edges(small, ms)
+    IL.outline_edges(full, mf)
     cv = Art(DW, DH)
+    low = sky_scene(cv, sc["day1_sky"], int(DH * 0.72), 10)
+    left = lambda x, y: x < div_x(y)
+    right = lambda x, y: x >= div_x(y) + DIV_W
+    busy = Busy(DW, DH)
+    busy.mark_mask(ms, left)
+    busy.mark_mask(mf, right)
     for y in range(DH):
-        d = div_x(y)
-        for x in range(DW):
-            cv.px[y][x] = small.px[y][x] if x < d else full.px[y][x]
-    # the bar, white, its edges a darker step of it, a clean stair of DIV_STEP rows
+        busy.mark_box(div_x(y) - 3, y, div_x(y) + DIV_W + 3, y + 1)
+    busy.mark_box(20, 16, 236, 92)  # DAY 1
+    busy.mark_box(440, 10, 960, 150)  # DAY 100
+    busy.mark_box(220, 456, 470, 540)  # the arrow
+    sx, sy, sr = find_sun(sc["day1_sky"])
+    busy.mark_box(sx - sr - 10, sy - sr - 10, sx + sr + 10, sy + sr + 10)
+    # far islets: flat, a step darker than the sky behind them
+    far_c = lambda x, y: mix(cv.get(x, y) or low, (88, 128, 186), 0.22)
+    for (fx, fy, fw) in ((70, 132, 22), (170, 150, 14), (612, 196, 18), (904, 214, 24), (520, 178, 12)):
+        if busy.free(int(fx - fw / 2), fy - 6, int(fx + fw / 2), fy + 12, pad=4):
+            IL.far_islet(cv, fx, fy, fw, far_c(fx, fy))
+    back, mid, front = cloud_tones(low)
+    IL.cloud_sea(cv, [(int(DH * 0.78), 22, back[0], back[1]), (int(DH * 0.85), 20, mid[0], mid[1])], seed=11)
+    # small floating rocks near each island, nearer ones in full colour, further ones mixed toward the sky
+    grass, rock = island_tones(small, ms)
+    for (cx_, ty, w, far, seed) in ((58, 404, 26, 0.0, 3), (300, 112, 16, 0.35, 5), (470, 206, 30, 0.0, 8), (560, 236, 14, 0.4, 9), (36, 196, 12, 0.45, 4)):
+        if busy.free(int(cx_ - w / 2) - 1, ty - 4, int(cx_ + w / 2) + 1, ty + w + 4, pad=5):
+            isl = IL.mini_islet(cx_, ty, w, grass, rock, seed=seed, far=far, sky=cv.get(int(cx_), ty) or low)
+            isl.stamp(cv)
+            busy.mark_box(int(cx_ - w / 2) - 2, ty - 4, int(cx_ + w / 2) + 2, ty + w + 4)
+    IL.lay_island(cv, small, ms, clip=left)
+    IL.lay_island(cv, full, mf, clip=right)
+    # the first island's point sinks into the front clouds (on its side of the bar only)
+    IL.cloud_sea(cv, [(int(DH * 0.885), 18, front[0], front[1])], seed=12, clip=left)
+    # gulls, a step darker than the sky
+    gull = mix(low, (60, 92, 140), 0.55)
+    for (bx, by, fl) in ((246, 104, 0), (259, 111, 1), (232, 116, 1), (668, 168, 0), (683, 160, 1)):
+        if busy.free(bx - 4, by - 2, bx + 4, by + 2, pad=2):
+            IL.bird(cv, bx, by, gull, fl)
+    # the bar, white, its edges a darker step of it, a clean stair of DIV_STEP rows; at each step two or three pixels
+    # of anti-aliasing graded along the step, outside the edge, where the ideal straight edge cuts through
     edge = ink_of(WHITE)
     for y in range(DH):
         d = div_x(y)
@@ -459,84 +640,59 @@ def thumb_days(sc):
         for x in range(d, d + DIV_W):
             cv.put(x, y, WHITE)
         cv.put(d + DIV_W, y, edge)
+    for y in range(DH):
+        d, r = div_x(y), y % DIV_STEP
+        tl = {DIV_STEP - 3: 0.25, DIV_STEP - 2: 0.4, DIV_STEP - 1: 0.55}.get(r)
+        tr = {0: 0.55, 1: 0.4, 2: 0.25}.get(r)
+        if tl and cv.get(d - 2, y) is not None:
+            cv.put(d - 2, y, mix(cv.get(d - 2, y), edge, tl))
+        if tr and y >= DIV_STEP and cv.get(d + DIV_W + 1, y) is not None:
+            cv.put(d + DIV_W + 1, y, mix(cv.get(d + DIV_W + 1, y), edge, tr))
     # the arrow from the first island round to the full one
     arrow(cv, ((232, 476), (318, 536), (404, 516)), PAL["berry_red"])
     # the words, on this grid: DAY 1 smaller over the first island, DAY 100 big and gold over the full one
-    title(cv, "DAY 1", 66, WHITE, x0=30, top=26, depth=4)
-    right = (div_x(0) + DIV_W + 1 + DW) // 2
-    box = title(cv, "DAY 100", 112, PAL["accent"], cx=right + 4, top=22, depth=6)
+    title(cv, "DAY 1", 66, WHITE, x0=30, top=26, depth=4, glint=False)
+    right_mid = (div_x(0) + DIV_W + 1 + DW) // 2
+    box = title(cv, "DAY 100", 112, PAL["accent"], cx=right_mid + 4, top=22, depth=6)
     for (x, y, arm) in ((box[0] - 14, 30, 7), (box[2] + 8, 104, 4), (box[2] + 4, 18, 5)):
         if 0 < x < DW:
             sparkle_big(cv, x, y, arm, light(PAL["accent"], 0.5))
     return cv
 
 
-# ---------------------------------------------------------------- the icon
-def icon(pics):
-    cv = Art(IW, IW)
-    sky = PAL.get("sky_day", (154, 218, 249))
-    # (deeper and bluer toward the top, paler at the horizon: flat bands, each a clean step)
-    bands = [(0, (92, 168, 236)), (22, (112, 186, 242)), (42, (132, 202, 246)), (60, sky), (74, light(sky, 0.3))]
-    for y in range(IW):
-        c = bands[0][1]
-        for y0, bc in bands:
-            if y >= y0:
-                c = bc
-        for x in range(IW):
-            cv.put(x, y, c)
-    # clouds: puffs of circles, flat, a shade on their undersides
-    def cloud(cx, cy, r):
-        pts = set()
-        for (dx, dy, rr) in ((0, 0, r), (-r, 2, r * 0.75), (r, 2, r * 0.8), (int(r * 1.8), 4, r * 0.55)):
-            for y in range(int(cy + dy - rr) - 1, int(cy + dy + rr) + 2):
-                for x in range(int(cx + dx - rr) - 1, int(cx + dx + rr) + 2):
-                    if (x + 0.5 - cx - dx) ** 2 + (y + 0.5 - cy - dy) ** 2 <= rr * rr and y <= cy + 4:
-                        pts.add((x, y))
-        for x, y in pts:
-            cv.put(x, y, WHITE if (x, y + 2) in pts else light(sky, 0.7))
-
-    cloud(22, 22, 7)
-    cloud(96, 14, 6)
-    cloud(14, 118, 5)
-    cloud(104, 122, 4)
-    # the floating island: a lawn (an ellipse, its rim a step lighter, a darker patch in the middle), the earth lip
-    # under its front edge, the rock under that stepping in every 4 px to a point (lit on the left), a 1 px ink outline
-    # round it all
-    grass = PAL.get("grass", (110, 200, 90))
-    earth = PAL.get("chocolate", (142, 92, 62))
-    rock, rock_dark = PAL.get("rock", (158, 150, 146)), PAL.get("rock_dark", (110, 102, 100))
-    cx, cy, rx, ry, lip = 64, 92, 58, 13, 6
-
-    def lawn_d(x, y):
-        return ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2
-
-    land = set()
-    for y in range(cy - ry - 1, IW):
-        for x in range(IW):
-            d = lawn_d(x, y)
-            if d <= 1:
-                cv.put(x, y, light(grass, 0.25) if d > 0.86 and y < cy else (grass if d > 0.3 else dark(grass, 0.92)))
-            elif y > cy and any(lawn_d(x, y - t) <= 1 for t in range(1, lip + 1)):
-                cv.put(x, y, earth if lawn_d(x, y - lip + 1) <= 1 else dark(earth, 0.8))
-            else:
-                k = (y - (cy + 4)) // 4
-                w = (rx - 5) - k * 8
-                if y < cy + 4 or w <= 0 or abs(x + 0.5 - cx) > w:
-                    continue
-                cv.put(x, y, rock if x + 0.5 < cx else rock_dark)
-            land.add((x, y))
-    # the outline: each pixel a darker step of the land beside it (the commonest there, the darker on a tie)
-    beside = {}
-    for (x, y) in list(land):
-        for (nx, ny) in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            if (nx, ny) not in land and 0 <= nx < IW and 0 <= ny < IW:
-                beside.setdefault((nx, ny), []).append(cv.get(x, y))
-    for (nx, ny), cols in beside.items():
-        cv.put(nx, ny, ink_of(pick_beside([c for c in cols if c is not None])))
-    stand(cv, pics["icon_egg"], 100, 90)
-    for (x, y, big) in ((90, 60, True), (118, 72, False), (114, 52, False)):
-        sparkle(cv, x, y, big, light(PAL["accent"], 0.5))
-    stand(cv, pics["icon_main"], 52, 100)
+def icon(sc):
+    """The game icon (the request of 2026-11-21: "make an icon, with the island being the centerpiece"): the icon's
+    island (gthumbs=icon: a first island furnished by tools/preview/icon_island.luau) whole in the middle of a 256 x 256
+    grid, 2x: 512 x 512, drawn as a pixel illustration like the before-and-after: the island cut from its sky-only
+    capture and given a whole 1 px outline, a sky painted in clean bands with the sun at the top left (the light the
+    island is lit by), far islets, a sea of clouds behind it and another its point sinks into, gulls and a few twinkles
+    round the tree."""
+    fr, sk = sc["icon"], sc["icon_sky"]
+    m = IL.island_mask(fr, sk)
+    x0, y0, x1, y1 = IL.mask_box(m)
+    IL.outline_edges(fr, m)
+    S = IW
+    cv = Art(S, S)
+    low = sky_scene(cv, sk, int(S * 0.8), 8, sun_at=(36, 36, 13))
+    far_c = lambda x, y: mix(cv.get(x, y) or low, (88, 128, 186), 0.22)
+    IL.far_islet(cv, 22, 146, 16, far_c(22, 146))
+    IL.far_islet(cv, 236, 120, 13, far_c(236, 120))
+    back, mid, front = cloud_tones(low)
+    IL.cloud_sea(cv, [(int(S * 0.78), 13, back[0], back[1]), (int(S * 0.85), 11, mid[0], mid[1])], seed=21)
+    ox = S // 2 - (x0 + x1) // 2
+    oy = (S - (y1 - y0)) // 2 + 2 - y0
+    IL.lay_island(cv, fr, m, ox, oy)
+    IL.cloud_sea(cv, [(int(S * 0.9), 10, front[0], front[1])], seed=22)
+    gull = mix(low, (60, 92, 140), 0.55)
+    IL.bird(cv, 204, 34, gull, 0)
+    IL.bird(cv, 216, 40, gull, 1)
+    IL.bird(cv, 196, 46, gull, 1)
+    # twinkles round the tree's crown
+    top_y = y0 + oy
+    for (dx, dy, arm) in ((-40, 14, 4), (44, 6, 3), (52, 30, 2)):
+        x, y = S // 2 + dx, top_y + dy
+        if not m[min(fr.h - 1, max(0, y - oy))][min(fr.w - 1, max(0, x - ox))]:
+            sparkle_big(cv, x, y, arm, light(PAL["accent"], 0.5))
     return cv
 
 
@@ -565,9 +721,9 @@ def main():
         p = os.path.join(a.scenes, "gth_%s_desktop.png" % name)
         if not os.path.exists(p):
             sys.exit("no scene " + p)
-        return load_scene(p, 2 if name in ("day1", "day100") else K)
+        return load_scene(p, 2 if name.split("_")[0] in ("day1", "day100", "icon") else K)
 
-    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "sky", "day1", "day100")}
+    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "sky", "day1", "day100", "day1_sky", "day100_sky", "icon", "icon_sky")}
     os.makedirs(a.out, exist_ok=True)
     made = [
         ("thumb_0_days", thumb_days(sc)),
@@ -583,8 +739,8 @@ def main():
         img = cv.image(1920 // cv.w)
         img.save(os.path.join(a.out, name + ".png"))
         imgs.append(img)
-    ic = icon(pics)
-    ic.image(4).save(os.path.join(a.out, "icon.png"))
+    ic = icon(sc)
+    ic.image(512 // ic.w).save(os.path.join(a.out, "icon.png"))
     print("%d thumbnails (1920 x 1080) and the icon (512 x 512) -> %s" % (len(made), a.out))
     if a.sheet:
         from PIL import Image

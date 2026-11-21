@@ -3157,6 +3157,31 @@ fence, farms fenced in, and on bigger islands a fairy grove, a playground and wo
 Tree of Life, an avenue up the middle two light slabs wide between cobble edges with hedges along it, and narrow
 flagstone walks between the areas.
 
+> The request (2026-11-21, on `thumb_0_days.png`): "for this thumbnail, polish and detail it as if it is a pixel art
+> illustration, with the pixel art rules i gave you"
+
+So it is drawn as an illustration round the game's own pictures of the two islands (`tools/preview/illustrate.py`).
+Each island is captured twice, the second time with the world hidden, so the pixels that differ are the island
+exactly; it is cut out and given a whole 1 px outline, a darker step of the colour beside it, only where the game had
+not drawn one (never two pixels thick). The sky behind is painted again in clean bands of the game's own colours (the
+dither that ran across the whole of it is gone; one seam row where two bands meet), with the sun and two rings of light
+round it, far islets as flat silhouettes, a few gulls, small floating rocks near each island (a lawn on top lit from the
+top left, the rock narrowing to a point, the further ones paler) and a sea of clouds in flat colours with a lit rim on
+each puff that the first island's point sinks into. The bar, the arrow and the words are anti-aliased where their
+outlines step: a pixel between the outline and the sky, only where the ideal edge cuts through it, graded along each
+step of the bar. The words have a fuller ramp, a bevel lit from the top left and a glint on each letter of DAY 100; the
+arrow has a shadow a step darker than the sky under it.
+
+> The request (2026-11-21): "make an icon, with the island being the centerpiece"
+
+`icon.png` (512 x 512) is a first island, whole, in the middle of the frame on a 256 x 256 grid: the Tree of Life with
+rare eggs round it on a ring of pale shell path, a pond with lily pads on its right, the stall's striped awning, huts,
+flower beds along the front, an oak, a palm and pines at the edges, driftlings about (`tools/preview/icon_island.luau`
+furnishes it within the game's own limits). It is drawn the same way as the before and after: the island cut out and
+outlined, the sky painted in bands with the sun at the top left (where the island's light comes from), far islets, gulls,
+a few twinkles over the tree and a sea of clouds its point sinks into. Small props turn to noise at an icon's size, so
+the island keeps to a few bold masses of colour.
+
 ## 12. Out of scope for this version
 
 Trading between players, visiting with gifts. (Purchases came in on 2026-11-14: §14; offline earnings on 2026-11-14:

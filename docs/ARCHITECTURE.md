@@ -167,7 +167,8 @@ is `PixelIsland-<short hash>.rbxl`.)
   (`tools/preview/game_thumbs.sh`: frames of the game drawn by its pixel filter with the HUD off and no founder in them,
   driftlings drawn through Pixel/Snapshot over them, the title and captions in the pixel font, all on one 4x grid;
   `thumb_0_days.png` leads: the genre's before-and-after frame on a 2x grid, its islands drawn at 2 screen px an art
-  px and its words lettered on that grid, GAME_DESIGN 11.1).
+  px and its words lettered on that grid; it and the icon, the icon's island whole on a 256 x 256 grid, are drawn as
+  pixel illustrations round the game's islands by `tools/preview/illustrate.py`, GAME_DESIGN 11.1).
   Every outline in these and in the loading card's art is a darker step of the colour beside it, never flat ink
   (GAME_DESIGN 2): `product_icons.py`'s `Canvas.edge` and `outline` draw a shape's outline in ink and `Canvas.finish`
   gives each pixel still showing `ink_of` the colours it rings; a word's outline and depth are `ink_of(face, 0.3,
