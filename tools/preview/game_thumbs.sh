@@ -3,7 +3,8 @@
 # 2026-11-20: "could you make thumbnails that are engaging and show the gameplay well, along with an icon? use
 # creature models, dont need to show the player"). Draws the scenes and the driftlings with the game's own picture
 # path (the preview scenario "gthumbs": tools/preview/game_thumbs.luau, three runs at once: the driftlings and the egg
-# drawn alone, the meadow with one eternal among the commons, the tier 20 town (it logs its coins a minute); then the
+# drawn alone, the meadow with one eternal among the commons, the tier 20 town centred on its tree under the night sky
+# (it logs its coins a minute); then the
 # before-and-after pair (a first island and a full one) and the icon's island, each captured again with the world
 # hidden for its sky alone), then lays them out as pixel illustrations (tools/preview/game_thumbs.py,
 # tools/preview/genre_thumbs.py, tools/preview/illustrate.py) into art/thumbnails/: thumb_0_days.png (the before and
@@ -32,7 +33,7 @@ run() {
 }
 run gthumbs=cast cast &
 run gthumbs=field field &
-run gthumbs=day100:20 rich &
+run gthumbs=day100:20:tree rich &
 wait
 run gthumbs=day1 day1 &
 run gthumbs=day100 day100 &
@@ -43,7 +44,8 @@ cp "$out"/field/gth_*_desktop.png "$out"/day1/gth_*_desktop.png "$out"/day100/gt
 # (the tier 20 town is a day100 run of its own: its frames under their own names)
 cp "$out/rich/gth_day100_desktop.png" "$out/scenes/gth_rich_desktop.png" 2>/dev/null
 cp "$out/rich/gth_day100_sky_desktop.png" "$out/scenes/gth_rich_sky_desktop.png" 2>/dev/null
-rate=$(grep -h "gthumbs: day100:20 coins a minute" "$out"/rich/_logs/*.txt 2>/dev/null | head -1 | sed 's/.*coins a minute //')
+cp "$out/rich/gth_day100_tree_desktop.png" "$out/scenes/gth_rich_tree_desktop.png" 2>/dev/null
+rate=$(grep -h "gthumbs: day100:20:tree coins a minute" "$out"/rich/_logs/*.txt 2>/dev/null | head -1 | sed 's/.*coins a minute //')
 [ -n "$rate" ] || { echo "no coins a minute in the tier 20 run:" >&2; cat "$out/rich.txt" >&2; exit 1; }
 log=$(ls "$out"/cast/_logs/dump_*.txt 2>/dev/null | head -1)
 [ -n "$log" ] || { echo "no cast log:" >&2; cat "$out/cast.txt" >&2; exit 1; }

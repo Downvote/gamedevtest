@@ -34,11 +34,44 @@ def rainbow(t):
     return RAINBOW[min(len(RAINBOW) - 1, int(t * len(RAINBOW)))]
 
 
+# the rainbow a letter at a time: each letter or digit one whole colour, the next one the next colour, spread over the
+# whole rainbow (the request of 2026-11-21: "make it such that each number is fully colored with colors of the rainbow
+# differently to form a rainbow"); a comma or a point takes the colour of the letter before it
+RAINBOW8 = ((255, 92, 104), (255, 160, 64), (255, 214, 64), (120, 214, 96), (64, 210, 196), (72, 168, 255), (150, 124, 255), (240, 120, 220))
+
+
+def rainbow_chars(s):
+    marks = [c for c in s if c.isalnum()]
+    n = len(marks)
+    out, k, last = [], 0, RAINBOW8[0]
+    for c in s:
+        if c.isalnum():
+            last = RAINBOW8[0] if n <= 1 else RAINBOW8[round(k * (len(RAINBOW8) - 1) / (n - 1))]
+            k += 1
+        out.append(last)
+    return out
+
+
 # Tuning.RarityWork: how much faster a driftling works by its rarity (common 1, rare 2.5, eternal 40)
 RARITY_WORK = {1: "1", 3: "2.5", 9: "40"}
 
 
 # ---------------------------------------------------------------- small helpers
+# a 4 x 4 ordered dither (Bayer): where a gradient or a band of light passes from one flat step to the next, each pixel
+# takes one step or the other by this threshold, so the change is a pattern of whole pixels, never a blend (the user's
+# "use dithering if you want to make gradients and light bands", 2026-11-21)
+BAYER4 = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
+
+
+def dither_step(t, x, y, zone=0.5):
+    """The whole step for a level `t` (0 .. n-1, any real) at (x, y): floor(t), or the next one where the dither says
+    so. Only the middle `zone` of each step's span is dithered (the rest stays flat)."""
+    k = math.floor(t)
+    f = t - k
+    f = min(1.0, max(0.0, (f - 0.5) / max(0.01, zone) + 0.5))
+    return k + (1 if f > (BAYER4[y % 4][x % 4] + 0.5) / 16 else 0)
+
+
 def bands(cv, top, bottom, y0, y1, n, clip=None):
     """Clean flat bands from `top` at y0 to `bottom` at y1 (and on down), one seam row of alternating pixels where two
     meet; only where `clip(x, y)` holds."""
@@ -102,6 +135,21 @@ def rings(cv, mask, steps, tint, clip=None):
                 if d <= r:
                     cv.put(x, y, mix(cv.get(x, y), tint, k))
                     break
+
+
+def dither_glow(cv, mask, reach, ks, tint, zone=0.7):
+    """A glow round `mask` out to `reach` px: its strength falls off in the steps `ks` (0 first, the strongest last,
+    the share mixed toward `tint`) and passes from one step to the next in the ordered dither, never on the mask."""
+    dist = IL.distance_to(lambda x, y: (x, y) in mask, cv.w, cv.h, reach)
+    n = len(ks) - 1
+    for y in range(cv.h):
+        for x in range(cv.w):
+            d = dist[y][x]
+            if d is None or d == 0:
+                continue
+            lv = min(n, dither_step(min(float(n), max(0.0, (reach - d) / (reach / n))), x, y, zone))
+            if lv > 0:
+                cv.px[y][x] = mix(cv.px[y][x], tint, ks[lv])
 
 
 def rays(cv, cx, cy, n, k_near, k_far, near, tint, clip, turn=0.1):
@@ -329,7 +377,7 @@ def thumb_rarity(pics):
         # the name over it
         room = (B1 - 24) if i == 0 else ((B2 - B1 - 20) if i == 1 else (W - B2 - 12))
         size = fit_size(name, 30, room)
-        G.title(cv, name, size, col, cx=tops[i], top=10, depth=3, glint=i > 0, hue=hue)
+        G.title(cv, name, size, col, cx=tops[i], top=10, depth=3, glint=i > 0, chars=rainbow_chars(name) if hue else None)
         # how much faster it works, under it, with a coin
         num = "x" + RARITY_WORK[r]
         nsize = (26, 30, 36)[i]
@@ -341,7 +389,7 @@ def thumb_rarity(pics):
         cr = (8, 9, 11)[i]
         x0 = cx - (nw + 2 * cr + 5) // 2
         ny = (190, 186, 182)[i]
-        G.title(cv, num, nsize, WHITE if i == 0 else col, x0=x0, top=ny, depth=3, glint=i > 0, hue=hue)
+        G.title(cv, num, nsize, WHITE if i == 0 else col, x0=x0, top=ny, depth=3, glint=i > 0, chars=rainbow_chars(num) if hue else None)
         coin(cv, x0 + nw + cr + 6, ny + nsize // 2 + 2, cr)
     sparkles(cv, ((mids[2] - 58, 70, 4), (mids[2] + 54, 96, 3), (mids[2] + 40, 54, 2), (mids[2] - 44, 128, 2), (mids[1] + 52, 80, 2)), (255, 250, 230))
     slant_bar(cv, B1, BW, STEP)
@@ -468,35 +516,241 @@ def thumb_lucky(sc):
     rings(cv, mask, ((3, 0.42), (8, 0.26), (14, 0.14), (22, 0.07)), (255, 248, 214))
     IL.rim_light(cv, lambda x, y: (x, y) in mask, 0.22)
     sparkles(cv, ((cx - 70, cy - 60, 8), (cx + 76, cy - 30, 6), (cx + 52, cy + 64, 4), (cx - 84, cy + 40, 5), (cx - 30, cy - 100, 4), (cx + 30, cy - 96, 3)), (255, 250, 226), free=lambda x, y: (x, y) not in mask)
-    G.title(cv, "ETERNAL", 112, PAL["eternal"], cx=W // 2, top=16, depth=7, hue=rainbow)
+    G.title(cv, "ETERNAL", 112, PAL["eternal"], cx=W // 2, top=16, depth=7, chars=rainbow_chars("ETERNAL"))
     return cv
 
 
 # ---------------------------------------------------------------- the big number
+def big_coin(cv, cx, cy, r):
+    """The big coin by the number, drawn as a pixel illustration: the coin (`coin`), then a ridged rim (every few
+    pixels round its edge a step darker), a raised star in the middle a step lighter with its own darker edge on its
+    lower right, a diagonal glint across its face, and a warm glow round it, dithered from step to step (the request
+    of 2026-11-21: "dither the glow here as well")."""
+    gold = PAL["gold"]
+    disc = {(x, y) for y in range(int(cy - r) - 1, int(cy + r) + 2) for x in range(int(cx - r) - 1, int(cx + r) + 2)
+            if (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r}
+    dither_glow(cv, disc, 14, (0.0, 0.07, 0.14, 0.24), (255, 226, 140))
+    coin(cv, cx, cy, r)
+    # the ridges round the rim
+    for (x, y) in disc:
+        d = math.hypot(x + 0.5 - cx, y + 0.5 - cy) / r
+        if 0.84 < d <= 0.97:
+            a = math.atan2(y + 0.5 - cy, x + 0.5 - cx)
+            if int((a + math.pi) / (2 * math.pi) * 44) % 2 == 0:
+                cv.put(x, y, dark(cv.get(x, y), 0.88))
+    # a raised star in the middle
+    R1, R2 = r * 0.42, r * 0.18
+
+    def in_star(px, py):
+        a = math.atan2(py - cy, px - cx) + math.pi / 2
+        k = (a % (2 * math.pi / 5)) / (2 * math.pi / 5)
+        rr = R2 + (R1 - R2) * abs(1 - 2 * k) ** 1.6
+        return math.hypot(px - cx, py - cy) <= rr
+
+    star = {(x, y) for (x, y) in disc if in_star(x + 0.5, y + 0.5)}
+    for (x, y) in star:
+        c = light(gold, 0.42)
+        if (x + 1, y) not in star or (x, y + 1) not in star:
+            c = dark(gold, 0.74)
+        elif (x - 1, y) not in star or (x, y - 1) not in star:
+            c = light(gold, 0.7)
+        cv.put(x, y, c)
+    # a glint across the face, top left to the middle
+    for k in range(int(r * 0.5)):
+        x, y = int(cx - r * 0.62 + k * 0.7), int(cy - r * 0.2 - k * 0.7)
+        if (x, y) in disc and (x, y) not in star:
+            cv.put(x, y, light(gold, 0.75))
+
+
 def thumb_rich(sc, rate):
-    """The tier 20 town (gthumbs=day100:20) cut from its sky and given a whole outline, the sky painted round it,
-    coins flying up off it in an arc, and what it makes a minute (`rate`, the game's own count) in rainbow letters with
-    a big coin, the genre's huge number over the thing that earns it."""
-    frame, sky = sc["rich"], sc["rich_sky"]
+    """The tier 20 town (gthumbs=day100:20:tree) centred on the Tree of Life at night (the request of 2026-11-21:
+    "center it in the middle, with the tree being the centerpiece, and use a night skybox"), drawn as a pixel
+    illustration (then "remove the coins falling down, center the giant coin to the text. then, treat it as a pixel art
+    illustration and detail and give it even more flair to be as appealing as possible", and "use the clouds as
+    before. also, use dithering if you want to make gradients and light bands"): the night sky painted again in the
+    game's own colours, a big moon with craters and rings of light in the open sky at the right, stars of a few sizes,
+    the milky way, a shooting star and far islets, the game's own sea of clouds under them; the island cut from its sky
+    with a whole outline and a rim of moonlight on its top right edge (the moon's side), dimmer and bluer in steps
+    away from the tree; the tree lit as the island's light (a warm glow, a rim of light, motes rising off it,
+    fireflies); every gradient and band of light passing from one step to the next in a 4 x 4 ordered dither; and what
+    the island makes a minute (`rate`, the game's own count) centred over it in rainbow letters, a soft shadow round
+    them, the big coin centred on them."""
+    frame, sky, treef = sc["rich"], sc["rich_sky"], sc["rich_tree"]
     m = IL.island_mask(frame, sky)
+    tm = IL.island_mask(treef, sky, near=24)
     IL.outline_edges(frame, m)
     W, H = frame.w, frame.h
     cv = G.Art(W, H)
-    low = G.sky_scene(cv, sky, int(H * 0.74), 10)
-    back, mid, front = G.cloud_tones(low)
-    IL.cloud_sea(cv, [(int(H * 0.8), 22, back[0], back[1]), (int(H * 0.87), 20, mid[0], mid[1])], seed=41)
-    for (fx, fy, fw) in ((90, 300, 22), (210, 352, 14), (40, 410, 16)):
-        IL.far_islet(cv, fx, fy, fw, mix(cv.get(fx, fy) or low, (88, 128, 186), 0.22))
+    rnd = IL._rand(61)
+    # ---- the night sky, painted again in clean bands of the game's own colours
+    cols = range(0, W, 5)
+    top = IL.row_colour(sky, 1, cols)
+    low = IL.row_colour(sky, int(H * 0.66), cols)
+    NB, Y1 = 9, int(H * 0.74)
+    steps = [tuple(int(round(top[i] + (low[i] - top[i]) * k / (NB - 1))) for i in range(3)) for k in range(NB)]
+    for y in range(H):
+        for x in range(W):
+            t = min(NB - 1.0, max(0.0, y / Y1 * (NB - 1)))
+            cv.px[y][x] = steps[min(NB - 1, dither_step(t, x, y, 0.6))]
+
+    # the milky way: a soft band from the lower left up to the top right, two steps lighter at its heart, dithered
+    # where it fades, dense with stars
+    def band(x, y):
+        return abs((y - (300 - x * 0.42)) / 46.0) + 0.35 * math.sin(x * 0.031) * math.cos(y * 0.05)
+
+    glow_mw = (0.0, 0.07, 0.15)
+    for y in range(H):
+        for x in range(W):
+            lv = min(2, dither_step(min(2.0, max(0.0, (1.25 - band(x, y)) / 0.38)), x, y, 0.8))
+            if lv > 0:
+                cv.px[y][x] = mix(cv.px[y][x], (150, 150, 220), glow_mw[lv])
+    # stars: many single pixels (denser in the milky way), some crosses, a few big twinkles
+    for _ in range(900):
+        x, y = int(rnd() * W), int(rnd() * H * 0.78)
+        if band(x, y) > 1.0 and rnd() < 0.55:
+            continue
+        c = ((236, 240, 255), (255, 244, 214), (200, 214, 255))[int(rnd() * 3)]
+        cv.put(x, y, mix(cv.get(x, y), c, 0.55 + 0.45 * rnd()))
+    for _ in range(46):
+        x, y = int(rnd() * W), int(rnd() * H * 0.7)
+        c = ((236, 240, 255), (255, 240, 200))[int(rnd() * 2)]
+        cv.put(x, y, c)
+        for dx, dy in IL.N4:
+            cv.put(x + dx, y + dy, mix(cv.get(x + dx, y + dy), c, 0.45))
+    # the moon in the open sky at the right: a disc lit from its top right, craters a step darker with a lit lip, two
+    # rings of light round it
+    MX, MY, MR = 904, 204, 21
+    for y in range(MY - MR - 16, MY + MR + 17):
+        for x in range(MX - MR - 16, MX + MR + 17):
+            d = math.hypot(x + 0.5 - MX, y + 0.5 - MY)
+            base = cv.get(x, y)
+            if base is None:
+                continue
+            if d <= MR:
+                lit = (-(x + 0.5 - MX) + (y + 0.5 - MY)) / MR
+                c = (255, 248, 222) if lit < 0.35 else ((236, 228, 200) if lit < 0.95 else (214, 206, 182))
+                cv.put(x, y, c)
+            else:
+                lv = min(2, dither_step(min(2.0, max(0.0, (MR + 15 - d) / 6.0)), x, y, 0.9))
+                if lv > 0:
+                    cv.put(x, y, mix(base, (255, 248, 222), (0.0, 0.12, 0.3)[lv]))
+    for (ox, oy, cr) in ((-8, -6, 5), (7, 4, 6), (-3, 11, 3), (10, -10, 3), (-12, 6, 2)):
+        for y in range(MY + oy - cr - 1, MY + oy + cr + 2):
+            for x in range(MX + ox - cr - 1, MX + ox + cr + 2):
+                d = math.hypot(x + 0.5 - MX - ox, y + 0.5 - MY - oy)
+                if d <= cr and math.hypot(x + 0.5 - MX, y + 0.5 - MY) <= MR - 1:
+                    up = (y + 0.5 - MY - oy) < -cr * 0.4 and (x + 0.5 - MX - ox) > 0
+                    cv.put(x, y, (200, 192, 168) if not up else (180, 172, 150))
+                elif cr < d <= cr + 1 and (y + 0.5 - MY - oy) > 0 and math.hypot(x + 0.5 - MX, y + 0.5 - MY) <= MR - 1:
+                    cv.put(x, y, (255, 250, 232))
+    # a shooting star across the top left corner: a bright head, its trail fading in three flat steps
+    sx, sy = 16, 210
+    for k in range(56):
+        x, y = sx + k, int(sy - k * 0.42)
+        t = k / 70
+        c = WHITE if k < 3 else mix(cv.get(x, y), (230, 236, 255), 0.75 if t < 0.25 else (0.45 if t < 0.55 else 0.2))
+        cv.put(x, y, c)
+        if k < 22:
+            cv.put(x, y + 1, mix(cv.get(x, y + 1), (230, 236, 255), 0.3))
+    # far islets, flat and a step darker than the sky behind
+    for (fx, fy, fw) in ((150, 252, 20), (812, 250, 16), (28, 318, 14), (936, 330, 12)):
+        IL.far_islet(cv, fx, fy, fw, mix(cv.get(fx, fy), (20, 22, 60), 0.35))
+    # the sea of clouds as the game paints it (UI/SkyBackdrop's own, copied from its capture: each column from where
+    # its first cloud pixel is, the purple of the clouds against the navy of the sky)
+    for x in range(W):
+        y0 = None
+        for y in range(int(H * 0.55), H):
+            c = sky.px[y][x]
+            if c is not None and c[0] > 70 and c[0] > c[1] + 10:
+                y0 = y
+                break
+        if y0 is not None:
+            for y in range(y0, H):
+                cv.px[y][x] = sky.px[y][x]
+    # ---- the island, cut out and outlined, with a rim of moonlight on its top right edge (the moon's side): each
+    # island pixel just inside the outline where the outline faces up or right, a step lighter and cooler
     IL.lay_island(cv, frame, m)
-    IL.cloud_sea(cv, [(int(H * 0.93), 18, front[0], front[1])], seed=42, clip=lambda x, y: not m[y][x])
-    # coins flying up through the open sky beside the island toward the number, turning as they go (bigger nearer)
-    for (x, y, r, tilt) in ((268, 262, 15, 0.42), (196, 318, 19, 1.0), (300, 372, 12, 0.7), (120, 248, 13, 0.3),
-                            (232, 430, 16, 0.55), (90, 380, 11, 0.85), (150, 470, 14, 0.38), (318, 500, 10, 0.95),
-                            (60, 520, 12, 0.5), (360, 214, 11, 0.6), (40, 300, 9, 1.0), (250, 560, 13, 0.75)):
-        coin(cv, x, y, r, tilt=tilt)
+
+    def isl(x, y):
+        return 0 <= x < W and 0 <= y < H and m[y][x]
+
+    lit = []
+    for y in range(H):
+        for x in range(W):
+            if not isl(x, y) or not all(isl(x + dx, y + dy) for dx, dy in IL.N4):
+                continue
+            if any((not isl(x + dx, y + dy - 1)) or (not isl(x + dx + 1, y + dy)) for dx, dy in ((0, 0), (0, -1), (1, 0))) and (not isl(x, y - 2) or not isl(x + 2, y)):
+                lit.append((x, y))
+    for (x, y) in lit:
+        cv.px[y][x] = mix(light(cv.px[y][x], 0.28), (214, 224, 255), 0.18)
+    tree = {(x, y) for y in range(H) for x in range(W) if tm[y][x]}
+    xs = [p[0] for p in tree]
+    ys = [p[1] for p in tree]
+    tx, ty = (min(xs) + max(xs)) // 2, (min(ys) + max(ys)) // 2
+    crown = min(ys)
+    # the night on the island: flat steps dimmer and bluer in rings away from the tree
+    night = (40, 46, 96)
+    for y in range(H):
+        for x in range(W):
+            if not m[y][x] or (x, y) in tree:
+                continue
+            d = math.hypot((x + 0.5 - tx) / 1.7, y + 0.5 - ty)
+            c = cv.px[y][x]
+            lv = min(3, dither_step(min(3.0, max(0.0, (d - 100) / 62.0)), x, y, 0.45))
+            if lv == 3:
+                cv.px[y][x] = mix(dark(c, 0.72), night, 0.18)
+            elif lv == 2:
+                cv.px[y][x] = mix(dark(c, 0.8), night, 0.12)
+            elif lv == 1:
+                cv.px[y][x] = mix(dark(c, 0.9), night, 0.06)
+    # the tree lit: a warm glow, a rim of light
+    dither_glow(cv, tree, 34, (0.0, 0.06, 0.13, 0.22, 0.34), (255, 236, 176))
+    IL.rim_light(cv, lambda x, y: (x, y) in tree, 0.22)
+    # motes rising off the crown (two pixels each, a dimmer one under), fireflies round it
+    for _ in range(34):
+        fx = int(tx + (rnd() - 0.5) * 170)
+        fy = int(crown - 6 - rnd() * 70)
+        c = ((255, 240, 170), (255, 196, 226), (210, 255, 220))[int(rnd() * 3)]
+        if (fx, fy) not in tree:
+            cv.put(fx, fy, c)
+            cv.put(fx, fy + 1, mix(cv.get(fx, fy + 1), c, 0.5))
+    for _ in range(30):
+        fx = int(tx + (rnd() - 0.5) * 320)
+        fy = int(ty + (rnd() - 0.5) * 180)
+        if 0 < fx < W - 1 and 0 < fy < H - 1 and (fx, fy) not in tree:
+            cv.put(fx, fy, (255, 246, 190))
+            cv.put(fx + 1, fy, mix(cv.get(fx + 1, fy), (255, 230, 150), 0.5))
+    sparkles(cv, ((tx - 74, crown + 8, 5), (tx + 80, crown + 30, 4), (tx - 40, crown - 30, 3), (tx + 46, crown - 46, 4)), (255, 246, 214), free=lambda x, y: (x, y) not in tree)
+    # ---- the number, centred, a soft shadow round it, the big coin centred on it
+    from PIL import ImageFont
+
     num = "{:,}".format(int(rate))
-    coin(cv, 70, 86, 38)
-    box = G.title(cv, num, 104, PAL["gold"], x0=124, top=24, depth=7, hue=rainbow)
-    G.title(cv, "/min", 56, WHITE, x0=box[2] + 8, top=24 + 104 - 56 - 2, depth=4, glint=False)
-    sparkles(cv, ((box[2] + 30, 30, 6), (110, 160, 5), (box[0] + 220, 156, 4)), (255, 250, 226))
+    NS, MS, CR, TOP = 100, 54, 38, 20
+    l, _, r, _ = ImageFont.truetype(G.TITLE_FONT, NS).getbbox(num)
+    lm, _, rm, _ = ImageFont.truetype(G.TITLE_FONT, MS).getbbox("/min")
+    total = 2 * CR + 16 + (r - l) + 10 + (rm - lm)
+    x0 = (W - total) // 2
+    before = [row[:] for row in cv.px]
+    box = G.title(cv, num, NS, PAL["gold"], x0=x0 + 2 * CR + 16, top=TOP, depth=7, chars=rainbow_chars(num))
+    mbox = G.title(cv, "/min", MS, WHITE, x0=box[2] + 10, top=TOP + NS - MS - 4, depth=4, glint=False)
+    text = {(x, y) for y in range(H) for x in range(W) if cv.px[y][x] != before[y][x]}
+    # (the shadow goes under the words: darken round them on the picture as it was, then put the words back)
+    words = {q: cv.px[q[1]][q[0]] for q in text}
+    for y in range(H):
+        cv.px[y] = before[y][:]
+    dist = IL.distance_to(lambda x, y: (x, y) in text, W, H, 6)
+    for y in range(H):
+        for x in range(W):
+            d = dist[y][x]
+            if d is not None and 0 < d <= 6:
+                if d <= 3:
+                    cv.px[y][x] = dark(cv.px[y][x], 0.62)
+                elif (x + y) % 2 == 0 or d == 4:
+                    cv.px[y][x] = dark(cv.px[y][x], 0.78)
+    for (x, y), c in words.items():
+        cv.px[y][x] = c
+    # the coin centred on the number's face (its middle row between the words' top and the foot of their face)
+    face_mid = (box[1] + box[3] - 7) // 2
+    big_coin(cv, x0 + CR, face_mid, CR)
+    sparkles(cv, ((x0 - 14, TOP + 8, 6), (mbox[2] + 14, TOP + 30, 5), (box[0] + 260, TOP - 2, 4), (box[2] - 120, box[3] + 12, 4), (x0 + 2 * CR + 6, box[3] + 4, 3)), (255, 250, 226))
     return cv

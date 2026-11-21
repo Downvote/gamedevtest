@@ -3341,9 +3341,28 @@ another game's (`tools/preview/genre_thumbs.py`), drawn as pixel illustrations l
 - `thumb_4_lucky.png`: a meadow full of Puddlets (`gthumbs=field`) with Dawnwing, an eternal of the same build, in the
   middle: rays fan out from it, a glow round it, the crowd a step dimmer further away, sparkles, and ETERNAL in rainbow
   letters at the top.
-- `thumb_5_rich.png`: a decorated tier 20 town (`gthumbs=day100:20`) cut from its sky and given its outline, coins
-  flying up through the open sky beside it and what it makes a minute with its 40 driftlings, 29,092,854/min in
-  rainbow letters with a big coin. The number is the game's own count for that island, logged by the run.
+- `thumb_5_rich.png`: a decorated tier 20 town and what it makes a minute with its 40 driftlings, 29,092,854/min
+  (the game's own count for that island, logged by the run), centred over it with a big coin.
+
+  > The requests (2026-11-21, on it): "center it in the middle, with the tree being the centerpiece, and use a night
+  > skybox", then "remove the coins falling down, center the giant coin to the text. then, treat it as a pixel art
+  > illustration and detail and give it even more flair to be as appealing as possible", "use the clouds as before.
+  > also, use dithering if you want to make gradients and light bands", "instead of a rainbow gradient across the
+  > numbers, make it such that each number is fully colored with colors of the rainbow differently to form a
+  > rainbow" and "dither the glow here as well"
+
+  So the town (`gthumbs=day100:20:tree`) is centred on the Tree of Life at the widest View notch, the game's sky set
+  to midnight, and the tree and its eggs captured alone from the same camera point for the light round it. It is
+  drawn as a pixel illustration: the night sky painted again in the game's own colours with a big moon (craters, a
+  lit side, rings of light) in the open sky at the right, stars of a few sizes, the milky way, a shooting star and far
+  islets, over the game's own sea of clouds; the island cut out with a whole outline, a rim of moonlight on its top
+  right edge, and dimmer and bluer in steps away from the tree; the tree lit as the island's light at night, a warm
+  glow, a rim of light, motes rising off its crown and fireflies round it. Every gradient and band of light (the sky,
+  the milky way, the glows round the moon, the tree and the coin, the night on the island) passes from one step to the
+  next in a 4 x 4 ordered dither, never a blend. The number has a soft shadow round it so it reads over the island;
+  the big coin is centred on it, with a ridged rim, a raised star and a glint. Each digit is one whole colour, red,
+  orange, yellow, green, teal, blue, violet and pink in turn, and so are the letters of ETERNAL and x40 on the other
+  thumbnails.
 
 The three frames built round creatures (the ladder, the close-up and the egg) are on the 480 x 270 grid: drawn on the
 finer one the driftlings came out as flat shapes more than pixel art. The meadow and the town are on 960 x 540. The

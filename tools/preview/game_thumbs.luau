@@ -35,6 +35,8 @@ return function(env)
 	-- island cuts off perfectly at the border": 6 a stud, about the icon's width, the tree at 11)
 	local ICON_SMALL = 6
 	local iconSmall = false
+	-- (the big number thumbnail's night: UI/SkyBackdrop's hour and which of its nights)
+	local RICH_HOUR, RICH_NIGHT = 0.95, 0
 	local join0 = env.join
 	env.join = function(uid: number, name: string)
 		local p = join0(uid, name)
@@ -496,7 +498,11 @@ return function(env)
 		local big = mode ~= "day1" and not icon
 		-- (the full island's tier: "day100:<tier>" to try another; 8 by default, the widest View notch keeping its
 		-- buildings readable while it runs off the frame's edge)
-		local bigTier = tonumber(string.match(mode, "^day100:(%d+)$")) or 8
+		local bigTier = tonumber(string.match(mode, "^day100:(%d+)")) or 8
+		-- ("day100:<tier>:tree": the big number thumbnail's island, centred on the Tree of Life at the widest View notch
+		-- under the night sky; the request of 2026-11-21: "center it in the middle, with the tree being the centerpiece,
+		-- and use a night skybox")
+		local rich = big and string.find(mode, ":tree", 1, true) ~= nil
 		local uid = if icon then 7314 elseif big then 7313 else 7312
 		if big then
 			local plan = require("./showcase")({ Plot = Plot, Buildings = Buildings, Street = Street, log = log })
@@ -537,9 +543,9 @@ return function(env)
 			x0, z0, x1, z1 = math.min(x0, r.x0), math.min(z0, r.z0), math.max(x1, r.x1), math.max(z1, r.z1)
 		end
 		local cx, cz = if x0 < math.huge then (x0 + x1) / 2 else 0, if z0 < math.huge then (z0 + z1) / 2 else Street.CENTER.z
-		if icon then
+		if icon or rich then
 			-- (the icon centres on the Tree of Life: the request of 2026-11-21, "zoom in more, with the tree as the
-			-- centerpiece"; the layout crops round it)
+			-- centerpiece"; the layout crops round it; so does the big number's island)
 			cx, cz = Street.CENTER.x, Street.CENTER.z
 			for _, q in prof.plot.placed do
 				local d = Buildings.byId[q.id]
@@ -600,7 +606,7 @@ return function(env)
 		if SU then
 			-- (about the widest notch's span of sky at twice the pixels: 7 art px a stud, notch 3, on the 960 x 540 grid;
 			-- the icon's island at the widest notch, drawn smaller still: iconSmall)
-			H.inClient(p, SU.setZoom, if icon then 1 else 3)
+			H.inClient(p, SU.setZoom, if icon or rich then 1 else 3)
 		end
 		E.run(0.8)
 		H.closePanel(p)
@@ -613,12 +619,12 @@ return function(env)
 		-- (a clear morning, the sun up in the first island's half, clear of the divide)
 		local SBd = env.modOr(p, "UI.SkyBackdrop")
 		if SBd then
-			H.inClient(p, SBd.debugHour, 0.37, 0)
+			H.inClient(p, SBd.debugHour, if rich then RICH_HOUR else 0.37, if rich then RICH_NIGHT else 0)
 		end
 		-- (each island moved inside its half of the frame by the camera, so the sky behind stays whole: the first one
 		-- left of the divide, the full one right of it and lower, under the words; studs along the ground's
 		-- screen-right and away-from-the-viewer directions)
-		local shift = if icon then { 0, 0 } elseif big then { -30, 18 } else { 30, 0 }
+		local shift = if icon or rich then { 0, 0 } elseif big then { -30, 18 } else { 30, 0 }
 		local rx, rz = math.sqrt(0.5), -math.sqrt(0.5)
 		local ax, az = -math.sqrt(0.5), -math.sqrt(0.5)
 		local fx = ox + cx + rx * shift[1] + ax * shift[2]
@@ -655,6 +661,60 @@ return function(env)
 			layer.Enabled = false
 			capture(p, name .. "_sky")
 			layer.Enabled = true
+		end
+		if rich then
+			-- the big number's tree and its eggs alone from the same camera point (everything else on the plots out of
+			-- the client's world, the driftlings sent home): where the tree is, exactly, for the light the layout puts
+			-- round it
+			prof.pals = {}
+			H.push(p, 0.5)
+			H.inClient(p, function()
+				local plots = E.workspace:FindFirstChild("Plots")
+				if plots then
+					for _, pm in plots:GetChildren() do
+						if pm.Name ~= "Plot_" .. plotI then
+							pm.Parent = nil
+						else
+							for _, c in pm:GetChildren() do
+								if c.Name ~= "Static" then
+									c.Parent = nil
+								end
+							end
+							local st = pm:FindFirstChild("Static")
+							if st then
+								for _, c in st:GetChildren() do
+									if c.Name ~= "Decor" then
+										c.Parent = nil
+									end
+								end
+							end
+						end
+					end
+				end
+				local d = decorOf()
+				if d then
+					for _, c in d:GetChildren() do
+						if not string.find(c.Name, ":tree:", 1, true) then
+							c.Parent = nil
+						end
+					end
+				end
+			end)
+			E.run(1)
+			env.settle(p, 30, 1)
+			if PRd then
+				local t = 0
+				while t < 900 do
+					local cc = H.inClient(p, PRd.debugCastCheck, false)
+					if cc and cc.off ~= -1 then
+						break
+					end
+					E.run(2)
+					t += 2
+				end
+			end
+			E.run(1.5)
+			capture(p, name .. "_tree")
 		end
 		if icon then
 			-- the tree and its eggs alone, close: everything else on the plots out of the client's world, the

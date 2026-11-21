@@ -135,7 +135,7 @@ def div_x(y):
     return DIV_X - y // DIV_STEP
 
 
-def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=None):
+def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=None, chars=None):
     """Words drawn on the art grid itself, one art pixel at a time (the request of 2026-11-21: "make the text respect
     the pixel grid instead of using mixels", then "polish and detail it as if it is a pixel art illustration"): the
     font traced at `size` art px into a clean mask (half covered or more), an anti-aliasing pixel in each inside corner
@@ -144,8 +144,10 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=N
     edges a step darker), a glint at each letter's top left, `depth` px of depth under it a darker step, a 1 px outline
     round all of it, a darker step of the face (the game's words), and anti-aliasing outside the outline where its
     stairs step (only where the font's ideal edge cuts through the pixel). `hue(t)` (t from 0 at the words' left to 1
-    at their right) gives each column its own face colour in place of `fill`: the genre's rainbow words, each colour
-    a flat run of columns. Returns the box drawn."""
+    at their right) gives each column its own face colour in place of `fill`; `chars` (a colour for each character of
+    `s`, None for `fill`) colours each letter whole, the genre's rainbow words (the request of 2026-11-21: "make it
+    such that each number is fully colored with colors of the rainbow differently to form a rainbow"). Returns the box
+    drawn."""
     from PIL import Image, ImageDraw, ImageFont
 
     ft = ImageFont.truetype(TITLE_FONT, size)
@@ -186,7 +188,16 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=N
     hh = y1f - y0f + 1
     xmin = min(xs)
 
+    # (each character's columns from where the pen puts it: its left edge to the next one's)
+    starts = [2 - l + ft.getlength(s[:i]) for i in range(len(s))] if chars else []
+
     def fill_at(x):
+        if chars:
+            k = 0
+            for i, x0c in enumerate(starts):
+                if x + 0.5 >= x0c - 0.5:
+                    k = i
+            return chars[k] or fill
         return fill if hue is None else hue(min(1.0, max(0.0, (x - xmin) / max(1, bw - 1))))
 
     def face_c(x, y):
@@ -593,7 +604,7 @@ def main():
             sys.exit("no scene " + p)
         return load_scene(p, 2 if name.split("_")[0] in ("day1", "day100", "icon", "icontree", "field", "rich") else K)
 
-    sc = {n: scene(n) for n in ("day1", "day100", "day1_sky", "day100_sky", "icon", "icon_sky", "icontree", "icontree_sky", "field", "field_star", "rich", "rich_sky")}
+    sc = {n: scene(n) for n in ("day1", "day100", "day1_sky", "day100_sky", "icon", "icon_sky", "icontree", "icontree_sky", "field", "field_star", "rich", "rich_sky", "rich_tree")}
     os.makedirs(a.out, exist_ok=True)
     # the before and after first, then the genre's other frames (tools/preview/genre_thumbs.py)
     made = [
