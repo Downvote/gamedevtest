@@ -53,5 +53,11 @@
 #                   egg itself and the panel (wood, then a farm), the swap picker, new lots on the tree's clock (a
 #                   hatched-down lot, every egg left unhatched replaced), the eggs saved over a rejoin, the huts'
 #                   shares, expanding (more eggs at once, dearer, better), tapping the tree, a neighbour's eggs
+#   sim_social.luau the leaderboards and friends (GAME_DESIGN 16): the player list's leaderstats, Invite on the Top
+#                   sheet (the prompt and its LaunchData), friends joining from it (ReferredByPlayerId or the LaunchData;
+#                   once, never from yourself, never to an old save), friends here (the pace, the HUD's line, counted
+#                   again at leaving), ten minutes of play paying the inviter live, a friend finishing while the
+#                   inviter is away (queued, paid at the next join; past today's cap kept queued), the boards (lb.get,
+#                   the Top sheet's rows), junk boards
 SIM=$(cd "$(dirname "$0")" && pwd)
-sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log"
+sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log" "sim_social.luau:out_social.log"

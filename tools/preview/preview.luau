@@ -1814,10 +1814,45 @@ local function panelScenario(name)
 		prof.boosts.luck = 14 * 60 + 5
 		H.push(p, 0.6)
 	end
+	if name == "top" then
+		-- (panel=top[:<tab>]: the boards with fourteen other islands on them and this player 6th on Coins, 9th on Charm
+		-- and outside the Hatched board's rows; three friends invited, one of today's rewards taken, two friends on the
+		-- server: GAME_DESIGN 16)
+		local DataS = H.smod("DataService")
+		local prof = H.profile(p)
+		local others = {
+			{ 9101, "MossyTern", 4.2e6, 980, 812 }, { 9102, "pebble_kat", 2.9e6, 1210, 640 }, { 9103, "Lumen_Rook", 1.8e6, 760, 905 },
+			{ 9104, "sunnyfern22", 960000, 1405, 377 }, { 9105, "TidalBramble", 612000, 690, 512 }, { 9106, "quill_and_kip", 240000, 540, 298 },
+			{ 9107, "OwlMarrow", 188000, 430, 260 }, { 9108, "ziggy_pond", 97000, 512, 181 }, { 9109, "Hollowmint", 64000, 300, 150 },
+			{ 9110, "brisk_lark", 41000, 260, 133 }, { 9111, "CopperDune", 22500, 210, 96 }, { 9112, "fen_and_fig", 9800, 150, 71 },
+			{ 9113, "marlowe_b", 4300, 90, 44 }, { 9114, "PipTheBold", 1200, 40, 20 },
+		}
+		E.cloud.names = E.cloud.names or {}
+		for _, o in others do
+			E.cloud.names[o[1]] = o[2]
+		end
+		prof.stats.earned = 400000
+		prof.stats.taken, prof.stats.hatched = 3, 2
+		-- (the writes yield on the store, as in the game: in the server's context)
+		E.call(E.serverCtx, 15, function()
+			for _, o in others do
+				DataS.writeBoards(o[1], { coins = o[3], charm = o[4], hatched = o[5] }, {})
+			end
+			DataS.writeBoards(p.UserId, { coins = 400000, charm = 455, hatched = 5 }, {})
+		end)
+		-- (today by the game's clock: the fake engine's, not this script's)
+		prof.social.invited, prof.social.refDay, prof.social.refToday = 3, math.floor(E.now() / 86400), 1
+		prof.social.here = 2
+		H.push(p, 0.4)
+	end
 	local UIKit = modOr(p, "UI.UIKit")
 	if UIKit and UIKit.openPanel then
-		if name == "store" or name == "looks" or name == "rewards" then
+		if name == "store" or name == "looks" or name == "rewards" or name == "top" then
 			H.openPanel(p, name, arg)
+			if name == "top" then
+				-- (the board's answer and the sheet built again with it)
+				E.run(1.2)
+			end
 		elseif name == "work" then
 			-- the work picker for the first driftling (Work on its card): every workplace with its speed there
 			H.openPanel(p, "pals", { pal = H.profile(p).pals[1].id })

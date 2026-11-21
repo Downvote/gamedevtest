@@ -433,6 +433,10 @@ ICONS = {
     "ticket": ([".........", ".........", "444444443", "444244433", ".3323332.", "333233322", "222122221", ".........", "........."], ["C"], None),
     # a new set: two turning arrows, green over blue
     "refresh": (["..44433..", ".43...32.", "43...4321", "4.....32.", ".........", ".76.....8", "8765...78", ".76...76.", "..77766.."], ["G", "B"], None),
+    # the Top sheet (UI/TopUI, the request of 2026-11-21: "Make a leaderboard system"): a gold cup, two handles, a brown foot
+    "trophy": ([".4444333.", "444w43332", "4.44433.2", ".4443322.", "..43322..", "...432...", "...332...", "..87765..", ".8776655."], ["Y", "N"], None),
+    # friends (the Top sheet's Friends tab, invites): two founders side by side, a green shirt and a blue one
+    "friends": ([".hhi.oou.", "h44i.o44u", "4432.4432", ".32...32.", ".876.dcb.", "87765dcbb", "87665cbba", "76655bbaa", "........."], ["F", "G", "B"], {"h": "brn2", "i": "brn0", "o": "org2", "u": "org0"}),
     # Settings: a steel gear with a hole through it
     "gear": (["...443...", ".4.443.3.", "..44433..", "443...332", "443...322", "433...322", "..33222..", ".3.322.2.", "...221..."], ["S"], None),
 }

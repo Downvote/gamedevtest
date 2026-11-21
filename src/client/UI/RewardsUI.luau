@@ -17,7 +17,8 @@
 --   2026-11-20: "make this clickable to open the gift tab").
 -- API: RewardsUI.init(), RewardsUI.words(v, r, short?) -> string, RewardsUI.icon(r) -> string, RewardsUI.ready(v) ->
 -- number, RewardsUI.playSecs(v) -> number, RewardsUI.status(v, line) (Hud's second: line(name, icon?, text?, color?, onTap?)),
--- RewardsUI.openWaiting(), RewardsUI.TABS, RewardsUI.tabOf() -> string.
+-- RewardsUI.openWaiting(), RewardsUI.TABS, RewardsUI.tabOf() -> string, RewardsUI.bundle(v, list) -> string (a list of
+-- rewards in one line, in the language on show).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -84,6 +85,7 @@ local function bundleWords(v: View?, list: { Reward }): string
 	end
 	return Lang.list(items)
 end
+RewardsUI.bundle = bundleWords
 
 -- A reward's mini icon ("mini_" less).
 function RewardsUI.icon(r: Reward): string

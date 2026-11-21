@@ -13,6 +13,7 @@ local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Store = require(ReplicatedStorage.Shared.Logic.Store)
 local Rewards = require(ReplicatedStorage.Shared.Logic.Rewards)
+local Social = require(ReplicatedStorage.Shared.Logic.Social)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local WorldClock = require(script.Parent.WorldClock)
 
@@ -141,6 +142,7 @@ function Session.view(s: S): Types.ClientView
 		groupOn = Monetization.isEnabled(Monetization.Group.Id),
 		rewards = Rewards.view(p, now),
 		boosts = table.clone(p.boosts),
+		social = Social.view(p, os.time()),
 	}
 end
 

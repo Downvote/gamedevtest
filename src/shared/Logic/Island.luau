@@ -293,8 +293,17 @@ function Island.rates(p: Profile, steady: boolean?): Rates
 	for _, q in p.plot.placed do
 		shells += made[q.uid] or 0
 	end
-	local timed = if steady then 1 else Island.timedMult(p)
+	-- (the friends on the server count only while they play together, as a timed boost does: never in the steady pace)
+	local timed = if steady then 1 else Island.timedMult(p) * Island.friendsMult(p)
 	return { shells = shells * (1 + Island.charmBonus(Island.charm(p, i))) * Island.passMult(p) * (1 + i.all) * timed }
+end
+
+-- Roblox friends on the same server (Profile.social.here, kept by SocialService; GAME_DESIGN 16): every shell times
+-- 1 + Tuning.FriendsBoostEach each, Tuning.FriendsBoostMax more at most.
+function Island.friendsMult(p: Profile): number
+	local s = p.social
+	local n = if s then s.here else 0
+	return 1 + math.min(Tuning.FriendsBoostMax, math.max(0, n) * Tuning.FriendsBoostEach)
 end
 
 -- A timed shells boost (a reward's: Logic/Rewards) multiplies every shell by 1 + Tuning.TimedShells while it runs.

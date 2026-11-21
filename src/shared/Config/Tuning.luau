@@ -248,6 +248,24 @@ local Tuning = {
 	GroupEgg = 3,
 	GroupMins = 30,
 	GroupBoost = 0.1,
+	-- leaderboards and friends (GAME_DESIGN 16; Logic/Social, SocialService; the request of 2026-11-21: "Make a
+	-- leaderboard system, along with friend invite bonuses"). The boards are all-time OrderedDataStores (never rename
+	-- them: the scores are there); a player's scores go up every BoardWriteSec while they play and when they leave, and
+	-- a server reads each board's top BoardRows at most every BoardCacheSec.
+	BoardStores = { coins = "PI_Board_Coins_v1", charm = "PI_Board_Charm_v1", hatched = "PI_Board_Hatched_v1" },
+	BoardRows = 50,
+	BoardCacheSec = 120,
+	BoardWriteSec = 300,
+	-- a friend invited (Roblox's invite prompt, the inviter's id in its launch data): taken by a save younger than
+	-- ReferralMaxAgeSec, once; its welcome gift at once, the inviter's once the friend has played ReferralMinPlaySec,
+	-- at most ReferralDailyCap a UTC day (more wait in ReferralStoreName for another day)
+	ReferralStoreName = "PI_Referral_v1",
+	ReferralMaxAgeSec = 86400,
+	ReferralMinPlaySec = 600,
+	ReferralDailyCap = 10,
+	-- Roblox friends on the same server: FriendsBoostEach more coins each while they're here, FriendsBoostMax at most
+	FriendsBoostEach = 0.1,
+	FriendsBoostMax = 0.4,
 
 	-- server
 	StepHz = 10,

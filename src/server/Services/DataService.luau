@@ -155,6 +155,187 @@ function DataService.unlock(userId: number)
 	pending -= 1
 end
 
+------------------------------------------------------------------ leaderboards and friends (GAME_DESIGN 16)
+-- The boards are OrderedDataStores (Tuning.BoardStores: never rename them, the scores are there), one entry per player
+-- ("u_<id>" -> a whole score). The friends invited wait in Tuning.ReferralStoreName under the inviter's key ("u_<id>"
+-- -> { { invitee, at } }) until the inviter's next join. With DataStores off, both live in memory too.
+local boardStores: { [string]: OrderedDataStore } = {}
+local memBoards: { [string]: { [string]: number } } = {}
+local refStore: GlobalDataStore? = nil
+
+local function boardStore(board: string): OrderedDataStore?
+	local name = Tuning.BoardStores[board]
+	if usingMemory or name == nil then
+		return nil
+	end
+	local hit = boardStores[board]
+	if hit then
+		return hit
+	end
+	local ok, ods = pcall(function(): OrderedDataStore
+		return DataStoreService:GetOrderedDataStore(name)
+	end)
+	if ok and ods then
+		boardStores[board] = ods
+		return ods
+	end
+	warn("[DataService] board store " .. board .. " unavailable: " .. tostring(ods))
+	return nil
+end
+
+-- Write a player's scores (board -> whole number) where they changed since `last` (board -> the score last written,
+-- updated as each write lands). Yields; BindToClose waits for it.
+function DataService.writeBoards(userId: number, scores: { [string]: number }, last: { [string]: number })
+	pending += 1
+	local key = keyOf(userId)
+	for board, value in scores do
+		local v = math.max(0, math.floor(value))
+		if last[board] ~= v and Tuning.BoardStores[board] ~= nil then
+			if usingMemory then
+				local t = memBoards[board] or {}
+				memBoards[board] = t
+				t[key] = v
+				last[board] = v
+			else
+				local ods = boardStore(board)
+				if ods then
+					local ok, err = pcall(function()
+						(ods :: OrderedDataStore):SetAsync(key, v)
+					end)
+					if ok then
+						last[board] = v
+					else
+						warn(string.format("[DataService] board %s write for %d failed: %s", board, userId, tostring(err)))
+					end
+				end
+			end
+		end
+	end
+	pending -= 1
+end
+
+-- A board's top n, best first: { { userId, value } }; nil when it couldn't be read. Yields.
+function DataService.readBoard(board: string, n: number): { { userId: number, value: number } }?
+	local out: { { userId: number, value: number } } = {}
+	local function add(key: any, value: any)
+		local id = if type(key) == "string" then tonumber(string.match(key, "^u_(%d+)$")) else nil
+		if id and type(value) == "number" then
+			table.insert(out, { userId = id, value = value })
+		end
+	end
+	if usingMemory then
+		local t: { [string]: number } = memBoards[board] or {}
+		for key, value in t do
+			add(key, value)
+		end
+		table.sort(out, function(a, b)
+			return if a.value ~= b.value then a.value > b.value else a.userId < b.userId
+		end)
+		while #out > n do
+			table.remove(out)
+		end
+		return out
+	end
+	local ods = boardStore(board)
+	if ods == nil then
+		return nil
+	end
+	local ok, entries = pcall(function(): any
+		return (ods :: OrderedDataStore):GetSortedAsync(false, math.clamp(n, 1, 100)):GetCurrentPage()
+	end)
+	if not ok or type(entries) ~= "table" then
+		warn("[DataService] board " .. board .. " read failed: " .. tostring(entries))
+		return nil
+	end
+	for _, e in entries do
+		if type(e) == "table" then
+			add(e.key, e.value)
+		end
+	end
+	return out
+end
+
+local function refUpdate(key: string, fn: (any) -> any): (boolean, any)
+	if usingMemory then
+		local out = fn(memory["ref:" .. key])
+		if out ~= nil then
+			memory["ref:" .. key] = out
+		end
+		return true, memory["ref:" .. key]
+	end
+	if refStore == nil then
+		local ok, st = pcall(function(): GlobalDataStore?
+			return DataStoreService:GetDataStore(Tuning.ReferralStoreName)
+		end)
+		if not ok or st == nil then
+			return false, st
+		end
+		refStore = st :: GlobalDataStore
+	end
+	local st = refStore :: GlobalDataStore
+	return pcall(function()
+		return st:UpdateAsync(key, function(old: any)
+			return fn(old)
+		end)
+	end)
+end
+
+-- A friend invited by an inviter who isn't on this server played long enough: noted for the inviter's next join (once
+-- per friend; at most 100 waiting). True when it was written. Yields.
+function DataService.queueReferral(inviterId: number, inviteeId: number): boolean
+	pending += 1
+	local ok, err = refUpdate(keyOf(inviterId), function(old: any): any
+		local list = if type(old) == "table" then old else {}
+		for _, e in list do
+			if type(e) == "table" and e.invitee == inviteeId then
+				return list -- (already waiting)
+			end
+		end
+		if #list >= 100 then
+			return nil
+		end
+		table.insert(list, { invitee = inviteeId, at = os.time() })
+		return list
+	end)
+	if not ok then
+		warn(string.format("[DataService] queueReferral %d for %d failed: %s", inviteeId, inviterId, tostring(err)))
+	end
+	pending -= 1
+	return ok
+end
+
+-- Take up to `max` of an inviter's waiting friends (the rest stay for another time). Yields; {} on failure.
+function DataService.takeReferrals(userId: number, max: number): { { invitee: number, at: number } }
+	if max <= 0 then
+		return {}
+	end
+	local taken: { { invitee: number, at: number } } = {}
+	pending += 1
+	local ok, err = refUpdate(keyOf(userId), function(old: any): any
+		table.clear(taken)
+		if type(old) ~= "table" or #old == 0 then
+			return nil
+		end
+		local rest = {}
+		for _, e in old do
+			if type(e) == "table" and type(e.invitee) == "number" then
+				if #taken < max then
+					table.insert(taken, { invitee = e.invitee, at = tonumber(e.at) or 0 })
+				else
+					table.insert(rest, e)
+				end
+			end
+		end
+		return rest
+	end)
+	pending -= 1
+	if not ok then
+		warn(string.format("[DataService] takeReferrals %d failed: %s", userId, tostring(err)))
+		return {}
+	end
+	return taken
+end
+
 -- How many saves and unlocks are going (BindToClose waits for none).
 function DataService.pending(): number
 	return pending

@@ -39,6 +39,7 @@ local Menus = require(script.Parent.Menus)
 local StoreUI = require(script.Parent.StoreUI)
 local FounderUI = require(script.Parent.FounderUI)
 local RewardsUI = require(script.Parent.RewardsUI)
+local TopUI = require(script.Parent.TopUI)
 local SettingsUI = require(script.Parent.SettingsUI)
 local VisitUI = require(script.Parent.VisitUI)
 local WelcomeUI = require(script.Parent.WelcomeUI)
@@ -432,6 +433,9 @@ local MENUS: { Menu } = {
 	{ text = "Looks", panel = "looks", icon = "visitor" },
 	-- the rewards for coming back and playing (UI/RewardsUI, 2026-11-19): a red dot while something waits
 	{ text = "Gifts", panel = "rewards", icon = "gift" },
+	-- the leaderboards and the friends (UI/TopUI, 2026-11-21: "Make a leaderboard system, along with friend invite
+	-- bonuses")
+	{ text = "Top@@board", panel = "top", icon = "trophy" },
 	-- the store (GAME_DESIGN 14, 2026-11-14): passes, products, the rotating shop and the pass track
 	{ text = "Store", panel = "store", icon = "store" },
 	-- the settings (UI/SettingsUI, 2026-11-14: "Add a settings tab, replacing the music button"): music, sounds, pixel art
@@ -1149,6 +1153,7 @@ function Hud.start()
 	StoreUI.init()
 	FounderUI.init()
 	RewardsUI.init()
+	TopUI.init()
 	SettingsUI.init()
 	VisitUI.init()
 	WelcomeUI.init()
@@ -1266,6 +1271,7 @@ function Hud.start()
 				end
 			end
 			RewardsUI.status(rv, Hud.statusLine)
+			TopUI.status(rv, Hud.statusLine)
 		end
 		-- jumping on the island: held while the build tray or a panel is up (the phone's jump button hides with it,
 		-- clear of the tray's and the panels' buttons)

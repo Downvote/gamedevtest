@@ -214,6 +214,9 @@ local FROM: { [string]: string } = {
 	spin = "Lucky Spin",
 	index = "Index gift",
 	code = "Code",
+	-- the friends (UI/TopUI): a friend you invited played long enough; the gift for joining from an invite
+	friend = "A friend you invited",
+	invited = "Welcome gift",
 }
 local BOOST_NAMES: { [string]: string } = { shells = "Busy Day", luck = "Lucky Hour" }
 function StoreUI.rewardText(from: string, given: { any }): string

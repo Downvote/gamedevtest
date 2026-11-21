@@ -18,6 +18,7 @@ local Router = require(Services.Router)
 local PlotService = require(Services.PlotService)
 local IslandService = require(Services.IslandService)
 local MonetizationService = require(Services.MonetizationService)
+local SocialService = require(Services.SocialService)
 local WorldClock = require(Services.WorldClock)
 
 DataService.init()
@@ -25,6 +26,7 @@ PlotService.init()
 Router.init()
 IslandService.init()
 MonetizationService.init()
+SocialService.init()
 
 local function join(player: Player)
 	PlotService.watchCharacters(player)
@@ -67,6 +69,8 @@ local function join(player: Player)
 	Session.flush(s)
 	-- the passes the player owns (GAME_DESIGN 14: checked at every join)
 	MonetizationService.join(s)
+	-- the player list, friends here, an invite (GAME_DESIGN 16)
+	task.spawn(SocialService.join, s)
 end
 
 local function leave(player: Player)
@@ -77,6 +81,7 @@ local function leave(player: Player)
 	Session.remove(player)
 	s.ready = false
 	IslandService.leave(s)
+	SocialService.leave(s)
 	DataService.save(player.UserId, s.profile, true)
 	PlotService.release(s.plot)
 end
@@ -89,7 +94,7 @@ for _, player in Players:GetPlayers() do
 end
 Players.PlayerRemoving:Connect(leave)
 
--- the fixed step: the clock, the views, autosave
+-- the fixed step: the clock, the friends, the views, autosave
 local STEP = 1 / Tuning.StepHz
 local acc = 0
 RunService.Heartbeat:Connect(function(dt: number)
@@ -97,6 +102,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	while acc >= STEP do
 		acc -= STEP
 		IslandService.step(STEP)
+		SocialService.step(STEP)
 	end
 	-- (the sea's clock never left behind the real one by a stall: WorldClock.keepUp)
 	WorldClock.keepUp(os.time())

@@ -22,6 +22,7 @@ local Track = require(script.Parent.Parent.Data.Track)
 local Monetization = require(script.Parent.Parent.Config.Monetization)
 local RewardsData = require(script.Parent.Parent.Data.Rewards)
 local Rewards = require(script.Parent.Rewards)
+local Social = require(script.Parent.Social)
 
 type Profile = Types.Profile
 
@@ -34,7 +35,7 @@ local Schema = {}
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
 -- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15);
 -- 22: the Tree of Life in the island's middle (no campfire); 23: the View slider's default on the seventh notch
-Schema.VERSION = 23
+Schema.VERSION = 24
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -170,6 +171,7 @@ function Schema.default(now: number, seed: number): Profile
 		group = { member = false, gift = false },
 		rewards = Rewards.fresh(),
 		boosts = {},
+		social = Social.fresh(),
 	}
 	Tree.plant(p)
 	return p
@@ -502,11 +504,33 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		v = 23
 	end
+	-- 23 -> 24: leaderboards and friends (the request of 2026-11-21, "Make a leaderboard system, along with friend
+	-- invite bonuses"): Profile.social, which reconcile fills in (no one was invited before)
+	if v < 24 then
+		v = 24
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
 
 ------------------------------------------------------------------ reconcile
+-- Friends (Types.Social) from anything: a user id or 0, counts in range, the friends here always 0 (live only: they
+-- are counted again on this server).
+function Schema.social(raw: any): Types.Social
+	local out = Social.fresh()
+	if type(raw) ~= "table" then
+		return out
+	end
+	local by = raw.referredBy
+	out.referredBy = if type(by) == "number" and by == math.floor(by) and by > 0 and by < 1e13 then by else 0
+	out.refPaid = out.referredBy ~= 0 and raw.refPaid == true
+	out.refPlay = if out.referredBy ~= 0 and type(raw.refPlay) == "number" and raw.refPlay == raw.refPlay then math.clamp(raw.refPlay, 0, Tuning.ReferralMinPlaySec) else 0
+	out.invited = if type(raw.invited) == "number" and raw.invited == raw.invited then math.clamp(math.floor(raw.invited), 0, 1e6) else 0
+	out.refDay = if type(raw.refDay) == "number" and raw.refDay == raw.refDay then math.clamp(math.floor(raw.refDay), -1, 1e7) else -1
+	out.refToday = if type(raw.refToday) == "number" and raw.refToday == raw.refToday then math.clamp(math.floor(raw.refToday), 0, Tuning.ReferralDailyCap) else 0
+	return out
+end
+
 -- The rewards' save (Types.RewardsSave) from anything: days and counts in range, known milestones, gifts and tasks,
 -- codes as short strings.
 local function intList(v: any, ok: (number) -> boolean, most: number): { number }
@@ -743,6 +767,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		},
 		rewards = Schema.rewards(r.rewards),
 		boosts = {},
+		social = Schema.social(r.social),
 	}
 	-- the timed boosts: known ones, their seconds in range
 	if type(r.boosts) == "table" then

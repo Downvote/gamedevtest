@@ -3507,3 +3507,39 @@ for nothing, a look, a title) and two of their own: spins of the Lucky Spin, and
 seconds left, running down only while the player is on the island, four hours at most): **Busy Day** (every shell x1.5,
 `TimedShells`) and **Lucky Hour** (+0.5 egg luck, `TimedLuck`). Every claim tells the player what came in the sheet's
 status line ("Daily reward: an uncommon egg and 657 shells."). The save keeps it all (`Profile.rewards`, version 20).
+
+## 16. Leaderboards and friends (`Logic/Social`, `Services/SocialService`, `UI/TopUI`)
+
+> The request (2026-11-21): "Make a leaderboard system, along with friend invite bonuses"
+
+The menu bar's **Top** (a gold cup, between Gifts and Store) opens the Top sheet. It has four tabs.
+
+- **Coins, Charm, Hatched: the boards.** Every island in the game, best first: coins earned in all (`stats.earned`),
+  the island's charm now, and eggs hatched (the tree's and the Hatcheries'). Each shows the top 50
+  (`Tuning.BoardRows`): the place (the first three in gold, silver and bronze with a little cup), the Roblox name and
+  the score, players on this server in teal. The player's own line sits pinned on top in gold ("#6 You 400K", or
+  "- You" outside the 50) and again in the list. A player's scores are written every 5 minutes while they play
+  (`BoardWriteSec`) and when they leave, an unchanged one skipped; a server reads a board at most every 2 minutes
+  (`BoardCacheSec`) and a client asks at most once a minute, so the sheet says "Updates every few minutes". The boards
+  are OrderedDataStores (`Tuning.BoardStores`: `PI_Board_Coins_v1`, `PI_Board_Charm_v1`, `PI_Board_Hatched_v1`, never
+  renamed).
+- **Friends: invites.** "Invite friends" opens Roblox's invite prompt ("Come build an island with me."). A friend who
+  joins from it on a new save (under a day old, `ReferralMaxAgeSec`) gets a **welcome gift** at once: a rare egg and 10
+  minutes of coins (`Data/Rewards.REFERRAL.invitee`). Once that friend has played 10 minutes (`ReferralMinPlaySec`)
+  the inviter gets an epic egg, 20 minutes of coins and a 30 minute Lucky Hour (`REFERRAL.inviter`): at once when
+  they're on the same server, else the next time they join. At most 10 of these a UTC day (`ReferralDailyCap`); a
+  friend past that waits for another day. An invite counts once a save and never from the player themself; an older
+  save joining from an invite is welcome but brings no gifts. The tab puts both sides' rewards in words, then
+  "Friends invited: 3" and "Rewards left today: 9".
+- **Friends: play together.** Each Roblox friend on the same server adds 10% to the island's coins
+  (`FriendsBoostEach`), up to 40% (`FriendsBoostMax`), only while they play together: time away and the rewards paid
+  in minutes of coins use the steady pace, which leaves it out. The tab says "2 friends on this server" with "+10%
+  coins for each friend here, up to +40%." and "+20% now"; the HUD's status strip gets a green line, "2 friends here,
+  +20% coins" (a tap opens the Friends tab).
+
+Roblox's player list shows each player's **Island** (the island's level) and **Earned** (coins earned in all).
+Notices: "Welcome gift: a rare egg and 5,697 coins." for the friend, "A friend you invited: an epic egg, ..." for the
+inviter. The save keeps the friend's side (who invited them, the seconds played toward the inviter's reward, whether
+it went out) and the inviter's count and today's tally (`Profile.social`, version 24); friends here are counted again
+on each server. The boards and the invites need DataStores and Roblox's web calls: in Studio that means API access
+turned on (Game Settings, Security); a published game has them.

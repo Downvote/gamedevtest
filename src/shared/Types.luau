@@ -83,6 +83,22 @@ export type OfflineReport = { away: number, secs: number, shells: number }
 -- The group gift (Logic/Store.setGroup): in the group now (as last checked), the gift given.
 export type Group = { member: boolean, gift: boolean }
 
+-- Friends (Logic/Social; GAME_DESIGN 16): who invited this player (a user id, 0 none) and whether that friend's reward
+-- went out, the seconds played since joining from the invite (counted until then), how many invited friends were
+-- rewarded in all and today (refDay: the UTC day refToday counts), and the Roblox friends on this server now (here:
+-- live only, 0 again at every load).
+export type Social = {
+	referredBy: number,
+	refPaid: boolean,
+	refPlay: number,
+	invited: number,
+	refDay: number,
+	refToday: number,
+	here: number,
+}
+-- A leaderboard's row (SocialService, "lb.get"): its place, the player and their score.
+export type BoardRow = { rank: number, userId: number, name: string, value: number }
+
 -- An egg in a Hatchery (Logic/Breed): the hatchery's piece uid, its parents' ids, what hatches (decided when it is laid:
 -- the kind and its mutations) and the island turns left (at 0 it is ready and waits till the player taps the Hatchery:
 -- Logic/Breed.hatch, into a hut with room).
@@ -149,6 +165,8 @@ export type Profile = {
 	-- seconds left on the island
 	rewards: RewardsSave,
 	boosts: { [string]: number },
+	-- leaderboards and friends (GAME_DESIGN 16; 2026-11-21)
+	social: Social,
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -208,6 +226,8 @@ export type ClientView = {
 	-- Index's milestones, how many wait) and the timed boosts running (id -> seconds left)
 	rewards: any,
 	boosts: { [string]: number },
+	-- friends (Logic/Social.view): friends invited and rewarded, today's left, the Roblox friends here and what they add
+	social: { invited: number, todayLeft: number, here: number, boost: number, referred: boolean },
 }
 
 export type ErrCode =

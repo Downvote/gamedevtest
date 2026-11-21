@@ -78,6 +78,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["reward.index"] = { i = "small" },
 	["code.redeem"] = { code = "code" },
 	["group.check"] = {},
+	-- a leaderboard's top rows (Logic/Social.BOARDS; GAME_DESIGN 16)
+	["lb.get"] = { board = "board" },
 }
 Validate.ACTIONS = ACTIONS
 
@@ -144,6 +146,8 @@ local function check(kind: string, v: any): boolean
 		return type(v) == "string" and #v >= 1 and #v <= 32 and string.match(v, "^[%w_%- ]+$") ~= nil
 	elseif kind == "collect" then
 		return v == "free" or v == "double"
+	elseif kind == "board" then
+		return v == "coins" or v == "charm" or v == "hatched" -- (Logic/Social.BOARDS)
 	elseif kind == "any" then
 		local t = type(v)
 		return t == "string" and #v <= 32 or t == "number" or t == "boolean"

@@ -296,6 +296,9 @@ local UI: { [string]: number } = {
 	text_dim = 0xE1CFBE,
 	text_ink = 0x2A1C1C,
 	accent = 0xFFCB30,
+	-- the Top sheet's places (UI/TopUI): first in the accent's gold, then silver and bronze
+	rank_silver = 0xD3DCE6,
+	rank_bronze = 0xE39B5E,
 	good = 0x78DA8A,
 	bad = 0xFF6F6A,
 	button = 0x45BFC6,

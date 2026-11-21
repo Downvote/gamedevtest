@@ -123,6 +123,13 @@ local INDEX: { IndexGift } = {
 }
 -- stylua: ignore end
 
+-- A friend invited (Logic/Social; GAME_DESIGN 16): the friend's welcome gift when they join from the invite, and the
+-- inviter's once the friend has played ten minutes.
+local REFERRAL = {
+	invitee = { egg(3), shells(10) } :: { Reward },
+	inviter = { egg(4), shells(20), boost("luck", 30) } :: { Reward },
+}
+
 -- The timed boosts' names (the HUD's chips and the rewards' words).
 local BOOSTS: { [string]: string } = { shells = "Busy Day", luck = "Lucky Hour" }
 
@@ -136,5 +143,6 @@ return table.freeze({
 	SPIN = SPIN,
 	INDEX = INDEX,
 	BOOSTS = BOOSTS,
+	REFERRAL = REFERRAL,
 	BOOST_MAX = 4 * 3600, -- a timed boost holds this many seconds at most
 })
