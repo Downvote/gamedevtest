@@ -27,8 +27,9 @@ return function(env)
 	local artK = if mode == "day1" or mode == "icon" or string.sub(mode, 1, 6) == "day100" then 2 else 4
 	-- (the icon's island drawn at ICON_SMALL art px a stud while this is on, the widest View notch answering that in
 	-- place of 5: the island whole under a tree drawn bigger, the requests of 2026-11-21, "Make the island small enough
-	-- for the whole island to be in frame of the icon, without changing the tree size")
-	local ICON_SMALL = 3
+	-- for the whole island to be in frame of the icon, without changing the tree size", then "Zoom in to this level for
+	-- the icon. Also, make the island bigger, just enough to hold the eggs on the tree": 4 a stud, the tree at 11; Raster allows 4 or 5 here)
+	local ICON_SMALL = 4
 	local iconSmall = false
 	local join0 = env.join
 	env.join = function(uid: number, name: string)
@@ -567,7 +568,7 @@ return function(env)
 			H.openPanel(p, "settings")
 			E.run(0.4)
 			if SU then
-				H.inClient(p, SU.setZoom, 5)
+				H.inClient(p, SU.setZoom, 7)
 			end
 			E.run(0.8)
 			H.closePanel(p)

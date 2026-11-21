@@ -660,6 +660,9 @@ def thumb_days(sc):
     return cv
 
 
+ICON_DROP = 8  # the small island set this many art px lower under the big tree, so its egg ring sits inside the lawn
+
+
 def icon(sc):
     """The game icon (the requests of 2026-11-21: "make an icon, with the island being the centerpiece", "zoom in
     more, with the tree as the centerpiece", then "Make the island small enough for the whole island to be in frame
@@ -674,6 +677,9 @@ def icon(sc):
     fb, sb = sc["icontree"], sc["icontree_sky"]
     ma = IL.island_mask(fa, sa, near=24)
     mb = IL.island_mask(fb, sb, min_part=12, near=24)
+    # (the island moved down ICON_DROP under the tree: its mask and picture shifted together)
+    ma = [[False] * fa.w for _ in range(ICON_DROP)] + ma[: fa.h - ICON_DROP]
+    fa.px = [[None] * fa.w for _ in range(ICON_DROP)] + fa.px[: fa.h - ICON_DROP]
     IL.outline_edges(fa, ma)
     IL.outline_edges(fb, mb)
     W, H = fa.w, fa.h
@@ -722,7 +728,7 @@ def icon(sc):
         for x in range(S):
             if at(ma, x, y):
                 c = fa.px[Y0 + y][X0 + x]
-                if ((x + 0.5 - (fcx + 8)) / 48.0) ** 2 + ((y + 0.5 - (fcy + 6)) / 20.0) ** 2 <= 1:
+                if ((x + 0.5 - (fcx + 10)) / 58.0) ** 2 + ((y + 0.5 - (fcy + 7)) / 24.0) ** 2 <= 1:
                     c = dark(c, 0.84)
                 cv.put(x, y, c)
     for y in range(S):

@@ -3203,11 +3203,14 @@ the island keeps to a few bold masses of colour.
 
 > The requests (2026-11-21): "make an icon with the centerpiece being the floating island", "zoom in more, with the
 > tree as the centerpiece", then "Make the island small enough for the whole island to be in frame of the icon,
-> without changing the tree size. You can zoom in further on the tree as well"
+> without changing the tree size. You can zoom in further on the tree as well", and "Zoom in to this level for the
+> icon. Also, make the island bigger, just enough to hold the eggs on the tree. Its ok for its bottom to slightly be
+> cut off"
 
-So the icon is the Tree of Life big on the whole island small: the tree and its rare eggs as close as View notch 5
-draws them (9 art px a stud), standing on the island drawn at 3 art px a stud, its point under it and the sea of clouds
-below. They are two pictures from one camera point, the island's taken with its tree left out and the tree's with
+So the icon is the Tree of Life big on the island small: the tree and its rare eggs as close as View notch 7 draws
+them (11 art px a stud, the crown filling the top of the frame), standing on the island drawn at 4 art px a stud, just
+big enough for the ring of eggs (set a few pixels lower under the tree so the ring sits inside the lawn), the bottom of
+its rock cut off by the frame and the sea of clouds. They are two pictures from one camera point, the island's taken with its tree left out and the tree's with
 everything else left out, so the tree's foot lands on its own spot; the big tree's shade falls on the lawn round it.
 The sky is painted as in the before and after, with the sun at the top left, far islets, small floating rocks, gulls
 and a few twinkles round the crown.
