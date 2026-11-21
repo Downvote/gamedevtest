@@ -13,6 +13,7 @@
 # Every number on them is the game's own: Tuning.RarityWork for the ladder's, the tier 20 town's coins a minute
 # (logged by tools/preview/game_thumbs.luau) for the big one. game_thumbs.py calls these with its canvas, its words
 # and its scenes (setup hands this module that one).
+import colorsys
 import math
 
 from product_icons import PAL, WHITE, mix, dark, light, ink_of, lum  # noqa: F401
@@ -57,6 +58,39 @@ RARITY_WORK = {1: "1", 3: "2.5", 9: "40"}
 
 
 # ---------------------------------------------------------------- small helpers
+# Hue-shifted shading (the request of 2026-11-21: "use hueshifting such that darker and lighter shades are hueshifted
+# to be colorful"): a darker shade turns its hue toward blue violet and grows more saturated as it darkens; a lighter
+# one turns toward warm yellow and pales as it lightens. Drop-in for product_icons' dark(c, k) and light(c, k): the
+# same k, the same lightness, a more colourful step.
+HS_COOL, HS_WARM = 0.72, 0.14
+
+
+def _hue_toward(h, target, amt):
+    d = ((target - h + 0.5) % 1.0) - 0.5
+    return (h + d * amt) % 1.0
+
+
+def hs_dark(c, k):
+    r, g, b = (v / 255 for v in c)
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    t = max(0.0, 1.0 - k)
+    h = HS_COOL if s < 0.06 else _hue_toward(h, HS_COOL, min(1.0, t * 0.85))
+    s = min(1.0, s + t * 0.45 + (0.12 if s < 0.06 else 0.0) * t * 2)
+    v = v * k
+    return tuple(int(round(x * 255)) for x in colorsys.hsv_to_rgb(h, s, v))
+
+
+def hs_light(c, k):
+    r, g, b = (v / 255 for v in c)
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    h = HS_WARM if s < 0.06 else _hue_toward(h, HS_WARM, min(1.0, k * 0.55))
+    s = max(0.0, s * (1 - k * 0.6)) + (0.08 * k if s < 0.06 else 0.0)
+    v = v + (1 - v) * k
+    return tuple(int(round(x * 255)) for x in colorsys.hsv_to_rgb(h, min(1.0, s), min(1.0, v)))
+
+
+HUE_SHADE = (hs_dark, hs_light)
+
 # a 4 x 4 ordered dither (Bayer): where a gradient or a band of light passes from one flat step to the next, each pixel
 # takes one step or the other by this threshold, so the change is a pattern of whole pixels, never a blend (the user's
 # "use dithering if you want to make gradients and light bands", 2026-11-21)
@@ -185,11 +219,12 @@ def slant_bar(cv, xb, w, step, color=WHITE):
             cv.put(d + w + 1, y, mix(cv.get(d + w + 1, y), edge, tr))
 
 
-def coin(cv, cx, cy, r, tilt=1.0):
+def coin(cv, cx, cy, r, tilt=1.0, shade=None):
     """A gold coin as the game draws its coin icon, `r` px across the middle, `tilt` squashing it to an ellipse: the
     face lit from the top left in three steps, a raised rim, a lit crescent, a 1 px outline a darker step of the gold,
     anti-aliased where its stair steps."""
     gold = PAL["gold"]
+    dark, light = shade or (globals()["dark"], globals()["light"])
     rx, ry = r, max(2.0, r * tilt)
     L = IL.Layer()
     # a tilted coin shows its edge under its face: a band of darker gold, lit at its left end
@@ -529,8 +564,9 @@ def big_coin(cv, cx, cy, r):
     gold = PAL["gold"]
     disc = {(x, y) for y in range(int(cy - r) - 1, int(cy + r) + 2) for x in range(int(cx - r) - 1, int(cx + r) + 2)
             if (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r}
+    dark, light = HUE_SHADE
     dither_glow(cv, disc, 14, (0.0, 0.07, 0.14, 0.24), (255, 226, 140))
-    coin(cv, cx, cy, r)
+    coin(cv, cx, cy, r, shade=HUE_SHADE)
     # the ridges round the rim
     for (x, y) in disc:
         d = math.hypot(x + 0.5 - cx, y + 0.5 - cy) / r
@@ -628,7 +664,7 @@ def thumb_rich(sc, rate):
                 continue
             if d <= MR:
                 lit = (-(x + 0.5 - MX) + (y + 0.5 - MY)) / MR
-                c = (255, 248, 222) if lit < 0.35 else ((236, 228, 200) if lit < 0.95 else (214, 206, 182))
+                c = (255, 248, 222) if lit < 0.35 else ((236, 228, 200) if lit < 0.95 else hs_dark((236, 228, 200), 0.88))
                 cv.put(x, y, c)
             else:
                 lv = min(2, dither_step(min(2.0, max(0.0, (MR + 15 - d) / 6.0)), x, y, 0.9))
@@ -640,7 +676,7 @@ def thumb_rich(sc, rate):
                 d = math.hypot(x + 0.5 - MX - ox, y + 0.5 - MY - oy)
                 if d <= cr and math.hypot(x + 0.5 - MX, y + 0.5 - MY) <= MR - 1:
                     up = (y + 0.5 - MY - oy) < -cr * 0.4 and (x + 0.5 - MX - ox) > 0
-                    cv.put(x, y, (200, 192, 168) if not up else (180, 172, 150))
+                    cv.put(x, y, hs_dark((236, 228, 200), 0.86) if not up else hs_dark((236, 228, 200), 0.76))
                 elif cr < d <= cr + 1 and (y + 0.5 - MY - oy) > 0 and math.hypot(x + 0.5 - MX, y + 0.5 - MY) <= MR - 1:
                     cv.put(x, y, (255, 250, 232))
     # a shooting star across the top left corner: a bright head, its trail fading in three flat steps
@@ -698,14 +734,17 @@ def thumb_rich(sc, rate):
             c = cv.px[y][x]
             lv = min(3, dither_step(min(3.0, max(0.0, (d - 100) / 62.0)), x, y, 0.45))
             if lv == 3:
-                cv.px[y][x] = mix(dark(c, 0.72), night, 0.18)
+                cv.px[y][x] = mix(hs_dark(c, 0.74), night, 0.24)
             elif lv == 2:
-                cv.px[y][x] = mix(dark(c, 0.8), night, 0.12)
+                cv.px[y][x] = mix(hs_dark(c, 0.82), night, 0.14)
             elif lv == 1:
-                cv.px[y][x] = mix(dark(c, 0.9), night, 0.06)
+                cv.px[y][x] = mix(hs_dark(c, 0.91), night, 0.05)
     # the tree lit: a warm glow, a rim of light
     dither_glow(cv, tree, 34, (0.0, 0.06, 0.13, 0.22, 0.34), (255, 236, 176))
-    IL.rim_light(cv, lambda x, y: (x, y) in tree, 0.22)
+    for y in range(H):
+        for x in range(W):
+            if (x, y) in tree and ((x - 1, y) not in tree or (x, y - 1) not in tree) and (x + 1, y) in tree and (x, y + 1) in tree:
+                cv.px[y][x] = hs_light(cv.px[y][x], 0.22)
     # motes rising off the crown (two pixels each, a dimmer one under), fireflies round it
     for _ in range(34):
         fx = int(tx + (rnd() - 0.5) * 170)
@@ -731,8 +770,8 @@ def thumb_rich(sc, rate):
     total = 2 * CR + 16 + (r - l) + 10 + (rm - lm)
     x0 = (W - total) // 2
     before = [row[:] for row in cv.px]
-    box = G.title(cv, num, NS, PAL["gold"], x0=x0 + 2 * CR + 16, top=TOP, depth=7, chars=rainbow_chars(num))
-    mbox = G.title(cv, "/min", MS, WHITE, x0=box[2] + 10, top=TOP + NS - MS - 4, depth=4, glint=False)
+    box = G.title(cv, num, NS, PAL["gold"], x0=x0 + 2 * CR + 16, top=TOP, depth=7, chars=rainbow_chars(num), dither=True, shade=HUE_SHADE)
+    mbox = G.title(cv, "/min", MS, WHITE, x0=box[2] + 10, top=TOP + NS - MS - 4, depth=4, glint=False, dither=True, shade=HUE_SHADE)
     text = {(x, y) for y in range(H) for x in range(W) if cv.px[y][x] != before[y][x]}
     # (the shadow goes under the words: darken round them on the picture as it was, then put the words back)
     words = {q: cv.px[q[1]][q[0]] for q in text}
@@ -744,9 +783,9 @@ def thumb_rich(sc, rate):
             d = dist[y][x]
             if d is not None and 0 < d <= 6:
                 if d <= 3:
-                    cv.px[y][x] = dark(cv.px[y][x], 0.62)
+                    cv.px[y][x] = hs_dark(cv.px[y][x], 0.62)
                 elif (x + y) % 2 == 0 or d == 4:
-                    cv.px[y][x] = dark(cv.px[y][x], 0.78)
+                    cv.px[y][x] = hs_dark(cv.px[y][x], 0.78)
     for (x, y), c in words.items():
         cv.px[y][x] = c
     # the coin centred on the number's face (its middle row between the words' top and the foot of their face)

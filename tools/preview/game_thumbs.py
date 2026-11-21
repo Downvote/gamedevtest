@@ -129,13 +129,14 @@ def bottom_of(pic):
 DW, DH = 960, 540  # its art grid: twice the pixels of the others (2 screen px an art px), the islands' and the words'
 DIV_X, DIV_STEP, DIV_W = 396, 8, 14  # the bar's left edge at the top, a pixel left every DIV_STEP rows, its width
 TITLE_FONT = os.path.join(HERE, "fonts", "body-heavy.woff")  # Montserrat ExtraBold (fonts/LICENSE-Montserrat)
+_BAYER4 = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))  # (title's dithered bands)
 
 
 def div_x(y):
     return DIV_X - y // DIV_STEP
 
 
-def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=None, chars=None):
+def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=None, chars=None, dither=False, shade=None):
     """Words drawn on the art grid itself, one art pixel at a time (the request of 2026-11-21: "make the text respect
     the pixel grid instead of using mixels", then "polish and detail it as if it is a pixel art illustration"): the
     font traced at `size` art px into a clean mask (half covered or more), an anti-aliasing pixel in each inside corner
@@ -146,8 +147,11 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=N
     stairs step (only where the font's ideal edge cuts through the pixel). `hue(t)` (t from 0 at the words' left to 1
     at their right) gives each column its own face colour in place of `fill`; `chars` (a colour for each character of
     `s`, None for `fill`) colours each letter whole, the genre's rainbow words (the request of 2026-11-21: "make it
-    such that each number is fully colored with colors of the rainbow differently to form a rainbow"). Returns the box
-    drawn."""
+    such that each number is fully colored with colors of the rainbow differently to form a rainbow"). `dither`: the
+    face's bands pass into each other through a 4 x 4 ordered dither a few rows deep instead of a hard step ("do
+    dithering across the number gradient as well"); `shade` = (darker, lighter) replaces `dark` and `light` for every
+    shade drawn (genre_thumbs' hue-shifted pair: "use hueshifting such that darker and lighter shades are hueshifted to
+    be colorful"). Returns the box drawn."""
     from PIL import Image, ImageDraw, ImageFont
 
     ft = ImageFont.truetype(TITLE_FONT, size)
@@ -200,22 +204,35 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=N
             return chars[k] or fill
         return fill if hue is None else hue(min(1.0, max(0.0, (x - xmin) / max(1, bw - 1))))
 
+    dk, lt = shade or (dark, light)
+    EDGES = (0.17, 0.4, 0.66)
+    ZONE = 0.07  # (each band edge dithered this share of the face's height either side)
+
+    def band_of(x, y):
+        ry = (y - y0f) / hh
+        k = sum(1 for e in EDGES if ry >= e)
+        if dither:
+            for i, e in enumerate(EDGES):
+                if abs(ry - e) < ZONE:
+                    f = (ry - e + ZONE) / (2 * ZONE)
+                    k = i + (1 if f > (_BAYER4[y % 4][x % 4] + 0.5) / 16 else 0)
+        return k
+
     def face_c(x, y):
         f = fill_at(x)
-        bands = (light(f, 0.6), light(f, 0.3), f, dark(f, 0.84))
-        ry = (y - y0f) / hh
-        c = bands[0] if ry < 0.17 else (bands[1] if ry < 0.4 else (bands[2] if ry < 0.66 else bands[3]))
+        bands = (lt(f, 0.6), lt(f, 0.3), f, dk(f, 0.84))
+        c = bands[band_of(x, y)]
         if (x, y - 1) not in face:
-            return light(f, 0.8)
+            return lt(f, 0.8)
         if (x - 1, y) not in face:
-            return light(c, 0.3)
+            return lt(c, 0.3)
         if (x + 1, y) not in face or (x, y + 1) not in face:
-            return dark(c, 0.88)
+            return dk(c, 0.88)
         return c
 
     L = IL.Layer()
     for (x, y) in deep:
-        L.put(x + ox, y + oy, dark(fill_at(x), 0.62))
+        L.put(x + ox, y + oy, dk(fill_at(x), 0.62))
     for (x, y) in face:
         L.put(x + ox, y + oy, face_c(x, y))
     # (the inside corners' pixels sit between the face and its outline, so they go in before the outline rings it)
@@ -244,7 +261,7 @@ def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5, glint=True, hue=N
             gx, gy = min(part, key=lambda q: (q[0] + q[1], q[1]))
             arm = max(2, size // 28)
             for k in range(arm + 1):
-                for (dx, dy, c) in ((0, 0, WHITE), (1, 0, light(fill_at(gx), 0.85)), (0, 1, light(fill_at(gx), 0.85))):
+                for (dx, dy, c) in ((0, 0, WHITE), (1, 0, lt(fill_at(gx), 0.85)), (0, 1, lt(fill_at(gx), 0.85))):
                     q = (gx + 3 + k + dx, gy + 3 + k + dy)
                     if q in face and (q[0], q[1] - 1) in face and (q[0] - 1, q[1]) in face:
                         L.put(q[0] + ox, q[1] + oy, c)

@@ -3364,6 +3364,16 @@ another game's (`tools/preview/genre_thumbs.py`), drawn as pixel illustrations l
   orange, yellow, green, teal, blue, violet and pink in turn, and so are the letters of ETERNAL and x40 on the other
   thumbnails.
 
+  > Then (2026-11-21): "do dithering across the number gradient as well. also, for all of the thumbnail, use
+  > hueshifting such that darker and lighter shades are hueshifted to be colorful"
+
+  The bands down each digit pass into each other through the same ordered dither, a few rows deep. Every shade drawn
+  for this thumbnail is hue-shifted (`genre_thumbs.hs_dark` / `hs_light`): a darker step turns toward blue violet and
+  grows more saturated, a lighter one turns toward warm yellow and pales, so a yellow digit runs from pale gold at its
+  top to crimson at its foot. That covers the digits and their depth, the coin, the shadow round the number, the
+  moon's craters, the tree's rim of light and the night on the island (which also takes some of the night's blue). The
+  island and the tree themselves stay the game's own pixels.
+
 The three frames built round creatures (the ladder, the close-up and the egg) are on the 480 x 270 grid: drawn on the
 finer one the driftlings came out as flat shapes more than pixel art. The meadow and the town are on 960 x 540. The
 old plain thumbnails (a frame of the game with a caption on a band) went.
