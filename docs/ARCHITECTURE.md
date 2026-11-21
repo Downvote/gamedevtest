@@ -309,7 +309,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
-  `CamFollowBox`, `CamFollowSecs` (0.2: the follow's smooth time), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
+  `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanMargin` (12: art px of picture kept past each screen edge) and
   `PixelPanEdge` (2: the window's distance from the layer's edge that scrolls it), `PixelPanCacheTiles` (768: the pan
   cache's tiles at most, 0 off),
@@ -1351,10 +1351,13 @@ island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
 the founder's ground point in the middle of the screen across and halfway between the HUD's top and bottom strips
 (and the tips banner), on any island. The target is not rounded; the follow's own place
-(`camX, camY`, art px) chases it on a critically damped spring (Unity's SmoothDamp, smooth time `CamFollowSecs` 0.2 s,
+(`camX, camY`, art px) chases it on a critically damped spring (Unity's SmoothDamp, smooth time `CamFollowSecs` 0.12 s,
 the frame's dt counted) since 2026-11-18 ("make the camera a smooth lerp follow the player like most top down games
 instead of sharply cutting to the player"): it sets off gently, trails a steady walk by the founder's speed times
-`CamFollowSecs` (3.2 studs), and settles on them about half a second after they stop, never past them. (Before, the pan
+`CamFollowSecs` (about 2 studs, 20 art px), and settles on them about a fifth of a second after they stop, never past
+them; it never moves slower than `CamFollowMinPx` (60 art px a second, a pixel a frame) while it is not there, so the
+last px do not trickle in further and further apart (the report of 2026-11-21, "the camera stutters and lags after
+moving now": at 0.2 s and no floor it trailed by 34 px and its last px came 2, 4, then 8 frames apart). (Before, the pan
 moved `CamGlide` 0.18 of the way a 60th of a second, at least an art px a frame, and stopped dead.) The pan is the
 target's pixel less the gap's (`round(t) - round(t - cam)` on each axis), so through a steady walk it steps with the
 founder pixel for pixel and they keep still on the screen; it moves at most what the renderer can scroll in a frame

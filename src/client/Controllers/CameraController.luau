@@ -501,6 +501,15 @@ local function follow(cur: number, to: number, vel: number, dt: number): (number
 	if (to - cur > 0) == (out > to) then
 		out, nv = to, 0 -- (never past the target)
 	end
+	-- (never slower than CamFollowMinPx toward it: the last px come one a frame, not trickling in further and further
+	-- apart, and then it stops)
+	local gap = to - cur
+	local least = Tuning.CamFollowMinPx * dt
+	if gap ~= 0 and math.abs(out - cur) < least then
+		local d = math.min(least, math.abs(gap))
+		out = cur + (if gap > 0 then d else -d)
+		nv = (out - cur) / dt
+	end
 	if math.abs(to - out) < 0.01 and math.abs(nv) < 0.5 then
 		out, nv = to, 0
 	end

@@ -1081,6 +1081,99 @@ function SCEN.tabout()
 	return p
 end
 
+-- "stop": a straight walk east for 2 s, then standing 1.5 s, on the real clock at 60 frames a second (the report of
+-- 2026-11-21, "the camera stutters and lags after moving now"): how far the view trails the founder while they walk
+-- (the founder's place on the screen against where it rests), each frame the view moved after they stopped (its frame
+-- and how far), the longest gap between two of those moves and when it settled, and the frames' real time
+function SCEN.stop()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local CC = modOr(p, "Controllers.CameraController")
+	local AV = modOr(p, "Controllers.AvatarView")
+	if PR == nil or CC == nil then
+		return p
+	end
+	local realClock = os.clock
+	local off = E.SIM.lastClock - realClock() + 1
+	local sim0 = E.simClock
+	E.simClock = function()
+		local v = realClock() + off
+		E.SIM.lastClock = v
+		return v
+	end
+	local rig = AV and H.inClient(p, AV.debugRig, p)
+	local fModel = rig and rig.model
+	if AV and AV.debugStill then
+		H.inClient(p, AV.debugStill, true)
+	end
+	local function onScreen(): (number?, number?)
+		if fModel == nil then
+			return nil, nil
+		end
+		local fx, fy = H.inClient(p, PR.debugShown, fModel)
+		if fx == nil then
+			return nil, nil
+		end
+		local ox, oy = layerOff(p, PR)
+		return fx - ox, fy - oy
+	end
+	local dt = 1 / 60
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	local at = root and root.Position or E.v3(0, 3, 0)
+	local speed = 16
+	for round = 1, 2 do
+		local label = if round == 1 then "east" else "back west"
+		local dir = if round == 1 then 1 else -1
+		local start = p.Character:GetPivot().Position
+		local times = {}
+		local walkX = {}
+		for i = 1, 120 do
+			local t0 = realClock()
+			p.Character:PivotTo(E.cf.new(start.X + dir * i * dt * speed, start.Y, start.Z))
+			E.step(dt)
+			table.insert(times, (realClock() - t0) * 1000)
+			local sx = onScreen()
+			if sx then
+				table.insert(walkX, sx)
+			end
+		end
+		local moves = {}
+		local lastPan = nil
+		local lastMove, settledAt, gapMax = 0, 0, 0
+		local restX = nil
+		for i = 1, 90 do
+			local t0 = realClock()
+			E.step(dt)
+			table.insert(times, (realClock() - t0) * 1000)
+			local px, py = H.inClient(p, CC.drawnPan)
+			if lastPan and px ~= lastPan then
+				table.insert(moves, string.format("%d:%+d", i, px - lastPan))
+				gapMax = math.max(gapMax, i - lastMove)
+				lastMove = i
+				settledAt = i
+			end
+			lastPan = px
+			restX = onScreen() or restX
+		end
+		local over16, over25, worst = 0, 0, 0
+		for _, ms in times do
+			over16 += if ms > 16.7 then 1 else 0
+			over25 += if ms > 25 then 1 else 0
+			worst = math.max(worst, ms)
+		end
+		local trail = if restX and #walkX > 0 then walkX[#walkX] - restX else 0
+		local v = H.inClient(p, CC.view)
+		log("stop %s: %.1f art px a stud, the founder %.0f art px a second; while walking it stood %d art px off where it rests; after stopping the view moved on %d frames, settled after %d (%.2f s), the longest wait between two moves %d frames; moves (frame:px): %s",
+			label, v.grid.a, speed * v.grid.a, trail, #moves, settledAt, settledAt * dt, gapMax, table.concat(moves, " "))
+		log("stop %s: frames %d, over 16.7 ms %d, over 25 ms %d, the slowest %.0f ms", label, #times, over16, over25, worst)
+	end
+	E.simClock = sim0
+	return p
+end
+
 function SCEN.pan()
 	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
 	local p = join(2, "Wren")

@@ -2809,7 +2809,11 @@ text (the requests and how each was met) is in the history of this file, up to c
   pixels and caught up, frame after frame. Now every frame the view moves draws your founder too, your founder stands
   on whole pixels, and the view is put where your founder is actually drawn, so they hold still on the screen while
   you walk (the follow still eases in and out when you start, stop or turn). A frame while walking now costs about
-  20 ms on new ground and 18 on ground seen before. On
+  20 ms on new ground and 18 on ground seen before. Then (2026-11-21): "the camera stutters and lags after moving now".
+  The view trailed a walking founder by 34 art px and took over half a second to come to rest once they stopped, its
+  last few pixels coming 2, 4, then 8 frames apart, the island creeping in jerks. Now it trails by about 20 px, comes
+  to rest in a fifth of a second, and never moves slower than a pixel a frame until it is there, so it stops cleanly
+  (`Tuning.CamFollowSecs` 0.12, `CamFollowMinPx` 60; the preview `stop` measures it). On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

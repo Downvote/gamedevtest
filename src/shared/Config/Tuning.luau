@@ -352,10 +352,14 @@ local Tuning = {
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	-- seconds: the follow's smooth time (a critically damped spring, the request of 2026-11-18: "make the camera a smooth
 	-- lerp follow the player like most top down games instead of sharply cutting to the player"). A walking founder is
-	-- trailed by their speed times this (3.2 studs at 16 a second) and the view settles on them about half a second
+	-- trailed by their speed times this (about 2 studs at 16 a second) and the view settles on them a third of a second
 	-- after they stop. Smaller: tighter; bigger: looser. (Before, the view moved 18% of the way a 60th of a second, at
-	-- least a whole art px a frame, and stopped dead on the founder.)
-	CamFollowSecs = 0.2,
+	-- least a whole art px a frame, and stopped dead on the founder.) 0.12 since the report of 2026-11-21, "the camera
+	-- stutters and lags after moving now": at 0.2 it trailed a walking founder by 34 art px.
+	CamFollowSecs = 0.12,
+	-- art px a second: the least the view moves while it is not on the founder yet (a whole art px a frame at 60), so
+	-- its last few px come one a frame and it stops, where the spring alone let them trickle in 2, 4, then 8 frames apart
+	CamFollowMinPx = 60,
 	CamBuildPan = 30, -- studs: in Build mode the view may be dragged this far past the plot's edges
 	CamBuildRecenter = 0.12, -- share of Build mode's drag the view gives back each frame the founder walks (it eases back onto them)
 	CamHudTop = 22, -- art px: the top HUD strip assumed until the HUD reports its blocks
