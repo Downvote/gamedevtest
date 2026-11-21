@@ -600,12 +600,27 @@ class Renderer:
         inset = meta.get("inset", 0)
         d = ImageDraw.Draw(cv.img)
         if inset > 0:
-            for i, x0 in enumerate((12,)):
-                tile = Image.new("RGBA", (44, 44), (0, 0, 0, 0))
-                td = ImageDraw.Draw(tile)
-                td.rounded_rectangle((0, 0, 43, 43), radius=22, fill=(18, 18, 21, 150))
-                td.rounded_rectangle((13, 13, 30, 30), radius=3, outline=(255, 255, 255, 230), width=3)
-                cv.paste(tile, x0, max(0, (inset - 44) // 2), None)
+            # Roblox's top bar at the top left, as its current clients draw it: a round button with the Roblox mark and
+            # a pill beside it with the menu and the chat, inside a notched phone's safe area (what a touch screen's
+            # menus now reach up under: the request of 2026-11-21, "flush it upwards, such that it sits on the roblox
+            # icon instead of avoiding it")
+            x0 = 12 + int(meta.get("safe", 0) or 0)
+            y0 = max(0, (inset - 44) // 2)
+            tile = Image.new("RGBA", (44, 44), (0, 0, 0, 0))
+            td = ImageDraw.Draw(tile)
+            td.rounded_rectangle((0, 0, 43, 43), radius=22, fill=(18, 18, 21, 150))
+            td.rounded_rectangle((13, 13, 30, 30), radius=3, outline=(255, 255, 255, 230), width=3)
+            cv.paste(tile, x0, y0, None)
+            pill = Image.new("RGBA", (96, 44), (0, 0, 0, 0))
+            pd = ImageDraw.Draw(pill)
+            pd.rounded_rectangle((0, 0, 95, 43), radius=22, fill=(18, 18, 21, 150))
+            for yy in (15, 21, 27):
+                pd.line((16, yy, 32, yy), fill=(255, 255, 255, 230), width=2)
+            pd.rounded_rectangle((58, 13, 78, 28), radius=3, outline=(255, 255, 255, 230), width=2)
+            pd.polygon([(62, 28), (66, 28), (62, 32)], fill=(255, 255, 255, 230))
+            pd.line((62, 19, 74, 19), fill=(255, 255, 255, 230), width=1)
+            pd.line((62, 23, 71, 23), fill=(255, 255, 255, 230), width=1)
+            cv.paste(pill, x0 + 56, y0, None)
         if meta.get("touch") and meta.get("touchControls", True) and meta.get("jump", True):
             small = min(self.W, self.H) <= 500
             size = 70 if small else 120

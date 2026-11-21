@@ -169,6 +169,21 @@ local function makeRoot(name: string, order: number, fullScreen: boolean): Scree
 	return gui
 end
 
+-- On a touch screen the menus' root (Modal) reaches the screen's top, under Roblox's own buttons (the request of
+-- 2026-11-21: "When a menu is opened, flush it upwards, such that it sits on the roblox icon instead of avoiding it.
+-- The title of each menu can be shifted right to accomodate for the roblox buttons"): it ignores the top bar's inset
+-- but keeps the device's own safe area (a notch at the sides). A desktop's keeps clear of the top bar as before.
+local function modalInsets(gui: ScreenGui)
+	local touch = UIKit.touch()
+	if gui.IgnoreGuiInset ~= touch then
+		gui.IgnoreGuiInset = touch
+	end
+	local want = if touch then Enum.ScreenInsets.DeviceSafeInsets else Enum.ScreenInsets.CoreUISafeInsets
+	if gui.ScreenInsets ~= want then
+		gui.ScreenInsets = want
+	end
+end
+
 -- The roots: World (popups over the office, full screen), Hud, Modal (panels), Stage (a microgame's overlay, full
 -- screen: its canvas is the world's art grid), Popup (cards, notices).
 function UIKit.root(name: string): ScreenGui
@@ -177,7 +192,13 @@ function UIKit.root(name: string): ScreenGui
 	elseif name == "Stage" then
 		return makeRoot("Stage", 22, true)
 	elseif name == "Modal" then
-		return makeRoot("Modal", 20, false)
+		local fresh = (roots :: { [string]: ScreenGui? }).Modal == nil
+		local gui = makeRoot("Modal", 20, false)
+		if fresh then
+			modalInsets(gui)
+			layoutCanvas(recs[gui])
+		end
+		return gui
 	elseif name == "Popup" then
 		return makeRoot("Popup", 25, false)
 	end
@@ -261,12 +282,18 @@ function UIKit.canvasOrigin(name: string): Vector2
 	local gui = UIKit.root(name)
 	local c = recs[gui].canvas
 	local top = if gui.IgnoreGuiInset then 0 else insetTop()
-	local left = if gui.IgnoreGuiInset then 0 else math.max(0, gui.AbsolutePosition.X)
+	-- (a root that ignores the top bar but keeps the device's safe area, a touch screen's Modal, still starts right of
+	-- the notch)
+	local left = if gui.ScreenInsets == Enum.ScreenInsets.None then 0 else math.max(0, gui.AbsolutePosition.X)
 	return Vector2.new(left, top + c.Position.Y.Offset)
 end
 
 local function relayoutAll()
 	K = math.max(1, PixelRenderer.pixelScale())
+	local modal = (roots :: { [string]: ScreenGui? }).Modal
+	if modal then
+		modalInsets(modal)
+	end
 	for _, rec in recs do
 		layoutCanvas(rec)
 	end
@@ -1376,7 +1403,30 @@ local function sheetTop(): number
 	return awningH() + HEM + 2
 end
 
--- A sheet's size: on a phone the whole screen under Roblox's top bar (the request of 2026-11-19: "Make menus fill the
+-- Where Roblox's top-left buttons (its menu and the chat) end on the Modal canvas, in UI px across and down:
+-- GuiService.TopbarInset is the top bar's free part in the screen's px (its Min.X where those buttons stop, its foot
+-- the bar's). A client that reads 0 there gets the buttons' usual size: CORE_W screen px from the safe area's left (a
+-- 44 px round button, a 96 px pill beside it, their margins) and the top bar's inset down.
+local CORE_W = 176
+local function coreButtons(): (number, number)
+	local o = UIKit.canvasOrigin("Modal")
+	local right, bottom = 0, 0
+	local ok, r = pcall(function(): Rect
+		return GuiService.TopbarInset
+	end)
+	if ok and typeof(r) == "Rect" then
+		right, bottom = r.Min.X, r.Max.Y
+	end
+	if right <= o.X then
+		right = o.X + CORE_W
+	end
+	if bottom <= 0 then
+		bottom = math.max(insetTop(), 44)
+	end
+	return math.ceil((right - o.X) / K), math.ceil((bottom - o.Y) / K)
+end
+
+-- A sheet's size: on a phone the whole screen (the request of 2026-11-19: "Make menus fill the
 -- screen on mobile with currency showing and an exit button"); on a tablet about a third bigger than its design, up to
 -- the screen less a margin; elsewhere its design, within the screen.
 local function panelSize(def: PanelDef): Vector2
@@ -1475,6 +1525,16 @@ function UIKit.openPanel(name: string, arg: any?)
 	local fx, fy = math.floor((s.X - sz.X) / 2), math.floor((s.Y - sz.Y) / 2)
 	local aw, top = awningH(), sheetTop()
 	local phone, touch = UIKit.phone(), UIKit.touch()
+	-- (a touch screen's sheet that reaches up under Roblox's buttons: its icon and title start right of them, and its
+	-- body below them, the awning staying where it is)
+	local lead = 0
+	if touch then
+		local cr, cb = coreButtons()
+		if fy < cb then
+			lead = math.max(0, cr + 3 - fx - 5)
+			top = math.max(top, cb - fy + 1)
+		end
+	end
 	local frame = Instance.new("Frame")
 	frame.Name = "Frame"
 	frame.BackgroundTransparency = 1
@@ -1533,11 +1593,12 @@ function UIKit.openPanel(name: string, arg: any?)
 		-- (a touch screen's awning shows the sheet's big icon where one is drawn: the 15 px set for phones and tablets)
 		local big = touch and PixelSprites.has("big_" .. def.icon)
 		local ic = if big
-			then PixelSprites.image(head, "big_" .. def.icon, UDim2.fromOffset(5, math.floor((aw - 15) / 2)), 5)
-			else PixelSprites.image(head, "mini_" .. def.icon, UDim2.fromOffset(6, 5 + (aw - AWNING) // 2), 5)
+			then PixelSprites.image(head, "big_" .. def.icon, UDim2.fromOffset(5 + lead, math.floor((aw - 15) / 2)), 5)
+			else PixelSprites.image(head, "mini_" .. def.icon, UDim2.fromOffset(6 + lead, 5 + (aw - AWNING) // 2), 5)
 		ic.Name = "Icon"
 		tx = if big then 23 else 20
 	end
+	tx += lead
 	local ty = math.floor((aw - 12) / 2)
 	UIKit.text(head, def.title, UDim2.new(0, UIKit.textWidth(def.title) + 4, 0, 12), UDim2.fromOffset(tx, ty), { color = UIKit.color("text"), kind = "outline", under = UIKit.color("ink"), name = "Title", z = 5 })
 	-- the exit: 15 px; on a touch screen 22 (a fingertip, 44 screen px), coral red with the big cross, top right where

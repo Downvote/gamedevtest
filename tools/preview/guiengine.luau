@@ -1015,6 +1015,11 @@ local function rootRect(d)
 	-- ViewportSize changes; the scenario "shelflate" holds that moment)
 	local vp = E.guiViewport or E.viewport
 	if d.cls == "ScreenGui" then
+		-- (ignoring the top bar but keeping the device's safe area: from the screen's top, the notch's margins kept)
+		if P(d, "IgnoreGuiInset") == true and EN(d, "ScreenInsets") == "DeviceSafeInsets" then
+			local sx = E.safe or 0
+			return sx, 0, vp.X - 2 * sx, vp.Y
+		end
 		local full = P(d, "IgnoreGuiInset") == true or EN(d, "ScreenInsets") == "None"
 		if full then
 			return 0, 0, vp.X, vp.Y
