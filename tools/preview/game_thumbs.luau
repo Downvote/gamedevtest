@@ -317,6 +317,103 @@ return function(env)
 		return p
 	end
 
+	-- "gthumbs=day1" / "gthumbs=day100": the two halves of the before-and-after thumbnail (the request of 2026-11-21:
+	-- "research other island building games, and make a thumbnail referencing their framing as close as possible":
+	-- the genre's most liked builders split the frame into a first island alone in open sky and a full one bleeding off
+	-- the edge). day1: a new island (the tree and its first eggs, nothing built); day100: a decorated tier 8 town
+	-- (tools/preview/showcase.luau; "day100:<tier>" another tier). Both whole, the View slider far out, a clear morning sky, the HUD off and the
+	-- founder parked off the island: frames gth_day1 and gth_day100.
+	if mode == "day1" or string.sub(mode, 1, 6) == "day100" then
+		local Plot = H.sharedServer("Logic.Plot")
+		local Street = H.sharedServer("Data.Street")
+		local Buildings = H.sharedServer("Data.Buildings")
+		local Creatures = H.sharedServer("Data.Creatures")
+		local Traits = H.sharedServer("Data.Traits")
+		local big = mode ~= "day1"
+		-- (the full island's tier: "day100:<tier>" to try another; 8 by default, the widest View notch keeping its
+		-- buildings readable while it runs off the frame's edge)
+		local bigTier = tonumber(string.match(mode, "^day100:(%d+)$")) or 8
+		local uid = if big then 7313 else 7312
+		if big then
+			local plan = require("./showcase")({ Plot = Plot, Buildings = Buildings, Street = Street, log = log })
+			local pals = {}
+			for k = 1, math.min(Plot.housingLimit(bigTier), 40) do
+				table.insert(pals, Creatures.list[(k * 7 - 1) % #Creatures.list + 1].id)
+			end
+			env.seedProfile(uid, bigTier, {
+				fill = function(prof)
+					plan(prof)
+				end,
+				pals = pals,
+				shells = 9e9,
+				eggs = { Traits.RMAX, Traits.RMAX - 1, Traits.RMAX - 2, Traits.RMAX, Traits.RMAX - 3, Traits.RMAX - 1 },
+			})
+		else
+			env.seedProfile(uid, 1, { pals = {}, shells = 600 })
+		end
+		local p = env.join(uid, if big then "Later" else "Sooner")
+		env.settle(p, if big then 90 else 40, 2)
+		E.run(2)
+		local ox = Street.origin(H.session(p).plot)
+		-- the middle of what is on the island (the land's own middle for an empty one)
+		local prof = H.profile(p)
+		local x0, z0, x1, z1 = math.huge, math.huge, -math.huge, -math.huge
+		for _, q in prof.plot.placed do
+			local r = Plot.rect(q.id, q.x, q.z, q.rot)
+			x0, z0, x1, z1 = math.min(x0, r.x0), math.min(z0, r.z0), math.max(x1, r.x1), math.max(z1, r.z1)
+		end
+		local cx, cz = if x0 < math.huge then (x0 + x1) / 2 else 0, if z0 < math.huge then (z0 + z1) / 2 else Street.CENTER.z
+		log("gthumbs: %s pieces %d, middle %.1f, %.1f", mode, #prof.plot.placed, cx, cz)
+		local function hud()
+			for _, g in p.PlayerGui:GetChildren() do
+				if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
+					g.Enabled = false
+				end
+			end
+		end
+		hud()
+		if p.Character then
+			local lx, lz = Street.origin(Street.MAX)
+			p.Character:PivotTo(E.cf.new(lx, 3, lz + Street.CENTER.z))
+		end
+		local SU = env.modOr(p, "UI.SettingsUI")
+		H.openPanel(p, "settings")
+		E.run(0.4)
+		if SU then
+			H.inClient(p, SU.setZoom, 1)
+		end
+		E.run(0.8)
+		H.closePanel(p)
+		E.run(0.5)
+		hud()
+		local WVd = env.modOr(p, "Controllers.WeatherView")
+		if WVd then
+			H.inClient(p, WVd.debugSet, "sunny")
+		end
+		-- (a clear morning, the sun up in the first island's half, clear of the divide)
+		local SBd = env.modOr(p, "UI.SkyBackdrop")
+		if SBd then
+			H.inClient(p, SBd.debugHour, 0.37, 0)
+		end
+		-- (each island moved inside its half of the frame by the camera, so the sky behind stays whole: the first one
+		-- left of the divide, the full one right of it and lower, under the words; studs along the ground's
+		-- screen-right and away-from-the-viewer directions)
+		local shift = if big then { -30, 18 } else { 28, 0 }
+		local rx, rz = math.sqrt(0.5), -math.sqrt(0.5)
+		local ax, az = -math.sqrt(0.5), -math.sqrt(0.5)
+		local fx = ox + cx + rx * shift[1] + ax * shift[2]
+		local fz = cz + rz * shift[1] + az * shift[2]
+		local CCd = env.modOr(p, "Controllers.CameraController")
+		if CCd then
+			H.inClient(p, CCd.setFocus, Vector3.new(fx, Street.LAWN_Y, fz), true)
+		end
+		E.run(1)
+		env.settle(p, 60, 1)
+		E.run(1.5)
+		capture(p, if big then "gth_day100" else "gth_day1")
+		return p
+	end
+
 	-- the scenes: a decorated tier 8 town (tools/preview/showcase.luau), rare eggs under the tree
 	local TIER = 8
 	local Plot = H.sharedServer("Logic.Plot")

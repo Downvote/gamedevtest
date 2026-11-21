@@ -133,7 +133,9 @@ def _double(rows):
 
 
 HUGE = {ch: (2 * top, _double(rows)) for ch, (top, rows) in BIG.items()}
-FACES = {"big": (BIG, 2), "huge": (HUGE, 4)}  # a face and its letter spacing
+# (GIANT: HUGE doubled the same way, for the before-and-after thumbnail's DAY 100)
+GIANT = {ch: (2 * top, _double(rows)) for ch, (top, rows) in HUGE.items()}
+FACES = {"big": (BIG, 2), "huge": (HUGE, 4), "giant": (GIANT, 4)}  # a face and its letter spacing
 
 
 def text_mask(s, face="big"):
@@ -288,6 +290,99 @@ def thumb_collect(sc, pics, kinds):
     return cv
 
 
+# ---------------------------------------------------------------- the before-and-after thumbnail
+# The request (2026-11-21): "research other island building games, and make a thumbnail referencing their framing as
+# close as possible". The genre's most liked island builders on Roblox (Build An Island!, Skybase Tycoon) lead with
+# the same frame: a slanted white bar splits it, a first island alone in open sky on the left under a smaller "DAY 1",
+# the full island on the right, bigger, bleeding off the frame under a big yellow "DAY 100", and a red arrow curving
+# from the one to the other. Here both halves are frames of the game (gthumbs=day1, gthumbs=day100) under the same
+# sky, so it runs on across the bar.
+DIV_X, DIV_STEP, DIV_W = 192, 8, 7  # the bar's left edge at the top, a pixel left every DIV_STEP rows, its width
+
+
+def div_x(y):
+    return DIV_X - y // DIV_STEP
+
+
+def arrow(cv, pts, color, r=3.4, head=18, half=8):
+    """A thick curved arrow through the quadratic curve `pts` (three points), its head at the end: the colour in a
+    ramp (the upper side lit, the lower in the shade), a 1 px outline a darker step of it (selective outlining)."""
+    (x0, y0), (x1, y1), (x2, y2) = pts
+    line = []
+    for i in range(121):
+        t = i / 120
+        a, b, c = (1 - t) ** 2, 2 * t * (1 - t), t * t
+        line.append((a * x0 + b * x1 + c * x2, a * y0 + b * y1 + c * y2))
+    tx, ty = x2 - x1, y2 - y1
+    n = math.hypot(tx, ty)
+    tx, ty = tx / n, ty / n
+    nx, ny = -ty, tx
+    tip = (x2 + tx * head, y2 + ty * head)
+    c1 = (x2 + nx * half, y2 + ny * half)
+    c2 = (x2 - nx * half, y2 - ny * half)
+
+    def in_tri(px, py):
+        def side(ax, ay, bx, by):
+            return (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+
+        d1, d2, d3 = side(*tip, *c1), side(*c1, *c2), side(*c2, *tip)
+        return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
+
+    shape = {}
+    xs = [p[0] for p in line] + [tip[0], c1[0], c2[0]]
+    ys = [p[1] for p in line] + [tip[1], c1[1], c2[1]]
+    for y in range(int(min(ys)) - 5, int(max(ys)) + 6):
+        for x in range(int(min(xs)) - 5, int(max(xs)) + 6):
+            cx, cy = x + 0.5, y + 0.5
+            best, off = 1e9, 0.0
+            for (lx, ly) in line[:-6]:
+                d = (cx - lx) ** 2 + (cy - ly) ** 2
+                if d < best:
+                    best, off = d, cy - ly
+            if best <= r * r:
+                shape[(x, y)] = off
+            elif in_tri(cx, cy):
+                shape[(x, y)] = (cy - (y2 + ty * head * 0.3)) * 0.5
+    hi, lo = light(color, 0.38), dark(color, 0.74)
+    for (x, y) in shape:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if (x + dx, y + dy) not in shape:
+                    cv.put(x + dx, y + dy, ink_of(color))
+    for (x, y), off in shape.items():
+        c = hi if off < -1.4 else (lo if off > 1.4 else color)
+        if (x, y - 1) not in shape:
+            c = light(color, 0.6)
+        cv.put(x, y, c)
+
+
+def thumb_days(sc):
+    small, full = sc["day1"], sc["day100"]
+    cv = Art(TW, TH)
+    for y in range(TH):
+        d = div_x(y)
+        for x in range(TW):
+            cv.px[y][x] = small.px[y][x] if x < d else full.px[y][x]
+    # the bar, white, its edges a darker step of it, a clean stair of DIV_STEP rows
+    edge = ink_of(WHITE)
+    for y in range(TH):
+        d = div_x(y)
+        cv.put(d - 1, y, edge)
+        for x in range(d, d + DIV_W):
+            cv.put(x, y, WHITE)
+        cv.put(d + DIV_W, y, edge)
+    # the arrow from the first island round to the full one
+    arrow(cv, ((114, 240), (158, 268), (206, 259)), PAL["berry_red"])
+    # the words: DAY 1 smaller over the first island, DAY 100 big and gold over the full one
+    words(cv, "DAY 1", 0, 40, WHITE, "huge", 3, x0=14)
+    right = (div_x(0) + DIV_W + 1 + TW) // 2
+    box = words(cv, "DAY 100", right, 62, PAL["accent"], "giant", 4)
+    for (x, y, big) in ((box[0] - 8, 14, True), (box[2] + 6, 50, False), (box[2] + 2, 10, False)):
+        if 0 < x < TW:
+            sparkle(cv, x, y, big, light(PAL["accent"], 0.5))
+    return cv
+
+
 # ---------------------------------------------------------------- the icon
 def icon(pics):
     cv = Art(IW, IW)
@@ -384,9 +479,10 @@ def main():
             sys.exit("no scene " + p)
         return load_scene(p)
 
-    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "sky")}
+    sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "sky", "day1", "day100")}
     os.makedirs(a.out, exist_ok=True)
     made = [
+        ("thumb_0_days", thumb_days(sc)),
         ("thumb_1_title", thumb_title(sc, pics)),
         ("thumb_2_hatch", thumb_hatch(sc, pics)),
         ("thumb_3_collect", thumb_collect(sc, pics, kinds)),

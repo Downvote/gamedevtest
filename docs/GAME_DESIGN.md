@@ -3112,6 +3112,30 @@ reason.
   > The requests (2026-11-10): "also, find cozy background music"; "the background track is too upbeat and noisy.
   > find one that would fit well as background noise and is cozy"
 
+### 11.1 The game's thumbnails (`art/thumbnails/`, `tools/preview/game_thumbs.sh`)
+
+> The request (2026-11-20): "could you make thumbnails that are engaging and show the gameplay well, along with an
+> icon? use creature models, dont need to show the player"
+
+> The request (2026-11-21): "research other island building games, and make a thumbnail referencing their framing as
+> close as possible"
+
+What the research found (the thumbnails Roblox serves for its most liked island builders, and the Steam key art of
+Islanders, Townscaper, Dorfromantik and Tiny Glade): the two most liked Roblox island builders, Build An Island! and
+Skybase Tycoon, lead with the same frame. A slanted white bar splits it. On the left, the narrower side, a first
+island sits alone and small in open sea or sky under a smaller "DAY 1"; on the right the finished island fills its
+half and runs off the frame's edge under a big yellow "DAY 100"; a red arrow curves from the one to the other; the
+camera looks down at three quarters and the sky is a bright, saturated blue. The Steam games put the whole island in
+as the hero too, bleeding off the frame.
+
+`thumb_0_days.png`, the lead thumbnail, takes that frame with this game's own pictures: on the left a new island (the
+Tree of Life and its first eggs, nothing built yet) floating whole in a clear morning sky beside the sun, under
+"DAY 1" in white; on the right a decorated level 8 town, its rim at the bar and the rest running off the right and
+the bottom, under "DAY 100" in gold in the biggest pixel face; the bar white, a pixel further left every eight rows;
+the arrow red with a lit top edge. Both halves are frames of the game under the same sky, so the sky runs on behind
+the bar. Upload it first on the Creator Dashboard; the other six follow (the title, the hatch, the driftlings to
+find, building, the tree's eggs, the island in the sky).
+
 ## 12. Out of scope for this version
 
 Trading between players, visiting with gifts. (Purchases came in on 2026-11-14: §14; offline earnings on 2026-11-14:
