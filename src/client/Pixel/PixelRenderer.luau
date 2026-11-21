@@ -6550,6 +6550,10 @@ function PixelRenderer.debugCastCheck(full: boolean?, mask: boolean?): { off: nu
 	if s == nil or baking then
 		return out
 	end
+	-- (the last scroll's strips finished first, as the next frame would: SG.finishStrips)
+	if SG.unfin then
+		SG.finishStrips(s)
+	end
 	windRestore(s)
 	SG.windVoid = true
 	table.clear(SG.windPend)

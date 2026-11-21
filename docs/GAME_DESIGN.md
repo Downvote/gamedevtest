@@ -2826,7 +2826,12 @@ text (the requests and how each was met) is in the history of this file, up to c
   lighter frames. In the preview's emulator (`scrollcost`), the pixel filter's work in a frame while walking over ground
   seen before went from 15.5 ms on average (26.1 at the 90th percentile, 43.7 at worst) to about 11 to 12 (18 to 21,
   27 to 39), against about 8 (15) standing; on new ground from 24.6 (50.0, 96.8) to about 18 (27 to 29, 39 to 45). The picture is now kept 14 art px past
-  each edge of the screen (from 12) and moves once the view comes within 4 px of its edge (from 2). On
+  each edge of the screen (from 12) and moves once the view comes within 4 px of its edge (from 2). Then
+  (2026-11-21): "its like the camera is jittering back as it moves". The view worked out where your founder stands on
+  the screen from one moment and placed your founder from the next, after the game had moved them on; after a long
+  frame and then a short one the island stepped back a pixel or two. Now both come from the same moment, and your
+  founder holds their pixel on the screen until the follow is clearly past it. In the preview (`jitter`, a square
+  walked with frames of uneven length) the island stepped back 6 times in 422 frames before and never after. On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

@@ -351,7 +351,15 @@ local function step(dt: number)
 			rec.idle = 0
 			continue
 		end
+		-- (the own founder where the view's step followed it, physics' place then: the rig and the pixel layer's window
+		-- from one moment, CameraController.founderAt)
 		local pos = root.Position
+		if pl == me then
+			local f = CameraController.founderAt()
+			if f then
+				pos = Vector3.new(f.X, pos.Y, f.Z)
+			end
+		end
 		if rec.last and dt > 0 then
 			local d = pos - (rec.last :: Vector3)
 			local v = Vector3.new(d.X, 0, d.Z).Magnitude / dt

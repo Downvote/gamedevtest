@@ -1294,6 +1294,146 @@ function SCEN.walkpose()
 	return p
 end
 
+-- "jitter": how the island moves on the screen while the founder walks (the report of 2026-11-21, "its like the camera
+-- is jittering back as it moves"). As in Roblox, the founder moves on the physics step, between the camera's step
+-- (RenderStepped) and the renderer's (Heartbeat), by whole 240 Hz physics steps, and the frames come unevenly (most a
+-- 60th of a second, some a 30th, a few in between, the same sequence every run). A square walked twice: per leg the
+-- steps the screen took against the way it was going on each axis, the frames it stood still, and how far the
+-- founder's place on the screen wandered (its spread in art px)
+function SCEN.jitter()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local CC = modOr(p, "Controllers.CameraController")
+	if PR == nil or CC == nil then
+		return p
+	end
+	local realClock = os.clock
+	local off = E.SIM.lastClock - realClock() + 1
+	local sim0 = E.simClock
+	E.simClock = function()
+		local v = realClock() + off
+		E.SIM.lastClock = v
+		return v
+	end
+	local speed = 16
+	local at = p.Character:GetPivot().Position
+	local dir = E.v3(0, 0, 0)
+	local physAcc = 0
+	local frameDt = 1 / 60
+	-- (the physics step: the founder moves by the whole 240 Hz steps this frame's time holds)
+	local conn = E.services.RunService.Stepped:Connect(function()
+		physAcc += frameDt
+		local steps = math.floor(physAcc * 240 + 1e-9)
+		physAcc -= steps / 240
+		if dir.Magnitude > 0 then
+			at += dir * speed * steps / 240
+			p.Character:PivotTo(E.cf.lookAt(at, at + dir))
+		end
+	end)
+	local seed = 7
+	local function nextDt(): number
+		seed = (seed * 1103515245 + 12345) % 2147483648
+		local u = seed / 2147483648
+		return if u < 0.7 then 1 / 60 elseif u < 0.85 then 1 / 30 elseif u < 0.95 then 1 / 45 else 1 / 90
+	end
+	local legs = {
+		{ "east", E.v3(1, 0, 0) },
+		{ "north", E.v3(0, 0, -1) },
+		{ "west", E.v3(-1, 0, 0) },
+		{ "south", E.v3(0, 0, 1) },
+		{ "east again", E.v3(1, 0, 0) },
+		{ "north again", E.v3(0, 0, -1) },
+		{ "west again", E.v3(-1, 0, 0) },
+		{ "south again", E.v3(0, 0, 1) },
+	}
+	-- (each Heartbeat handler in the order Roblox fires them, the last connected first: AvatarView before the renderer;
+	-- the simulator fires them in the order they were connected)
+	local hb = getD(E.services.RunService).sigs.Heartbeat
+	local function reverse()
+		local c = hb.conns
+		for i = 1, #c // 2 do
+			c[i], c[#c + 1 - i] = c[#c + 1 - i], c[i]
+		end
+	end
+	local allBack, allFrames = 0, 0
+	for li, leg in legs do
+		if li == 5 then
+			reverse()
+			log("jitter: from here the Heartbeat handlers fire last connected first, as Roblox fires them")
+		end
+		local name = leg[1]
+		dir = leg[2]
+		local xs, ys, fx, fy = {}, {}, {}, {}
+		-- (a leg is a second of walking whatever the frames)
+		local t = 0
+		while t < 1 do
+			frameDt = nextDt()
+			t += frameDt
+			E.step(frameDt)
+			local st = H.inClient(p, PR.debugStatic)
+			table.insert(xs, st.px)
+			table.insert(ys, st.py)
+			local sx, sy = H.inClient(p, CC.debugDrawn)
+			if sx and sy then
+				table.insert(fx, sx)
+				table.insert(fy, sy)
+			end
+		end
+		-- (the first 15 frames are the follow turning)
+		local function tally(v: { number }): (number, number, number, string)
+			local first = math.min(15, #v - 1)
+			local total = v[#v] - v[first]
+			local sign = if total > 0 then 1 elseif total < 0 then -1 else 0
+			local back, still = 0, 0
+			local seq = {}
+			for i = first + 1, #v do
+				local d = v[i] - v[i - 1]
+				if sign ~= 0 and d * sign < 0 then
+					back += 1
+				end
+				if d == 0 then
+					still += 1
+				end
+				table.insert(seq, tostring(d))
+			end
+			return total, back, still, table.concat(seq, " ")
+		end
+		local tx, bx, sx, qx = tally(xs)
+		local ty, by, sy, qy = tally(ys)
+		allBack += bx + by
+		allFrames += #xs
+		-- (the founder's place on the screen once the follow has settled from the turn, past frame 30: the frames it
+		-- moved, and the moves straight back the next frame)
+		local function wobble(v: { number }): (number, number)
+			local moved, back = 0, 0
+			for i = math.min(31, #v), #v do
+				local d = v[i] - v[i - 1]
+				if d ~= 0 then
+					moved += 1
+					if i < #v and v[i + 1] - v[i] == -d then
+						back += 1
+					end
+				end
+			end
+			return moved, back
+		end
+		local mx, wx = wobble(fx)
+		local my, wy = wobble(fy)
+		log("jitter %s: %d frames; across %d px, %d steps back, %d still; down %d px, %d steps back, %d still; the founder on the screen moved on %d frames across (%d straight back), %d down (%d straight back)", name, #xs, tx, bx, sx, ty, by, sy, mx, wx, my, wy)
+		log("jitter %s: steps across %s", name, qx)
+		log("jitter %s: steps down %s", name, qy)
+	end
+	dir = E.v3(0, 0, 0)
+	conn:Disconnect()
+	reverse()
+	log("jitter: %d steps back in %d frames", allBack, allFrames)
+	E.simClock = sim0
+	return p
+end
+
 -- "rimcheck": scrollcost's walks with every founder's rim drawn both ways, from its kept picture and from its parts,
 -- and the two silhouettes compared (PixelRenderer.debugRimCheck; the timings are not the game's then)
 function SCEN.rimcheck()

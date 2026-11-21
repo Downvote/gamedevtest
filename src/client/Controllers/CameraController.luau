@@ -90,6 +90,18 @@ local stageShift = Vector3.zero -- an endless islet's camera: how far along the 
 local fGX: number?, fGY: number? = nil, nil
 local lockX: number?, lockY: number? = nil, nil
 local drawnAt: Vector3? = nil
+-- The report of 2026-11-21, "its like the camera is jittering back as it moves": the lock was worked out on
+-- RenderStepped from the founder as physics last left it, the rig placed on Heartbeat from where physics moved it
+-- next, and the window from the one less the other, so it took on each frame's walk (more after a long frame, less
+-- after a short one) and stepped back now and then. Roblox runs AvatarView's Heartbeat before the renderer's (the
+-- last connected first), so the window saw the new place with the old lock. Now each step keeps the founder's place
+-- it followed (`stepAt`) and the lock worked out from it (`stepLockX, stepLockY`); AvatarView puts the own rig at
+-- that place (`founderAt`) and `setDrawn` keeps that lock with it (`drawnLockX, drawnLockY`), so the window and the
+-- rig always come from one moment, whichever runs first.
+local followAt: Vector3? = nil -- (the founder's place `target` last followed)
+local stepAt: Vector3? = nil
+local stepLockX: number?, stepLockY: number? = nil, nil
+local drawnLockX: number?, drawnLockY: number? = nil, nil
 local lockOff = false -- (previews: the window put from the pan alone, debugLock)
 local DRAWN_SLACK = 8 -- art px the rig as drawn may be from the follow before the pan is shown as it is
 
@@ -317,16 +329,24 @@ function CameraController.snapGround(p: Vector3): Vector3
 	return Vector3.new(p.X + dx, p.Y, p.Z + dz)
 end
 
--- Where AvatarView put the founder's rig (snapGround's point; nil: none).
+-- The founder's place the view's last step followed (nil: it followed something else): AvatarView puts the own rig
+-- there, so the rig and the window come from the same moment.
+function CameraController.founderAt(): Vector3?
+	return stepAt
+end
+
+-- Where AvatarView put the founder's rig (snapGround's point of `founderAt`; nil: none), with the lock of the step
+-- that place came from.
 function CameraController.setDrawn(p: Vector3?)
 	drawnAt = p
+	drawnLockX, drawnLockY = stepLockX, stepLockY
 end
 
 -- The pan the pixel layer shows: the one that puts the founder's rig, as AvatarView last put it (what the renderer
 -- draws this frame), where the follow wants the founder on the screen; `pan()` when the view follows something else.
 function CameraController.drawnPan(): (number, number)
 	local v, at = current, drawnAt
-	local lx, ly = lockX, lockY
+	local lx, ly = drawnLockX, drawnLockY
 	if v == nil or v.stage or at == nil or lx == nil or ly == nil or lockOff then
 		return panX, panY
 	end
@@ -338,6 +358,12 @@ function CameraController.drawnPan(): (number, number)
 		return panX, panY
 	end
 	return px, py
+end
+
+-- Previews: where the founder's rig, as AvatarView last put it, stands on the screen (the lock kept with it, art px
+-- from the screen's top-left; nil: none).
+function CameraController.debugDrawn(): (number?, number?)
+	return drawnLockX, drawnLockY
 end
 
 -- Previews: false puts the layer's window from the pan alone (as before the founder was locked to it), true again.
@@ -435,6 +461,7 @@ end
 -- Where the view should be this frame (art px; on the islands not rounded, so the follow moves as smoothly as the
 -- founder does).
 local function target(v: View): (number, number)
+	followAt = nil
 	if v.stage then
 		local st = stage
 		if st == nil or stageShift == Vector3.zero then
@@ -460,6 +487,7 @@ local function target(v: View): (number, number)
 			return v.grid.px, v.grid.py
 		end
 		p = root.Position
+		followAt = p
 	end
 	-- the founder (or a cutscene's focus) in the middle of the screen between the HUD's strips (the ground under
 	-- them: their feet)
@@ -516,11 +544,17 @@ local function follow(cur: number, to: number, vel: number, dt: number): (number
 	return out, nv
 end
 
--- Where the founder lands on the screen this frame (the follow's own place less its ground point), or none.
+-- Where the founder lands on the screen this frame (the follow's own place less its ground point), or none. It holds
+-- its pixel until the follow is LOCK_HOLD px past it: with frames of uneven length the follow's gap sat near a half
+-- pixel and the founder flicked a pixel and back every few frames (the `jitter` preview).
+local LOCK_HOLD = 0.85
 local function lockOn()
 	local gx, gy = fGX, fGY
 	if gx and gy then
-		lockX, lockY = math.floor(gx - camX + 0.5), math.floor(gy - camY + 0.5)
+		local rx, ry = gx - camX, gy - camY
+		local lx, ly = lockX, lockY
+		lockX = if lx and math.abs(rx - lx) <= LOCK_HOLD then lx else math.floor(rx + 0.5)
+		lockY = if ly and math.abs(ry - ly) <= LOCK_HOLD then ly else math.floor(ry + 0.5)
 	else
 		lockX, lockY = nil, nil
 	end
@@ -529,6 +563,7 @@ end
 local function step(dt: number?)
 	local v = current
 	if v == nil then
+		stepAt = nil
 		return
 	end
 	if free then
@@ -557,6 +592,7 @@ local function step(dt: number?)
 	if not v.stage and (math.abs(tx - camX) > W * 0.75 or math.abs(ty - camY) > H * 0.75) then
 		jumpTo(tx, ty)
 		lockOn()
+		stepAt, stepLockX, stepLockY = followAt, lockX, lockY
 		pose(v)
 		return
 	end
@@ -580,6 +616,7 @@ local function step(dt: number?)
 		pose(v)
 	end
 	lockOn()
+	stepAt, stepLockX, stepLockY = followAt, lockX, lockY
 end
 
 -- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts where the

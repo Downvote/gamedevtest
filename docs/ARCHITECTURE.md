@@ -1375,7 +1375,18 @@ others' followed so their walking steps' pictures slide by whole px) and, for th
 none or a cutscene poses it); `drawnPan()` is that point's grid px less the lock, so the founder as drawn this frame
 lands exactly where the follow wants it whichever of RenderStepped, AvatarView's Heartbeat and the renderer's runs
 first (the rig between pixels, and drawn a frame after the follow had moved, fell a pixel off now and then and back
-the next frame). `pan()` stands in on a stage, under a cutscene's focus, with no founder, and when the rig is more than
+the next frame). The lock and the drawn point come from one moment (the report of 2026-11-21, "its like the camera
+is jittering back as it moves"): each step keeps the founder's place it followed and the lock worked out from it
+(`stepAt`, `stepLockX, stepLockY`); AvatarView puts the own rig at that place (`founderAt() -> Vector3?`, x and z;
+nil when the view follows something else) and `setDrawn` keeps that lock with it (`drawnLockX, drawnLockY`), which
+`drawnPan` uses. Before, the lock was worked out on RenderStepped from the founder as physics last left it and the rig
+placed on Heartbeat from where physics moved it next; Roblox fires AvatarView's Heartbeat before the renderer's (the
+last connected first), so the window took on each frame's walk, more after a long frame and less after a short one,
+and now and then stepped back. The lock also holds its pixel until the follow is `LOCK_HOLD` (0.85) px past it, so a
+gap sitting near half a pixel no longer flicks the founder a pixel and back. `debugDrawn() -> (x?, y?)` gives the
+lock kept with the rig (previews). The `jitter` preview walks a square twice with frames of uneven length, the founder
+moved on the physics step, the second time with the Heartbeat handlers in Roblox's order: the screen took 6 steps
+against the walk in 422 frames before, none after. `pan()` stands in on a stage, under a cutscene's focus, with no founder, and when the rig is more than
 `DRAWN_SLACK` (8) px from the follow (a jump home, the view there a frame before the rig). `debugLock(on)` (previews)
 puts the window from `pan()` alone. The `pan` probe walks the founder held standing (`AvatarView.debugStill`) with the
 window from the pan and then from the founder: its picture went back and forth from one frame to the next 31 times in
@@ -2446,6 +2457,9 @@ hatch scene; hidden too while a cutscene poses the own rig), placed over `Charac
 hat, worked out once a rig) every frame. `founderPos()`, `count()`, `lookOf(player)`, `debugTag(player) -> (name?,
 title?, shown)`, `debugRig(player) -> (rig?, outlined)` (CLI checks), `setOverride(fn?)` (a cutscene poses the own rig
 instead: `fn(rig, t, dt)` every frame; nil gives it back).
+The own founder stands where the view's last step followed it (`CameraController.founderAt()`, x and z; the root
+where physics left it otherwise), so the rig and the pixel layer's window come from one moment (the report of
+2026-11-21, "its like the camera is jittering back as it moves"; 9.2).
 Walking (the request of 2026-11-21, "reduce the frame speed close to the frame speed while standing without
 scrolling"): a founder faces one of `YAW_STEPS` (32) ways and, on the ground faster than `CharacterModels.WALK_MIN`
 (0.8 studs a second) with no landing's crouch, is posed by `CharacterModels.poseWalkStep(rig, base, t, speed) -> key`
