@@ -22,6 +22,7 @@ local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
+local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Quests = require(ReplicatedStorage.Shared.Data.Quests)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
@@ -875,21 +876,19 @@ local function updateQuest(v: Types.ClientView)
 end
 
 ------------------------------------------------------------------ tips
+-- (the request of 2026-11-21: "Guide the player to put down a hut "Make a place for your driftlings to live in!" >
+-- Guide the player to hatch a driftling: "You got your first driftling! Now, put down a work space for it to earn coins
+-- in. > Guide the player to put down a workspace, the best one > "Great! You can hatch more driftlings from the tree,
+-- which refreshes with eggs every few minutes."": the user's own words. While a tip asks for something built and Build
+-- mode is shut, the menu bar's Build button pulses yellow)
 local TIPS: { [number]: string } = {
-	[1] = "Tap Build and place a Lumber Camp. It earns coins.",
-	[2] = "Place a Veggie Patch for more coins.",
-	[3] = "Driftlings need a home. Place a Driftling Hut.",
-	[4] = "The tree laid eggs. Tap it to hatch one.",
-	[5] = "Place a Snack Stall by the path. The first one is free.",
-	[6] = "New eggs come every few minutes. Huts full? Swap a weak driftling for a better one.",
+	[Plot.TIP_HUT] = "Make a place for your driftlings to live in!",
+	[Plot.TIP_HATCH] = "The tree laid eggs. Tap it to hatch one.",
+	[Plot.TIP_WORK] = "You got your first driftling! Now, put down a work space for it to earn coins in.",
+	[Plot.TIP_LAST] = "Great! You can hatch more driftlings from the tree, which refreshes with eggs every few minutes.",
 }
--- in Build mode (the tray already on the right tab, the building pulsing)
-local TIPS_BUILD: { [number]: string } = {
-	[1] = "Place a Lumber Camp. It earns coins.",
-	[2] = "Place a Veggie Patch. It earns coins too.",
-	[3] = "Place a Driftling Hut. Driftlings live there.",
-	[5] = "Place a Snack Stall. The first one is free.",
-}
+-- in Build mode (the tray already on the right tab, the building pulsing): the same words but for these
+local TIPS_BUILD: { [number]: string } = {}
 
 -- The tip's banner sits over the menu bar, or over the build tray in Build mode (the tips show there too), above the
 -- Free Decor tab on the tray's corner while that shows (a phone held upright: the tip runs that far across)
@@ -917,7 +916,7 @@ local function updateTips(v: Types.ClientView)
 	end
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	local ok = v.tut == 6
+	local ok = v.tut == Plot.TIP_LAST
 	-- a glass note; on a phone held sideways it keeps to the room left of the island card, which runs down the right
 	-- side there, so it never covers the card; on one held upright the card sits at the top, and the note takes the
 	-- width up to the jump button (it had the room left of the card there too, 59 px, and cut its words off after two
@@ -1208,6 +1207,7 @@ function Hud.start()
 	end)
 	local lastBeat = os.clock()
 	local rewardsAt = 0
+	local nextBuildShine = 0
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		local dt = math.min(0.1, now - lastBeat)
@@ -1235,6 +1235,34 @@ function Hud.start()
 			local y = -tipsLift()
 			if tp.Position.Y.Offset ~= y or tp.Position.Y.Scale ~= 1 then
 				tp.Position = UDim2.new(tp.Position.X.Scale, tp.Position.X.Offset, 1, y)
+			end
+		end
+		-- the menu bar's Build button pulses yellow (a shine across it now and then, its words white on it) while a tip
+		-- asks for something built and Build mode is shut: the hut's tip and the workplace's (the tips of 2026-11-21:
+		-- "Guide the player to put down a hut", "Guide the player to put down a workspace")
+		local bb = if bar then bar:FindFirstChild("Menu_build") else nil
+		if bb and bb:IsA("GuiButton") then
+			local tv = StateClient.view()
+			local want = tv ~= nil and (tv.tut == Plot.TIP_HUT or tv.tut == Plot.TIP_WORK) and not BuildUI.isOpen() and UIKit.currentPanel() == nil
+			local plate = bb:FindFirstChild("Plate")
+			local words = bb:FindFirstChild("Words")
+			if want and plate then
+				local k = (math.sin(now * 5) + 1) / 2
+				UIKit.setPlate(plate, UIKit.color("accent"):Lerp(Color3.new(1, 1, 1), 0.35 * k), 0)
+				if words and words:IsA("TextLabel") and not bb:GetAttribute("TipPulse") then
+					UIKit.setTextColor(words, UIKit.color("text"))
+				end
+				if now >= nextBuildShine then
+					nextBuildShine = now + 1.2
+					UIKit.shine(bb)
+				end
+				bb:SetAttribute("TipPulse", true)
+			elseif bb:GetAttribute("TipPulse") then
+				bb:SetAttribute("TipPulse", nil)
+				UIKit.setButtonColor(bb, UIKit.color("button"))
+				if words and words:IsA("TextLabel") then
+					UIKit.setTextColor(words, UIKit.color("accent"))
+				end
 			end
 		end
 		-- the tree's card: the time to its next eggs runs down

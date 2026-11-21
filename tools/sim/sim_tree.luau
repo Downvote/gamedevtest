@@ -713,7 +713,7 @@ local n1s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 E.run(3)
 local n2s = secsOf(labelText(p, "TreeNext"), "New eggs in ")
 H.expect(n1s ~= nil and n2s ~= nil and n1s - n2s >= 2 and n1s - n2s <= 4, "card", "join: New eggs in m:ss counts down", string.format("%s then %s", tostring(n1s), tostring(n2s)))
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Tap Build and place a Lumber Camp. It earns coins.", "join", "the first tip")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips"):FindFirstChild("Words") and gui(p, "Tips").Words:GetAttribute("Source")) == "Make a place for your driftlings to live in!", "join", "the first tip: a hut (the request of 2026-11-21)")
 -- Fx tick every second: the clock running down, and the seconds between two lots
 local i0 = #W.fx
 E.run(3.2)
@@ -863,14 +863,15 @@ checks("refuse")
 
 ------------------------------------------------------------------ 4. the tips' buildings, then a shell short
 E.phase = "build"
+-- (the tips since 2026-11-21: a hut, an egg, a workplace; workplaces built before the hut leave the hut's tip on)
 res = place("lumber")
-H.expect(res.ok and prof.tut == 2, "build", "a lumber camp: the tips move on to the farm", string.format("%s tut %d", tostring(res.err), prof.tut))
+H.expect(res.ok and prof.tut == Plot.TIP_HUT, "build", "a lumber camp: the tips still ask for a hut", string.format("%s tut %d", tostring(res.err), prof.tut))
 local lumberUid = res.data and res.data.uid
 res = place("patch")
-H.expect(res.ok and prof.tut == 3, "build", "a veggie patch: on to the hut", string.format("%s tut %d", tostring(res.err), prof.tut))
+H.expect(res.ok and prof.tut == Plot.TIP_HUT, "build", "a veggie patch: still the hut", string.format("%s tut %d", tostring(res.err), prof.tut))
 local patchUid = res.data and res.data.uid
 res = place("nest")
-H.expect(res.ok and prof.tut == 4, "build", "a hut: on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
+H.expect(res.ok and prof.tut == Plot.TIP_HATCH, "build", "a hut: on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
 local hutUid = res.data and res.data.uid
 H.push(p, 0.4)
 H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "The tree laid eggs. Tap it to hatch one.", "build", "the tip: hatch an egg")
@@ -901,7 +902,7 @@ H.expect(H.clickNamed(p, "TreeCardTap", { wait = 0.4 }) and H.currentPanel(p) ==
 H.expect(H.clickNamed(p, "PanelHatch_" .. pick.id, { wait = 0.6 }), "hatch", "Hatch on the egg the card showed")
 local x1 = hatched("card", pick, b, { home = hutUid })
 H.expect(x1 ~= nil and (x1.work == lumberUid or x1.work == patchUid), "hatch", "a new island's first hatchling: at work, at the lumber camp or the veggie patch", x1 and string.format("%s at %d", x1.sp, x1.work))
-H.expect(prof.tut == 5, "hatch", "the tips on to the shop", tostring(prof.tut))
+H.expect(prof.tut == Plot.TIP_LAST, "hatch", "the tips past the workplace's (the camp and the patch stand) to the last", tostring(prof.tut))
 H.expect(says(p, "Hatched ") and H.currentPanel(p) == "tree", "hatch", "the panel there again after the hatch scene, saying what hatched")
 H.closePanel(p)
 tagCheck(p, "card")

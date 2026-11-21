@@ -32,11 +32,10 @@ local lastSeason: string? = nil
 
 local PIXEL_TIERS: { [string]: boolean } = { high = true, medium = true, low = true, off = true }
 
--- The tips (GAME_DESIGN 9): 1 a lumber camp (it sells what it cuts), 2 a farm (it sells what it grows), 3 a hut, 4 an
--- egg hatched from the Tree of Life (with shells), 5 a shop (it sells snacks), 6 the last
--- tip (OK ends them). Each moves on once what it asks is done (an older save moves on through the ones it has done
--- at once).
-local TIP_KIND: { [number]: string } = { [1] = "wood", [2] = "farm", [3] = "nest", [Plot.TIP_SHOP] = "shop" } -- (a Snack Stall free meanwhile: Plot.price)
+-- The tips (GAME_DESIGN 9; the request of 2026-11-21): 1 a hut (Plot.TIP_HUT), 2 an egg hatched from the Tree of Life
+-- (Plot.TIP_HATCH), 3 a workplace (Plot.TIP_WORK: the tips light up the best one the island has, free meanwhile:
+-- Plot.price; any workplace moves them on), 4 the last tip (Plot.TIP_LAST: OK ends them). Each moves on once what it
+-- asks is done (an older save moves on through the ones it has done at once, at the join too).
 local function tips(s: Session.S)
 	local p = s.profile
 	local has: { [string]: boolean } = {}
@@ -44,15 +43,13 @@ local function tips(s: Session.S)
 		local d = Buildings.byId[q.id]
 		if d then
 			has[d.kind] = true
-			-- (a workplace by what it does: the tips ask for a camp, a farm and a shop)
-			if d.act ~= "" then
-				has[d.act] = true
-			end
 		end
 	end
-	while p.tut >= 1 and p.tut <= 5 do
-		local kind = TIP_KIND[p.tut]
-		local done = if kind then has[kind] == true else (p.stats.taken > 0 or #p.pals > 0)
+	while p.tut >= 1 and p.tut < Plot.TIP_LAST do
+		local done = if p.tut == Plot.TIP_HUT
+			then has.nest == true
+			elseif p.tut == Plot.TIP_HATCH then (p.stats.taken > 0 or #p.pals > 0)
+			else has.work == true
 		if not done then
 			break
 		end
@@ -428,6 +425,8 @@ function IslandService.join(s: Session.S)
 	local now = WorldClock.now()
 	s.offline = Store.offline(s.profile, now)
 	s.profile.seenAt = now
+	-- (an older save's tips move on through what it has done already: a hut, a driftling, a workplace)
+	tips(s)
 end
 
 -- A player leaves (Main, before the save): offline earnings not collected yet are paid as shown (Collect), not lost.

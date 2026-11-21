@@ -381,7 +381,7 @@ function H.checkProfile(p, label)
 	for _, k in { "boat", "chart", "cap", "pouch", "islets", "sea", "wilds" } do
 		H.expect(prof[k] == nil, "profile", label .. ": " .. k .. " left in the save (gone with the expeditions)")
 	end
-	H.expect(prof.tut >= 0 and prof.tut <= 6, "profile", label .. ": tips out of range", tostring(prof.tut))
+	H.expect(prof.tut >= 0 and prof.tut <= 4, "profile", label .. ": tips out of range", tostring(prof.tut))
 	-- the pieces: one Tree of Life, the rest within the island's limits
 	local placed = prof.plot.placed
 	local nPaths, nTrees = 0, 0

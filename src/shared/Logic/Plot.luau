@@ -562,11 +562,29 @@ end
 
 -- A piece's price for this player (GAME_DESIGN 14): its shells, nothing for decor, paths, water and fences with the
 -- Free Decor pass (and what one of those sells back for is nothing then too: no free piece turns into shells).
--- The tips' snack stall is free too: while the tips ask for a shop (step 5, which moves on as soon as one stands) a
--- Snack Stall costs nothing (the request of 2026-11-14, "make the first snack stall in the tutorial free").
+-- The tips' workplace is free too: while the tips ask for one (step 3, which moves on as soon as a workplace stands)
+-- the one they light up costs nothing (the request of 2026-11-14, "make the first snack stall in the tutorial free";
+-- since 2026-11-21 the tips ask for the best workplace the island has, not a Snack Stall).
 local FREE_KINDS: { [string]: boolean } = { decor = true, path = true, water = true, fence = true }
-Plot.TIP_SHOP = 5 -- the tips' step that asks for a shop (IslandService's TIP_KIND)
-Plot.TIP_FREE = "stall" -- the piece it gives for nothing
+-- The tips' steps (GAME_DESIGN 9; the request of 2026-11-21: "Guide the player to put down a hut ... Guide the player
+-- to hatch a driftling ... Guide the player to put down a workspace, the best one"); 0 once they are over.
+Plot.TIP_HUT = 1 -- a hut
+Plot.TIP_HATCH = 2 -- an egg hatched from the Tree of Life
+Plot.TIP_WORK = 3 -- a workplace (any moves the tips on; the best one is lit up, and free)
+Plot.TIP_LAST = 4 -- the last tip, which OK puts away
+-- The workplace the tips ask for: the one earning the most that an island of `tier` has unlocked (the cheaper of two
+-- that earn the same). A first island's is the Fishing Pier.
+function Plot.tipWork(tier: number): string
+	local best: any = nil
+	for _, d in Buildings.list do
+		if d.kind == "work" and d.tier <= tier then
+			if best == nil or d.rate > best.rate or (d.rate == best.rate and d.shells < best.shells) then
+				best = d
+			end
+		end
+	end
+	return if best then best.id else "patch"
+end
 function Plot.price(p: any, id: string): number
 	local def = Buildings.byId[id]
 	if def == nil then
@@ -575,7 +593,7 @@ function Plot.price(p: any, id: string): number
 	if p.passes and p.passes.FreeDecor and FREE_KINDS[def.kind] then
 		return 0
 	end
-	if id == Plot.TIP_FREE and p.tut == Plot.TIP_SHOP then
+	if p.tut == Plot.TIP_WORK and def.kind == "work" and id == Plot.tipWork(p.tier or 1) then
 		return 0
 	end
 	return def.shells

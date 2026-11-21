@@ -11,6 +11,7 @@ local Island = require("../../build/luautest/shared/Logic/Island")
 local Util = require("../../build/luautest/shared/Logic/Util")
 local Traits = require("../../build/luautest/shared/Data/Traits")
 local Buildings = require("../../build/luautest/shared/Data/Buildings")
+local Quests = require("../../build/luautest/shared/Data/Quests")
 
 -- the pieces built (not the tree: every island has it)
 local function built(p: any): { any }
@@ -239,8 +240,8 @@ return function()
 		T.eq(p.coins, nil)
 		T.eq(p.games, nil)
 	end)
-	T.it("a version 5 save: its tip moves to the same tip (the old sailing tips: the hut's)", function()
-		for old, new in { [0] = 0, [1] = 1, [2] = 2, [3] = 4, [4] = 4 } do
+	T.it("a version 5 save: its tip moves to the same tip (the old sailing tips: the hut's; since version 25 the hut's and the egg's)", function()
+		for old, new in { [0] = 0, [1] = 1, [2] = 1, [3] = 2, [4] = 2 } do
 			local p = Schema.reconcile({ v = 5, shells = 10, tier = 1, tut = old }, 2000, 9) :: any
 			T.eq(p.v, Schema.VERSION)
 			T.eq(p.tut, new, "tip " .. old)
@@ -328,7 +329,7 @@ return function()
 		T.eq(p.stats.sold, 1)
 		T.eq(p.pals[1].work, built(p0)[4].uid, "a helper keeps its job")
 		T.eq(p.pals[1].lvl, nil)
-		T.eq(p.tut, 4, "the sailing tips: the hut's")
+		T.eq(p.tut, Plot.TIP_HATCH, "the sailing tips: the egg's (version 25's numbering)")
 		T.eq(p.quest, 1, "the questline starts again")
 		T.eq(p.stats.taken, 7, "befriended counts as taken in")
 		T.eq(p.stats.best, 4, "the sunsprite: epic")
@@ -360,14 +361,42 @@ return function()
 		T.eq(#built(p), 4, "the rest stays")
 		T.eq(p.shells, shells + 30 + 20000 + 2000, "the homes' price back (their wood as shells)")
 		T.eq(p.wood, nil)
-		T.eq(p.tut, 5, "one step back")
+		T.eq(p.tut, Plot.TIP_WORK, "one step back: the shop's then, the workplace's since version 25")
 		T.eq(#p.pals, 2, "the driftlings stay")
 		T.eq(p.pals[1].work, built(p0)[4].uid, "at work as before")
 		local again = Schema.reconcile(roundTrip(p), 2000, 9)
 		T.deepEq(again, p, "and stays put on the next load")
-		for old, new in { [4] = 4, [5] = 4, [7] = 6, [0] = 0 } do
+		for old, new in { [4] = 2, [5] = 2, [7] = 4, [0] = 0 } do
 			T.eq((Schema.reconcile({ v = 10, tut = old }, 2000, 9) :: any).tut, new, "tip " .. old)
 		end
+	end)
+	-- (the request of 2026-11-21: "Guide the player to put down a hut ... to hatch a driftling ... to put down a
+	-- workspace, the best one ... the first goal after the tutorial should be "Place down 4 huts"")
+	T.it("a version 24 save: the tips' old step goes to the new one asking for what it may lack; the questline keeps its quest", function()
+		-- 1 a camp, 2 a farm, 3 a hut: the hut's; 4 an egg: the egg's; 5 a shop: the workplace's; 6 the last: the last
+		for old, new in { [0] = 0, [1] = 1, [2] = 1, [3] = 1, [4] = 2, [5] = 3, [6] = 4 } do
+			local p = Schema.reconcile({ v = 24, shells = 10, tier = 1, tut = old }, 2000, 9) :: any
+			T.eq(p.v, Schema.VERSION)
+			T.eq(p.tut, new, "tip " .. old)
+		end
+		local function q24(q: number, tut: number): string?
+			local p = Schema.reconcile({ v = 24, shells = 10, tier = 1, tut = tut, quest = q }, 2000, 9) :: any
+			local at = Quests.list[p.quest]
+			return if at then at.id else "done"
+		end
+		-- the old list: help, sell, take3, three, huts (two huts, gone), uncommon, farm, ...
+		T.eq(q24(1, 0), "help", "on the first quest: still on it, one place later")
+		T.eq(q24(2, 0), "sell")
+		T.eq(q24(3, 0), "take3")
+		T.eq(q24(4, 0), "three")
+		T.eq(q24(5, 0), "uncommon", "on Build another hut, now gone: on to the next")
+		T.eq(q24(6, 0), "uncommon", "past it: the same quest")
+		T.eq(q24(7, 0), "farm")
+		T.eq(q24(20, 0), "done", "all done: still all done")
+		T.eq(q24(1, 3), "huts4", "still in the tips: the new first quest comes after them")
+		local fresh = Schema.default(0, 1)
+		T.eq(fresh.tut, Plot.TIP_HUT, "a new island starts on the hut's tip")
+		T.eq(Quests.list[fresh.quest].id, "huts4", "and the questline on four huts")
 	end)
 	T.it("a version 6 save: each driftling rolls its mutations once, the same every load; a later save keeps its own", function()
 		local raw = function(): any

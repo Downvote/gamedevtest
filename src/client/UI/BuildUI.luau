@@ -122,12 +122,17 @@ local chip: { [string]: string } = { work = "work" }
 -- the player to the tab where the required buildings are in"): the tip's banner stays above the tray (UI/Hud), and
 -- opening Build mode, or a tip moving on while it is open, turns the tray to the tab (and row) of the building the tip
 -- asks for; that building's card (and its tab, while another is shown) pulses until it stands on the island.
-local TUT: { [number]: { tab: string, chip: string, id: string } } = {
-	[1] = { tab = "work", chip = "work", id = "lumber" },
-	[2] = { tab = "work", chip = "work", id = "patch" },
-	[3] = { tab = "nest", chip = "", id = "nest" },
-	[5] = { tab = "work", chip = "work", id = "stall" },
-}
+-- Since 2026-11-21 ("Guide the player to put down a hut ... Guide the player to put down a workspace, the best one"):
+-- the hut's tip on the Huts tab, the workplace's on Work's Workplaces row with the best one the island has lit up
+-- (Plot.tipWork; free meanwhile: Plot.price).
+local function tutOf(step: number, tier: number): { tab: string, chip: string, id: string }?
+	if step == Plot.TIP_HUT then
+		return { tab = "nest", chip = "", id = "nest" }
+	elseif step == Plot.TIP_WORK then
+		return { tab = "work", chip = "work", id = Plot.tipWork(tier) }
+	end
+	return nil
+end
 local TIP_SHINE = 1.2 -- seconds between the shines sweeping across the tip's button
 local TIP_PALE = 0.35 -- how far the tip's yellow button pales toward white at the top of its pulse
 local tutSeen: number? = nil -- the tip the tray last turned for (nil: turn on the next look)
@@ -213,7 +218,7 @@ local function tutGoal(v: Types.ClientView?): { tab: string, chip: string, id: s
 	if v == nil then
 		return nil
 	end
-	local g = TUT[v.tut]
+	local g = tutOf(v.tut, v.tier)
 	if g == nil then
 		return nil
 	end
@@ -2113,7 +2118,7 @@ function BuildUI.open(onTab: string?)
 			-- click". Opened again on that step, it stays open.
 			local v = view()
 			local now = if v then v.tut else 0
-			if tutWas == 3 and now == 4 then
+			if tutWas == Plot.TIP_HUT and now == Plot.TIP_HATCH then
 				task.delay(0.8, function()
 					if open then
 						BuildUI.close()

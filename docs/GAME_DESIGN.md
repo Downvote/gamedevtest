@@ -874,7 +874,7 @@ expansion has a workplace of its own too; on tiers 7 to 10 the Sky Garden, the G
 newest. A workplace's price was always its tier's price for each of its places, so the bigger ones cost more in step.
 (`tests/specs/Plot.spec.luau` holds the rule: two of the newest hut and two of the newest workplace fill each tier's
 growth exactly, and a played-through island fills both caps that way.) The four on Castaway Cay keep
-2: its cap is 8, and the tips ask for a camp, a patch and a stall there. All of an island's places at work together stay
+2: its cap is 8, and the tips ask for one workplace there (a camp, a patch and a stall till 2026-11-21). All of an island's places at work together stay
 within its cap, which is its driftling limit (the housing limit above: 8 on Castaway Cay up to 840 on Everdrift), so
 every driftling it can house has a place and no more. A workplace whose places won't fit shows "Full" on its card,
 and placing it is refused ("No more work spots. Grow the
@@ -1430,8 +1430,9 @@ its fifth stage on Lantern Cove, its sixth on Amberfield (`TreeStage` 5 and 6, �
   grass for plants, a low bubble pop for water, a chime's clink for metal, a sparkle of chimes for magic, footsteps in
   sand for sand (higher for snow), a cloth flap for cloth and a shaker for fire.
 - **The tips in Build mode:** the tip's banner stays up, over the tray; opening Build mode (or a tip moving on while it
-  is open) turns the tray to the tab and row of the building the tip asks for (the Lumber Camp on Work's Wood row, the
-  Veggie Patch on Farms, the Driftling Hut on Huts, the Snack Stall on Shops), and that building's whole button turns
+  is open) turns the tray to the tab and row of the building the tip asks for (the Driftling Hut on Huts, then the best
+  workplace the island has on Work's Workplaces row: §9; a Lumber Camp, a Veggie Patch, the hut and a Snack Stall till
+  2026-11-21), and that building's whole button turns
   yellow (where it was the green of a building you can afford), pulsing to a paler yellow and back, a shine sweeping
   across it every 1.2 seconds, until it stands on the island (its tab pulses too while another tab is shown); placing
   it goes straight on to the next tip's tab. Before 2026-11-20 it was the card's faint plate round the button that
@@ -1710,8 +1711,9 @@ When the island grows into a new stage, the tree is built again at it.
   rarer one rolls as itself). It moves
   into the comfiest hut with room and goes to work through the arrangement below (each workplace's places, its
   `jobs`: §4, the work cap), or rests in its hut until a place is free; the hatch scene plays (§6.2), then "Hatched a rare Wispwing." in its rarity's colour, and it goes in
-  the Index. A new island's first two hatches are good with wood and then at a farm, so the tips' Lumber Camp and Veggie
-  Patch have help waiting. With no hut built the answer is "Build a hut first."; an
+  the Index. A new island's first two hatches are good with wood and then at a farm (one kind of work since 2026-11-19,
+  so any workplace suits them; the tips ask for the workplace after the first hatch, and it rests in its hut till
+  then). With no hut built the answer is "Build a hut first."; an
   egg a new lot replaced before the tap reached the server, "That egg is gone."
 - **Who works where** (`Island.arrange`):
 
@@ -1794,7 +1796,7 @@ When the island grows into a new stage, the tree is built again at it.
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the
   Tree panel. A hatched egg is gone from under the tree when the hatch scene ends; the driftling steps out where it lay
   and walks off to its work. A neighbour's tree lays its eggs too; only the islands near the view have theirs drawn.
-  While the tips ask for a hatch (step 4) an arrow bobs over your tree. A tap on your own tree opens the Tree panel; on
+  While the tips ask for a hatch (step 2) an arrow bobs over your tree. A tap on your own tree opens the Tree panel; on
   a neighbour's, "Not your tree. Yours is at home."
 - **The HUD's Tree card** (under the island card; on a phone at the top left): the tree's icon, "Tree of Life"
   ("Eggs" on a phone) and Open, "New eggs in 2:41" over a bar running down to the next lot, then the best three eggs
@@ -2688,24 +2690,35 @@ the stores come from:
 > The request (2026-11-10): "the tutorial should also state how to get food, wood and shells. start with enough shells
 > to buy all the facilities required." (Since 2026-11-14 shells are the only store.)
 
-1 "Tap Build and place a Lumber Camp. It earns shells."; 2 "Place a
-Veggie Patch for more shells."; 3 "Driftlings need a home. Place a Driftling Hut."; 4 "The tree laid
-eggs. Tap it to hatch one." (Build mode closes itself a moment after the
-hut goes down, and an arrow bobs over your tree, or with the tree off the screen points the way to it from the screen's
-edge: the request of 2026-11-14, "auto close the build tab when going to the hatching step and point towards the tree
-of life for the player to click"); 5 "Place a
-Snack Stall by the path. The first one is free." (a Snack Stall costs nothing while
-this tip is up, its card in the tray saying Free: the request of 2026-11-14, "make the first snack stall in the
-tutorial free"); 6 "New eggs come every few minutes. Huts full? Swap a
-weak driftling for a better one." (OK ends the tips). Tips 1, 2, 3 and 5 have their own words in Build mode
-("Place a Lumber Camp. It earns shells."). Each moves on once what it asks is done, tip 4 once an
-egg has hatched. A new island starts with `StartShells` (600: the three tip buildings that cost at 305, the stall free,
-and room to fill the first hut with two eggs, say a rare and a common, so no tip waits on shells; it was 440, one common egg and the stall, and a
-player who hatched an uncommon or filled the hut had to wait for the stall: "the snack store part in the tutorial takes
-too long. give the player more shells so every task is completable at the start without needing to wait",
-2026-11-14). The first lot has two commons at 8 shells, and the first two hatches are good with wood and at a farm. (Until 2026-11-13 the tips asked for a
-patch, a camp, a stall, a hut and a level of the tree. A save from before keeps its step's number, and a step whose
-task is already done moves on at once.)
+> The request (2026-11-21): "also, could you make the tutorial as such?: Guide the player to put down a hut "Make a
+> place for your driftlings to live in!" > Guide the player to hatch a driftling: "You got your first driftling! Now,
+> put down a work space for it to earn coins in. > Guide the player to put down a workspace, the best one > "Great! You
+> can hatch more driftlings from the tree, which refreshes with eggs every few minutes." > the first goal after the
+> tutorial should be "Place down 4 huts""
+
+The tips since then, in the user's own words (`Plot.TIP_HUT` .. `TIP_LAST`):
+
+1. "Make a place for your driftlings to live in!": a hut. While Build mode is shut the menu bar's Build button pulses
+   yellow with a shine across it; Build mode opens on the Huts tab with the hut's card lit up (§4.5).
+2. "The tree laid eggs. Tap it to hatch one.": an egg hatched. Build mode closes itself a moment after the hut goes
+   down, and an arrow bobs over your tree, or with the tree off the screen points the way to it from the screen's edge
+   (the request of 2026-11-14, "auto close the build tab when going to the hatching step and point towards the tree of
+   life for the player to click"). What hatches moves into the hut and rests there.
+3. "You got your first driftling! Now, put down a work space for it to earn coins in.": a workplace. The Build button
+   pulses again; Build mode opens on Work's Workplaces row with the best workplace the island has lit up (the one
+   earning the most a worker, `Plot.tipWork`: a first island's Fishing Pier). That one costs nothing while this tip is
+   up, its card saying Free (the request of 2026-11-14, "make the first snack stall in the tutorial free", the tips'
+   workplace since). Any workplace moves the tip on; the driftling resting in the hut goes to work there.
+4. "Great! You can hatch more driftlings from the tree, which refreshes with eggs every few minutes." OK ends the tips.
+
+Each moves on once what it asks is done (an island that has it already moves on at once, at the join too). A new
+island starts with `StartShells` (600): the hut (55) and the first egg leave plenty, so no tip waits on coins ("give the
+player more shells so every task is completable at the start without needing to wait", 2026-11-14). The first lot has
+two commons at 8 coins. Before 2026-11-21 the tips asked for a Lumber Camp, a Veggie Patch, a hut, an egg and a Snack
+Stall (free), then the last; a save on one of those steps goes to the new step asking for the first thing it may not
+have done (a camp's, a patch's or the hut's: the hut; the egg's: the egg; the stall's: the workplace; the last: the
+last) and moves on from there past what it has (schema version 25). (Until 2026-11-13 the tips asked for a patch, a
+camp, a stall, a hut and a level of the tree.)
 
 > The request (2026-11-11): "also, please rewrite all text and dialogue to be less ai-like. research what are the
 > telltale signs of ai writing and avoid them. note this from further on as well"
@@ -2719,11 +2732,14 @@ to do and where, and its progress with **Go**, which opens the place it needs (t
 Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go turns into **Claim** (shining) next to
 the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island has now or what its
 stats have kept (eggs hatched from the tree, sold, the Hatchery's hatched, the rarest had), so one already met can be
-claimed at once. Rewritten for the eggs (2026-11-13), in order: put a driftling to work; sell a driftling; hatch three
+claimed at once. Rewritten for the eggs (2026-11-13), in order: place down 4 huts (the first since 2026-11-21, the
+request above: "the first goal after the tutorial should be "Place down 4 huts""; four huts are the first island's
+room for 8 driftlings, and Go opens Build mode on the Huts tab); put a driftling to work; sell a driftling; hatch three
 eggs; three at work ("Each one needs a bed in a hut and a place to work.": the request of 2026-11-14, "for this step, specify that you need
-3 huts, and you need work buildings for them to work in"; a hut sleeps two, so it names beds, not three huts); build
-another hut (2 huts); an uncommon one ("Green-spotted
-eggs hatch uncommon ones."); another farm (a second farm or pier); lay a path (8 tiles); decorate (2 pieces); a rare
+3 huts, and you need work buildings for them to work in"; a hut sleeps two, so it names beds, not three huts); an
+uncommon one ("Green-spotted
+eggs hatch uncommon ones."); another workplace (three in all since 2026-11-21: the tips' one, the one three at work
+needed and one more); lay a path (8 tiles); decorate (2 pieces); a rare
 one ("Get a rare egg from the tree! Save some shells for one.": the
 user's words of 2026-11-14, "Get a rare egg from the tree! Save some shells for one. also, this quest spawns a rare egg
 below the tree if there isnt one already"); grow your island (tier 2); build a boost; ten at work; find 12 kinds ("The Index lists every kind you've found. Bigger islands hatch new
@@ -2735,9 +2751,10 @@ driftlings for an egg. Rarer parents, rarer eggs. Mutations pass on.": the reque
 to the result, such as mutations and rarity"); an epic one; sixty hatched. Another camp (a second Lumber Camp) came
 after the three eggs until 2026-11-18: "this quest is uncompletable without removing a work building. thus, remove the
 quest that asks you to make a second lumber camp". The first island has 8 work spaces, 2 for each workplace there, and
-the tips' camp, farm and stall with the second camp used them all, so Another farm could not be built. Without it the
-tips and the quests before the first expansion use exactly the 8 (a spec keeps it so), and a save already in the
-questline stays on the quest it was on.
+the tips' camp, farm and stall with the second camp used them all, so Another farm could not be built. The tips and
+the quests before the first expansion fit in the 8 (a spec keeps it so), and a save already in the questline stays on
+the quest it was on. Build another hut (two huts) went on 2026-11-21 with four huts first; a save on it goes on to the
+next quest.
 While one of the rarity quests (an uncommon, a rare or an epic one) is on the go and not met, the tree always has an
 egg of that rarity waiting (§6, "The quest's egg"; the request of 2026-11-14: "also, while the rare one quest is
 active or any rarity related quests, make it such that an egg of that rarity will always spawn in the tree of life.").

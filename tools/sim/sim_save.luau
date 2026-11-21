@@ -228,7 +228,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 24, "save", "a version 12 save loads as version 24", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 25, "save", "a version 12 save loads as version 25", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -247,7 +247,8 @@ if pt then
 		end
 	end
 	H.expect(#pt.pals == 2 and inHut == 2 and pt.stats.taken == 2 and pt.stats.sold == 0, "save", "its driftlings kept in the hut, the ones taken in off the tide counted as hatched", string.format("%d pals, %d in the hut, taken %d", #pt.pals, inHut, pt.stats.taken))
-	H.expect(pt.shells >= 800 + 120 and pt.wood == nil and pt.tut == 0 and pt.quest == 4 and pt.seen.gullfin == 1, "save", "its shells (its wood added in), the tips, the questline and the Index kept", string.format("%s %s", tostring(pt.shells), tostring(pt.wood)))
+	-- (the questline's same quest one place later since version 25: "Place down 4 huts" comes first)
+	H.expect(pt.shells >= 800 + 120 and pt.wood == nil and pt.tut == 0 and pt.quest == 5 and pt.seen.gullfin == 1, "save", "its shells (its wood added in), the tips, the questline and the Index kept", string.format("%s %s quest %d", tostring(pt.shells), tostring(pt.wood), pt.quest))
 	H.checkProfile(v12, "v12")
 	settled(v12)
 	H.checkMirror(v12, "v12")
@@ -288,7 +289,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 24, "save", "a version 11 save loads as version 24", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 25, "save", "a version 11 save loads as version 25", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid, in the island's
 	-- middle since 2026-11-20: the campfire's plaza was free, so the patch and the hut both stay)
@@ -321,7 +322,9 @@ if pv then
 	H.expect(pv.food == nil and pv.wood == nil, "save", "the food and the wood gone (the wood as shells)", string.format("%s %s", tostring(pv.food), tostring(pv.wood)))
 	local st = pv.stats :: any
 	H.expect(st.taken == 7 and st.grown == nil, "save", "what the old tree grew counted as hatched", string.format("taken %s grown %s", tostring(st.taken), tostring(st.grown)))
-	H.expect(pv.tut == 5 and pv.quest == 3 and pv.seen.conchy == 1, "save", "the tips, the questline and the Index kept", string.format("tut %d quest %d", pv.tut, pv.quest))
+	-- (its tip then the shop's: since version 25 the workplace's, and its patch moves the tips on to the last at the
+	-- join; its quest the same one, one place later)
+	H.expect(pv.tut == Plot.TIP_LAST and pv.quest == 4 and pv.seen.conchy == 1, "save", "the tips (on to the last: it has a workplace), the questline and the Index kept", string.format("tut %d quest %d", pv.tut, pv.quest))
 	H.checkProfile(v11, "v11")
 	settled(v11)
 	H.checkMirror(v11, "v11")
@@ -391,7 +394,8 @@ if ov then
 	end
 	H.expect(#ov.pals == 2 and inNest == 2 and ov.stats.sold == 1, "save", "its driftlings: two in the hut, the pen's one sold", string.format("%d, %d in the hut, %d sold", #ov.pals, inNest, ov.stats.sold))
 	local st = ov.stats :: any
-	H.expect(ov.folk == nil and st.movedIn == nil and ov.tut == 4 and ov.quest == 1 and st.taken == 3 and st.grown == nil, "save", "no villagers or levels; the tips on step 4; the questline afresh; befriended counted as hatched", string.format("tut %d taken %s", ov.tut, tostring(st.taken)))
+	-- (its tip the hatching one by version 24; it has driftlings and a patch, so the join moves the tips on to the last)
+	H.expect(ov.folk == nil and st.movedIn == nil and ov.tut == Plot.TIP_LAST and ov.quest == 1 and st.taken == 3 and st.grown == nil, "save", "no villagers or levels; the tips on to the last (a hut, driftlings, a workplace); the questline afresh; befriended counted as hatched", string.format("tut %d taken %s", ov.tut, tostring(st.taken)))
 	H.checkProfile(old, "v9")
 	settled(old)
 	H.checkMirror(old, "v9")
@@ -609,7 +613,7 @@ do
 	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
 	E.run(3)
 	local fp = H.profile(f13)
-	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 24", tostring(fp and fp.v))
+	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 25", tostring(fp and fp.v))
 	if fp then
 		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
 		H.expect(fp.wood == nil and fp.shells >= 300 + 90 + 25 * 2 + 120 and fp.shells < 300 + 90 + 25 * 2 + 120 + 2, "save", "their price back (two fences at 25, a hedge at 120) and the wood, as shells", string.format("%s %s", tostring(fp.shells), tostring(fp.wood)))

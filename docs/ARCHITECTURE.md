@@ -208,7 +208,7 @@ next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, m
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
-`Profile` (the save, version 24 (the leaderboards and friends, 2026-11-21: `social` (`Social`: `referredBy` (the inviter's user id, 0 for none), `refPaid` (the inviter's reward went out), `refPlay` (seconds played toward it, up to `ReferralMinPlaySec`), `invited` and `refDay` / `refToday` (the inviter's friends rewarded, in all and on that UTC day), `here` (Roblox friends on this server: never kept, 0 at every load, `Schema.social`)); an older save gets it fresh); 23 (the View slider's default moved to the seventh notch, 2026-11-20, "also, make the default view here": a save still on the sixth, the default every save wrote since 18, loses it and reconcile gives it the new one; `settings.zoom`); 20 (the rewards for coming back and playing, 2026-11-19: `rewards` (`RewardsSave`:
+`Profile` (the save, version 25 (the tips in a new order, 2026-11-21: `tut` 1 a hut, 2 an egg, 3 a workplace, 4 the last (they were 1 a camp, 2 a farm, 3 a hut, 4 an egg, 5 a shop, 6 the last: 1, 2, 3 -> 1; 4 -> 2; 5 -> 3; 6 -> 4), and the questline opening on four huts with Build another hut gone: a save on the questline (`tut` 0, or a quest past the first) keeps its quest, the first four one place later, the fifth on to the sixth); 24 (the leaderboards and friends, 2026-11-21: `social` (`Social`: `referredBy` (the inviter's user id, 0 for none), `refPaid` (the inviter's reward went out), `refPlay` (seconds played toward it, up to `ReferralMinPlaySec`), `invited` and `refDay` / `refToday` (the inviter's friends rewarded, in all and on that UTC day), `here` (Roblox friends on this server: never kept, 0 at every load, `Schema.social`)); an older save gets it fresh); 23 (the View slider's default moved to the seventh notch, 2026-11-20, "also, make the default view here": a save still on the sixth, the default every save wrote since 18, loses it and reconcile gives it the new one; `settings.zoom`); 20 (the rewards for coming back and playing, 2026-11-19: `rewards` (`RewardsSave`:
 `daily { last (UTC day), streak, best, miles }`, `play { day, secs, got }`, `tasks { day, list { TaskSave { id, n, at } },
 got, bonus }`, `spin { day, extra, total }`, `codes` (code -> true), `index { got }`) and `boosts` (timed boost id ->
 seconds left); an older save gets them fresh); 19 (the questline lost its fourth quest, Another camp, 2026-11-18: `quest` past it moves
@@ -224,7 +224,7 @@ count for), `track`); before that 15: `shells` (the one store since 2026-11-14: 
 `pals`, `plot`, `seen` (species -> 2 had one, the Index; 1, seen on the tide, only in a save from then), `eggs` (the
 Hatcheries'), `clutch` (the tree's), `inv` (Build mode's inventory since 2026-11-14: a piece id -> how many wait there,
 1 .. `Plot.INV_MAX`; never the tree; no version bump: `Schema.reconcile` gives an old save `{}`), `nextId` (driftlings
-and pieces share it), `tut` (1 .. 6, 0 done), `quest` (the
+and pieces share it), `tut` (1 .. 4, `Plot.TIP_HUT` .. `TIP_LAST`, 0 done), `quest` (the
 questline's quest on the go, Data/Quests; one past the last: all done), `stats`, `settings`, `createdAt`; no `food` or
 `tree` levels), `ClientView` (the profile's fields, `inv` among them, `social` (`Social.view`: `{ invited, todayLeft, here, boost, referred }`), plus `dayFrac`, `plot` (the plot index), `pieces`, `rates` (`{ shells
 }` a turn, the charm bonus in), `charm`, `charmBonus` (`Island.charmBonus` of it: 0.25 = +25%), `nests` (the huts'
@@ -962,9 +962,10 @@ the session's `dayIndex`: `Island.newDay`, Fx "day"), the stores every second (F
 `clutchLeft`, `clutchSecs` and `clock`: the whole view is not sent for them). `island.expand`'s `Tree.fill` lays in the
 weather too. PlotService's `Eggs` attribute: "id.r" per egg, "id.r.kind" for a touched one, ";" between. `WorldClock` (server): the sea's clock, `os.time()`
 at start advanced by every step (`now`, `advance`, `shift(seconds)` for the sims and previews, `dayIndex`, `dayFrac`); a
-day is `Tuning.DaySeconds` (4 hours). The tips (`tips(s)`, `TIP_KIND`): 1 moves on when a wood building stands, 2 a
-farm, 3 a hut, 4 when an egg has hatched (`stats.taken` above 0 or any driftling), 5 a shop, 6 on OK (`tut.next`); a
-step whose task is already done moves on at once, several in a row if need be (an older save). Every building change
+day is `Tuning.DaySeconds` (4 hours). The tips (`tips(s)`; GAME_DESIGN 9, the request of 2026-11-21): 1
+(`Plot.TIP_HUT`) moves on when a hut stands, 2 (`TIP_HATCH`) when an egg has hatched (`stats.taken` above 0 or any
+driftling), 3 (`TIP_WORK`) when a workplace stands, 4 (`TIP_LAST`) on OK (`tut.next`); a step whose task is already
+done moves on at once, several in a row if need be (an older save); `join` runs them too. Every building change
 (`rebuilt`) runs `Tree.settle` and `Tree.fillJobs` before the island's models are rebuilt; `egg.hatch` runs the tips and
 sends Fx "hatched"; `island.expand` runs `Tree.fill` and, when it laid any, sends Fx "eggs" with `more` the count. The quest's egg (`questEgg`: `Tree.ensure`) runs after `quest.claim` and `tut.next` and once a second on the clock's tick; when an egg turned it marks the session dirty and sends Fx "eggs" with `more` 0 and `turned` (the rarity), so the HUD says "A rare egg waits at the tree." and EggView, seeing the same egg id with another rarity on the plot's `Eggs` attribute, rebuilds its shell and lets it rise again.
 Nothing happens while the player is away: the tree's clock runs only in a ready session.
@@ -2124,8 +2125,10 @@ quest's `mini_` icon, `Title` (wrapping onto a second line when it is wider than
 line: "Discover 12 unique creatures" did till its title became "Find 12 kinds" on 2026-11-19; none wraps now), `Which` ("3/20"), `Words` (up to four lines), then the `Bar` and `Progress` with `QuestGo` (`goTo(go)`: a
 panel, "tree" included, or `BuildUI.open(tab)`), or once done the reward (`Reward_shells`) and
 `QuestClaim` (shining; `quest.claim`, then a notice of what it paid)), the tips banner (`Tips`, kept on the menu bar or the build tray every Heartbeat once its 0.2 s bounce is done, since the tray changes height with no word to the HUD and a correction during the bounce was overwritten by it: the user's report of 2026-11-14, "the tutorial tooltip sometimes gets hidden by the build menu after something is built"; the steps of
-GAME_DESIGN 9 (`tut` 1 .. 6: a Lumber Camp, a farm, a hut, an egg hatched, a Snack Stall, the last; Build
-mode's own words for 1, 2, 3 and 5); tip 6 has `TipsOk`, sending `tut.next`; glass with white words; on a
+GAME_DESIGN 9 (`tut` 1 .. 4: a hut, an egg hatched, a workplace, the last, in the user's words of 2026-11-21;
+`TIPS_BUILD` empty, the same words in Build mode); tip 4 (`Plot.TIP_LAST`) has `TipsOk`, sending `tut.next`; while
+tip 1 or 3 is up and Build mode and every panel are shut, the menu bar's `Menu_build` pulses: its plate the accent
+toward white, its words white, `UIKit.shine` every 1.2 s, attribute `TipPulse` (restored when it stops); glass with white words; on a
 phone held sideways it keeps to the room left of the island card, on one held upright to the width up to the jump
 button (2026-11-18: it had 59 px there and cut its words off), as many lines as its words need; in Build mode it sits
 over the tray and over the Free Decor tab on its corner while that shows, `tipsLift`), and the `DayBanner` (Fx "day" and "turn":
@@ -2268,9 +2271,9 @@ rises 16 UI px and drifts 8 right over 1.8 s, swaying, popping in 2 then 1 px lo
 ### 10.7 `BuildUI` (Build mode), `BuildFx` and `Puffs`
 Prices are `Plot.price(view, id)` everywhere in Build mode (the cards, the tip, the info plate, a stroke's cost, the
 afford key, the inventory's Sell at `Refund` of it) and replacements `Plot.replaceCost(q, id, view)`: with the Free
-Decor pass decor, paths, water and fences cost 0 and read "Free", and so does a Snack Stall while the tips ask for a
-shop (`Plot.TIP_FREE` "stall" on step `Plot.TIP_SHOP` 5, IslandService's `TIP_KIND`; the request of 2026-11-14, "make the
-first snack stall in the tutorial free") (`price` writes "Free" in the accent for 0; a card's
+Decor pass decor, paths, water and fences cost 0 and read "Free", and so does the tips' workplace while the tips ask
+for one (`Plot.tipWork(tier)` on step `Plot.TIP_WORK` 3; the request of 2026-11-14, "make the first snack stall in the
+tutorial free", the best workplace since 2026-11-21) (`price` writes "Free" in the accent for 0; a card's
 `Shells` label says "Free"; GAME_DESIGN 14.2).
 `open(tab?)` (the HUD's Build button; `tab`: the tray opens on that tab, the quests' Go; an old tab's name, `farm`
 `wood` `shop` or `gen`, opens Work on that row; a tip's tab still wins): closes any panel,
@@ -2347,9 +2350,9 @@ another or a tap: `Pick.filled`, `moveGhostTo(pos, tapped?)`; unless it was the 
 Inventory tab; a pick from the
 Inventory tab with none left there is dropped, never bought: "None left.") or `plot.move`, then
 `BuildFx.drop`; `close()`; `isOpen()`; `Changed: Signal<boolean>`. The tray is laid out again on each view, on
-`UIKit.Resized` and when what can be afforded changes (`StateClient.Tick`). The tips (`TUT`: tip 1 Work's Wood row and
-the lumber camp, 2 Farms and the patch, 3 Huts and the hut, 5 Shops and the stall; tip 4, an egg hatched, has no
-building): opening, and each new tip while open (`followTut`, from the rebuild; it waits while a piece is picked),
+`UIKit.Resized` and when what can be afforded changes (`StateClient.Tick`). The tips (`tutOf(step, tier)`: tip 1
+(`Plot.TIP_HUT`) Huts and the hut, 3 (`Plot.TIP_WORK`) Work's Workplaces row and `Plot.tipWork(tier)`; tip 2, an egg
+hatched, has no building; the hut placed with Build mode open on tip 1, it closes 0.8 s after the tips reach tip 2): opening, and each new tip while open (`followTut`, from the rebuild; it waits while a piece is picked),
 turns the tray to the tip's tab and row; the tip's card (`TutGoal`; never one too full or locked) has its whole `Buy_<id>`
 button in the accent yellow (not `button_ok` green), pulsing toward white by `TIP_PALE` (0.35) and shining every
 `TIP_SHINE` (1.2) seconds (`UIKit.setButtonColor`, `UIKit.shine`; 2026-11-20, "make the highlight during tutorial

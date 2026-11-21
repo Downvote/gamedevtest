@@ -684,15 +684,16 @@ local function stepSparks(t: number)
 	sparks = keep
 end
 
--- The tips' step 4 (hatch an egg): an arrow bobbing over the own Tree of Life (a tap on it opens its panel, where the
--- eggs are bought); with the tree off the screen, an arrow at the screen's edge pointing the way to it. The request of
--- 2026-11-14: "auto close the build tab when going to the hatching step and point towards the tree of life for the
--- player to click" (the full-size arrow, 13 px: the small one was easy to miss; Build mode closes itself: BuildUI).
+-- The tips' hatching step (Plot.TIP_HATCH): an arrow bobbing over the own Tree of Life (a tap on it opens its panel,
+-- where the eggs are bought); with the tree off the screen, an arrow at the screen's edge pointing the way to it. The
+-- request of 2026-11-14: "auto close the build tab when going to the hatching step and point towards the tree of life
+-- for the player to click" (the full-size arrow, 13 px: the small one was easy to miss; Build mode closes itself:
+-- BuildUI).
 local tutArrow: ImageLabel? = nil
 local tutArrowName = ""
 local function updateArrow(t: number)
 	local v = StateClient.view()
-	local c = if v and v.tut == 4 and not HatchScene.isOpen() and UIKit.currentPanel() == nil then treeAt(myPlot) else nil
+	local c = if v and v.tut == Plot.TIP_HATCH and not HatchScene.isOpen() and UIKit.currentPanel() == nil then treeAt(myPlot) else nil
 	if c == nil then
 		if tutArrow then
 			tutArrow:Destroy()
