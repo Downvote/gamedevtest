@@ -3205,12 +3205,14 @@ the island keeps to a few bold masses of colour.
 > tree as the centerpiece", then "Make the island small enough for the whole island to be in frame of the icon,
 > without changing the tree size. You can zoom in further on the tree as well", and "Zoom in to this level for the
 > icon. Also, make the island bigger, just enough to hold the eggs on the tree. Its ok for its bottom to slightly be
-> cut off"
+> cut off", and last "Crop the icon as a square such that the island cuts off perfectly at the border. Then, detail and
+> polish it as pixel art illustration, with extra flair to make it more like an icon"
 
-So the icon is the Tree of Life big on the island small: the tree and its rare eggs as close as View notch 7 draws
-them (11 art px a stud, the crown filling the top of the frame), standing on the island drawn at 4 art px a stud, just
-big enough for the ring of eggs (set a few pixels lower under the tree so the ring sits inside the lawn), the bottom of
-its rock cut off by the frame and the sea of clouds. They are two pictures from one camera point, the island's taken with its tree left out and the tree's with
+So the icon is the Tree of Life big on its island: the tree and its rare eggs as close as View notch 7 draws them (11
+art px a stud, the crown 6 px under the top border), standing on the island drawn at 6 art px a stud, wide enough that
+its sides meet the frame's borders, the bottom border cutting across its rock. For an icon's flair: a rim of light
+inside the outline wherever the tree and the island face the sun, rays fanning out behind the crown and a glow round it
+in rings of flat colour, a few blossom petals on the wind, twinkles and small floating rocks in the sky beside it. They are two pictures from one camera point, the island's taken with its tree left out and the tree's with
 everything else left out, so the tree's foot lands on its own spot; the big tree's shade falls on the lawn round it.
 The sky is painted as in the before and after, with the sun at the top left, far islets, small floating rocks, gulls
 and a few twinkles round the crown.

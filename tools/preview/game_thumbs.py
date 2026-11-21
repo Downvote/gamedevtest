@@ -660,91 +660,87 @@ def thumb_days(sc):
     return cv
 
 
-ICON_DROP = 8  # the small island set this many art px lower under the big tree, so its egg ring sits inside the lawn
-
-
 def icon(sc):
-    """The game icon (the requests of 2026-11-21: "make an icon, with the island being the centerpiece", "zoom in
-    more, with the tree as the centerpiece", then "Make the island small enough for the whole island to be in frame
-    of the icon, without changing the tree size. You can zoom in further on the tree as well"): the Tree of Life and
-    its eggs drawn big (gthumbs=icon's second capture, View notch 5) standing on the whole island drawn small (its
-    first capture, 3 art px a stud, the tree left out), both from one camera point so the tree's foot lands on its
-    own spot; on a 256 x 256 grid, 2x: 512 x 512. Drawn as a pixel illustration like the before-and-after: each cut
-    from its sky-only capture and given a whole 1 px outline, the big tree's shade on the lawn, a sky painted in clean
-    bands with the sun at the top left (the light the island is lit by), far islets, small floating rocks, gulls, a
-    few twinkles round the crown and the sea of clouds the island's point sinks into."""
+    """The game icon (the requests of 2026-11-21, last "Crop the icon as a square such that the island cuts off
+    perfectly at the border. Then, detail and polish it as pixel art illustration, with extra flair to make it more
+    like an icon"): the Tree of Life and its eggs drawn big (gthumbs=icon's second capture, View notch 7) on the island
+    (its first capture, 6 art px a stud, the tree left out), both from one camera point so the tree stands on its own
+    spot; on a 256 x 256 grid, 2x: 512 x 512, the island's sides at the frame's borders and the bottom border across
+    its rock. Drawn as a pixel illustration: each cut from its sky-only capture and given a whole 1 px outline, a rim
+    of light inside the outline where the tree and the island face the sun, the big tree's shade on the lawn; the sky
+    painted in clean bands with the sun at the top left, rays fanning out behind the crown, a glow round it in rings
+    of flat colour, a few blossom petals on the wind, twinkles and gulls."""
     fa, sa = sc["icon"], sc["icon_sky"]
     fb, sb = sc["icontree"], sc["icontree_sky"]
     ma = IL.island_mask(fa, sa, near=24)
     mb = IL.island_mask(fb, sb, min_part=12, near=24)
-    # (the island moved down ICON_DROP under the tree: its mask and picture shifted together)
-    ma = [[False] * fa.w for _ in range(ICON_DROP)] + ma[: fa.h - ICON_DROP]
-    fa.px = [[None] * fa.w for _ in range(ICON_DROP)] + fa.px[: fa.h - ICON_DROP]
     IL.outline_edges(fa, ma)
     IL.outline_edges(fb, mb)
     W, H = fa.w, fa.h
-    boxes = [b for b in (IL.mask_box(ma), IL.mask_box(mb)) if b]
-    ux0, uy0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
-    ux1, uy1 = max(b[2] for b in boxes), max(b[3] for b in boxes)
+    ba, bb = IL.mask_box(ma), IL.mask_box(mb)
     S = IW
-    X0 = (ux0 + ux1) // 2 - S // 2
-    Y0 = uy0 - max(8, (S - (uy1 - uy0)) // 2)
-    cv = Art(S, S)
-    cols = range(0, sa.w, 5)
-    top = IL.row_colour(sa, max(0, Y0 - 40), cols)
-    bottom = IL.row_colour(sa, min(sa.h - 1, Y0 + S), cols)
-    IL.paint_sky(cv, top, bottom, 0, int(S * 0.86), bands=8)
-    low = bottom
-    sun_at = (34, 34, 13)
-    IL.sun(cv, *sun_at)
+    X0 = (ba[0] + ba[2]) // 2 - S // 2  # the island's middle in the frame's: its sides at the borders
+    Y0 = bb[1] - 6  # the crown 6 px under the top border
 
     def at(m, x, y):
         X, Y = X0 + x, Y0 + y
         return 0 <= X < W and 0 <= Y < H and m[Y][X]
 
+    cv = Art(S, S)
+    cols = range(0, sa.w, 5)
+    top = IL.row_colour(sa, max(0, Y0 - 40), cols)
+    bottom = IL.row_colour(sa, min(sa.h - 1, Y0 + S), cols)
+    IL.paint_sky(cv, top, bottom, 0, S, bands=8)
+    low = bottom
+    tree_c = (bb[0] + bb[2]) // 2 - X0, bb[1] - Y0 + int((bb[3] - bb[1]) * 0.3)
+    subject = lambda x, y: at(ma, x, y) or at(mb, x, y)
+    sun_at = (26, 26, 12)
+    sky = lambda x, y: 0 <= x < S and 0 <= y < S and not subject(x, y) and math.hypot(x + 0.5 - sun_at[0], y + 0.5 - sun_at[1]) > sun_at[2] + 10
+    IL.sunburst(cv, tree_c[0], tree_c[1], sky)
+    IL.sun(cv, *sun_at)
+    tree_d = IL.distance_to(lambda x, y: at(mb, x, y), S, S, 12)
+    IL.glow(cv, tree_d, sky)
+    # small floating rocks in the sky beside the crown, clear of everything
     busy = Busy(S, S)
     for y in range(S):
         for x in range(S):
-            if at(ma, x, y) or at(mb, x, y):
+            if subject(x, y) or (tree_d[y][x] is not None and tree_d[y][x] <= 6):
                 busy.cells[y][x] = True
     sx, sy, sr = sun_at
     busy.mark_box(sx - sr - 10, sy - sr - 10, sx + sr + 10, sy + sr + 10)
-    busy.mark_box(192, 22, 228, 50)  # the gulls
-    far_c = lambda x, y: mix(cv.get(x, y) or low, (88, 128, 186), 0.22)
-    for (fx, fy, fw) in ((20, 112, 14), (238, 100, 12), (24, 170, 10), (232, 176, 12)):
-        if busy.free(int(fx - fw / 2), fy - 6, int(fx + fw / 2), fy + 12, pad=3):
-            IL.far_islet(cv, fx, fy, fw, far_c(fx, fy))
-    back, mid, front = cloud_tones(low)
-    IL.cloud_sea(cv, [(int(S * 0.86), 11, back[0], back[1]), (int(S * 0.91), 9, mid[0], mid[1])], seed=21)
+    busy.mark_box(200, 18, 236, 44)  # the gulls
     grass, rock = island_tones(fa, ma)
-    for (cx_, ty, w, far, seed) in ((30, 150, 18, 0.0, 3), (226, 140, 16, 0.0, 8), (222, 66, 12, 0.4, 5), (40, 82, 10, 0.45, 9)):
-        if busy.free(int(cx_ - w / 2) - 1, ty - 4, int(cx_ + w / 2) + 1, ty + w + 2, pad=3):
+    for (cx_, ty, w, far, seed) in ((20, 112, 14, 0.25, 3), (236, 96, 14, 0.25, 8), (16, 60, 10, 0.45, 5), (240, 150, 10, 0.4, 9)):
+        if busy.free(int(cx_ - w / 2) - 1, ty - 4, int(cx_ + w / 2) + 1, ty + w + 2, pad=2):
             IL.mini_islet(cx_, ty, w, grass, rock, seed=seed, far=far, sky=cv.get(int(cx_), ty) or low).stamp(cv)
             busy.mark_box(int(cx_ - w / 2) - 2, ty - 4, int(cx_ + w / 2) + 2, ty + w + 3)
-    # the island, then the big tree's shade on it (an oval round its foot, a little toward the lower right, away from
-    # the sun), then the tree and its eggs
+    # the island, the big tree's shade on it (an oval round its foot, toward the lower right, away from the sun), the
+    # tree and its eggs, then the rim of light on both
     fcx, fcy = W // 2 - X0, H // 2 - Y0
     for y in range(S):
         for x in range(S):
             if at(ma, x, y):
                 c = fa.px[Y0 + y][X0 + x]
-                if ((x + 0.5 - (fcx + 10)) / 58.0) ** 2 + ((y + 0.5 - (fcy + 7)) / 24.0) ** 2 <= 1:
+                if ((x + 0.5 - (fcx + 10)) / 62.0) ** 2 + ((y + 0.5 - (fcy + 8)) / 26.0) ** 2 <= 1:
                     c = dark(c, 0.84)
                 cv.put(x, y, c)
     for y in range(S):
         for x in range(S):
             if at(mb, x, y):
                 cv.put(x, y, fb.px[Y0 + y][X0 + x])
-    IL.cloud_sea(cv, [(int(S * 0.955), 8, front[0], front[1])], seed=22)
+    IL.rim_light(cv, lambda x, y: at(mb, x, y), 0.24)
+    IL.rim_light(cv, lambda x, y: at(ma, x, y) and not at(mb, x, y), 0.18)
+    # petals on the wind round the crown, twinkles, gulls
+    for (x, y, t) in ((30, 150, 0), (44, 96, 1), (226, 70, 2), (212, 132, 3), (234, 180, 1), (58, 40, 2), (198, 30, 0)):
+        if 0 <= x < S - 3 and 0 <= y < S - 3 and all(sky(x + dx, y + dy) for dx in range(4) for dy in range(3)):
+            IL.petal(cv, x, y, t)
     gull = mix(low, (60, 92, 140), 0.55)
-    IL.bird(cv, 204, 32, gull, 0)
-    IL.bird(cv, 216, 38, gull, 1)
-    IL.bird(cv, 196, 44, gull, 1)
-    # twinkles round the crown, on the sky only
-    crown = next((y for y in range(S) if any(at(mb, x, y) for x in range(S))), 30)
-    for (dx, dy, arm) in ((-70, 14, 4), (64, 4, 3), (76, 32, 2), (-56, -6, 2)):
+    IL.bird(cv, 212, 26, gull, 0)
+    IL.bird(cv, 224, 32, gull, 1)
+    crown = bb[1] - Y0
+    for (dx, dy, arm) in ((-74, 18, 4), (70, 8, 4), (84, 40, 2), (-60, -2, 2), (-90, 70, 3), (92, 84, 2)):
         x, y = S // 2 + dx, crown + dy
-        if 0 <= x < S and 0 <= y < S and not at(ma, x, y) and not at(mb, x, y):
+        if 0 <= x < S and 0 <= y < S and sky(x, y):
             sparkle_big(cv, x, y, arm, light(PAL["accent"], 0.5))
     return cv
 

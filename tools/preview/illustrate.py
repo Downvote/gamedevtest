@@ -379,3 +379,92 @@ def common_colour(frame, m, test):
                 if c is not None and test(c):
                     count[c] = count.get(c, 0) + 1
     return max(count, key=count.get) if count else None
+
+
+# ---------------------------------------------------------------- an icon's flair
+def distance_to(mask_fn, w, h, limit):
+    """For each pixel, how many steps (8-way) it is from the nearest pixel `mask_fn(x, y)` holds, up to `limit`
+    (None further)."""
+    dist = [[None] * w for _ in range(h)]
+    frontier = [(x, y) for y in range(h) for x in range(w) if mask_fn(x, y)]
+    for (x, y) in frontier:
+        dist[y][x] = 0
+    d = 0
+    while frontier and d < limit:
+        d += 1
+        nxt = []
+        for (x, y) in frontier:
+            for dx, dy in N8:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and dist[ny][nx] is None:
+                    dist[ny][nx] = d
+                    nxt.append((nx, ny))
+        frontier = nxt
+    return dist
+
+
+def glow(cv, dist, sky_fn, steps=((3, 0.3), (7, 0.17), (12, 0.08)), tint=(255, 250, 232)):
+    """A soft glow round a shape in rings of flat colour: the sky `steps[i][0]` px from it or nearer is mixed
+    `steps[i][1]` toward `tint` (only where `sky_fn(x, y)` says it is sky)."""
+    for y in range(cv.h):
+        for x in range(cv.w):
+            d = dist[y][x]
+            if d is None or d == 0 or not sky_fn(x, y):
+                continue
+            for (r, k) in steps:
+                if d <= r:
+                    cv.put(x, y, mix(cv.get(x, y), tint, k))
+                    break
+
+
+def sunburst(cv, cx, cy, sky_fn, n=14, turn=0.12, near=(110, 0.09), far=0.05, tint=(255, 252, 240)):
+    """Rays fanning out from (cx, cy): every other wedge of `n` a flat step lighter (stronger within `near[0]` px),
+    on the sky only."""
+    step = 2 * math.pi / n
+    for y in range(cv.h):
+        for x in range(cv.w):
+            if not sky_fn(x, y):
+                continue
+            a = math.atan2(y + 0.5 - cy, x + 0.5 - cx) + math.pi + turn
+            if int(a / step) % 2 == 0:
+                d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
+                cv.put(x, y, mix(cv.get(x, y), tint, near[1] if d <= near[0] else far))
+
+
+def rim_light(cv, in_fn, k=0.22):
+    """A 1 px rim of light just inside the outline where a shape faces the light (the top left): each pixel of the
+    shape that is not on its edge but touches, up or left, an edge pixel whose own outside is up or left, a step
+    lighter. Returns how many pixels it lit."""
+    W, H = cv.w, cv.h
+
+    def edge(x, y):
+        return in_fn(x, y) and any(not in_fn(x + dx, y + dy) for dx, dy in N4)
+
+    def lit_edge(x, y):
+        return edge(x, y) and (not in_fn(x - 1, y) or not in_fn(x, y - 1))
+
+    out = []
+    for y in range(H):
+        for x in range(W):
+            if in_fn(x, y) and not edge(x, y) and (lit_edge(x - 1, y) or lit_edge(x, y - 1) or lit_edge(x - 1, y - 1)):
+                out.append((x, y))
+    for (x, y) in out:
+        c = cv.get(x, y)
+        if c is not None:
+            cv.put(x, y, light(c, k))
+    return len(out)
+
+
+def petal(cv, x, y, turn, col=(248, 184, 208)):
+    """A blossom petal on the wind: three or four pixels, a darker one where it curls, an outline a darker step of it
+    on its lower right."""
+    shape = (((0, 0), (1, 0), (1, 1)), ((0, 0), (0, 1), (1, 1)), ((0, 0), (1, 0), (2, 1)), ((1, 0), (0, 1), (1, 1)))[turn % 4]
+    curl = dark(col, 0.86)
+    pts = {(x + dx, y + dy) for dx, dy in shape}
+    for (px, py) in pts:
+        for dx, dy in ((1, 0), (0, 1)):
+            q = (px + dx, py + dy)
+            if q not in pts:
+                cv.put(q[0], q[1], ink_of(col))
+    for i, (px, py) in enumerate(sorted(pts)):
+        cv.put(px, py, curl if i == len(pts) - 1 else col)
