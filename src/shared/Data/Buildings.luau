@@ -455,7 +455,7 @@ local LIST: { BuildingDef } = {
 -- the Tree of Life (GAME_DESIGN 6; Logic/Tree): every island has one from the start; it is never bought or cleared
 -- away (tier 99 keeps it off every tab), but it can be moved. Its eggs lie in a ring on the lawn round its stones,
 -- inside its footprint (Controllers/EggView)
-table.insert(LIST, B({ id = "tree", name = "Tree of Life", kind = "tree", w = 8, d = 8, charm = 6, tier = 99, blurb = "Lays eggs round its roots." }))
+table.insert(LIST, B({ id = "tree", name = "Tree of Life", kind = "tree", w = 8, d = 8, charm = 6, tier = 99, blurb = "New eggs show up under it." }))
 
 local BY_ID: { [string]: BuildingDef } = {}
 for _, d in LIST do

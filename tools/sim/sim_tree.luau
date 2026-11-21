@@ -629,7 +629,7 @@ local function lotCheck(label, at, old, next0, f0, st0, said)
 	for _, e in prof.clutch.list do
 		best = math.max(best, e.r)
 	end
-	H.expect(says(p, said or (if best >= 4 then "egg waits at the tree" else "The Tree of Life has new eggs!")), "lot", label .. ": the HUD says the tree laid", said)
+	H.expect(says(p, said or (if best >= 4 then "egg waits at the tree" else "There are new eggs under the tree!")), "lot", label .. ": the HUD says the tree laid", said)
 end
 
 -- the time the server's step laid the next lot: wait for it (no longer than `timeout`)
@@ -874,7 +874,7 @@ res = place("nest")
 H.expect(res.ok and prof.tut == Plot.TIP_HATCH, "build", "a hut: on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
 local hutUid = res.data and res.data.uid
 H.push(p, 0.4)
-H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "The tree laid eggs. Tap it to hatch one.", "build", "the tip: hatch an egg")
+H.expect(tostring(gui(p, "Tips") and gui(p, "Tips").Words:GetAttribute("Source")) == "There are new eggs under the tree! Tap it to hatch one.", "build", "the tip: hatch an egg")
 H.expect(Tree.room(prof) == Buildings.byId.nest.slots, "build", "the hut's room", tostring(Tree.room(prof)))
 local keepShells = prof.shells
 prof.shells = Tree.cost(prof, first.r) - 1
@@ -1278,7 +1278,7 @@ local bestE = 1
 for _, e in ef[1] and ef[1].msg.laid or {} do
 	bestE = math.max(bestE, e.r)
 end
-H.expect(says(p, if bestE >= 4 then "egg waits at the tree" else string.format("The tree laid %d more eggs.", Tree.count(2) - n1)), "expand", "the HUD says how many more")
+H.expect(says(p, if bestE >= 4 then "egg waits at the tree" else "There are new eggs under the tree!"), "expand", "the HUD says how many more")
 local ratio = Tuning.EggTier[2] / Tuning.EggTier[1]
 local priced = true
 -- (less the huts' cost share: a driftling hatched earlier may have a passive that takes some off)

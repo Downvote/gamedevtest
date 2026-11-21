@@ -1673,7 +1673,7 @@ When the island grows into a new stage, the tree is built again at it.
   of play and an eternal one about every fifteen.
 
 - **A bigger island at once** (`Tree.fill`): growing the island tops the lot up to the new count straight away, the
-  new eggs rolled at the new odds ("The tree laid 1 more egg."); the eggs already there stay.
+  new eggs rolled at the new odds ("There are new eggs under the tree!"); the eggs already there stay.
 - **The price** (`Tree.cost`): `EggPrice` by rarity (8, 36, 160, 800, 4,000 shells, 24,000 a mythic egg, 160,000 a
   celestial one, and since 2026-11-20 1,000,000 an ancient one and 6,000,000 an eternal one, the same steps up as
   mythic to celestial; on Everdrift an eternal egg costs 12 billion, about half an hour of a full island's shells)
@@ -1804,8 +1804,10 @@ When the island grows into a new stage, the tree is built again at it.
   the last row): each with its egg, its rarity's name in its colour and its price (green when you have the shells). A
   tap anywhere on the card opens the Tree panel; the card buys nothing itself. On a phone no egg rows (2026-11-14: "for
   mobile, remove the egg list in the tree tab"): the name, Open and the time to the next eggs; "No eggs right now" on a
-  desktop once all are hatched. A new lot gets a notice ("The Tree of Life has new
-  eggs!": the request of 2026-11-14, "the "Tree of life laid new eggs" should be "The tree of life has new eggs!""), and one with an epic or legendary egg in it is news: "An epic egg is waiting under the tree." in its
+  desktop once all are hatched. A new lot gets a notice ("There are new eggs under the tree!", the same words for the
+  extra eggs an expansion brings: the request of 2026-11-21, "For all mentions of the tree "laying" eggs, just say
+  "There are new eggs under the tree!"", after the one of 2026-11-14, "the "Tree of life laid new eggs" should be "The
+  tree of life has new eggs!""), and one with an epic or legendary egg in it is news: "An epic egg is waiting under the tree." in its
   rarity's colour with a bell-tree run and sparkles over the card. The card steps aside in Build mode and while the
   Tree panel is open.
 - **The Tree panel** (Open on the card, a tap on the tree, Eggs in the Driftlings panel, a quest's Go): on the left
@@ -2700,7 +2702,7 @@ The tips since then, in the user's own words (`Plot.TIP_HUT` .. `TIP_LAST`):
 
 1. "Make a place for your driftlings to live in!": a hut. While Build mode is shut the menu bar's Build button pulses
    yellow with a shine across it; Build mode opens on the Huts tab with the hut's card lit up (§4.5).
-2. "The tree laid eggs. Tap it to hatch one.": an egg hatched. Build mode closes itself a moment after the hut goes
+2. "There are new eggs under the tree! Tap it to hatch one.": an egg hatched. Build mode closes itself a moment after the hut goes
    down, and an arrow bobs over your tree, or with the tree off the screen points the way to it from the screen's edge
    (the request of 2026-11-14, "auto close the build tab when going to the hatching step and point towards the tree of
    life for the player to click"). What hatches moves into the hut and rests there.
@@ -3039,7 +3041,7 @@ reason.
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
   ink plate, a new one every few seconds ("Shells pay for eggs and buildings.", "Decor adds charm. Charm brings more shells.", "Decor
-  gives charm for each tile it covers.", "The tree lays new eggs every few minutes.", "Rare driftlings work much
+  gives charm for each tile it covers.", "There are new eggs under the tree every few minutes.", "Rare driftlings work much
   faster.", "Huts full? Swap a weak driftling for a better one.", "Blue-spotted eggs hatch rare ones. Save shells
   for them.", "A bigger island gets more eggs, and better ones."). Everything is laid out from the screen's size each time it changes (the old
   curtain took its size once, so on a window still settling its words sat left of the middle). Roblox's touch

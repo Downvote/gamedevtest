@@ -275,7 +275,7 @@ def thumb_hatch(sc, pics):
 
 def thumb_eggs(sc, pics):
     cv = sc["tree_near"]
-    thumb_caption(cv, "The Tree of Life lays new eggs", top=False)
+    thumb_caption(cv, "There are new eggs under the tree!", top=False)
     return cv
 
 

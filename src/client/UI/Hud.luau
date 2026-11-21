@@ -883,7 +883,7 @@ end
 -- mode is shut, the menu bar's Build button pulses yellow)
 local TIPS: { [number]: string } = {
 	[Plot.TIP_HUT] = "Make a place for your driftlings to live in!",
-	[Plot.TIP_HATCH] = "The tree laid eggs. Tap it to hatch one.",
+	[Plot.TIP_HATCH] = "There are new eggs under the tree! Tap it to hatch one.",
 	[Plot.TIP_WORK] = "You got your first driftling! Now, put down a work space for it to earn coins in.",
 	[Plot.TIP_LAST] = "Great! You can hatch more driftlings from the tree, which refreshes with eggs every few minutes.",
 }
@@ -1053,7 +1053,6 @@ local function onEggs(msg: { [string]: any })
 			best = math.max(best, x.r)
 		end
 	end
-	local more = tonumber(msg.more) or 0
 	if best >= 4 then
 		local rar = Traits.RARITY[best] or Traits.RARITY[1]
 		-- ("An" before an epic, an ancient or an eternal egg; whole sentences, so a language has its own words round the
@@ -1064,12 +1063,10 @@ local function onEggs(msg: { [string]: any })
 		if tc and tc.Parent and tc.Visible then
 			UIKit.burstOn(tc, { rar.color, "accent", "white" }, 18, 40)
 		end
-	elseif more > 0 then
-		-- (one and many as whole sentences, so a language has its own words: Locale/Lang)
-		UIKit.notice(if more == 1 then "The tree laid 1 more egg." else string.format("The tree laid %d more eggs.", more), UIKit.color("good"), 3)
-		Audio.play("rare")
 	else
-		UIKit.notice("The Tree of Life has new eggs!", UIKit.color("good"), 3)
+		-- (new eggs, a fresh lot or the extra ones an expansion brings: the same words either way, the request of
+		-- 2026-11-21: "For all mentions of the tree "laying" eggs, just say "There are new eggs under the tree!"")
+		UIKit.notice("There are new eggs under the tree!", UIKit.color("good"), 3)
 		Audio.play("rare")
 	end
 end

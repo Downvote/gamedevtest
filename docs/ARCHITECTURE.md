@@ -2136,7 +2136,7 @@ over the tray and over the Free Decor tab on its corner while that shows, `tipsL
 the day, what hatched; at least 140 wide, and as wide as its big-font title after the icon (`textWidth(title, "big")`
 + 28: "An egg hatched!" is 142) and each line; over a panel or in Build mode a notice instead; while it shows the
 notices stack below it, `UIKit.setNoticeTop`); the status lines hide under a panel and in Build mode, a line's icon
-is made again only when it changes, and the top chips' words (`topChip`) are put back after the HUD rebuilds; Fx "eggs" (`onEggs`): "The Tree of Life has new eggs!" (with `more`, "The tree laid 2 more eggs.") and the `rare`
+is made again only when it changes, and the top chips' words (`topChip`) are put back after the HUD rebuilds; Fx "eggs" (`onEggs`): "There are new eggs under the tree!" (a fresh lot or an expansion's extra eggs alike) and the `rare`
 sound, or, with an epic or legendary egg among them (or `turned`, the quest's egg, of any rarity: "A rare egg
 waits at the tree."), "An epic egg waits at the tree." in its rarity's colour, the `grow` sound and a
 burst over the `TreeCard`. Shells coming in rise from their chip
@@ -2198,7 +2198,7 @@ tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN
 `BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
 sprite, "Rare egg" in its colour, "Hatches a rare creature" (`Hatches`; "an" before uncommon and epic) and `PanelHatch_<id>` (its cost
 and `PriceIcon`, sending `EggView.hatch`, or with fewer shells than its cost `StoreUI.eggInstead(r)`), or "No eggs
-left. The tree lays more soon."; under them `StoreUI.eggRows`:
+left. More soon."; under them `StoreUI.eggRows`:
 `BuyHead` ("Buy an egg") and a row an egg product from Uncommon up, `BuyEgg_<key>` (its `egg_<r>`, "Rare Egg" in its
 colour, "Free to hatch" and `Buy_<key>`, its Robux, `StoreUI.buy`); with `{ hatch = id }`, every
 hut full, the swap picker: a hint naming the egg's rarity and cost ("Huts full. Pick one to sell for the rare egg

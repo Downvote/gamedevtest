@@ -130,7 +130,7 @@ local TIPS = {
 	"Coins pay for eggs and buildings.",
 	"Decor adds charm. Charm brings more coins.",
 	"Decor gives charm for each tile it covers.",
-	"The tree lays new eggs every few minutes.",
+	"There are new eggs under the tree every few minutes.",
 	"Rare driftlings work much faster.",
 	"Huts full? Swap a weak driftling for a better one.",
 	"Blue-spotted eggs hatch rare ones. Save coins for them.",

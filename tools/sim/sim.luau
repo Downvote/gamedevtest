@@ -709,7 +709,7 @@ H.expect(prof.shells >= Buildings.byId[Plot.tipWork(prof.tier)].shells + 2 * Tun
 local HSp = H.cmod(p, "UI.HatchScene")
 do
 	H.push(p, 0.3)
-	H.expect(statusSays("The tree laid eggs. Tap it to hatch one."), "build", "the tip asks for an egg hatched")
+	H.expect(statusSays("There are new eggs under the tree! Tap it to hatch one."), "build", "the tip asks for an egg hatched")
 	-- (in the client: the cheapest such egg and the screen point in the middle of it, as a tap's position)
 	local function target()
 		local v = H.view(p)

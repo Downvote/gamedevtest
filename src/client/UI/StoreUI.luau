@@ -66,7 +66,7 @@ local PRODUCTS: { Item } = {
 	{ key = "StarterPack", name = "Starter Pack", blurb = "An hour of coins, epic and legendary eggs, the Explorer set and the Early Bird title. Once only.", icon = "mini_gift", pass = false },
 	{ key = "HatcheryNow", name = "Finish Hatcheries", blurb = "Every Hatchery egg ready now.", icon = "mini_nest", pass = false },
 	{ key = "RefreshShop", name = "Shop Refresh", blurb = "Six new pieces in the shop now.", icon = "mini_refresh", pass = false },
-	{ key = "RefreshEggs", name = "New Eggs", blurb = "The tree lays new eggs now.", icon = "mini_tree", pass = false },
+	{ key = "RefreshEggs", name = "New Eggs", blurb = "New eggs under the tree right now.", icon = "mini_tree", pass = false },
 }
 -- (the egg products, Uncommon to Celestial)
 for _, key in Store.PRODUCTS do
