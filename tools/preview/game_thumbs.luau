@@ -399,8 +399,16 @@ return function(env)
 		end
 		local cx, cz = if x0 < math.huge then (x0 + x1) / 2 else 0, if z0 < math.huge then (z0 + z1) / 2 else Street.CENTER.z
 		if icon then
-			-- (the icon centres on the island itself; the layout crops round it)
+			-- (the icon centres on the Tree of Life: the request of 2026-11-21, "zoom in more, with the tree as the
+			-- centerpiece"; the layout crops round it)
 			cx, cz = Street.CENTER.x, Street.CENTER.z
+			for _, q in prof.plot.placed do
+				local d = Buildings.byId[q.id]
+				if d and d.kind == "tree" then
+					local r = Plot.rect(q.id, q.x, q.z, q.rot)
+					cx, cz = (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2
+				end
+			end
 		end
 		log("gthumbs: %s pieces %d, middle %.1f, %.1f", mode, #prof.plot.placed, cx, cz)
 		local function hud()
@@ -420,8 +428,8 @@ return function(env)
 		E.run(0.4)
 		if SU then
 			-- (about the widest notch's span of sky at twice the pixels: 7 art px a stud, notch 3, on the 960 x 540 grid;
-			-- the icon's first island whole on its 256 x 256 grid at 5 a stud, notch 1)
-			H.inClient(p, SU.setZoom, if icon then 1 else 3)
+			-- the icon's tree close at 9 a stud, notch 5)
+			H.inClient(p, SU.setZoom, if icon then 5 else 3)
 		end
 		E.run(0.8)
 		H.closePanel(p)
@@ -462,7 +470,10 @@ return function(env)
 				E.run(2)
 				t += 2
 			end
-			log("gthumbs: %s baked after %d s more, K %s, cast check off %s of %s", mode, t, tostring(H.inClient(p, PRd.pixelScale)), tostring(cc and cc.off), tostring(cc and cc.checked))
+			local ga = if CCd then H.inClient(p, function()
+				return CCd.view().grid.a
+			end) else nil
+			log("gthumbs: %s baked after %d s more, K %s, %s art px a stud, cast check off %s of %s", mode, t, tostring(H.inClient(p, PRd.pixelScale)), tostring(ga), tostring(cc and cc.off), tostring(cc and cc.checked))
 		end
 		E.run(1.5)
 		local name = if icon then "gth_icon" elseif big then "gth_day100" else "gth_day1"

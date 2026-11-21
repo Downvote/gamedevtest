@@ -3201,6 +3201,14 @@ outlined, the sky painted in bands with the sun at the top left (where the islan
 a few twinkles over the tree and a sea of clouds its point sinks into. Small props turn to noise at an icon's size, so
 the island keeps to a few bold masses of colour.
 
+> The requests (2026-11-21): "make an icon with the centerpiece being the floating island", then "zoom in more, with
+> the tree as the centerpiece"
+
+So the icon is the Tree of Life up close: View notch 5 (9 art px a stud) with the camera on the tree, its crown
+against the sky in the middle of the frame, the rare eggs round its roots, the pond and the stall's striped awning at
+the edges and the island running off the frame round it. The sky behind is painted in the game's own colours for that
+height, with the sun at the top left, far islets, a small floating rock, gulls and a few twinkles round the crown.
+
 ## 12. Out of scope for this version
 
 Trading between players, visiting with gifts. (Purchases came in on 2026-11-14: §14; offline earnings on 2026-11-14:
@@ -3291,32 +3299,34 @@ season's kinds in them.
 > and cosmetics, a title and a percentage increase to income, a gamepass that speeds up the tree of life refresh to 5
 > minutes, and a gamepass that allows for decor and paths to be free"
 
-**Ids.** Every pass and product is listed in `Config/Monetization` with an id of 0 until it is made on the Creator
-Dashboard (Monetization, then Passes or Developer Products) and its id is pasted in. An id of 0 is never sent to
-Roblox: the Store still shows the item with its suggested price (`SuggestedRobux`) and says it isn't on sale yet.
+**Ids.** Every pass and product is listed in `Config/Monetization` with its id from the Creator Dashboard
+(Monetization, then Passes or Developer Products); all sixteen were made on 2026-11-21 (the dashboard calls Quick Tree
+"Faster Tree" and Finish Hatcheries "Speed Hatchery"). The Store shows each one's live price once Roblox gives it and
+`SuggestedRobux` (the dashboard's prices) meanwhile. An id of 0 is never sent to Roblox: an item without one shows its
+suggested price and says it isn't on sale yet.
 
 **The passes** (`Profile.passes`, checked again at every join: `MonetizationService.join`; a pass bought in game works
 at once):
 
-| Pass | Suggested | What it does |
+| Pass | Robux | What it does |
 |---|---|---|
-| VIP | 399 | +25% shells (`VipIncome`), a welcome gift once (three hours of shells, two epic eggs, a legendary and a mythic egg, the six VIP pieces and the VIP title) and every UTC day a gift (20 minutes of shells and a rare egg) |
-| Double Income | 299 | every shell x2 (`DoubleIncome`; with VIP x2 x1.25) |
-| Quick Tree | 199 | the Tree of Life lays every 3 minutes, not 6 (`EggSecsPass`; 5 and 10 before 2026-11-17) |
+| VIP | 199 | +25% shells (`VipIncome`), a welcome gift once (three hours of shells, two epic eggs, a legendary and a mythic egg, the six VIP pieces and the VIP title) and every UTC day a gift (20 minutes of shells and a rare egg) |
+| Double Income | 199 | every shell x2 (`DoubleIncome`; with VIP x2 x1.25) |
+| Quick Tree | 99 | the Tree of Life lays every 3 minutes, not 6 (`EggSecsPass`; 5 and 10 before 2026-11-17) |
 | Free Decor | 249 | decor, paths, water and fences cost nothing (`Plot.price`); while it is owned they sell back for nothing too, so no free piece turns into shells |
-| Premium Track | 349 | the pass track's premium side, this season and every one after |
+| Premium Track | 249 | the pass track's premium side, this season and every one after |
 | Offline Pass | 199 | the island earns for up to 24 hours while its player is away, at its full pace (§14.3) |
 
 **The products** (paid once each in `ProcessReceipt`: the purchase id is saved with the profile, and Roblox is told
 the purchase went through only once the save holds it):
 
-| Product | Suggested | What it gives |
+| Product | Robux | What it gives |
 |---|---|---|
-| Uncommon, Rare, Epic, Legendary, Mythic and Celestial Egg | 15, 35, 75, 159, 399, 999 | an egg of that rarity in the bag |
+| Uncommon, Rare, Epic, Legendary, Mythic and Celestial Egg | 19, 29, 49, 99, 159, 199 | an egg of that rarity in the bag |
 | Shop Refresh | 19 | a new set in the rotating shop, till it turns over |
 | Starter Pack | 49 | once: an hour of shells, an epic and a legendary egg, the Explorer Hat and Explorer Shirt, the Early Bird title (bought again: half an hour of shells) |
-| Finish Hatcheries | 29 | every egg warming in the Hatcheries ready now, a tap away from hatching (none warming: half an hour of shells) |
-| New Eggs | 25 | the Tree of Life lays a fresh lot now, the eggs lying there going (its clock run out: the server's next tick lays it, in the weather of the moment) |
+| Finish Hatcheries | 19 | every egg warming in the Hatcheries ready now, a tap away from hatching (none warming: half an hour of shells) |
+| New Eggs | 19 | the Tree of Life lays a fresh lot now, the eggs lying there going (its clock run out: the server's next tick lays it, in the weather of the moment) |
 
 Where they are sold beside the Store (the request of 2026-11-14: "make a developer product to refresh eggs in the tree
 of life, and put the gamepass to cut the tree of life time to 5 min in the tree of life menu as well. add the free
@@ -3446,7 +3456,7 @@ player hasnt joined the group below the starter pack as well"). The chips show o
 
 **The Store.** A Store button closes the menu bar (`mini_store`, a beach stall). Its panel has four tabs along the top:
 
-- **Passes.** The group card first (§14.3), then the six passes, each with a line on what it does and its price in Robux ("R$ 399": the live price once
+- **Passes.** The group card first (§14.3), then the six passes, each with a line on what it does and its price in Robux ("R$ 199": the live price once
   Roblox gives it, else the suggested one), Buy or Owned. Once VIP is owned its row has the daily gift's button
   ("Daily gift", then "Again tomorrow").
 - **Eggs.** The Starter Pack first (gone once bought), Finish Hatcheries (how many eggs are warming), Shop
