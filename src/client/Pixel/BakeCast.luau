@@ -102,7 +102,8 @@ end
 -- and the first one is returned as the tint (the caller blends its colour over what is behind). A see-through part
 -- with nothing behind it (or past the last hop) is the hit itself. Returns the hit part (nil = sky), the depth along
 -- the ray, the quantised normal index, the sun visibility (0 in shadow, 1 lit, LIT_UNKNOWN when deferred), the
--- number of rays cast and the tint part (nil when none).
+-- number of rays cast, the tint part (nil when none) and whether the face hit faces the sun (false when the shadow
+-- mode is SHADOW_OFF: not asked).
 function BakeCast.cast(
 	params: RaycastParams,
 	origin: Vector3,
@@ -110,59 +111,75 @@ function BakeCast.cast(
 	far: number,
 	shadow: number,
 	sun: Vector3
-): (BasePart?, number, number, number, number, BasePart?)
+): (BasePart?, number, number, number, number, BasePart?, boolean)
 	-- (start where the ray comes down through RAY_TOP: the depth still counts from the ray plane)
 	local t0 = 0
 	if dir.Y < -1e-3 and origin.Y > RAY_TOP then
 		t0 = math.min(far, (origin.Y - RAY_TOP) / -dir.Y)
 	end
-	local res = workspace:Raycast(origin + dir * t0, dir * (far - t0), params)
+	local res = workspace:Raycast(if t0 > 0 then origin + dir * t0 else origin, dir * (far - t0), params)
+	if res == nil then
+		return nil, far, BakeCast.SKY_NORMAL, 1, 1, nil, false
+	end
+	-- (each of a result's properties read once: every read crosses into the engine)
+	local hit = res.Instance :: BasePart
+	local dist = res.Distance
 	local rays = 1
 	local travelled = t0
-	local hops = 0
 	local tint: BasePart? = nil
 	local tintRes: RaycastResult? = nil
-	local tintAt = 0
-	while res ~= nil do
-		local tr = res.Instance.Transparency
-		if tr < CLEAR_MIN then
-			break
+	local tintAt, tintDist = 0, 0
+	local tr = hit.Transparency
+	if tr >= CLEAR_MIN then
+		local hops = 0
+		while true do
+			if tr < INVISIBLE and tint == nil then
+				tint, tintRes, tintAt, tintDist = hit, res, travelled, dist
+			end
+			if hops >= MAX_HOPS then
+				res = nil
+				break
+			end
+			travelled += dist + 0.02
+			hops += 1
+			if travelled >= far then
+				res = nil
+				break
+			end
+			res = workspace:Raycast(origin + dir * travelled, dir * (far - travelled), params)
+			rays += 1
+			if res == nil then
+				break
+			end
+			hit, dist = res.Instance :: BasePart, res.Distance
+			tr = hit.Transparency
+			if tr < CLEAR_MIN then
+				break
+			end
 		end
-		if tr < INVISIBLE and tint == nil then
-			tint, tintRes, tintAt = res.Instance, res, travelled
+		if res == nil then
+			if tintRes == nil then
+				return nil, far, BakeCast.SKY_NORMAL, 1, rays, nil, false
+			end
+			-- nothing opaque behind the see-through part: it is what this pixel shows
+			res, hit, dist, travelled, tint = tintRes, tint :: BasePart, tintDist, tintAt, nil
 		end
-		if hops >= MAX_HOPS then
-			res = nil
-			break
-		end
-		travelled += res.Distance + 0.02
-		hops += 1
-		if travelled >= far then
-			res = nil
-			break
-		end
-		res = workspace:Raycast(origin + dir * travelled, dir * (far - travelled), params)
-		rays += 1
 	end
-	if res == nil and tintRes ~= nil then
-		-- nothing opaque behind the see-through part: it is what this pixel shows
-		res, travelled, tint = tintRes, tintAt, nil
-	end
-	if res == nil then
-		return nil, far, BakeCast.SKY_NORMAL, 1, rays, nil
-	end
-	local n = res.Normal
+	local r = res :: RaycastResult
+	local n = r.Normal
 	local ni = Shading.normalIndex(n.X, n.Y, n.Z)
 	local lit = 1
+	local face = false
 	if shadow ~= BakeCast.SHADOW_OFF and n:Dot(sun) > 0 then
+		face = true
 		if shadow == BakeCast.SHADOW_TEST then
 			rays += 1
-			lit = if workspace:Raycast(res.Position + n * 0.05, sun * SHADOW_RAY, params) then 0 else 1
+			lit = if workspace:Raycast(r.Position + n * 0.05, sun * SHADOW_RAY, params) then 0 else 1
 		else
 			lit = LIT_UNKNOWN
 		end
 	end
-	return res.Instance, travelled + res.Distance, ni, lit, rays, tint
+	return hit, travelled + dist, ni, lit, rays, tint, face
 end
 
 -- Sun visibility of a surface point (0 in shadow, 1 lit).

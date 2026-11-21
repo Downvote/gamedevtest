@@ -351,6 +351,14 @@ end
 local SG = {
 	-- (the pan cache, Pixel/PanCache: a pan's strips that were on screen before are copied back, not cast again)
 	Tiles = require(script.Parent.PanCache),
+	-- (which parts can meet the rays where, Pixel/RayMap: pixels it answers need no ray; SG.castPx. noShare: every
+	-- pixel cast, for debugCastCheck's fresh picture; the pixels written as sky and as shared since debugShare)
+	Map = require(script.Parent.RayMap),
+	mapView = nil :: CameraController.View?,
+	noShare = false,
+	skyN = 0,
+	sharedN = 0,
+	raysAt = 0,
 	exclVer = 0, -- (refreshExclude's count: the pre-cast's filter follows it)
 	panAt = -1, -- SG.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
 	need = {} :: { Dyn }, -- (a compose's models to draw afresh, in their order)
@@ -701,33 +709,39 @@ local function texLift(s: Surf, t: TexInfo, ni: number, lit: number, gx: number,
 end
 
 ------------------------------------------------------------------ static shading
-local function shadeAt(s: Surf, idx: number, x: number, y: number): number
-	local gx, gy = x + s.cam.gx, y + s.cam.gy
-	if buffer.readu16(s.sId, idx * 2) == 0 then
+-- The static shade of global pixel (gx, gy) from what it shows: its static id (0: the sky), albedo, normal index + 1,
+-- sun visibility and the hit point (world). castSample hands its own values in; shadeAt reads them off the layer.
+function SG.shadeOf(s: Surf, gx: number, gy: number, id: number, a: number, ni: number, lit: number, wx: number, wy: number, wz: number): number
+	if id == 0 then
 		-- (a stage with a see-through sky: nothing there, the picture behind the layer shows)
 		return if s.view.clear then 0 else Shading.sky(gx, gy - s.skyRef, s.H)
 	end
-	local a = buffer.readu32(s.sAlbedo, idx * 4)
 	if a >= EMISSIVE then
 		return Shading.toonAt(a - EMISSIVE, 0, 1, 0, 2, gx, gy, Shading.INDOOR, 0)
 	end
-	local ni = buffer.readu8(s.sNormal, idx) + 1
-	local lit = buffer.readu8(s.sLit, idx)
 	-- indoors: the hit point inside the office's room box
-	local cam = s.cam
-	local depth = buffer.readf32(s.sDepth, idx * 4)
-	local ox, oy, oz = Raster.origin(cam, x, y)
-	local wx, wy, wz = ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth
 	local r = s.view.room
 	local place = if wx >= r.x0 and wx <= r.x1 and wz >= r.z0 and wz <= r.z1 and wy <= r.y1 then Shading.INDOOR else Shading.OUTDOOR
 	-- the surface's texture (not where glass in front tints it: NO_TEX's colour matches none)
 	local lift, soft = 0, 1
-	local t = texs[buffer.readu16(s.sId, idx * 2)]
+	local t = texs[id]
 	if t and t.rgb == a then
 		lift = texLift(s, t, ni, lit, gx, gy)
 		soft = TEX_SOFT[t.kind] or 1 -- (a mark a gentle tone, not a whole band: Shading.TEX_SOFT)
 	end
 	return Shading.toonAt(a, NX[ni], NY[ni], NZ[ni], lit, gx, gy, place, lift, soft)
+end
+
+local function shadeAt(s: Surf, idx: number, x: number, y: number): number
+	local cam = s.cam
+	local gx, gy = x + cam.gx, y + cam.gy
+	local id = buffer.readu16(s.sId, idx * 2)
+	if id == 0 then
+		return SG.shadeOf(s, gx, gy, 0, 0, 0, 0, 0, 0, 0)
+	end
+	local depth = buffer.readf32(s.sDepth, idx * 4)
+	local ox, oy, oz = Raster.origin(cam, x, y)
+	return SG.shadeOf(s, gx, gy, id, buffer.readu32(s.sAlbedo, idx * 4), buffer.readu8(s.sNormal, idx) + 1, buffer.readu8(s.sLit, idx), ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth)
 end
 
 -- One bake sample at global (gx, gy), filling the block up to (bx1, by1) (global, inclusive) on the layer.
@@ -740,15 +754,18 @@ end
 local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: number, own: boolean, shadows: boolean)
 	local cam = s.cam
 	local x, y = gx - cam.gx, gy - cam.gy
-	local ox, oy, oz = Raster.origin(cam, x, y)
-	local mode = if own then (if shadows then BakeCast.SHADOW_TEST else BakeCast.SHADOW_OFF) else BakeCast.shadowMode(shadows, gx, gy)
-	local part, depth, ni, lit, rays, tint = BakeCast.cast(params, Vector3.new(ox, oy, oz), s.look, FAR, mode, SUN_V)
+	-- (Raster.origin and BakeCast.shadowMode, written out: this runs for every pixel cast)
+	local ox, oy, oz = cam.gox + gx * cam.ix + gy * cam.jx, cam.goy + gx * cam.iy + gy * cam.jy, cam.goz + gx * cam.iz + gy * cam.jz
+	local mode = if not shadows then BakeCast.SHADOW_OFF elseif own or (gx % 2 == 0 and gy % 2 == 0) then BakeCast.SHADOW_TEST else BakeCast.SHADOW_DEFER
+	local part, depth, ni, lit, rays, tint, face = BakeCast.cast(params, Vector3.new(ox, oy, oz), s.look, FAR, mode, SUN_V)
 	bakeRays += rays
+	-- (the hit point)
+	local wx, wy, wz = ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth
 	if part ~= nil then
 		-- (a part of a model lit smooth, the Tree of Life: the normal blended across its balls, in a fine direction;
 		-- Render/Smooth)
 		local k0 = ni + 1
-		local snx, sny, snz = SmoothParts.staticNormal(part, ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth, NX[k0], NY[k0], NZ[k0])
+		local snx, sny, snz = SmoothParts.staticNormal(part, wx, wy, wz, NX[k0], NY[k0], NZ[k0])
 		if snx and sny and snz then
 			ni = Shading.fineIndex(snx, sny, snz)
 		end
@@ -781,8 +798,7 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 			end
 			if not shared then
 				local k = ni + 1
-				local pos = Vector3.new(ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth)
-				lit = BakeCast.sunVisible(params, pos, Vector3.new(NX[k], NY[k], NZ[k]), SUN_V)
+				lit = BakeCast.sunVisible(params, Vector3.new(wx, wy, wz), Vector3.new(NX[k], NY[k], NZ[k]), SUN_V)
 				bakeRays += 1
 			end
 		end
@@ -796,7 +812,6 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	local wcls = if part ~= nil and tint == nil then waters[id] or 0 else 0
 	local wph = 0
 	if wcls ~= 0 then
-		local wx, wz = ox + cam.lx * depth, oz + cam.lz * depth
 		if wcls == 4 then
 			-- leaves: gusts sweeping slowly across the islands (a canopy moves as one)
 			wph = math.floor((wx * 0.22 + wz * 0.16) * 4) % 256
@@ -805,7 +820,6 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 			wph = math.floor((wx * 1.6 + wz * 1.1) * 4) % 256
 		elseif wcls == 6 then
 			-- falling water: by height (the streaks run down it), each thin column of it a little apart from the next
-			local wy = oy + cam.ly * depth
 			wph = (math.floor(wy * 6) + math.floor((wx + wz) * 3) * 5) % 256
 		else
 			wph = waterPhase(wx, wz)
@@ -813,13 +827,15 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 	end
 	buffer.writeu8(s.sWClass, idx, wcls)
 	buffer.writeu8(s.sWave, idx, wph)
-	buffer.writeu8(s.sShare, idx, if shared then 1 else 0)
+	-- (1: the sun copied from the anchor; 2: a face toward the sun with a ray of its own, which a pixel sharing this
+	-- anchor's face takes its sun from: SG.shareAt)
+	buffer.writeu8(s.sShare, idx, if shared then 1 elseif face then 2 else 0)
 	buffer.writeu16(s.sId, idx * 2, id)
 	buffer.writef32(s.sDepth, idx * 4, depth)
 	buffer.writeu32(s.sAlbedo, idx * 4, albedo)
 	buffer.writeu8(s.sNormal, idx, ni)
 	buffer.writeu8(s.sLit, idx, lit)
-	local c = shadeAt(s, idx, x, y)
+	local c = SG.shadeOf(s, gx, gy, id, albedo, ni + 1, lit, wx, wy, wz)
 	buffer.writeu32(s.sShade, idx * 4, c)
 	for by = y, y1 do
 		local row = by * W
@@ -837,6 +853,232 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 				buffer.writeu32(s.sShade, b * 4, c)
 			end
 		end
+	end
+end
+
+-- Global pixel (gx, gy) as the sky, filling its block up to (bx1, by1) as castSample would after a ray that met
+-- nothing: for a pixel no part can reach (Pixel/RayMap), no ray needed.
+function SG.skyAt(s: Surf, gx: number, gy: number, bx1: number, by1: number)
+	local cam = s.cam
+	local W = s.W
+	local x, y = gx - cam.gx, gy - cam.gy
+	local c = SG.shadeOf(s, gx, gy, 0, 0, 0, 0, 0, 0, 0)
+	local x1, y1 = math.min(bx1 - cam.gx, W - 1), math.min(by1 - cam.gy, s.H - 1)
+	local idx = y * W + x
+	for by = y, y1 do
+		local row = by * W
+		for bx = x, x1 do
+			local b = row + bx
+			buffer.writeu8(s.sShare, b, if b == idx then 0 else 1)
+			buffer.writeu8(s.sWClass, b, 0)
+			buffer.writeu8(s.sWave, b, 0)
+			buffer.writeu16(s.sId, b * 2, 0)
+			buffer.writef32(s.sDepth, b * 4, FAR)
+			buffer.writeu32(s.sAlbedo, b * 4, 0)
+			buffer.writeu8(s.sNormal, b, BakeCast.SKY_NORMAL)
+			buffer.writeu8(s.sLit, b, 1)
+			buffer.writeu32(s.sShade, b * 4, c)
+		end
+	end
+	SG.skyN += 1
+end
+
+-- Whether the ray from (ox, oy, oz) along (lx, ly, lz) meets part p's box (grown by 0.01 studs) before the depth
+-- tmax (and a hair past it: a face level with the one at tmax counts as in front). The part is inside its box
+-- whatever its shape, so a miss is a miss of the part.
+function SG.boxHit(p: BasePart, ox: number, oy: number, oz: number, lx: number, ly: number, lz: number, tmax: number): boolean
+	local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
+	local size = p.Size
+	local dx, dy, dz = ox - cx, oy - cy, oz - cz
+	local t0, t1 = -math.huge, math.huge
+	for axis = 1, 3 do
+		local ax, ay, az, h
+		if axis == 1 then
+			ax, ay, az, h = r00, r10, r20, size.X / 2
+		elseif axis == 2 then
+			ax, ay, az, h = r01, r11, r21, size.Y / 2
+		else
+			ax, ay, az, h = r02, r12, r22, size.Z / 2
+		end
+		h += 0.01
+		local o = dx * ax + dy * ay + dz * az
+		local d = lx * ax + ly * ay + lz * az
+		if math.abs(d) < 1e-9 then
+			if o < -h or o > h then
+				return false
+			end
+		else
+			local ta, tb = (-h - o) / d, (h - o) / d
+			if ta > tb then
+				ta, tb = tb, ta
+			end
+			t0, t1 = math.max(t0, ta), math.min(t1, tb)
+			if t0 > t1 then
+				return false
+			end
+		end
+	end
+	return t1 >= 0 and t0 < tmax + 0.02
+end
+
+-- Global pixel (gx, gy), not a 2x2 anchor, from the anchors either side of it (left and right, above and below) or
+-- round it (both odd), with no ray, when the anchors, all inside the layer rect being cast (rx0 .. rx1, ry0 .. ry1,
+-- layer px), met the same flat face of one of the block's two nearest parts (Pixel/RayMap: p1, p2, how near p2 and the
+-- third come, whether p1 and p2 are flat), and nothing else can be in front of that face at the pixel: the third part
+-- on comes no nearer, and the other of the two comes no nearer or the pixel's ray misses its box. The pixel's ray
+-- would cross the face between the anchors, at the depth between theirs, and meet nothing before it (the request of
+-- 2026-11-21, "Cast fewer main rays"). Its sun is its block's anchor's, as castSample shares it. Writes the pixel as
+-- castSample would and returns true; false when it needs its ray.
+function SG.shareAt(s: Surf, gx: number, gy: number, p1: BasePart, p2: BasePart?, near2: number, near3: number, flat1: boolean, flat2: boolean, shadows: boolean, rx0: number, ry0: number, rx1: number, ry1: number): boolean
+	-- (the cheap tests first: the part's own properties are read last, each read goes into the engine)
+	local cam = s.cam
+	local W = s.W
+	local x, y = gx - cam.gx, gy - cam.gy
+	local ax0, ay0 = x - gx % 2, y - gy % 2
+	local ax1, ay1 = x + gx % 2, y + gy % 2
+	if ax0 < rx0 or ay0 < ry0 or ax1 > rx1 or ay1 > ry1 then
+		return false
+	end
+	local sId, sNormal, sDepth = s.sId, s.sNormal, s.sDepth
+	local a0 = ay0 * W + ax0 -- (the block's anchor)
+	local id = buffer.readu16(sId, a0 * 2)
+	-- the face the anchors met: of the block's nearest part, or of the next (the nearest then the one to test)
+	local part: BasePart, other: BasePart?
+	if id == 0 then
+		return false
+	elseif staticIds[p1] == id then
+		if not flat1 then
+			return false
+		end
+		part, other = p1, p2
+	elseif p2 and staticIds[p2] == id then
+		if not flat2 then
+			return false
+		end
+		part, other = p2, p1
+		near2 = 0 -- (the nearest may come in front: its box is tested below)
+	else
+		return false
+	end
+	local ni = buffer.readu8(sNormal, a0)
+	local a1 = ay0 * W + ax1
+	local a2 = ay1 * W + ax0
+	local a3 = ay1 * W + ax1
+	if buffer.readu16(sId, a1 * 2) ~= id or buffer.readu8(sNormal, a1) ~= ni then
+		return false
+	end
+	local d0, d1 = buffer.readf32(sDepth, a0 * 4), buffer.readf32(sDepth, a1 * 4)
+	local depth: number
+	if a2 == a0 then
+		depth = (d0 + d1) / 2
+	else
+		if buffer.readu16(sId, a2 * 2) ~= id or buffer.readu8(sNormal, a2) ~= ni then
+			return false
+		end
+		local d2 = buffer.readf32(sDepth, a2 * 4)
+		if a3 == a2 then
+			depth = (d0 + d2) / 2
+		else
+			if buffer.readu16(sId, a3 * 2) ~= id or buffer.readu8(sNormal, a3) ~= ni then
+				return false
+			end
+			local d3 = buffer.readf32(sDepth, a3 * 4)
+			if math.abs(d0 + d3 - d1 - d2) > 1e-3 then
+				return false
+			end
+			depth = (d0 + d1 + d2 + d3) / 4
+		end
+	end
+	-- nothing else of the block in front of the face here: the third part on comes no nearer than the face, and the
+	-- other of the two either does not or its box is not on the pixel's ray before the face
+	local ox, oy, oz = Raster.origin(cam, x, y)
+	if near2 <= depth then
+		if near3 <= depth or other == nil then
+			return false
+		end
+		if SG.boxHit(other :: BasePart, ox, oy, oz, cam.lx, cam.ly, cam.lz, depth) then
+			return false
+		end
+	end
+	if (waters[id] or 0) ~= 0 then
+		return false -- (the water's phase comes from the hit point: left to its ray, to the last bit)
+	end
+	if part.Transparency >= BakeCast.CLEAR_MIN then
+		return false -- (a see-through face: what its ray meets behind it is not on the map)
+	end
+	local albedo = albedos[id]
+	local lit, shared = 1, false
+	if albedo >= EMISSIVE then
+		lit = 2
+	elseif shadows and buffer.readu8(s.sShare, a0) == 2 then
+		-- (the face looks at the sun: the anchor's sun, as castSample copies it)
+		local alit = buffer.readu8(s.sLit, a0)
+		if alit > 1 then
+			return false
+		end
+		lit, shared = alit, true
+	end
+	if texs[id] == nil then
+		texs[id] = texInfoOf(s, part, albedo, 0)
+	end
+	local idx = y * W + x
+	buffer.writeu8(s.sWClass, idx, 0)
+	buffer.writeu8(s.sWave, idx, 0)
+	buffer.writeu8(s.sShare, idx, if shared then 1 else 0)
+	buffer.writeu16(sId, idx * 2, id)
+	buffer.writef32(sDepth, idx * 4, depth)
+	buffer.writeu32(s.sAlbedo, idx * 4, albedo)
+	buffer.writeu8(sNormal, idx, ni)
+	buffer.writeu8(s.sLit, idx, lit)
+	buffer.writeu32(s.sShade, idx * 4, SG.shadeOf(s, gx, gy, id, albedo, ni + 1, lit, ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth))
+	SG.sharedN += 1
+	return true
+end
+
+-- One pixel of a cast over a layer rect (rx0 .. rx1, ry0 .. ry1, layer px), filling its block up to (bx1, by1) (global,
+-- inclusive) as castSample does: the sky with no ray where no part reaches it (Pixel/RayMap), the face its anchors met
+-- where it is sure to show (SG.shareAt; a pixel of its own, not an anchor or a stand-in), else its ray. The island's own view
+-- only: a stage's parts are not on the map, nor is the next island the pre-cast draws.
+function SG.castPx(s: Surf, gx: number, gy: number, bx1: number, by1: number, own: boolean, shadows: boolean, rx0: number, ry0: number, rx1: number, ry1: number)
+	if not SG.noShare and not s.view.stage then
+		local part, p2, near2, near3, flat1, flat2 = SG.Map.at(gx, gy)
+		if part == false then
+			SG.skyAt(s, gx, gy, bx1, by1)
+			return
+		elseif part and not own and bx1 == gx and by1 == gy and (gx % 2 == 1 or gy % 2 == 1) and SG.shareAt(s, gx, gy, part :: BasePart, p2, near2, near3, flat1, flat2, shadows, rx0, ry0, rx1, ry1) then
+			return
+		end
+	end
+	castSample(s, gx, gy, bx1, by1, own, shadows)
+end
+
+-- The map of which parts reach where (Pixel/RayMap) kept for the island in view: its window the plot's lot from as low
+-- as an island's rock hangs to as high as anything on it stands (Tuning.PixelMapLow, PixelMapHigh: past it pixels are
+-- cast as ever), a little of its queue a frame (more while it is being made, and with the screen hidden).
+function SG.mapStep()
+	local v = CameraController.view()
+	if v.stage then
+		return
+	end
+	if v ~= SG.mapView then
+		SG.mapView = v
+		local ox = Street.origin(v.plot)
+		local L = Street.LOT
+		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		for _, wx in { ox + L.x0, ox + L.x1 } do
+			for _, wy in { Tuning.PixelMapLow, Tuning.PixelMapHigh } do
+				for _, wz in { L.z0, L.z1 } do
+					local px, py = Raster.gridPoint(v.rot12, v.grid, wx, wy, wz)
+					x0, y0, x1, y1 = math.min(x0, px), math.min(y0, py), math.max(x1, px), math.max(y1, py)
+				end
+			end
+		end
+		SG.Map.setView(v.rot12, v.grid.q, v.grid.phX, v.grid.phY, v.grid.l - Tuning.CamRayBack, math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1))
+	end
+	local ms = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs elseif SG.Map.ready() then Tuning.PixelMapMs else Tuning.PixelMapBuildMs
+	local m0 = SG.clock()
+	if SG.Map.step(m0 + ms / 1000, SG.clock) then
+		stats.perf.mapMs = (stats.perf.mapMs or 0) + (SG.clock() - m0) * 1000
 	end
 end
 
@@ -1437,11 +1679,11 @@ local function bakeRun(s: Surf, b: Surf, deadline: number): boolean
 				local x, y = math.max(bx, bakeRX0), math.max(by, bakeRY0)
 				if x == bx and y == by then
 					if not BakeCast.skip(bakePass, x, y) then
-						castSample(b, x, y, bx + st - 1, by + st - 1, false, shadows)
+						SG.castPx(b, x, y, bx + st - 1, by + st - 1, false, shadows, 0, 0, b.W - 1, b.H - 1)
 					end
 				elseif bakePass < 3 then
 					-- a block starting off the layer: a stand-in at its first pixel on it (later passes replace it)
-					castSample(b, x, y, bx + st - 1, by + st - 1, true, shadows)
+					SG.castPx(b, x, y, bx + st - 1, by + st - 1, true, shadows, 0, 0, b.W - 1, b.H - 1)
 				end
 			end
 			bakeGX = bakeOX
@@ -4366,7 +4608,7 @@ local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number,
 				local gx = x + gx0
 				local anchor = gx % 2 == 0 and gy % 2 == 0
 				if anchor == (phase == 1) then
-					castSample(s, gx, gy, gx, gy, false, shadows)
+					SG.castPx(s, gx, gy, gx, gy, false, shadows, x0, y0, x1, y1)
 				end
 			end
 		end
@@ -4374,6 +4616,37 @@ local function castRect(s: Surf, x0: number, y0: number, x1: number, y1: number,
 	-- the rect's shadow edges (and its border's, which may meet a changed pixel) on the pixel grid
 	if shadows and not noRefine then
 		refineShadows(s, x0 - 1, y0 - 1, x1 + 1, y1 + 1)
+	end
+	return bakeRays - before
+end
+
+-- Cast the pieces of a scroll's strips (layer rects, inclusive) by the bake's last pass, the anchors of all of them
+-- first: then every pixel of the layer is cast once the anchors are, so a pixel by a piece's edge may take its face
+-- from an anchor past it (SG.castPx), unless a re-cast is still to come somewhere (its pixels may be of a part that has
+-- moved since). No shadow edges refined here (SG.finishStrips does them). Returns the rays cast.
+function SG.castStrips(s: Surf, pieces: { Rect }): number
+	local shadows = tierSpec(tier).shadows
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local whole = invCur == nil and #invQueue == 0
+	local before = bakeRays
+	for phase = 1, 2 do
+		for _, q in pieces do
+			local x0, y0 = math.max(0, q.x0), math.max(0, q.y0)
+			local x1, y1 = math.min(s.W - 1, q.x1), math.min(s.H - 1, q.y1)
+			local ax0, ay0, ax1, ay1 = x0, y0, x1, y1
+			if whole then
+				ax0, ay0, ax1, ay1 = 0, 0, s.W - 1, s.H - 1
+			end
+			for y = y0, y1 do
+				local gy = y + gy0
+				for x = x0, x1 do
+					local gx = x + gx0
+					if (gx % 2 == 0 and gy % 2 == 0) == (phase == 1) then
+						SG.castPx(s, gx, gy, gx, gy, false, shadows, ax0, ay0, ax1, ay1)
+					end
+				end
+			end
+		end
 	end
 	return bakeRays - before
 end
@@ -4624,19 +4897,21 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		table.insert(strips, { x0 = cx0, y0 = 0, x1 = cx1, y1 = -sy - 1 })
 	end
 	local c0 = SG.clock()
+	local pieces: { Rect } = {}
 	for _, r in strips do
 		if cacheOn then
 			-- (a piece of the strip the cache holds whole is copied in; the rest is cast)
 			local gx1, gy1 = s.cam.gx, s.cam.gy
 			for _, q in SG.Tiles.split(gx1, gy1, r.x0, r.y0, r.x1, r.y1) do
 				if not SG.Tiles.load(s, gx1, gy1, q.x0, q.y0, q.x1, q.y1) then
-					rays += castRect(s, q.x0, q.y0, q.x1, q.y1, true)
+					table.insert(pieces, q)
 				end
 			end
 		else
-			rays += castRect(s, r.x0, r.y0, r.x1, r.y1, true)
+			table.insert(pieces, r)
 		end
 	end
+	rays += SG.castStrips(s, pieces)
 	local c1 = SG.clock()
 	stats.perf.castMs += (c1 - c0) * 1000
 	-- the strips' shadow edges, ink, contact shade and grade: on the next frame while the strips lie in the margin past
@@ -4766,6 +5041,9 @@ local function processInvalidation()
 		local r = c.r
 		local shadows = tierSpec(tier).shadows
 		local gx0, gy0 = s.cam.gx, s.cam.gy
+		-- (the rect on the layer: the anchors a pixel may take its face from)
+		local lx0, ly0 = math.max(0, r.x0 - gx0), math.max(0, r.y0 - gy0)
+		local lx1, ly1 = math.min(s.W - 1, r.x1 - gx0), math.min(s.H - 1, r.y1 - gy0)
 		local n = 0
 		while c.phase <= 2 and bakeRays - start < budget do
 			n += 1
@@ -4775,7 +5053,7 @@ local function processInvalidation()
 			local gx, gy = c.gx, c.gy
 			local x, y = gx - gx0, gy - gy0
 			if x >= 0 and y >= 0 and x < s.W and y < s.H and ((gx % 2 == 0 and gy % 2 == 0) == (c.phase == 1)) then
-				castSample(s, gx, gy, gx, gy, false, shadows)
+				SG.castPx(s, gx, gy, gx, gy, false, shadows, lx0, ly0, lx1, ly1)
 			end
 			c.gx += 1
 			if c.gx > r.x1 then
@@ -5608,7 +5886,7 @@ function SG.aheadPiece(s: Surf, deadline: number): boolean
 		end
 		local gx, gy = cc.x + gx0, cc.y + gy0
 		if (gx % 2 == 0 and gy % 2 == 0) == (cc.phase == 1) then
-			castSample(ps, gx, gy, gx, gy, false, shadows)
+			SG.castPx(ps, gx, gy, gx, gy, false, shadows, cc.cx0, cc.cy0, cc.cx1, cc.cy1)
 		end
 		cc.x += 1
 		if cc.x > cc.cx1 then
@@ -5661,6 +5939,7 @@ local function frameStep(dt: number)
 		startBake()
 	end
 	refreshExclude()
+	SG.mapStep()
 	if baking then
 		local budget = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs else Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8)
 		bakeSome(SG.clock() + budget / 1000)
@@ -5788,6 +6067,7 @@ local function watchStatic()
 	if plots == nil then
 		return
 	end
+	SG.Map.watch(plots)
 	-- A part came to or left a model lit as one smooth surface (the Tree of Life; `sm`, SmoothParts.changed has dropped
 	-- its balls already): the whole model's box is cast again once this frame, since every pixel of it was lit from the
 	-- balls there were (in the game the tree's parts arrive over several frames).
@@ -5952,6 +6232,14 @@ end
 
 -- The pan look-ahead's counts since the last call (previews): tiles cast and kept, cast and dropped (their ground
 -- changed meanwhile), rays.
+-- Previews: the pixels written as sky with no ray and as shared from their anchors (SG.castPx), and the rays cast,
+-- since the last call, and the map's state (Pixel/RayMap).
+function PixelRenderer.debugShare(): { sky: number, shared: number, rays: number, map: { parts: number, chunks: number, queued: number, ready: boolean } }
+	local out = { sky = SG.skyN, shared = SG.sharedN, rays = bakeRays - SG.raysAt, map = SG.Map.debugState() }
+	SG.skyN, SG.sharedN, SG.raysAt = 0, 0, bakeRays
+	return out
+end
+
 function PixelRenderer.debugAhead(): { tiles: number, dropped: number, rays: number }
 	local st = SG.ahead.stats
 	local out = table.clone(st)
@@ -6568,7 +6856,10 @@ function PixelRenderer.debugCastCheck(full: boolean?, mask: boolean?): { off: nu
 		buffer.copy(saved[k], 0, sa[k], 0)
 	end
 	local rays0 = bakeRays
+	-- (every pixel's own ray: the pixels the layer took from the map, SG.castPx, are checked against them)
+	SG.noShare = true
 	castRect(s, 0, 0, s.W - 1, s.H - 1)
+	SG.noShare = false
 	if full then
 		reoutline(s, 0, 0, s.W - 1, s.H - 1)
 	end
@@ -6674,6 +6965,50 @@ function PixelRenderer.debugCastCheck(full: boolean?, mask: boolean?): { off: nu
 		out.tiles = nt
 		out.box = if bx1 >= 0 then { bx0, by0, bx1, by1 } else nil
 		out.mask = mk
+	end
+	return out
+end
+
+-- Previews: the whole layer cast again `reps` times each way, every pixel its own ray and with the map's answers
+-- (SG.castPx), alternately, the shadow edges left alone; the ms each way took on average, the rays each cast, and the
+-- pixels the map answered. The layer is put back as it was.
+function PixelRenderer.debugCastBench(reps: number): { plainMs: number, mapMs: number, plainRays: number, mapRays: number, sky: number, shared: number }
+	local s = surf
+	local out = { plainMs = 0, mapMs = 0, plainRays = 0, mapRays = 0, sky = 0, shared = 0 }
+	if s == nil or baking then
+		return out
+	end
+	local names = { "sShade", "sAlbedo", "sDepth", "sNormal", "sLit", "sId", "sShare", "sWClass", "sWave" }
+	local sa = s :: any
+	local saved: { [string]: buffer } = {}
+	for _, k in names do
+		saved[k] = buffer.create(buffer.len(sa[k]))
+		buffer.copy(saved[k], 0, sa[k], 0)
+	end
+	local rays0, sky0, shared0 = bakeRays, SG.skyN, SG.sharedN
+	for _ = 1, reps do
+		for pass = 1, 2 do
+			SG.noShare = pass == 1
+			local r0 = bakeRays
+			local sk, sh = SG.skyN, SG.sharedN
+			local t0 = os.clock()
+			castRect(s, 0, 0, s.W - 1, s.H - 1, true)
+			local ms = (os.clock() - t0) * 1000
+			if pass == 1 then
+				out.plainMs += ms / reps
+				out.plainRays += (bakeRays - r0) / reps
+			else
+				out.mapMs += ms / reps
+				out.mapRays += (bakeRays - r0) / reps
+				out.sky += (SG.skyN - sk) / reps
+				out.shared += (SG.sharedN - sh) / reps
+			end
+		end
+	end
+	SG.noShare = false
+	bakeRays, SG.skyN, SG.sharedN = rays0, sky0, shared0
+	for _, k in names do
+		buffer.copy(sa[k], 0, saved[k], 0)
 	end
 	return out
 end

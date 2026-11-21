@@ -132,7 +132,7 @@ src/shared/            Types, Net, Config (Tuning, Monetization), Data (content)
                        maths, copied; Fx, the effects in the pixel layer), Models (procedural models), Locale (Lang and the nine generated language tables: docs/LOCALIZATION.md)
 src/server/            Main.server.luau, Services/* (DataService, Session, Router, IslandService, PlotService)
 src/client/            Main.client.luau, Controllers/* (StateClient, CameraController, WorldView, EggView,
-                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
+                       AvatarView, StreetLife, AmbientView, Audio, DayLight, BuildFx, Puffs), Pixel/* (PixelRenderer, BakeCast, RayMap, PixelText, Snapshot, ImageMemory), UI/* (UIKit, Hud,
                        Menus, BuildUI, StoreUI, FounderUI, SkyBackdrop, VisitUI, PixelSprites, ArtData and ThumbData (generated),
                        Words, PalTip)
 src/first/             ReplicatedFirst.Loading (with Render/PixelFont and PixelFontData mapped beside it): Boot.client
@@ -314,7 +314,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `PixelPanEdge` (4: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21), `PixelPanLate`
   (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
   Pans), `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
   drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
@@ -1572,6 +1572,44 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   24.6 ms a frame on average (50.0 at the 90th percentile, 96.8 at worst) to about 18 (27 to 29, 39 to 45) on new
   ground and from 15.5 (26.1, 43.7) to about 11 to 12 (18 to 21, 27 to 39) over ground seen before, standing from 8.8
   (19.3) to about 8 (15); the simulator's rays are much slower than Roblox's own.
+- **The ray map** (`Pixel/RayMap`, `SG.Map`; the user's question of 2026-11-21, "what is the heaviest portion of the
+  raycasting?", the answer that it was the one ray down for every pixel, and the requests after it, "Cast fewer main
+  rays" and "and 2 as well", the second the per-pixel work round the ray). For every 2x2 block of the global art grid
+  in a window round the island in view (its plot's lot, `Tuning.PixelMapLow` to `PixelMapHigh` studs high, projected)
+  the map keeps the part that can come nearest the camera there, the next, and how near the second and the third can
+  come. A part's outline is its box's corners projected, the hexagon round them grown by 0.1 art px for a block or a
+  wedge and 0.5 for a round part (a single-precision ball test can stray a hair); a block counts it when the outline
+  reaches the square its four pixel centres span; how near it comes over a block row is the least depth of its box
+  between the row's top and bottom, along the view from the ray plane (`grid.l - CamRayBack`), 0.02 studs less, in
+  1/32 studs rounded down. Chunks of 32 x 32 blocks, each with the list of the parts that reach it (a block names its
+  two by their places in the list) and five u16 a block: 10 bytes a block, about 5 MB over a whole top-tier island at
+  the default View. Every part under `workspace.Plots` counts but the invisible walls (groups `Bounds`,
+  `StagedBounds`): nothing else is there for the rays (the filter keeps out the moving models and the founders, the
+  next island waits in `Staged`). A part that comes is added to its blocks; one that goes leaves the chunks it was in
+  to be worked out again from the parts still listed (its outline found again: a static part does not move); the map
+  is not ready meanwhile and answers nothing (`RayMap.at` -> nil). `setView(rot12, q, phX, phY, l0, x0, y0, x1, y1)`
+  restarts it on a new grid or window (the View slider, a visit); `step(deadline, clock)` works its queues within
+  `PixelMapMs` a frame (`PixelMapBuildMs` while it is being made, `PixelHiddenMs` with the screen hidden; `SG.mapStep`
+  in `frameStep`). `RayMap.at(gx, gy) -> (p1 | false | nil, p2, near2, near3, flat1, flat2)`.
+  `SG.castPx(s, gx, gy, bx1, by1, own, shadows, rx0, ry0, rx1, ry1)` takes the place of `castSample` in the bake's
+  passes, `castRect`, the scroll's strips (`SG.castStrips`), the re-casts and the look-ahead (not the next tier's
+  pre-cast, whose parts the map has not got, nor a stage): a block no part reaches is the sky with no ray
+  (`SG.skyAt`, written as a ray that met nothing would be); a pixel that is not a 2x2 anchor takes its face from the
+  anchors either side of it, or round it when both its coordinates are odd (`SG.shareAt`), when they all lie in the
+  rect being cast (the whole layer for a scroll's strips, whose anchors are all cast first, while no re-cast is
+  waiting), met the same normal of the same flat part, that part is one of the block's two and opaque and not water,
+  and nothing else can be in front of the face there: the third part on comes no nearer than the face, and the other
+  of the two comes no nearer or the pixel's ray misses its box (`SG.boxHit`, the box grown 0.01 studs). The face is
+  convex, so the pixel's ray crosses it between the anchors, at the depth between theirs (four anchors must lie on one
+  plane); its sun is its block's anchor's, as castSample shares it, so `sShare` now says 2 for a pixel with a ray of
+  its own on a face toward the sun (`BakeCast.cast` returns whether the face it met looks at the sun), the anchor a
+  shared pixel takes its sun from. `castSample` shades from its own values (`SG.shadeOf`; `shadeAt` reads them off
+  the layer), and `BakeCast.cast` reads each of a result's properties once. `debugCastCheck` casts every pixel with a
+  ray of its own (`SG.noShare`), so the layer's shared and sky pixels are checked against real rays; it finds the same
+  few shadow-edge pixels as before. `PixelRenderer.debugShare() -> { sky, shared, rays, map = { parts, chunks,
+  queued, ready } }` (since the last call) and `debugCastBench(reps) -> { plainMs, mapMs, plainRays, mapRays, sky,
+  shared }` (the whole layer cast each way, alternately, the layer put back). The `scrollcost` preview logs both and
+  the cast check after each leg; `scrollcost=<tier>` walks the showcase's town on an island of that tier.
 - **The next tier, cast ahead** (`PC`, the request of 2026-11-20: "Is there a way to make island expansion seamless,
   with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?").
   The player's next island stands staged in the world (PlotService: `workspace.Staged.Plot_<i>`, collision groups

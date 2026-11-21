@@ -2831,7 +2831,19 @@ text (the requests and how each was met) is in the history of this file, up to c
   the screen from one moment and placed your founder from the next, after the game had moved them on; after a long
   frame and then a short one the island stepped back a pixel or two. Now both come from the same moment, and your
   founder holds their pixel on the screen until the follow is clearly past it. In the preview (`jitter`, a square
-  walked with frames of uneven length) the island stepped back 6 times in 422 frames before and never after. On
+  walked with frames of uneven length) the island stepped back 6 times in 422 frames before and never after. Then
+  (2026-11-21): "what is the heaviest portion of the raycasting?" It was the one ray down for every pixel, about half
+  of what a pixel cost, then "Cast fewer main rays" and "and 2 as well" (the work round each ray). The pixel filter
+  now keeps a map of where the island's parts fall on the screen and how near the camera each can come. A patch of
+  screen no part reaches is sky and gets no ray at all. A pixel between two that met the same flat face, where
+  nothing can stand in front of that face, takes the face from them instead of casting its own (lawns, paths, roofs,
+  walls); where one small thing sits close by, the pixel's own line is checked against that thing's box, which is
+  far cheaper than a ray. The previews check the picture against a ray for every pixel: the same picture. Each ray's
+  result is also read once instead of several times. Walking the first island off its edge (`scrollcost`), the
+  pixel filter's work a frame on new ground went from about 22 ms to 13; walking the whole top-tier island
+  (`stress`), its first long leg went from 41.6 ms a frame to 36.6, with 45% fewer rays in all. In the middle of a
+  crowded top-tier town (`scrollcost=20`) it about breaks even: most of what shows there is small detail with edges
+  of its own, and those still need their rays. On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

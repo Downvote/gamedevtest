@@ -373,6 +373,13 @@ local Tuning = {
 	-- studs: nothing static stands higher; a bake ray starts where it comes down through this height (Pixel/BakeCast:
 	-- from the ray plane 500 studs off, Roblox's single-precision ball test blurred the edges of small balls)
 	PixelRayTop = 80,
+	-- the map of which parts the rays can meet where (Pixel/RayMap): kept over the island in view, its plot's lot from
+	-- this low to this high (studs; past it every pixel is cast), worked on this many ms a frame once made and while
+	-- it is being made
+	PixelMapLow = -90,
+	PixelMapHigh = 80,
+	PixelMapMs = 0.5,
+	PixelMapBuildMs = 2,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
 	-- the islands' picture is kept this many art px past each edge of the screen: the view moves within it by showing
 	-- another window of the image, and the picture scrolls (re-centred under the view) only once the view comes within
