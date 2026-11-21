@@ -34,8 +34,9 @@ local Schema = {}
 -- Life again, laying eggs (no tide); 15: shells the one store; 16: the store (passes, receipts, the bag, cosmetics,
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
 -- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15);
--- 22: the Tree of Life in the island's middle (no campfire); 23: the View slider's default on the seventh notch
-Schema.VERSION = 24
+-- 22: the Tree of Life in the island's middle (no campfire); 23: the View slider's default on the seventh notch;
+-- 25: the tips in a new order (a hut, an egg, a workplace) and the questline opening on four huts
+Schema.VERSION = 25
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -509,6 +510,29 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	if v < 24 then
 		v = 24
 	end
+	-- 24 -> 25: the tips in a new order (the request of 2026-11-21: "Guide the player to put down a hut ... to hatch a
+	-- driftling ... to put down a workspace, the best one"): 1 a hut, 2 an egg, 3 a workplace, 4 the last; they were
+	-- 1 a lumber camp, 2 a farm, 3 a hut, 4 an egg, 5 a shop, 6 the last. A save on an old step goes to the new step
+	-- asking for the first thing it may not have done (the server then moves it on past what it has). And the
+	-- questline opens on "Place down 4 huts" (the same request: "the first goal after the tutorial should be "Place
+	-- down 4 huts""), with "Build another hut" (two huts, the fifth) gone: a save on the questline stays on the same
+	-- quest (the first four one place later; the fifth on to the next, "An uncommon one", the sixth as before).
+	if v < 25 then
+		local t = raw.tut
+		local q = raw.quest
+		if type(q) == "number" and q == q and (t == 0 or q > 1) then
+			if q >= 1 and q <= 4 then
+				raw.quest = q + 1
+			elseif q == 5 then
+				raw.quest = 6
+			end
+		end
+		if type(t) == "number" and t == t then
+			local TO: { [number]: number } = { [0] = 0, [1] = 1, [2] = 1, [3] = 1, [4] = 2, [5] = 3, [6] = 4 }
+			raw.tut = TO[math.floor(t)] or 1
+		end
+		v = 25
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -727,7 +751,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		eggs = {},
 		clutch = { left = 0, list = {}, next = 1 },
 		nextId = math.max(int(r.nextId, 1, 1), maxId + 1),
-		tut = int(r.tut, 1, 0, 6),
+		tut = int(r.tut, 1, 0, Plot.TIP_LAST),
 		quest = int(r.quest, 1, 1, #Quests.list + 1),
 		stats = {
 			days = int(st.days, 0, 0),

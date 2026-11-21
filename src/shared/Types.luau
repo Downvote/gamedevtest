@@ -136,7 +136,7 @@ export type Profile = {
 	eggs: { Egg }, -- the Hatcheries' eggs (one a hatchery)
 	clutch: Clutch, -- the Tree of Life's eggs round its roots
 	nextId: number, -- the next driftling or piece id
-	tut: number, -- the tips' step (1 .. 6; 0 = done)
+	tut: number, -- the tips' step (1 .. 4, Plot.TIP_HUT .. TIP_LAST; 0 = done)
 	quest: number, -- the questline's quest on the go (Data/Quests; one past the last: all done)
 	stats: Stats,
 	settings: Settings,

@@ -12,7 +12,8 @@
 -- (No second Lumber Camp any more, 2026-11-18: "this quest is uncompletable without removing a work building. thus,
 -- remove the quest that asks you to make a second lumber camp". The first island has 8 work spaces, 2 a workplace: the
 -- tips' camp, farm and stall and the second camp filled them, so "Another farm" could not be built. The questline
--- before the first expansion has to fit the first island's work spaces: Quest.spec checks it.)
+-- before the first expansion has to fit the first island's work spaces: Quest.spec checks it. No "Build another hut"
+-- since 2026-11-21: the questline opens on four huts, and the tips build one workplace, not three.)
 export type Goal = { kind: string, n: number, of: string? }
 export type Reward = { shells: number? }
 export type Quest = { id: string, title: string, text: string, goal: Goal, reward: Reward, go: string, icon: string }
@@ -20,6 +21,17 @@ export type Quest = { id: string, title: string, text: string, goal: Goal, rewar
 local Quests = {}
 
 local list: { Quest } = {
+	{
+		-- (the request of 2026-11-21: "the first goal after the tutorial should be "Place down 4 huts"": the tips build
+		-- one, and four fill the first island's room for driftlings, Tuning.HousingLimit[1]; Quest.spec checks it)
+		id = "huts4",
+		title = "Place down 4 huts",
+		text = "It's on the Huts tab. Each driftling needs a bed.",
+		goal = { kind = "built", n = 4, of = "nest" },
+		reward = { shells = 100 },
+		go = "build:nest",
+		icon = "nest",
+	},
 	{
 		id = "help",
 		title = "Put a driftling to work",
@@ -57,15 +69,6 @@ local list: { Quest } = {
 		icon = "pal",
 	},
 	{
-		id = "huts",
-		title = "Build another hut",
-		text = "It's on the Huts tab. Each driftling needs a bed.",
-		goal = { kind = "built", n = 2, of = "nest" },
-		reward = { shells = 100 },
-		go = "build:nest",
-		icon = "nest",
-	},
-	{
 		id = "uncommon",
 		title = "An uncommon one",
 		text = "Look for green eggs with a white zigzag. They work faster.",
@@ -76,11 +79,12 @@ local list: { Quest } = {
 	},
 	{
 		-- (a second farm till every workplace became one kind of work, 2026-11-19: the tips' camp, patch and stall and
+		-- one more; since the tips build one workplace, 2026-11-21: the tips' one, the one "Three at work" needed and
 		-- one more)
 		id = "farm",
 		title = "Another workplace",
 		text = "Build one more on the Work tab.",
-		goal = { kind = "built", n = 4, of = "work" },
+		goal = { kind = "built", n = 3, of = "work" },
 		reward = { shells = 120 },
 		go = "build:work",
 		icon = "coin",

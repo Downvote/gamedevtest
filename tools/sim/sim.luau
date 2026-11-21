@@ -592,16 +592,38 @@ local function trayOn()
 	local st = H.inClient(p, BuildUI.debugState)
 	return st, string.format("%s %s %s", tostring(st.tab), tostring(st.chip), tostring(st.goal))
 end
+-- the tips (the request of 2026-11-21: "Guide the player to put down a hut "Make a place for your driftlings to live
+-- in!" > Guide the player to hatch a driftling: "You got your first driftling! Now, put down a work space for it to earn
+-- coins in. > Guide the player to put down a workspace, the best one > "Great! You can hatch more driftlings from the
+-- tree, which refreshes with eggs every few minutes.""): their banners in the user's own words
+local TIP_HUT_TEXT = "Make a place for your driftlings to live in!"
+local TIP_WORK_TEXT = "You got your first driftling! Now, put down a work space for it to earn coins in."
+local TIP_LAST_TEXT = "Great! You can hatch more driftlings from the tree, which refreshes with eggs every few minutes."
+local function tipSource(): string
+	local t = p.PlayerGui:FindFirstChild("Tips", true)
+	local w = t and t:FindFirstChild("Words")
+	return if w then tostring(w:GetAttribute("Source")) else "no tip"
+end
+H.expect(tipSource() == TIP_HUT_TEXT, "build", "the first tip: make a place for the driftlings to live in", tipSource())
+do
+	-- (Build mode shut, a tip asking for something built: the menu bar's Build button pulses yellow)
+	local mb = H.buttonNamed(p, "Menu_build")
+	H.expect(mb ~= nil and mb:GetAttribute("TipPulse") == true, "build", "the menu bar's Build button pulses for the hut's tip")
+end
 H.expect(H.clickNamed(p, "Menu_build", { wait = 0.4 }) and BuildUI.isOpen(), "build", "Build mode opens")
 -- (the request of 2026-11-14: "add the free decor gamepass in the build menu")
 H.expect(H.buttonNamed(p, "BuyFreeDecor") ~= nil, "build", "Build mode offers the Free Decor pass (not owned)")
 local bst = H.inClient(p, BuildUI.debugState)
-H.expect(bst.tab == "work" and bst.chip == "work" and bst.goal == "lumber" and goalCard("lumber") ~= nil, "build", "the first tip: the Work tab on its Workplaces row, the lumber camp's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
+H.expect(bst.tab == "nest" and bst.goal == "nest" and goalCard("nest") ~= nil, "build", "the first tip: the Huts tab, the hut's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
 H.expect(tipShown(), "build", "the tip's banner shows in Build mode")
+do
+	local mb = H.buttonNamed(p, "Menu_build")
+	H.expect(mb == nil or mb:GetAttribute("TipPulse") ~= true, "build", "Build mode open: the Build button's pulse stops")
+end
 do
 	-- (the request of 2026-11-20: "make the highlight during tutorial make the whole green button yellow instead and
 	-- shine"): the tip's building's whole button is yellow (pulsing toward a paler yellow), never the green one
-	local b = H.buttonNamed(p, "Buy_lumber")
+	local b = H.buttonNamed(p, "Buy_nest")
 	local plate = b and b:FindFirstChild("Plate")
 	local fill = plate and plate:FindFirstChild("Fill")
 	local c = fill and fill.BackgroundColor3
@@ -610,6 +632,7 @@ end
 H.clickNamed(p, "Tab_decor", { wait = 0.3 })
 H.expect(H.inClient(p, BuildUI.debugState).tab == "decor", "build", "the player can still look round the other tabs")
 H.expect(H.buttonNamed(p, "Buy_tree", true) == nil, "build", "no Tree of Life in the tray (every island has its one)")
+H.clickNamed(p, "Tab_nest", { wait = 0.3 })
 -- (the tip's banner rides on the tray, whatever height it is: the user's report of 2026-11-14, "the tutorial tooltip
 -- sometimes gets hidden by the build menu after something is built": a piece still picked when the camp went up, the
 -- next tip's banner was laid on the short tray, then the tray turned to the next tip's row at its full height)
@@ -622,42 +645,6 @@ local function tipsAbove(): (boolean, string)
 	local bottom = tipsF.AbsolutePosition.Y + tipsF.AbsoluteSize.Y
 	return bottom <= trayF.AbsolutePosition.Y, string.format("banner's bottom %d, tray's top %d", bottom, trayF.AbsolutePosition.Y)
 end
-local sh0 = prof.shells
--- (the camp built the way a player builds it: its card picked, a tap on the lawn, Place)
-local res
-do
-	H.inClient(p, BuildUI.pick, "lumber")
-	E.run(0.3)
-	local lx, lz = spot("lumber", 0)
-	local ox, oz = Street.origin(s.plot)
-	local w, d = Plot.footprint("lumber", 0)
-	local at = H.inClient(p, function()
-		local pos = PRp.project(E.v3(ox + (lx or 0) + w / 2, Street.LAWN_Y, oz + (lz or 0) + d / 2))
-		return E.v2(pos.X, pos.Y - E.inset)
-	end)
-	H.inClient(p, BuildUI.tapScreen, at, false)
-	E.run(0.2)
-	H.clickNamed(p, "Place", { wait = 0.6 })
-	res = { ok = pieceOf("lumber") ~= nil, err = if pieceOf("lumber") then nil else "not placed" }
-	local ok, say = tipsAbove()
-	H.expect(ok, "build", "the camp built from the tray: the next tip's banner sits above the tray, not under it", say)
-end
-bst = H.inClient(p, BuildUI.debugState)
-H.expect(bst.tab == "work" and bst.chip == "work" and bst.goal == "patch" and H.buttonNamed(p, "Buy_patch") ~= nil and goalCard("patch") ~= nil, "build", "the camp built: the tray stays on Work's Workplaces row, the veggie patch's card pulsing", string.format("%s %s %s", tostring(bst.tab), tostring(bst.chip), tostring(bst.goal)))
-H.expect(tipShown(), "build", "the next tip's banner over the tray")
-H.clickNamed(p, "BuildDone", { wait = 0.3 })
-H.expect(not BuildUI.isOpen() and tipShown(), "build", "Done: the tray goes, the tip stays")
-H.expect(res.ok and #prof.plot.placed == 2 and pieceOf("lumber") ~= nil, "build", "a lumber camp", tostring(res.err))
-H.expect(math.abs(prof.shells - (sh0 - Buildings.byId.lumber.shells)) < 2 and prof.wood == nil, "build", "paid for in shells (no wood any more)", string.format("shells %s -> %s", sh0, prof.shells))
-H.expect(prof.tut == 2, "build", "the tips move on to a farm (the camp built)", tostring(prof.tut))
-H.expect(H.buttonNamed(p, "TipsOk") == nil, "build", "no OK on the early tips")
-res = place("patch")
-H.expect(res.ok and prof.tut == 3, "build", "a veggie patch: the tips move on to a hut", tostring(res.err))
-do
-	E.run(0.3)
-	local st, say = trayOn()
-	H.expect(st.tab == "nest" and st.goal == "nest" and goalCard("nest") ~= nil, "build", "Build mode opens on the Huts tab for the hut tip, the hut's card pulsing", say)
-end
 -- (the banner rides on the tray as it changes height, a piece picked and let go)
 do
 	H.inClient(p, BuildUI.pick, "nest")
@@ -668,8 +655,28 @@ do
 	ok, say = tipsAbove()
 	H.expect(ok, "build", "the pick let go, the tray full height again: the tip's banner goes back up over it", say)
 end
-res = place("nest")
-H.expect(res.ok and prof.tut == 4, "build", "a hut: the tips move on to hatching an egg", string.format("%s tut %d", tostring(res.err), prof.tut))
+-- the tray's own placing, as a player does it: a card picked, a tap on the lawn, Place
+local function placeFromTray(id)
+	H.inClient(p, BuildUI.pick, id)
+	E.run(0.3)
+	local lx, lz = spot(id, 0)
+	local ox, oz = Street.origin(s.plot)
+	local w, d = Plot.footprint(id, 0)
+	local at = H.inClient(p, function()
+		local pos = PRp.project(E.v3(ox + (lx or 0) + w / 2, Street.LAWN_Y, oz + (lz or 0) + d / 2))
+		return E.v2(pos.X, pos.Y - E.inset)
+	end)
+	H.inClient(p, BuildUI.tapScreen, at, false)
+	E.run(0.2)
+	H.clickNamed(p, "Place", { wait = 0.6 })
+	return { ok = pieceOf(id) ~= nil, err = if pieceOf(id) then nil else "not placed" }
+end
+local sh0 = prof.shells
+local res = placeFromTray("nest")
+H.expect(res.ok and #prof.plot.placed == 2 and pieceOf("nest") ~= nil, "build", "a hut, built from the tray", tostring(res.err))
+H.expect(math.abs(prof.shells - (sh0 - Buildings.byId.nest.shells)) < 2 and prof.wood == nil, "build", "paid for in shells (no wood any more)", string.format("shells %s -> %s", sh0, prof.shells))
+H.expect(prof.tut == Plot.TIP_HATCH, "build", "a hut: the tips move on to hatching an egg", tostring(prof.tut))
+H.expect(H.buttonNamed(p, "TipsOk") == nil, "build", "no OK on the early tips")
 -- (the request of 2026-11-14: "auto close the build tab when going to the hatching step and point towards the tree of
 -- life for the player to click": the hut placed with Build mode open, it closes itself a moment later, and an arrow
 -- points at the Tree of Life, or from the screen's edge the way to it)
@@ -678,25 +685,27 @@ H.expect(not BuildUI.isOpen(), "build", "the hut placed in Build mode: Build mod
 do
 	local arrow = p.PlayerGui:FindFirstChild("TutArrow", true)
 	H.expect(arrow ~= nil and arrow:IsA("GuiObject") and arrow.Visible, "build", "an arrow points at the Tree of Life for the hatching tip")
+	local mb = H.buttonNamed(p, "Menu_build")
+	H.expect(mb ~= nil and mb:GetAttribute("TipPulse") ~= true, "build", "no pulse on the Build button for the hatching tip (it asks for nothing built)")
 end
 -- (how full the buildings are, the request of 2026-11-14: "if noone is working on a building, make a alert on top of
 -- said work building stating so. do the same for huts and housing", and then "Make it say "Empty"": with no driftling
--- yet, the camp, the patch and the hut each have an alert over them)
+-- yet, the hut has no alert over it)
 local BTp = H.cmod(p, "Controllers.BuildingTags")
 do
 	E.run(0.6)
 	local bt = H.inClient(p, BTp.debugState)
 	-- (no alerts since the request of 2026-11-17: "remove the empty alert that appears above huts and work places")
-	H.expect(bt.spots == 3 and bt.alerts == 0, "build", "with no driftling yet: the camp, the patch and the hut known, no \"Empty\" over any of them", string.format("%d spots, %d alerts: %s", bt.spots, bt.alerts, table.concat(bt.words, ",")))
+	H.expect(bt.spots == 1 and bt.alerts == 0, "build", "with no driftling yet: the hut known, no \"Empty\" over it", string.format("%d spots, %d alerts: %s", bt.spots, bt.alerts, table.concat(bt.words, ",")))
 end
 -- (the starting shells cover the rest of the tips with room for a second egg: "give the player more shells so every
--- task is completable at the start without needing to wait")
-H.expect(prof.shells >= Buildings.byId.stall.shells + 2 * Tuning.EggPrice[2] * Tuning.EggTier[1], "build", "after the hut, the shells left pay for the snack stall and two uncommon eggs", tostring(prof.shells))
--- step 4: an egg hatched. A tap on an egg under the tree (EggView.tapAt: WorldView's taps ask it first) opens the tree's
+-- task is completable at the start without needing to wait"; the tips' workplace is free besides)
+H.expect(prof.shells >= Buildings.byId[Plot.tipWork(prof.tier)].shells + 2 * Tuning.EggPrice[2] * Tuning.EggTier[1], "build", "after the hut, the shells left pay for the best workplace and two uncommon eggs", tostring(prof.shells))
+-- the hatching tip: an egg hatched. A tap on an egg under the tree (EggView.tapAt: WorldView's taps ask it first) opens the tree's
 -- panel and buys nothing (the request of 2026-11-13: "the eggs should be buyable only after the player clicks on the tree
 -- or enters the tree menu"); Hatch there on the cheapest the shells cover plays the hatch scene (UI/HatchScene: the egg
 -- floating, each tap revealing a step up or a mutation, the tap after them hatching it), one more goes back; what hatches (a new island's
--- first: good with wood) moves into the hut and goes to work at the lumber camp, and the panel is there again
+-- first) moves into the hut and rests there till a workplace stands, and the panel is there again
 local HSp = H.cmod(p, "UI.HatchScene")
 do
 	H.push(p, 0.3)
@@ -817,24 +826,19 @@ do
 		end, 2, 0.1)
 		H.expect(H.inClient(p, EggViewP.where, s.plot, pick.id) == nil and H.inClient(p, EggViewP.count, s.plot) == #shownOf(prof.clutch.list), "build", "its egg cracks open and is gone, the others stay", tostring(H.inClient(p, EggViewP.count, s.plot)))
 		local hut = pieceOf("nest")
-		H.expect(first ~= nil and hut ~= nil and first.home == hut.uid and first.work == pieceOf("lumber").uid, "build", "it moves into the hut and goes to work at the lumber camp", first and string.format("home %d work %d", first.home, first.work))
-		H.expect(prof.tut == 5, "build", "the tips move on to a shop", tostring(prof.tut))
-		-- (the camp has its worker and the hut someone living there; a tap on the hut shows how full it is, "show capacities of work buildings when hovered over", a phone's tap for the hover)
+		H.expect(first ~= nil and hut ~= nil and first.home == hut.uid and first.work == 0, "build", "it moves into the hut and rests there: no workplace yet", first and string.format("home %d work %d", first.home, first.work))
+		H.expect(prof.tut == Plot.TIP_WORK, "build", "the tips move on to a workplace", tostring(prof.tut))
+		E.run(0.3)
+		H.expect(tipSource() == TIP_WORK_TEXT, "build", "the tip after the first hatch: your first driftling, now a work space", tipSource())
+		H.expect(H.buttonNamed(p, "TipsOk") == nil, "build", "no OK on it (it moves on by building)")
+		do
+			local mb = H.buttonNamed(p, "Menu_build")
+			H.expect(mb ~= nil and mb:GetAttribute("TipPulse") == true, "build", "the menu bar's Build button pulses for the workplace's tip")
+		end
+		-- (the hut has someone living there; a tap on the hut shows how full it is, "show capacities of work buildings when hovered over", a phone's tap for the hover)
 		E.run(0.6)
 		local bt = H.inClient(p, BTp.debugState)
 		H.expect(bt.alerts == 0, "build", "no alerts over the buildings, empty or not", string.format("%d alerts", bt.alerts))
-		-- (the island card's Working line with workplaces standing: at work out of two places at each)
-		do
-			local at, places = 0, 0
-			for _, x in prof.pals do
-				if x.work ~= 0 then
-					at += 1
-				end
-			end
-			places += Island.jobPlaces(prof.plot.placed)
-			local wr = p.PlayerGui:FindFirstChild("WorkingR", true)
-			H.expect(places >= 4 and at >= 1 and wr ~= nil and wr.Text == string.format("%d/%d", at, places), "hud", "Working with the camp and the patch up: at work out of their places", wr and wr.Text or "missing")
-		end
 		local hutTap = nil
 		for _, sp in H.inClient(p, BTp.debugSpots) do
 			if sp.uid == hut.uid then
@@ -849,42 +853,82 @@ do
 		H.expect(shown and bt.card == string.format("%s Living here 1/%d", Buildings.byId.nest.name, Buildings.byId.nest.slots), "build", "a tap on the hut: its card, how many live there of its room", string.format("%s %q at %s, the ray met %s", tostring(shown), bt.card, tostring(hutTap), bt.hit))
 		E.run(3.2)
 		H.expect(H.inClient(p, BTp.debugState).card == "", "build", "the tap's card goes after a few seconds")
-		-- a tap on the lumber camp: how full, and what it earns a minute (the request of 2026-11-15: "while hovering over
-		-- a work building, show how much it is earning"; Island.output times the charm bonus and the passes)
-		local camp = pieceOf("lumber")
-		local campTap = nil
-		for _, sp in H.inClient(p, BTp.debugSpots) do
-			if camp and sp.uid == camp.uid then
-				campTap = sp.tap
-			end
-		end
-		E.raycastParts = true
-		local shownC = campTap ~= nil and H.inClient(p, BTp.tapAt, campTap)
-		E.raycastParts = nil
-		E.run(0.6)
-		bt = H.inClient(p, BTp.debugState)
-		local cv = H.view(p)
-		local made = Island.output(prof)[camp and camp.uid or 0] or 0
-		local want = string.format("Earns %s coins/min", Numbers.short(math.floor(made * (1 + cv.charmBonus) * cv.incomeMult * 60 / Tuning.TurnSeconds + 0.5)))
-		H.expect(shownC and bt.card == string.format("%s Workers 1/%d", Buildings.byId.lumber.name, Buildings.byId.lumber.jobs) and bt.card2 == want, "build", "a tap on the lumber camp: its workers and what it earns a minute", string.format("%q / %q (want %q)", bt.card, bt.card2, want))
-		E.run(3.2)
 	end
 end
+-- the workplace's tip (the same request: "Guide the player to put down a workspace, the best one"): Build mode opens on
+-- Work's Workplaces row, the best workplace the island has pulsing (Plot.tipWork: a first island's Fishing Pier) and
+-- free (the request of 2026-11-14 made the tips' first snack stall free); built from the tray it costs nothing, the
+-- driftling resting in the hut goes to work there, and the last tip's banner sits above the tray
+local best = Plot.tipWork(prof.tier)
 do
 	E.run(0.3)
 	local st, say = trayOn()
-	H.expect(st.tab == "work" and st.chip == "work" and st.goal == "stall" and goalCard("stall") ~= nil, "build", "then on Work's Workplaces row for the shop tip, the stall's card pulsing", say)
-	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
-	local card = goalCard("stall")
-	H.expect(card ~= nil and table.find(H.textsOf(card), "Free") ~= nil, "build", "the tips' snack stall's card says Free", card and table.concat(H.textsOf(card), "/"))
-	H.clickNamed(p, "BuildDone", { wait = 0.3 })
+	H.expect(best == "pier" and st.tab == "work" and st.chip == "work" and st.goal == best and goalCard(best) ~= nil, "build", "Build mode opens on Work's Workplaces row for the workplace's tip, the best one's card pulsing (a first island's: the Fishing Pier)", say)
+	local card = goalCard(best)
+	H.expect(card ~= nil and table.find(H.textsOf(card), "Free") ~= nil, "build", "the tips' workplace's card says Free", card and table.concat(H.textsOf(card), "/"))
+	H.expect(tipShown(), "build", "the tip's banner over the tray")
 end
-local shStall = prof.shells
-res = place("stall")
-H.expect(res.ok and prof.tut == 6, "build", "a snack stall: the tips move on to the last", string.format("%s tut %d", tostring(res.err), prof.tut))
-H.expect(math.abs(prof.shells - shStall) < 1, "build", "the tips' snack stall cost nothing", string.format("%.0f -> %.0f", shStall, prof.shells))
-local tipCost = Buildings.byId.lumber.shells + Buildings.byId.patch.shells + Buildings.byId.nest.shells + Buildings.byId.stall.shells
-H.expect(#prof.plot.placed == 5 and tipCost <= Tuning.StartShells and prof.shells >= 0, "build", "the starting shells paid for every building the tips ask for (beside the tree) and the first egg", string.format("%d pieces, %d shells of %d, %.0f left", #prof.plot.placed, tipCost, Tuning.StartShells, prof.shells))
+local shWork = prof.shells
+res = placeFromTray(best)
+do
+	local ok, say = tipsAbove()
+	H.expect(ok, "build", "the workplace built from the tray: the next tip's banner sits above the tray, not under it", say)
+end
+H.expect(res.ok and prof.tut == Plot.TIP_LAST, "build", "the best workplace: the tips move on to the last", string.format("%s tut %d", tostring(res.err), prof.tut))
+H.expect(math.abs(prof.shells - shWork) < 1, "build", "the tips' workplace cost nothing", string.format("%.0f -> %.0f", shWork, prof.shells))
+E.run(0.3)
+H.expect(tipSource() == TIP_LAST_TEXT, "build", "the last tip: more driftlings from the tree, new eggs every few minutes", tipSource())
+do
+	local first = prof.pals[1]
+	local wp = pieceOf(best)
+	H.expect(first ~= nil and wp ~= nil and first.work == wp.uid, "build", "the driftling resting in the hut goes to work there", first and string.format("work %d", first.work))
+end
+H.clickNamed(p, "BuildDone", { wait = 0.3 })
+H.expect(not BuildUI.isOpen() and tipShown(), "build", "Done: the tray goes, the tip stays")
+-- the rest of a first island's work at their prices (the scenes below were written round a camp and a patch; the
+-- stall comes later, one more workplace)
+do
+	local sh2 = prof.shells
+	res = place("lumber")
+	H.expect(res.ok and math.abs(prof.shells - (sh2 - Buildings.byId.lumber.shells)) < 2, "build", "a lumber camp at its price", string.format("%s, shells %s -> %s", tostring(res.err), sh2, prof.shells))
+	res = place("patch")
+	H.expect(res.ok, "build", "a veggie patch", tostring(res.err))
+	H.expect(prof.tut == Plot.TIP_LAST, "build", "(the last tip waits for its OK)", tostring(prof.tut))
+end
+do
+	E.run(0.6)
+	-- (the island card's Working line with workplaces standing: at work out of two places at each)
+	local at, places = 0, 0
+	for _, x in prof.pals do
+		if x.work ~= 0 then
+			at += 1
+		end
+	end
+	places += Island.jobPlaces(prof.plot.placed)
+	local wr = p.PlayerGui:FindFirstChild("WorkingR", true)
+	H.expect(places >= 4 and at >= 1 and wr ~= nil and wr.Text == string.format("%d/%d", at, places), "hud", "Working with the workplaces up: at work out of their places", wr and wr.Text or "missing")
+	-- a tap on the tips' workplace: how full, and what it earns a minute (the request of 2026-11-15: "while hovering
+	-- over a work building, show how much it is earning"; Island.output times the charm bonus and the passes)
+	local wp = pieceOf(best)
+	local wpTap = nil
+	for _, sp in H.inClient(p, BTp.debugSpots) do
+		if wp and sp.uid == wp.uid then
+			wpTap = sp.tap
+		end
+	end
+	E.raycastParts = true
+	local shownC = wpTap ~= nil and H.inClient(p, BTp.tapAt, wpTap)
+	E.raycastParts = nil
+	E.run(0.6)
+	local bt = H.inClient(p, BTp.debugState)
+	local cv = H.view(p)
+	local made = Island.output(prof)[wp and wp.uid or 0] or 0
+	local want = string.format("Earns %s coins/min", Numbers.short(math.floor(made * (1 + cv.charmBonus) * cv.incomeMult * 60 / Tuning.TurnSeconds + 0.5)))
+	H.expect(shownC and bt.card == string.format("%s Workers 1/%d", Buildings.byId[best].name, Buildings.byId[best].jobs) and bt.card2 == want, "build", "a tap on the tips' workplace: its workers and what it earns a minute", string.format("%q / %q (want %q)", bt.card, bt.card2, want))
+	E.run(3.2)
+end
+local tipCost = Buildings.byId.nest.shells
+H.expect(#prof.plot.placed == 5 and tipCost <= Tuning.StartShells and prof.shells >= 0, "build", "the starting shells paid for the tips' hut and the first egg (their workplace free), a camp and a patch besides", string.format("%d pieces, %d shells of %d, %.0f left", #prof.plot.placed, tipCost, Tuning.StartShells, prof.shells))
 res = place("orchard")
 H.expect(not res.ok and res.err == "locked", "build", "an orchard waits for a bigger island", tostring(res.err))
 res = place("tent")
@@ -1058,10 +1102,10 @@ local function weakest()
 	end
 	return weak
 end
--- a fishing pier, one more workplace
+-- a snack stall, one more workplace (the tips built the Fishing Pier)
 prof.shells = math.max(prof.shells, 400)
-res = place("pier")
-H.expect(res.ok, "tree", "a fishing pier", tostring(res.err))
+res = place("stall")
+H.expect(res.ok, "tree", "a snack stall", tostring(res.err))
 -- EggView.best's rule on made-up eggs: three uncommons the shells don't cover and two commons they do; the uncommons
 -- first, the older first, and the older common in the last place. With the shells, the three uncommons
 do
@@ -3065,12 +3109,35 @@ local function questAt(id)
 	end
 	return 1
 end
+-- the first quest after the tips (the request of 2026-11-21: "the first goal after the tutorial should be "Place down 4
+-- huts""): its card names it; with fewer than four huts Go opens Build mode on the Huts tab, with four Claim shows
 prof.quest = 1
+H.push(p, 0.5)
+do
+	local huts = 0
+	for _, q in prof.plot.placed do
+		local d = Buildings.byId[q.id]
+		if d and d.kind == "nest" then
+			huts += 1
+		end
+	end
+	H.expect(Quests.list[1].id == "huts4" and statusSays("Place down 4 huts"), "quests", "the first quest's card: place down 4 huts")
+	if huts < 4 then
+		H.expect(H.buttonNamed(p, "QuestGo") ~= nil and H.buttonNamed(p, "QuestClaim") == nil, "quests", "fewer than four huts: Go", tostring(huts))
+		H.clickNamed(p, "QuestGo", { wait = 0.4 })
+		local st = H.inClient(p, BuildUI.debugState)
+		H.expect(BuildUI.isOpen() and st.tab == "nest", "quests", "Go opens Build mode on the Huts tab", tostring(st.tab))
+		H.clickNamed(p, "BuildDone", { wait = 0.3 })
+	else
+		H.expect(H.buttonNamed(p, "QuestClaim") ~= nil, "quests", "four huts already: Claim", tostring(huts))
+	end
+end
+prof.quest = questAt("help")
 for _, x in prof.pals do
 	x.work = 0
 end
 H.push(p, 0.5)
-H.expect(H.buttonNamed(p, "QuestGo") ~= nil and H.buttonNamed(p, "QuestClaim") == nil, "quests", "the first quest's card: put a driftling to work, Go")
+H.expect(H.buttonNamed(p, "QuestGo") ~= nil and H.buttonNamed(p, "QuestClaim") == nil, "quests", "the next quest's card: put a driftling to work, Go")
 H.clickNamed(p, "QuestGo", { wait = 0.4 })
 H.expect(H.currentPanel(p) == "pals", "quests", "Go opens the Driftlings panel", tostring(H.currentPanel(p)))
 H.expect(H.buttonNamed(p, "QuestGo") == nil, "quests", "the card steps aside for the panel")
@@ -3096,9 +3163,9 @@ H.push(p, 0.5)
 H.expect(H.buttonNamed(p, "QuestClaim") ~= nil, "quests", "a driftling at work: Claim shows")
 do
 	local shells0 = prof.shells
-	local reward = Quests.list[1].reward
+	local reward = Quests.list[questAt("help")].reward
 	H.clickNamed(p, "QuestClaim", { wait = 0.5 })
-	H.expect(prof.quest == 2 and prof.shells >= shells0 + (reward.shells or 0), "quests", "Claim pays the reward (shells) and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
+	H.expect(prof.quest == questAt("help") + 1 and prof.shells >= shells0 + (reward.shells or 0), "quests", "Claim pays the reward (shells) and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
 end
 -- a quest's Go naming a row ("build:work": Another workplace, "build:gen": Build a boost) opens Build mode on Work's row
 -- of that name (the second camp's quest went on 2026-11-18: the first island's work spaces ran out before Another
@@ -3223,7 +3290,7 @@ if paths < 8 then
 	H.expect(H.inClient(p, BuildUI.isOpen) and H.inClient(p, BuildUI.debugState).tab == "path", "quests", "Go opens Build mode on the Paths tab")
 	H.clickNamed(p, "BuildDone", { wait = 0.4 })
 end
-prof.tut = 5
+prof.tut = Plot.TIP_WORK
 res = H.req(p, "quest.claim", {})
 H.expect(not res.ok and res.err == "not_found", "quests", "no quests while the tips are on", tostring(res.err))
 prof.tut = 0

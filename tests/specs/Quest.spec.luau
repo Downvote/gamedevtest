@@ -55,7 +55,13 @@ return function()
 			T.truthy(not string.find(q.text, "\226\128\148") and not string.find(q.text, "\226\128\147"), q.id .. ": no dashes")
 			T.eq(Quests.byId[q.id], q, "by id " .. i)
 		end
-		T.eq(Quests.list[1].id, "help", "it starts with putting a driftling to work")
+		-- (the request of 2026-11-21: "the first goal after the tutorial should be "Place down 4 huts"")
+		T.eq(Quests.list[1].id, "huts4", "it starts with four huts")
+		T.eq(Quests.list[1].title, "Place down 4 huts")
+		T.eq(Quests.list[1].goal.kind, "built")
+		T.eq(Quests.list[1].goal.of, "nest")
+		T.eq(Quests.list[1].goal.n, 4)
+		T.eq(Quests.byId.huts, nil, "Build another hut (two) is gone")
 	end)
 
 	T.it("nothing while the tips are on; the quest on the go after", function()
@@ -72,17 +78,35 @@ return function()
 		local p = fresh()
 		local q = Quests.list[1]
 		T.eq(select(1, Quest.progress(Quest.facts(p), q)), 0)
-		T.eq(select(2, Quest.claim(p)), "not_done", "no driftling at work yet")
+		T.eq(select(2, Quest.claim(p)), "not_done", "no huts yet")
 		T.eq(p.quest, 1)
-		table.insert(p.pals, { id = 1, sp = "pebblit", home = 4, work = 5, muts = {} })
-		T.truthy(Quest.done(Quest.facts(p), q), "one at work")
+		for k = 1, 3 do
+			table.insert(p.plot.placed, { uid = 100 + k, id = "nest", x = 4 * k, z = 0, rot = 0, lvl = 1 })
+		end
+		T.eq(select(1, Quest.progress(Quest.facts(p), q)), 3)
+		T.eq(select(2, Quest.claim(p)), "not_done", "three huts: not yet")
+		table.insert(p.plot.placed, { uid = 104, id = "nest", x = 16, z = 0, rot = 0, lvl = 1 })
+		T.truthy(Quest.done(Quest.facts(p), q), "four huts")
 		local shells = p.shells
 		local ok, data = Quest.claim(p)
 		T.truthy(ok, "claimed")
 		T.eq(p.shells, shells + (q.reward.shells or 0), "its shells")
 		T.eq(p.quest, 2, "the next quest")
-		T.eq(data.id, "help")
+		T.eq(data.id, "huts4")
 		T.eq(data.next, 2)
+		-- the next: a driftling at work
+		local q2 = Quests.list[2]
+		T.eq(q2.id, "help")
+		T.eq(select(2, Quest.claim(p)), "not_done", "no driftling at work yet")
+		table.insert(p.pals, { id = 1, sp = "pebblit", home = 101, work = 5, muts = {} })
+		T.truthy(Quest.done(Quest.facts(p), q2), "one at work")
+		T.truthy((Quest.claim(p)), "claimed")
+		T.eq(p.quest, 3)
+	end)
+
+	T.it("four huts fit the first island's room for driftlings", function()
+		local slots = Buildings.byId.nest.slots
+		T.truthy(Quests.list[1].goal.n * slots <= Plot.housingLimit(1), string.format("%d huts of %d beds, %d on the first island", Quests.list[1].goal.n, slots, Plot.housingLimit(1)))
 	end)
 
 	T.it("the counts: driftlings at work, paths, a kind built, the Index, the ones taken in", function()
@@ -135,23 +159,24 @@ return function()
 			end
 		end
 		T.eq(#Quests.list, 19)
-		T.eq(farmAt, 7, "Another workplace (Another farm till 2026-11-19) is the seventh now")
+		T.eq(farmAt, 7, "Another workplace (Another farm till 2026-11-19) is the seventh now (four huts in, two huts out: 2026-11-21)")
 		local function from18(q: number): number
 			local old = Schema.default(0, 1) :: any
 			old.v = 18
 			old.quest = q
 			return (Schema.reconcile(Schema.migrate(old), 0, 1) :: any).quest
 		end
-		T.eq(from18(3), 3, "before the camp quest: the same")
-		T.eq(from18(4), 4, "on it: the next one, Three at work, now the fourth")
+		-- (by the quest itself: since version 25 "Place down 4 huts" comes first, so each is one place later)
+		T.eq(Quests.list[from18(3)].id, "take3", "before the camp quest: the same (Hatch three eggs)")
+		T.eq(Quests.list[from18(4)].id, "three", "on it: the next one, Three at work")
 		T.eq(Quests.list[from18(8)].id, "farm", "on Another farm (the eighth): still on it")
 		T.eq(from18(21), #Quests.list + 1, "all done: still all done")
 	end)
 
 	T.it("the quests before the first expansion fit the first island's work spaces", function()
-		-- the workplaces the tips have built (a camp, a farm, a stall), then the most any quest asks for (one kind of
-		-- work since 2026-11-19), at the first island's places a workplace
-		local need = 3
+		-- the workplaces the tips have built (one since 2026-11-21: the best one; a camp, a farm and a stall before),
+		-- then the most any quest asks for (one kind of work since 2026-11-19), at the first island's places a workplace
+		local need = 1
 		for _, q in Quests.list do
 			if q.goal.kind == "tier" then
 				break

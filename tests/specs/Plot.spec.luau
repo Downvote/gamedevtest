@@ -67,22 +67,40 @@ return function()
 		end
 		T.truthy(not Plot.fits(1, {}, "torch", 30, 6, 0), "nothing built past the edge")
 	end)
-	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free")
-	T.it("the tips' snack stall: free while the tips ask for a shop, full price before and after", function()
+	-- (the request of 2026-11-14: "make the first snack stall in the tutorial free"; since 2026-11-21 the tips ask for
+	-- "a workspace, the best one")
+	T.it("the tips' workplace: the best one the island has, free while the tips ask for it, full price before and after", function()
+		T.eq(Plot.TIP_HUT, 1)
+		T.eq(Plot.TIP_HATCH, 2)
+		T.eq(Plot.TIP_WORK, 3)
+		T.eq(Plot.TIP_LAST, 4)
+		for tier = 1, 20 do
+			local id = Plot.tipWork(tier)
+			local d = Buildings.byId[id]
+			T.truthy(d ~= nil and d.kind == "work" and d.tier <= tier, "tier " .. tier .. ": a workplace it has unlocked")
+			for _, o in Buildings.list do
+				if o.kind == "work" and o.tier <= tier then
+					T.truthy(o.rate <= d.rate, string.format("tier %d: %s earns no more than %s", tier, o.id, id))
+				end
+			end
+		end
+		T.eq(Plot.tipWork(1), "pier", "a first island's: the Fishing Pier")
 		local p = fresh()
-		local full = Buildings.byId.stall.shells
-		p.tut = Plot.TIP_SHOP - 1
-		T.eq(Plot.price(p, "stall"), full, "before its step")
-		p.tut = Plot.TIP_SHOP
-		T.eq(Plot.price(p, "stall"), 0, "on its step")
-		T.eq(Plot.price(p, "cafe"), Buildings.byId.cafe.shells, "only the stall")
+		local id = Plot.tipWork(p.tier)
+		local full = Buildings.byId[id].shells
+		p.tut = Plot.TIP_HATCH
+		T.eq(Plot.price(p, id), full, "before its step")
+		p.tut = Plot.TIP_WORK
+		T.eq(Plot.price(p, id), 0, "on its step")
+		T.eq(Plot.price(p, "patch"), Buildings.byId.patch.shells, "only that one")
+		T.eq(Plot.price(p, "nest"), Buildings.byId.nest.shells, "a hut at its price")
 		local sh = p.shells
-		local x, z = spot(p, "stall")
-		local ok = Plot.place(p, "stall", x, z, 0)
+		local x, z = spot(p, id)
+		local ok = Plot.place(p, id, x, z, 0)
 		T.truthy(ok, "placed")
 		T.eq(p.shells, sh, "paid nothing")
-		p.tut = Plot.TIP_SHOP + 1
-		T.eq(Plot.price(p, "stall"), full, "after it")
+		p.tut = Plot.TIP_LAST
+		T.eq(Plot.price(p, id), full, "after it")
 	end)
 
 	T.it("a quarter turn swaps the footprint", function()
