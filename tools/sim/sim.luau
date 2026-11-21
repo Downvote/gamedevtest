@@ -4015,8 +4015,8 @@ do
 	local need = math.ceil(44 / K)
 	-- the touch layout (2026-11-21: "rearrange and redo the UI on mobile and tablet. Reference other mobile tycoon
 	-- games in landscape and replicate their UI design"): the menus as squares a fingertip wide in a grid down the
-	-- left, Build a mint button beside Roblox's jump button, no button of the HUD's under the jump button, and the
-	-- bottom left (the thumbstick's corner) clear of buttons
+	-- left, Build the grid's last square ("Put the build button as the 6th button here instead of next to jump"), no
+	-- button of the HUD's under the jump button, and the bottom left (the thumbstick's corner) clear of buttons
 	local function touchHud(tag: string)
 		E.run(0.6)
 		local cs = H.inClient(p, UIKitC.size, "Hud")
@@ -4051,9 +4051,17 @@ do
 		local pals = H.buttonNamed(p, "Menu_pals")
 		H.expect(pals ~= nil and pals.Parent ~= nil and pals.Parent.Name == "MenuBar" and pals.AbsoluteSize.X / u * Kn >= 43 and pals.AbsoluteSize.Y / u * Kn >= 43, "touch", tag .. ": the menus are squares a fingertip wide in the grid down the left", pals and tostring(pals.AbsoluteSize) or "missing")
 		local mb = H.buttonNamed(p, "Menu_build")
-		local bx1 = mb and (mb.AbsolutePosition.X + mb.AbsoluteSize.X - canvas.AbsolutePosition.X) / u
-		local by0 = mb and (mb.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / u
-		H.expect(mb ~= nil and bx1 ~= nil and by0 ~= nil and bx1 <= jx0 and bx1 >= jx0 - 8 and by0 < jy0 + js and by0 + mb.AbsoluteSize.Y / u > jy0, "touch", tag .. ": Build beside the jump button, level with it", if mb then string.format("Build ends at %.0f, jump at %.0f..%.0f", bx1 or -1, jx0, jx0 + js) else "missing")
+		local last = nil
+		if mb and mb.Parent and mb.Parent.Name == "MenuBar" then
+			for _, d in mb.Parent:GetChildren() do
+				if d:IsA("GuiButton") and d.Visible and (last == nil or d.AbsolutePosition.Y > last.AbsolutePosition.Y or (d.AbsolutePosition.Y == last.AbsolutePosition.Y and d.AbsolutePosition.X > last.AbsolutePosition.X)) then
+					last = d
+				end
+			end
+		end
+		H.expect(mb ~= nil and last == mb and math.abs(mb.AbsoluteSize.X - pals.AbsoluteSize.X) < 1 and math.abs(mb.AbsoluteSize.Y - pals.AbsoluteSize.Y) < 1, "touch", tag .. ": Build the last square of the grid, as big as the rest", if mb then string.format("%s in %s, last %s", tostring(mb.AbsoluteSize), mb.Parent and mb.Parent.Name or "nothing", last and last.Name or "none") else "missing")
+		local bx0 = mb and (mb.AbsolutePosition.X - canvas.AbsolutePosition.X) / u
+		H.expect(bx0 ~= nil and bx0 < jx0 - 40, "touch", tag .. ": Build nowhere near the jump button", if bx0 then string.format("Build at %.0f, jump at %.0f", bx0, jx0) else "missing")
 	end
 	screen(844, 390, true)
 	touchHud("a phone")

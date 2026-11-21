@@ -695,16 +695,20 @@ Swarm Simulator, Adopt Me, Tycoon games on Roblox, and Roblox's own touch contro
 **Phones and tablets** (a touch screen with no mouse, `UIKit.touch`; a phone has a short side of 500 px or less):
 - The top bar: the coins with a mint "+" (the Store), the season and the weather.
 - Down the left, under it: a grid of dark glass squares two wide, 22 UI px on a phone (44 screen px) and 28 on a
-  tablet with each one's name under it: Driftlings, the Hatchery once it opens, Index, Looks, Top, Settings. Each shows
-  its big icon. A held finger shows a tooltip with its name and what it opens.
+  tablet with each one's name under it: Driftlings, the Hatchery once it opens, Index, Looks, Top, Settings, and last
+  Build, mint with a 1 px outline (it sits straight on the grass). Each shows its big icon. A held finger shows a
+  tooltip with its name and what it opens. Where two columns would reach down into the thumbstick's corner (a phone
+  once the Hatchery opens: seven squares), the grid is three wide.
+
+  > The request (2026-11-21, with a picture of the phone's grid: Driftlings, Index, Looks, Top, Settings): "Put the
+  > build button as the 6th button here instead of next to jump"
 - At the top right: the island card, folded on a phone to its name and the coins a minute (a tap opens it), open on a
   tablet. Under it a row of three squares across the card's width: Eggs (the tree's big icon over a bar running down to
   the next eggs, the time under it), Gifts (its red dot) and Store. The offers (Starter Pack, the group) under them,
   moved left of the jump button when they would reach it.
-- Build: a big mint button with the house and its name, beside the jump button and level with it.
 - Right of the grid: the status lines and the quest's card, which folds to its title and progress at a tap on its
   title (a quest done always shows its Claim). On a screen too narrow for that they go under everything.
-- The tips at the bottom centre, left of Build. Nothing in the bottom left.
+- The tips at the bottom centre, left of the jump button. Nothing in the bottom left.
 - The camera keeps only Roblox's top bar clear on a phone, so the founder stands in the middle of what is left.
 
 **What the PC builders share** (RollerCoaster Tycoon and OpenRCT2, Planet Coaster, Parkitect, Two Point Hospital and
