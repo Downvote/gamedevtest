@@ -356,6 +356,7 @@ local SG = {
 	Map = require(script.Parent.RayMap),
 	mapView = nil :: CameraController.View?,
 	noShare = false,
+	planes = (setmetatable({}, { __mode = "k" }) :: any) :: { [BasePart]: { [number]: { number } | false } }, -- (SG.facePlane's)
 	skyN = 0,
 	sharedN = 0,
 	raysAt = 0,
@@ -883,6 +884,59 @@ function SG.skyAt(s: Surf, gx: number, gy: number, bx1: number, by1: number)
 	SG.skyN += 1
 end
 
+-- The plane of flat part p's face that shows normal index ni (front on to the view along (lx, ly, lz)): { nx, ny, nz,
+-- d } with n . point = d on it, worked out from the part's frame and size once and kept; false when no face of it
+-- fits. A block's six faces; a wedge's too, and its slope either way round (the one that is not the slope's is never
+-- met: the anchors' depths settle it, SG.shareAt).
+function SG.facePlane(p: BasePart, ni: number, lx: number, ly: number, lz: number): { number } | false
+	local byNi = SG.planes[p]
+	if byNi == nil then
+		byNi = {}
+		SG.planes[p] = byNi
+	end
+	local got = byNi[ni]
+	if got ~= nil then
+		return got :: any
+	end
+	local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
+	local size = p.Size
+	local hx, hy, hz = size.X / 2, size.Y / 2, size.Z / 2
+	local cands = {
+		{ r00, r10, r20, hx },
+		{ -r00, -r10, -r20, hx },
+		{ r01, r11, r21, hy },
+		{ -r01, -r11, -r21, hy },
+		{ r02, r12, r22, hz },
+		{ -r02, -r12, -r22, hz },
+	}
+	if p:IsA("WedgePart") then
+		-- (the slope, through the box's middle, its normal (0, sz, -+sy) in the part's own axes)
+		for _, sg in { -1, 1 } do
+			local a, b = size.Z, sg * size.Y
+			local len = math.sqrt(a * a + b * b)
+			if len > 0 then
+				a, b = a / len, b / len
+				table.insert(cands, { r01 * a + r02 * b, r11 * a + r12 * b, r21 * a + r22 * b, 0 })
+			end
+		end
+	end
+	local best: { number } | false = false
+	local k = ni + 1
+	local bestDot = -2
+	for _, c in cands do
+		local nx, ny, nz = c[1], c[2], c[3]
+		if nx * lx + ny * ly + nz * lz < 0 and Shading.normalIndex(nx, ny, nz) == ni then
+			local dot = nx * NX[k] + ny * NY[k] + nz * NZ[k]
+			if dot > bestDot then
+				bestDot = dot
+				best = { nx, ny, nz, nx * cx + ny * cy + nz * cz + c[4] }
+			end
+		end
+	end
+	byNi[ni] = best :: any
+	return best :: any
+end
+
 -- Whether the ray from (ox, oy, oz) along (lx, ly, lz) meets part p's box (grown by 0.01 studs) before the depth
 -- tmax (and a hair past it: a face level with the one at tmax counts as in front). The part is inside its box
 -- whatever its shape, so a miss is a miss of the part.
@@ -989,14 +1043,36 @@ function SG.shareAt(s: Surf, gx: number, gy: number, p1: BasePart, p2: BasePart?
 			depth = (d0 + d1 + d2 + d3) / 4
 		end
 	end
+	-- the depth where the pixel's ray crosses the face's plane, worked out from the part itself (the anchors' depths are
+	-- kept to single precision: their mean could stray a hair from a ray's own, enough to tip a sun ray at a shadow's
+	-- edge one way or the other), so long as the plane puts the anchors where they are
+	local ox, oy, oz = Raster.origin(cam, x, y)
+	local lx, ly, lz = cam.lx, cam.ly, cam.lz
+	local found = SG.facePlane(part, ni, lx, ly, lz)
+	if not found then
+		return false
+	end
+	local pl = found :: { number }
+	local nx, ny, nz, pd = pl[1], pl[2], pl[3], pl[4]
+	local nl = nx * lx + ny * ly + nz * lz
+	local exact = (pd - (nx * ox + ny * oy + nz * oz)) / nl
+	-- (an anchor one pixel over: its origin a pixel's step along the grid)
+	local stepX, stepY = (nx * cam.ix + ny * cam.iy + nz * cam.iz) / nl, (nx * cam.jx + ny * cam.jy + nz * cam.jz) / nl
+	local ex0 = exact + (gx % 2) * stepX + (gy % 2) * stepY
+	if math.abs(ex0 - d0) > 2e-3 or math.abs(ex0 - (gx % 2) * 2 * stepX - d1) > 2e-3 then
+		return false
+	end
+	if math.abs(exact - depth) > 2e-3 then
+		return false
+	end
+	depth = exact
 	-- nothing else of the block in front of the face here: the third part on comes no nearer than the face, and the
 	-- other of the two either does not or its box is not on the pixel's ray before the face
-	local ox, oy, oz = Raster.origin(cam, x, y)
 	if near2 <= depth then
 		if near3 <= depth or other == nil then
 			return false
 		end
-		if SG.boxHit(other :: BasePart, ox, oy, oz, cam.lx, cam.ly, cam.lz, depth) then
+		if SG.boxHit(other :: BasePart, ox, oy, oz, lx, ly, lz, depth) then
 			return false
 		end
 	end
@@ -1030,7 +1106,7 @@ function SG.shareAt(s: Surf, gx: number, gy: number, p1: BasePart, p2: BasePart?
 	buffer.writeu32(s.sAlbedo, idx * 4, albedo)
 	buffer.writeu8(sNormal, idx, ni)
 	buffer.writeu8(s.sLit, idx, lit)
-	buffer.writeu32(s.sShade, idx * 4, SG.shadeOf(s, gx, gy, id, albedo, ni + 1, lit, ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth))
+	buffer.writeu32(s.sShade, idx * 4, SG.shadeOf(s, gx, gy, id, albedo, ni + 1, lit, ox + lx * depth, oy + ly * depth, oz + lz * depth))
 	SG.sharedN += 1
 	return true
 end

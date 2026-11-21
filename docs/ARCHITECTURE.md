@@ -1601,7 +1601,11 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   and nothing else can be in front of the face there: the third part on comes no nearer than the face, and the other
   of the two comes no nearer or the pixel's ray misses its box (`SG.boxHit`, the box grown 0.01 studs). The face is
   convex, so the pixel's ray crosses it between the anchors, at the depth between theirs (four anchors must lie on one
-  plane); its sun is its block's anchor's, as castSample shares it, so `sShare` now says 2 for a pixel with a ray of
+  plane). The depth written is where the pixel's ray crosses the face's own plane, worked out from the part's frame
+  and size (`SG.facePlane(part, ni, lx, ly, lz)`, kept per part and normal; a block's six faces, a wedge's and its
+  slope), so long as that plane puts the anchors at their depths: the anchors' depths are kept to single precision,
+  and their mean strayed a hair from a ray's own, enough to tip a sun ray at a shadow's edge (the `expandrim` preview
+  found one such pixel). Its sun is its block's anchor's, as castSample shares it, so `sShare` now says 2 for a pixel with a ray of
   its own on a face toward the sun (`BakeCast.cast` returns whether the face it met looks at the sun), the anchor a
   shared pixel takes its sun from. `castSample` shades from its own values (`SG.shadeOf`; `shadeAt` reads them off
   the layer), and `BakeCast.cast` reads each of a result's properties once. `debugCastCheck` casts every pixel with a
