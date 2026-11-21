@@ -2427,11 +2427,24 @@ wait: the egg floats on its own in front of a painted sky, and the player taps i
 > hatched instead of rendering the whole model?"
 
 So what hatches is drawn once as pictures while the egg waits for its taps: its way out of the shell (the white
-silhouette, the leap, the squash on landing and the spring back) at 15 pictures a second, then twelve of it standing,
+silhouette, the leap, the squash on landing and the spring back) at 10 pictures a second, then eight of it standing,
 played there and back. They are drawn the way the pixel filter draws the creature, at the same size and place, with its
 texture and in the scene's light, and stand behind the shell it comes out of. The pixel filter no longer draws the whole
 model again every frame. Tapping quickly through a common egg can beat the pictures; then the model shows as before
 until they are ready, and they take over once it has landed.
+
+> Then (2026-11-21): "it still is pretty laggy while hatching, even when the egg is dropping down. could it be
+> optimized more?"
+
+Measured frame by frame, the drop was paying for the pictures above (drawn from the scene's first frames) and the egg
+was drawn afresh every frame it moved: a faint sway, and its lights circling it inside the same model. Now the
+pictures are drawn once the egg has landed, and held back for the moments it shakes or squashes at a tap. The egg's
+lights move on their own, 20 times a second, so the shell is not drawn again for them, and the bits of shell move at
+the same rate. The shell is posed in steps of about a pixel, at most 20 times a second while it shakes, squashes or
+leaps and 12 while it only wobbles and breathes, the rates pixel art animates at; between, and through its bounces,
+the last picture of it slides along by whole pixels, and a pose it has been in before is put back from that pose's
+picture. The fall and the wait before it cost a quarter to a fifth of what they did, and taps and the hatch itself
+about a third less.
 
 - **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night

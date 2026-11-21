@@ -141,7 +141,7 @@ type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: 
 -- then, the static picture's epoch (SG.ver) and the scale. cache false: never kept (its ids wrap round).
 -- shp: where the model's blob shadow is cast from as it was drawn (its PrimaryPart's position; nil: it cast none), so
 -- the shadow shown with a kept picture is the picture's, not the live model's.
-type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number, shp: Vector3?, anchor: Vector3? }
+type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number, shp: Vector3?, anchor: Vector3?, from: DynCache? }
 -- (what it shows since the last compose, for the incremental compose: shC the kept picture put down, nil when it was
 -- drawn and not kept; shR its rect a pixel round, in global art px; sx, sy, srx, sry its blob shadow's centre (global
 -- art px) and radii, sR the shadow's rect (global); sChg, sIn whether this compose draws the shadow because it changed
@@ -169,6 +169,11 @@ type Dyn = {
 	sChg: boolean?,
 	sIn: boolean?,
 	lead: number?, -- studs nearer than it stands when put down on the frame (its "PixelLead" attribute)
+	-- (PixelRenderer.pose: the pose it says it is in, its pictures kept by pose (at most POSE_KEEP, the oldest going
+	-- first) and the order they came in)
+	poseKey: string?,
+	poses: { [string]: DynCache }?,
+	poseOrder: { string }?,
 }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
@@ -2611,6 +2616,11 @@ end
 -- those a model shows its kept picture even when it has moved since, except the founders (the camera follows the
 -- player's own, and a founder's white rim is drawn round where it stands now).
 local PX_BYTES = 14 -- a kept pixel: dx u16, dy u16, colour u32, depth f32, id u16
+-- A model that says which pose it is in (PixelRenderer.pose: the hatch scene's egg, rocking, wobbling and shaking
+-- through the same few poses) keeps a picture for each of up to POSE_KEEP poses: posed again in one it had, that
+-- picture is put down (slid to where the model stands, SG.glideOf) in place of a draw. The user's report of 2026-11-21:
+-- "it still is pretty laggy while hatching, even when the egg is dropping down".
+local POSE_KEEP = 32
 
 -- Parts as they stand now against a snapshot (cfs, szs, gone); nil snapshot: never the same.
 function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?): boolean
@@ -2696,6 +2706,18 @@ function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, n
 	local pic: DynCache = { gx = lx0 + s.cam.gx, gy = ly0 + s.cam.gy, w = cx1 - cx0 + 1, h = cy1 - cy0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu, shp = if pp.Transparency < 0.95 then pp.Position else nil, anchor = d.gPosed }
 	if whole then
 		d.cache = pic
+		local key = d.poseKey
+		if key then
+			local poses, order = d.poses or {}, d.poseOrder or {}
+			d.poses, d.poseOrder = poses, order
+			if poses[key] == nil then
+				table.insert(order, key)
+				if #order > POSE_KEEP then
+					poses[table.remove(order, 1) :: string] = nil
+				end
+			end
+			poses[key] = pic
+		end
 	else
 		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
 	end
@@ -2935,6 +2957,22 @@ end
 -- moved; otherwise a model that is not a founder may show it though it has moved), and the layer rect it covers; nil:
 -- draw it.
 function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, number, number, number, number)
+	-- (posed in a pose it has a picture of: that picture stands for its parts as they are now)
+	local key, poses = d.poseKey, d.poses
+	if key and poses then
+		local pc = poses[key]
+		local cur = d.cache
+		if pc and pc.ver == SG.ver and pc.ppu == ppu and cur ~= pc and (cur == nil or cur.from ~= pc) then
+			local cfs, szs, gone = {}, {}, {}
+			for i, p in d.parts do
+				local part = p.part
+				cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
+			end
+			local cc = table.clone(pc)
+			cc.cfs, cc.szs, cc.gone, cc.from = cfs, szs, gone, pc
+			d.cache = cc
+		end
+	end
 	local c = d.cache
 	if c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu or SG.off then
 		return nil, 0, 0, 0, 0
@@ -5370,7 +5408,7 @@ function SG.forget(d: Dyn?)
 end
 
 -- Re-colour a registered model's parts after their Color changed (a monitor lighting up).
-function PixelRenderer.refreshDynamic(model: Model)
+function PixelRenderer.refreshDynamic(model: Model, keepPoses: boolean?)
 	local d = dyns[model]
 	if d then
 		for _, p in d.parts do
@@ -5380,6 +5418,23 @@ function PixelRenderer.refreshDynamic(model: Model)
 			dynGlow[p.id] = p.glow
 		end
 		d.cache = nil
+		-- (its pictures by pose go too, unless its pose keys already tell its colours apart: keepPoses)
+		if not keepPoses then
+			d.poses, d.poseOrder = nil, nil
+		end
+	end
+end
+
+-- Moving model `model` is posed as `key` from now on (nil: it says no more): each pose's picture is kept, and posed in
+-- one it had again (its parts placed the same way round the point it glides from, PixelRenderer.glide) that picture is
+-- put down, slid to where it stands, in place of a draw. Say the key whenever the parts are posed.
+function PixelRenderer.pose(model: Model, key: string?)
+	local d = dyns[model]
+	if d then
+		d.poseKey = key
+		if key == nil then
+			d.poses, d.poseOrder = nil, nil
+		end
 	end
 end
 

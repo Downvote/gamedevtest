@@ -113,6 +113,17 @@ local BOUNCE = { 0.75, 0.2 }
 local BOUNCE_T = { 0.3, 0.18 }
 local DROP = FALL + BOUNCE_T[1] + BOUNCE_T[2]
 local RISE_T = 0.6 -- a step up: the egg leaps up spinning and comes back down in this long
+-- (the egg's shell is posed in steps: POSE_TURN radians of rock or tilt, about a pixel at its top; POSE_SPIN of a step
+-- up's spin; POSE_SQUASH of its squash, about a pixel; and at most POSE_HZ times a second while it shakes, squashes,
+-- leaps or breaks, POSE_IDLE_HZ while it only wobbles and breathes, the frame rates pixel art animates at: stepEgg.
+-- Its lights and the bits of shell move LIGHTS_HZ times a second)
+local POSE_TURN = 0.012
+local POSE_SPIN = math.pi / 16
+local POSE_SQUASH = 0.04
+local POSE_HZ = 20
+local GLIDE_LIFT = 1.5 -- studs over its spot below which the falling egg's picture slides
+local POSE_IDLE_HZ = 12
+local LIGHTS_HZ = 20
 local RISE_H = 0.8 -- studs it leaps
 local SLOW = 0.3 -- how fast the scene runs in its slow motion at the break
 local POP_UP = 0.12 -- what hatched: seconds it takes to come up out of the shell, stretched, before its leap
@@ -121,14 +132,15 @@ local POP_UP = 0.12 -- what hatched: seconds it takes to come up out of the shel
 -- way out of the shell and its standing about are drawn once as pictures through Pixel/Snapshot (the world's look,
 -- its view, pixel size, shading, texture and the scene's light, each picture anchored at its feet), then shown one
 -- after another on the scene's canvas
--- in place of the whole model the pixel filter would draw again every frame. BAKE_FPS pictures a second for its way
+-- in place of the whole model the pixel filter would draw again every frame (begun once the egg has landed, held while
+-- it shakes or squashes at a tap: step). BAKE_FPS pictures a second for its way
 -- out (the white silhouette, the leap, the squash on landing and the spring back), then IDLE_N of it standing over
 -- IDLE_T s, played there and back. Snapshot draws for BAKE_MS a frame meanwhile (the world shows nothing else). The
 -- live model stands in while the pictures are not ready (or cannot be made), and they take over once they are.
-local BAKE_FPS = 15
-local IDLE_N = 12
+local BAKE_FPS = 10
+local IDLE_N = 8
 local IDLE_T = 2.4
-local BAKE_MS = 6
+local BAKE_MS = 4
 local BAKE_PAD = 6 -- art px kept round its widest stretch for its moves
 
 -- The baked pictures of what hatches (`bakeStart`): `mode` "baking" (on their way), "live" (the live model shows, the
@@ -282,6 +294,14 @@ type Scene = {
 	shake: number, -- how hard it shakes this frame (0 at rest; sims and previews)
 	-- the egg
 	egg: Model?,
+	lights: Model?, -- its lights (motes, halo, rings of beads) in a model of their own: they move every frame
+	posedAt: Vector3?, -- where the egg's foot was when its parts were last posed (its picture slides from there)
+	poseKey: string?, -- its shape as last posed, in steps (rock, tilt, spin, squash, cracks)
+	posedClock: number, -- when it was last posed (s.real)
+	posedCrack: number, -- the cracks it had then
+	bakeHeld: boolean, -- the bake held back for a busy moment (Snapshot.hold)
+	lightsAt: number, -- when its lights last moved (s.real)
+	shardsAt: number, -- when the bits of shell last moved (s.real)
 	parts: { { p: BasePart, off: CFrame } },
 	sizes: { Vector3 }, -- each part's own size (squashing scales it)
 	top: { BasePart },
@@ -392,6 +412,12 @@ local function dropEgg(s: Scene)
 		PixelRenderer.unregisterDynamic(m)
 		m:Destroy()
 	end
+	local lights = s.lights
+	if lights then
+		PixelRenderer.unregisterDynamic(lights)
+		lights:Destroy()
+	end
+	s.lights, s.posedAt, s.poseKey = nil, nil, nil
 	s.egg, s.parts, s.top, s.fx, s.cracks, s.glowing = nil, {}, {}, {}, {}, false
 	s.sizes, s.crackSizes = {}, {}
 end
@@ -404,8 +430,24 @@ local function newEgg(s: Scene, r: number)
 	for _, k in cracks do
 		k.p.Color = Blocks.color(RAY[r][2])
 	end
+	-- (its lights in a model of their own: they circle it every frame, and the shell is drawn again only when it moves
+	-- or changes, its picture kept meanwhile; the user's report of 2026-11-21, "it still is pretty laggy while hatching,
+	-- even when the egg is dropping down")
+	local lights = Instance.new("Model")
+	lights.Name = "EggLights"
+	for _, f in fx do
+		f.p.Parent = lights
+	end
 	m.Parent = s.dyn
 	PixelRenderer.registerDynamic(m)
+	if #fx > 0 then
+		lights.Parent = s.dyn
+		PixelRenderer.registerDynamic(lights)
+		s.lights = lights
+	else
+		lights:Destroy()
+	end
+	s.posedAt, s.poseKey = nil, nil
 	s.egg, s.parts, s.top, s.fx, s.cracks, s.glowing = m, parts, top, fx, cracks, false
 	for i, rp in parts do
 		s.sizes[i] = rp.p.Size
@@ -1182,6 +1224,8 @@ local function bakeStop(s: Scene)
 		holder:Destroy()
 	end
 	Snapshot.setBudget(nil)
+	Snapshot.hold(false)
+	s.bakeHeld = false
 end
 
 -- Draw what hatches as pictures: its way out (the shapes palShape gives, BAKE_FPS a second) first, then standing.
@@ -1631,6 +1675,45 @@ local function squashOf(s: Scene, c: number): number
 	return q
 end
 
+-- The egg's lights each frame (motes circling it, a halo turning over it, rings of beads orbiting it: their own model,
+-- PixelRenderer drawing only them afresh).
+local function stepLights(s: Scene, c: number, cf: CFrame, foot: Vector3, eh: number, off: number?)
+	-- the rarity's lights on the egg: motes circling it, a halo turning over it, a ring of lights orbiting it (moved
+	-- LIGHTS_HZ times a second: each move draws their model afresh)
+	local er = 0.37 * eh
+	local move = off ~= nil or s.real - s.lightsAt >= 1 / LIGHTS_HZ
+	if move then
+		s.lightsAt = s.real
+	end
+	for _, f in s.fx do
+		if not move then
+			break
+		end
+		if off then
+			f.p.CFrame = CFrame.new(foot - Vector3.new(0, 30, 0))
+		elseif f.kind == "mote" then
+			local a = c * 1.5 + f.k * math.pi * 2 / 3
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.45, eh * (0.45 + 0.12 * math.sin(c * 2.1 + f.k * 2)), math.sin(a) * er * 1.45)
+		elseif f.kind == "halo" then
+			local a = c * 0.9 + f.k / 20 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 0.75, eh + 0.45 + 0.05 * math.sin(c * 2), math.sin(a) * er * 0.75)
+		elseif f.kind == "orbit" then
+			-- (a celestial egg's ring of lights: round its middle, tilted like a planet's ring; an ancient egg's three
+			-- embers and an eternal egg's first ring the same way)
+			local a = c * 0.7 + f.k / 28 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.7, eh * 0.5 + math.cos(a) * er * 0.45, math.sin(a) * er * 1.7)
+		elseif f.kind == "orbit2" then
+			-- (an eternal egg's second ring: the other way round, a little wider, tilted against the first)
+			local a = -c * 0.55 + f.k / 28 * math.pi * 2
+			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.85, eh * 0.52 - math.sin(a) * er * 0.55, math.sin(a) * er * 1.85)
+		elseif f.kind == "beam" then
+			local hb = 3.4 + 0.6 * math.sin(c * 1.9)
+			f.p.Size = Vector3.new(0.3, Blocks.snap(hb), 0.3)
+			f.p.CFrame = cf * CFrame.new(0, eh + 0.2 + Blocks.snap(hb) / 2, 0)
+		end
+	end
+end
+
 local function stepEgg(s: Scene, c: number, d: number)
 	local r = s.r
 	local eh = EGG_H[r] or 2.4
@@ -1693,15 +1776,59 @@ local function stepEgg(s: Scene, c: number, d: number)
 	local fwd = Vector3.new(-right.Z, 0, right.X)
 	local lift = liftOf(s, c)
 	local foot = at(0, footY(r) + bob + lift, 0) + right * side
-	local cf = CFrame.new(foot) * CFrame.fromAxisAngle(fwd, rock) * CFrame.Angles(tilt, 0, tilt * 0.6) * CFrame.Angles(0, spin, 0)
+	-- (its shape in steps of about a pixel at its top: the rock, the tilt, the spin and the squash. The shell is posed
+	-- again only when a step changes, and while it shakes no more than POSE_HZ times a second; in between, and through
+	-- a fall, a bounce, a bob or a jump sideways, its kept picture slides with it by whole pixels
+	-- (PixelRenderer.glide), so nothing is drawn afresh: the user's report of 2026-11-21, "it still is pretty laggy
+	-- while hatching, even when the egg is dropping down". Its lights circle it in their own model.)
+	local rockQ = math.floor(rock / POSE_TURN + 0.5)
+	local tiltQ = math.floor(tilt / POSE_TURN + 0.5)
+	local spinQ = math.floor(spin / POSE_SPIN + 0.5)
+	local cf = CFrame.new(foot) * CFrame.fromAxisAngle(fwd, rockQ * POSE_TURN) * CFrame.Angles(tiltQ * POSE_TURN, 0, tiltQ * POSE_TURN * 0.6) * CFrame.Angles(0, spinQ * POSE_SPIN, 0)
 	s.cf = cf
 	local off = s.topOff
-	-- its squash: wider and lower, or thinner and taller (in steps of a hundredth, so it is not re-sized every frame)
-	local q = if off then 0 else math.floor(squashOf(s, c) * 100 + 0.5) / 100
+	-- its squash: wider and lower, or thinner and taller (in steps of POSE_SQUASH, about a pixel)
+	local q = if off then 0 else math.floor(squashOf(s, c) / POSE_SQUASH + 0.5) * POSE_SQUASH
 	local sx, sy = 1 + 0.08 * q, 1 - 0.13 * q
+	s.mid = (cf * CFrame.new(0, eh * 0.5 * sy, 0)).Position
+	-- the build-up: the cracks blaze between white and the rarity's light, faster and faster (posed again at once, the
+	-- blaze being part of its pose: its pictures by pose are kept)
+	if s.phase == "breaking" and s.egg and r >= 2 then
+		local u = math.clamp((c - s.breakAt) / s.build, 0, 1)
+		local want = if math.floor((c - s.breakAt) * (5 + 12 * u)) % 2 == 0 then 0 else 1
+		if want ~= s.blaze then
+			s.blaze = want
+			for _, kk in s.cracks do
+				kk.p.Color = Blocks.color(if want == 0 then "white" else RAY[r][2])
+			end
+			PixelRenderer.refreshDynamic(s.egg :: Model, true)
+			s.posedClock = -10
+		end
+	end
+	local key = string.format("%d %d %d %d %d %d", rockQ, tiltQ, spinQ, math.floor(q / POSE_SQUASH + 0.5), s.crack, s.blaze)
+	local egg = s.egg
+	local lively = amp > 0 or off ~= nil or (kr >= 0 and kr < RISE_T) or c - s.squashAt < 0.7
+	local due = s.real - s.posedClock >= 1 / (if lively then POSE_HZ else POSE_IDLE_HZ) or s.crack ~= s.posedCrack
+	-- (high in its fall it is posed every frame: it starts above the picture, and the renderer keeps no picture of a
+	-- model not wholly on the layer to slide; once below GLIDE_LIFT, the bounces and the leaps slide)
+	if egg and off == nil and s.posedAt ~= nil and lift < GLIDE_LIFT and (key == s.poseKey or not due) then
+		PixelRenderer.glide(egg, foot, s.posedAt)
+		stepLights(s, c, cf, foot, eh, off)
+		return
+	end
+	if egg and off ~= nil and not due then
+		-- (the shell breaking apart: its pieces fly POSE_HZ times a second)
+		stepLights(s, c, cf, foot, eh, off)
+		return
+	end
+	s.poseKey, s.posedAt, s.posedClock, s.posedCrack = key, foot, s.real, s.crack
+	if egg then
+		-- (a pose it has been in before is put down from the renderer's picture of it: PixelRenderer.pose)
+		PixelRenderer.glide(egg, foot, foot)
+		PixelRenderer.pose(egg, if off then nil else key)
+	end
 	local resize = q ~= s.sq
 	s.sq = q
-	s.mid = (cf * CFrame.new(0, eh * 0.5 * sy, 0)).Position
 	for i, rp in s.parts do
 		local o = rp.off
 		local here = cf * CFrame.new(o.X * sx, o.Y * sy, o.Z * sx) * o.Rotation
@@ -1735,49 +1862,17 @@ local function stepEgg(s: Scene, c: number, d: number)
 	if off and c - off > 0.6 and s.egg then
 		dropEgg(s)
 	end
-	-- the rarity's lights on the egg: motes circling it, a halo turning over it, a ring of lights orbiting it
-	local er = 0.37 * eh
-	for _, f in s.fx do
-		if off then
-			f.p.CFrame = CFrame.new(foot - Vector3.new(0, 30, 0))
-		elseif f.kind == "mote" then
-			local a = c * 1.5 + f.k * math.pi * 2 / 3
-			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.45, eh * (0.45 + 0.12 * math.sin(c * 2.1 + f.k * 2)), math.sin(a) * er * 1.45)
-		elseif f.kind == "halo" then
-			local a = c * 0.9 + f.k / 20 * math.pi * 2
-			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 0.75, eh + 0.45 + 0.05 * math.sin(c * 2), math.sin(a) * er * 0.75)
-		elseif f.kind == "orbit" then
-			-- (a celestial egg's ring of lights: round its middle, tilted like a planet's ring; an ancient egg's three
-			-- embers and an eternal egg's first ring the same way)
-			local a = c * 0.7 + f.k / 28 * math.pi * 2
-			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.7, eh * 0.5 + math.cos(a) * er * 0.45, math.sin(a) * er * 1.7)
-		elseif f.kind == "orbit2" then
-			-- (an eternal egg's second ring: the other way round, a little wider, tilted against the first)
-			local a = -c * 0.55 + f.k / 28 * math.pi * 2
-			f.p.CFrame = cf * CFrame.new(math.cos(a) * er * 1.85, eh * 0.52 - math.sin(a) * er * 0.55, math.sin(a) * er * 1.85)
-		elseif f.kind == "beam" then
-			local hb = 3.4 + 0.6 * math.sin(c * 1.9)
-			f.p.Size = Vector3.new(0.3, Blocks.snap(hb), 0.3)
-			f.p.CFrame = cf * CFrame.new(0, eh + 0.2 + Blocks.snap(hb) / 2, 0)
-		end
-	end
-	-- the build-up: the cracks blaze between white and the rarity's light, faster and faster
-	if s.phase == "breaking" and s.egg and r >= 2 then
-		local u = math.clamp((c - s.breakAt) / s.build, 0, 1)
-		local want = if math.floor((c - s.breakAt) * (5 + 12 * u)) % 2 == 0 then 0 else 1
-		if want ~= s.blaze then
-			s.blaze = want
-			for _, kk in s.cracks do
-				kk.p.Color = Blocks.color(if want == 0 then "white" else RAY[r][2])
-			end
-			PixelRenderer.refreshDynamic(s.egg :: Model)
-		end
-	end
+	stepLights(s, c, cf, foot, eh, off)
 end
 
 -- Bits of shell: flying out and falling away out of the picture (nothing to land on).
 local function stepShards(s: Scene, c: number, dt: number)
 	local keep: { Shard } = {}
+	-- (they fly on every frame and are put where they are LIGHTS_HZ times a second: each move draws them afresh)
+	local move = s.real - s.shardsAt >= 1 / LIGHTS_HZ
+	if move and #s.shards > 0 then
+		s.shardsAt = s.real
+	end
 	for _, sh in s.shards do
 		local age = c - sh.born
 		if age > 2 then
@@ -1786,7 +1881,9 @@ local function stepShards(s: Scene, c: number, dt: number)
 		end
 		sh.v -= Vector3.new(0, 18 * dt, 0)
 		sh.at += sh.v * dt
-		sh.p.CFrame = CFrame.new(sh.at) * CFrame.Angles(sh.w * age * 0.3, sh.w * age, 0)
+		if move then
+			sh.p.CFrame = CFrame.new(sh.at) * CFrame.Angles(sh.w * age * 0.3, sh.w * age, 0)
+		end
 		table.insert(keep, sh)
 	end
 	s.shards = keep
@@ -2315,8 +2412,16 @@ local function step(s: Scene, dt: number)
 	if bk and bs > 0 and math.abs(bs - bk.scale) > 0.01 then
 		bakeStop(s)
 	end
-	if s.bake == nil and c >= 0.05 then
+	-- (baked once the egg is down and settled, so its fall shows nothing else; held while it squashes or shakes at a
+	-- tap, the frames that cost the most already: the user's report of 2026-11-21, "it still is pretty laggy while
+	-- hatching, even when the egg is dropping down")
+	if s.bake == nil and c >= s.wait + DROP then
 		bakeStart(s)
+	end
+	local busy = s.bake ~= nil and s.bake.mode == "baking" and s.phase == "egg" and (c - s.kickAt < 0.6 or c - s.squashAt < 0.5)
+	if busy ~= s.bakeHeld then
+		s.bakeHeld = busy
+		Snapshot.hold(busy)
 	end
 	stepPal(s, c)
 	stepShards(s, c, d)
@@ -2483,6 +2588,14 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		tick = 0,
 		shake = 0,
 		egg = nil,
+		lights = nil,
+		posedAt = nil,
+		poseKey = nil,
+		posedClock = -10,
+		posedCrack = 0,
+		bakeHeld = false,
+		lightsAt = -10,
+		shardsAt = -10,
 		parts = {},
 		sizes = {},
 		top = {},

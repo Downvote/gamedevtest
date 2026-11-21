@@ -1386,7 +1386,8 @@ shrunk) and `Shading.rim` lays white on its edge pixels, dotted on the global gr
 part (x-ray); at most `Rims.max` (8) a tick, the own one ("self") first, then the nearest to the layer's middle; the
 rim state is one table, `Rims`, since the main chunk sits at Luau's 200 registers), `hasRim(model)`, `debugRims() ->
 { drawn, px, ms, registered }` (the last tick's rims, their white pixels and ms), `unregisterDynamic`,
-`refreshDynamic`, `rebake`, `setPaused`,
+`refreshDynamic(model, keepPoses?)` (its colours read again; its pictures by pose dropped unless `keepPoses`),
+`pose(model, key?)` (the pose it says it is in: below), `rebake`, `setPaused`,
 On a view with `clear` the pixels its rays miss are 0 (alpha 0) and the grade and dim pass them by, so a picture behind
 the layer shows round the stage (`UI/HatchBackdrop`, a ScreenGui at `PixelDisplayOrder` - 2, its sky life at - 1).
 On a view with `empty` (`Stage.empty`, the hatch scene's) nothing is cast: the static picture is cleared (no colour,
@@ -1519,7 +1520,12 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   with no picture at all (`SG.bare`), then the longest undrawn, a model whose last picture lay wholly off the layer
   last (`SG.offPic`; one that has not moved since needs none); past the budget a model shows its kept picture a tick
   longer where it last stood. A kept picture slides with its model (`PixelRenderer.glide`: `Dyn.gNow`, where the model
-  stands now, and `DynCache.anchor`, where its parts stood when it was drawn): `SG.glideOf` gives the whole art px
+  stands now, and `DynCache.anchor`, where its parts stood when it was drawn). A model that says its pose
+  (`PixelRenderer.pose(model, key)`: `Dyn.poseKey`) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
+  most `POSE_KEEP` 32, the oldest first out: `poseOrder`), and posed in one it had, `SG.blitOk` takes that picture for
+  its parts as they are now (a copy with their CFrames, `DynCache.from` the original) and slides it to where it stands
+  in place of a draw: the hatch scene's egg, rocking and wobbling through the same few poses (the user's report of
+  2026-11-21, "it still is pretty laggy while hatching, even when the egg is dropping down"). `SG.glideOf` gives the whole art px
   across and down and the depth to add, the picture goes down there (`SG.blitAt(..., dz)`), its blob shadow moves by
   the same px, and an incremental compose takes a picture shown at another place or depth as changed (`Dyn.shDz`).
   (The request of 2026-11-18, "make it such that overworld creatures move smoother": on a busy island a walker was
@@ -1802,7 +1808,9 @@ model, `Shading.toonAt` in that place, in place of the fixed day palette), `text
 surface texture drawn as the filter does: `Picture.Solid.tex`, `texSeed`, `texV`, `texSoft` read by Snapshot, a step per
 pixel in `Job.lift` from `DynTex.uv` and `DynTex.lift` at `Job.texPx` studs a pixel, from `DynTex.MIN_PX_PER_STUD` up)
 and `grade` (a function on every shaded pixel that does not glow): a picture that sits in the world, the hatch scene's
-baked driftling (§10.11). Without them a picture is drawn as before.
+baked driftling (§10.11). Without them a picture is drawn as before. `Snapshot.hold(on)` (since the user's report of
+2026-11-21, "it still is pretty laggy while hatching, even when the egg is dropping down"): while on, nothing is drawn
+and the queue waits, so a screen busy for a moment (the hatch scene's egg shaking at a tap) holds its pictures back.
 
 ## 10. Interface
 
@@ -2542,12 +2550,15 @@ once the stage is drawn: `stageScale()`, the stage's art px a stud measured with
 right, `VIEW_R`) the kind that will hatch is drawn as pictures through `Pixel/Snapshot` while the egg waits: one
 `MicroModels.species` model in a parentless Folder, posed by each picture's builder (`palShape(r, k)`: its growth,
 squash and stretch and the white silhouette, the same function the live model follows), all at the stage's px a stud
-(`scale`) with its feet at one `anchor`, sized for its widest stretch plus `BAKE_PAD` 6 px; `BAKE_FPS` 15 a second for
-its way out (`popEnd` = `POP_UP` + its leap + 0.6 s of spring, priority 6), then `IDLE_N` 12 of it standing over `IDLE_T`
+(`scale`) with its feet at one `anchor`, sized for its widest stretch plus `BAKE_PAD` 6 px; `BAKE_FPS` 10 a second for
+its way out (`popEnd` = `POP_UP` + its leap + 0.6 s of spring, priority 6), then `IDLE_N` 8 of it standing over `IDLE_T`
 2.4 s (priority 5). They are drawn as the pixel filter draws a moving model: `outline` "inner", no shadows inside it,
 `place` `Shading.INDOOR`, its surface `textures` and `grade` the light of the rarity it hatches as (`GRADE[hr]`,
-`PixelRenderer.gradePixel`, glowing parts left alone). Snapshot draws for `BAKE_MS` 6 ms a frame meanwhile
-(`setBudget`, back to nil when the scene closes). At the hatch, with every way-out picture ready (`allReady`), `bake.mode`
+`PixelRenderer.gradePixel`, glowing parts left alone). Snapshot draws for `BAKE_MS` 4 ms a frame meanwhile
+(`setBudget`, back to nil when the scene closes). Since the user's report of 2026-11-21 ("it still is pretty laggy
+while hatching, even when the egg is dropping down") the bake begins once the egg is down and settled (`s.wait` +
+`DROP`), not from the first frames, and is held (`Snapshot.hold`, `s.bakeHeld`) while the egg shakes at a tap (0.6 s)
+or squashes (0.5 s); the hold is let go at `bakeStop`. At the hatch, with every way-out picture ready (`allReady`), `bake.mode`
 "pop" and no model is made; else the live model as before ("live"), and the standing pictures take over once it has
 landed and settled 0.6 s (`dropPal`). `stepBaked` shows the picture for the moment (nearest `k * BAKE_FPS`; standing,
 played there and back) on one `ImageLabel` (`Snapshot.label`, then `Snapshot.show`), "HatchPal", ZIndex 20 on
@@ -2646,7 +2657,22 @@ while it waits), `hop` (studs what hatched leaps); `rayLen` went. The egg squash
 offset (x and z times sx, y times sy) and size (times sx) in hundredths, `s.sizes`, `s.crackSizes`; `debugState().squash`),
 wobbles more often and harder the longer it waits (`s.wob`, from `s.landAt` or the last tap; a hop past 6 s), leaps
 `RISE_H` 0.8 studs and spins once over `RISE_T` 0.6 s at a step up (`s.riseAt`, a landing after), lifts 0.22 studs in an
-epic or rarer build-up, and its cracks blaze between white and `RAY[r][2]` there (`s.blaze`, `refreshDynamic`).
+epic or rarer build-up, and its cracks blaze between white and `RAY[r][2]` there (`s.blaze`, `refreshDynamic(egg,
+true)`, posed again at once). **The egg drawn sparingly** (the user's report of 2026-11-21, "it still is pretty laggy
+while hatching, even when the egg is dropping down"; `hatchperf=<r><hr>` measures it): its lights (motes, halo, rings
+of beads: `EggModels.hero`'s `fx`) are a model of their own, "EggLights" (`s.lights`), moved `LIGHTS_HZ` 20 times a
+second, so the shell is not drawn again because they circle it; the bits of shell move at the same rate. The shell's
+shape goes in steps (`POSE_TURN` 0.012 rad of rock or tilt, about a pixel at its top; `POSE_SPIN` pi/16 of a step up's
+spin; `POSE_SQUASH` 0.04 of its squash) and its parts are posed again only when a step or its cracks change
+(`s.poseKey`), at most `POSE_HZ` 20 times a second while it shakes, squashes, leaps or breaks and `POSE_IDLE_HZ` 12
+while it only wobbles and breathes; between, and through its bounces, bobs and jumps sideways, its kept picture
+slides with it (`PixelRenderer.glide(egg, foot, s.posedAt)`), and posed again it says its pose
+(`PixelRenderer.pose(egg, key)`) so a pose it had is put back from the renderer's picture of it. High in its fall
+(`GLIDE_LIFT` 1.5 studs over its spot) it is posed every frame: it starts above the picture, and the renderer keeps no
+picture of a model not wholly on the layer. Measured in the preview's emulator with the client's clock on real time
+(celestial, `hatchperf=77`, ms a frame before and after): the wait before the fall 42 and 8, the fall 56 and 14, the
+bounces 44 and 19, a tap 45 and 32, coming out 49 and 35; resting carries the bake now (about 24 before, 34 while it
+bakes), and the timings move by a third from run to run.
 `crackFx` at each reveal: a squash, a `FLARE` (`flare_1..3`) where the newest cracks are (`crackPoint`, from `s.cf`),
 sparks from there, every crack ray seeded again, `HatchBackdrop.pulse()`, a shockwave from rare up. `rise` adds the
 flash in the rarity's colour, a light burst (`s.lightAt`, `s.lightK`), two shockwaves, a jolt, stars flying out, Audio

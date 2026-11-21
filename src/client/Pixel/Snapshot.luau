@@ -38,6 +38,7 @@
 --       Forget pictures (their images are destroyed and bound labels go blank). A forgotten Snap stays failed (a new
 --       one takes its key): whoever holds on to one asks for its key again.
 --   Snapshot.pending(): number      pictures still to draw
+--   Snapshot.hold(on: boolean)  while on nothing is drawn (the queue waits): a busy moment holds pictures back
 --   Snapshot.setBudget(ms: number?)  drawing time per frame while a screen needs pictures fast and the world is not
 --       drawn (the Recipe Desk); nil: Tuning.PixelSnapshotMsPerFrame again. While only pictures of a negative
 --       priority wait (background ones), a frame draws for at most BACKGROUND_MS (3 ms).
@@ -139,6 +140,7 @@ local labelsOf: { [Snap]: { [ImageLabel]: boolean } } = {}
 local labelConns: { [ImageLabel]: RBXScriptConnection } = {}
 local stepConn: RBXScriptConnection? = nil
 local budgetMs: number? = nil -- Snapshot.setBudget
+local held = false -- Snapshot.hold
 -- drawn pictures waiting for image memory to upload (their pixels kept), tried again PARK_MIN seconds later, doubling
 -- to PARK_MAX while there is none
 local PARK_MIN, PARK_MAX = 1, 16
@@ -495,6 +497,9 @@ local function nextGroup(): (Group?, number)
 end
 
 local function step()
+	if held then
+		return
+	end
 	local ms = budgetMs or Tuning.PixelSnapshotMsPerFrame
 	local first = nextGroup()
 	if first and first.priority < 0 then
@@ -705,6 +710,12 @@ end
 
 function Snapshot.setBudget(ms: number?)
 	budgetMs = ms
+end
+
+-- While on, nothing is drawn (the queue waits): a screen busy with something heavier for a moment (the hatch scene's
+-- egg shaking at a tap) holds its pictures back for those frames.
+function Snapshot.hold(on: boolean)
+	held = on
 end
 
 function Snapshot.pending(): number
