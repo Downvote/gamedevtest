@@ -1321,6 +1321,11 @@ type PanelDef = {
 	props: { string }?,
 }
 local panels: { [string]: PanelDef } = {}
+-- (a desktop's shortcut for each panel, set by the HUD: a key cap by the close mark, GAME_DESIGN 2.1)
+local panelKeys: { [string]: string } = {}
+function UIKit.setPanelKeys(keys: { [string]: string })
+	panelKeys = keys
+end
 local openName: string? = nil
 local openFrame: Frame? = nil
 local openSeq = 0
@@ -1549,6 +1554,12 @@ function UIKit.openPanel(name: string, arg: any?)
 		xs, xn = "big_close", 15
 	end
 	PixelSprites.image(close, xs, UDim2.fromOffset(math.floor((cs - xn) / 2), math.floor((cs - xn) / 2) - (if touch then 0 else 1)), 6)
+	-- (a desktop's window shows its shortcut on a key cap left of the close mark: the key shuts it too)
+	local pk = panelKeys[name]
+	if pk and not touch then
+		right -= 12
+		UIKit.keyCap(head, pk, UDim2.fromOffset(right + 1, math.floor((aw - 10) / 2)), 6)
+	end
 	-- the shells, on a touch screen (the top bar's chip is under the sheet there): kept up to date while it's open
 	if touch and walletGet then
 		local get = walletGet :: () -> number?

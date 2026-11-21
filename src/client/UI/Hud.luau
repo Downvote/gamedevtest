@@ -1644,6 +1644,8 @@ local function rebuild()
 end
 
 function Hud.start()
+	-- (each window shows its desktop shortcut, the key that shuts it again)
+	UIKit.setPanelKeys(KEYS)
 	Menus.init()
 	StoreUI.init()
 	FounderUI.init()
