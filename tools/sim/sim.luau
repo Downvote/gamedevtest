@@ -4079,6 +4079,38 @@ do
 		local qf = canvas:FindFirstChild("Quest")
 		local qx = if qf and qf:IsA("GuiObject") then (qf.AbsolutePosition.X - canvas.AbsolutePosition.X) / u else nil
 		H.expect(qx ~= nil and math.abs(qx - 5) < 1, "touch", tag .. ": the quest's card against the left edge", if qx then string.format("at %.0f", qx) else "missing")
+		-- (the request of 2026-11-21: "Shorten the top part by removing the weather and season text on mobile like
+		-- "falling leaves" and "autumn", and only show the hours. Move the right part up. Make the goal card not
+		-- expanded by default, but still show the x/x and go button ... the elements like starter pack, vip gift,
+		-- etc. should be flushed to the right")
+		local function chipWords(name: string): string
+			local c = canvas:FindFirstChild("Chip_" .. name, true)
+			local t = c and c:FindFirstChild("Value")
+			return if t and t:IsA("TextLabel") then t.Text else ""
+		end
+		local sw, ww = chipWords("season"), chipWords("weather")
+		local WDt = H.sharedServer("Data.Weather")
+		local named = false
+		for _, d in WDt.SEASONS do
+			named = named or string.find(sw, d.name, 1, true) ~= nil
+		end
+		for _, d in WDt.KINDS do
+			named = named or string.find(ww, d.name, 1, true) ~= nil
+		end
+		H.expect(sw ~= "" and ww ~= "" and not named and string.find(sw, "·", 1, true) == nil and string.find(ww, "·", 1, true) == nil, "touch", tag .. ": the season and the weather show their time alone", string.format("%q %q", sw, ww))
+		local ic = canvas:FindFirstChild("IslandCard")
+		local iy = if ic and ic:IsA("GuiObject") then (ic.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / u else nil
+		H.expect(iy ~= nil and iy <= 5, "touch", tag .. ": the island card up in the top bar's row", if iy then string.format("at %.0f", iy) else "missing")
+		if qf and H.buttonNamed(p, "QuestClaim") == nil then
+			H.expect(qf:FindFirstChild("Words", true) == nil and qf:FindFirstChild("Progress", true) ~= nil and H.buttonNamed(p, "QuestGo") ~= nil, "touch", tag .. ": the quest's card folded, its progress and Go still there")
+		end
+		local of = canvas:FindFirstChild("Offers")
+		if of and of:IsA("GuiObject") and of.Visible then
+			local ox1 = (of.AbsolutePosition.X + of.AbsoluteSize.X - canvas.AbsolutePosition.X) / u
+			local oy1 = (of.AbsolutePosition.Y + of.AbsoluteSize.Y - canvas.AbsolutePosition.Y) / u
+			local nearJump = oy1 > jy0 - 3
+			H.expect(nearJump or math.abs(ox1 - (cs.X - 5)) < 1, "touch", tag .. ": the offers flush with the right edge", string.format("right edge %.0f of %d", ox1, cs.X))
+		end
 	end
 	screen(844, 390, true)
 	touchHud("a phone")

@@ -101,9 +101,11 @@ local buildMint = false -- (a touch screen's Build square: mint, the pulse puts 
 local buildRing: Frame? = nil -- (its 1 px outline, a darker step of its face: it sits on the world, not on glass)
 local plusButton: TextButton? = nil -- the coins' "+"
 -- (the island card folded to its name and coins a minute, or open: nil till tapped, a phone starting folded and a
--- tablet open; the quest's card folded to its title)
+-- tablet open; the quest's card folded to its title, its progress and Go: nil till tapped, a touch screen starting
+-- folded and a desktop open, the request of 2026-11-21: "Make the goal card not expanded by default, but still show
+-- the x/x and go button")
 local cardOpen: boolean? = nil
-local questOpen = true
+local questOpen: boolean? = nil
 local function cardFolded(): boolean
 	if cardOpen == nil then
 		return mobile() and UIKit.phone()
@@ -1094,9 +1096,10 @@ end
 -- button); down the left, the status panel and the quest's card under it.
 local offers: Frame? = nil -- the store's offers (UI/StoreUI.offers: the Starter Pack, VIP's gift)
 
--- A touch screen's blocks: the row of squares along the bottom, Build its last; the island card at the top right, the
--- row of squares under it (Eggs, Gifts, Store) and the offers under that, slid left of the jump button when they would
--- reach it; the status panel and the quest's card against the left edge under the top bar (under the right column on
+-- A touch screen's blocks: the row of squares along the bottom, Build its last; the island card at the top right (up
+-- in the top bar's row, which is short on a touch screen: "Move the right part up"), the row of squares under it
+-- (Eggs, Gifts, Store) and the offers under that, flush with the right edge ("the elements like starter pack, vip gift,
+-- etc. should be flushed to the right"), slid left of the jump button only when they would reach it; the status panel and the quest's card against the left edge under the top bar (under the right column on
 -- a screen too narrow for that). Nothing goes in the bottom left, where the thumbstick is.
 local function stackTouch()
 	local s = UIKit.size("Hud")
@@ -1276,10 +1279,11 @@ local function updateQuest(v: Types.ClientView)
 		local facts: Quest.Facts = { pals = v.pals, pieces = v.pieces, tier = v.tier, seen = v.seen, stats = v.stats }
 		have, need = Quest.progress(facts, q)
 	end
-	-- (a touch screen's card folds away to its title and progress at a tap on its title; a quest done always shows
-	-- its Claim)
+	-- (the card folds to its title, its progress and Go at a tap on its title, a touch screen's starting so; a quest
+	-- done always shows its Claim)
 	local done = have >= need
-	local folded = not questOpen and not done
+	local open = if questOpen == nil then not mobile() else questOpen
+	local folded = not open and not done
 	local key = if q then string.format("%s:%d:%d:%s:%d", q.id, have, need, if folded then "f" else "o", QUEST_W) else ""
 	local was = quest
 	local same = was ~= nil and q ~= nil and string.split(tostring(was:GetAttribute("Key") or ""), ":")[1] == q.id
@@ -1296,14 +1300,16 @@ local function updateQuest(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local w = QUEST_W
 	local textW = w - 10
-	-- (up to four lines: "Three at work" says what three need, beds and work buildings)
-	local lines = math.clamp(math.ceil(UIKit.textWidth(q.text) / textW), 1, 4)
+	-- (as many lines as its words wrap to, never cut off with "...": the request of 2026-11-21, "expanding shows the
+	-- whole description, without needing to hide longer texts with ..."; it was the width over the line, at most
+	-- four, which a wrap at the spaces could pass)
+	local lines = math.max(1, UIKit.lines(q.text, textW))
 	-- (a title too long for its line wraps onto a second one rather than run under the count: "Discover 12 unique
 	-- creatures", 2026-11-14)
 	local titleW = w - 44 - (if not done then 9 else 0)
 	local tl = if folded then 1 else math.clamp(UIKit.lines(q.title, titleW), 1, 2)
 	local dy = (tl - 1) * 10
-	local h = if folded then 14 else 16 + lines * 10 + 16 + dy
+	local h = if folded then 14 + 16 else 16 + lines * 10 + 16 + dy
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(EDGE, CARD_Y), 2)
 	f.Name = "Quest"
 	f:SetAttribute("Key", key)
@@ -1318,20 +1324,17 @@ local function updateQuest(v: Types.ClientView)
 		end, { name = "QuestFold", ghost = true })
 		tap.ZIndex = 6
 	end
-	if folded then
-		PixelSprites.image(f, "mini_" .. q.icon, UDim2.fromOffset(3, 2), 3)
-		UIKit.text(f, q.title, UDim2.fromOffset(w - 50, 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3 })
-		UIKit.text(f, string.format("%d/%d", have, need), UDim2.fromOffset(28, 10), UDim2.fromOffset(w - 42, 2), { x = "right", color = UIKit.color("text_dim"), name = "Progress", z = 3 })
-		quest = f
-		stack()
-		return
-	end
 	PixelSprites.image(f, "mini_" .. q.icon, UDim2.fromOffset(3, 2), 3)
 	UIKit.text(f, q.title, UDim2.fromOffset(titleW, tl * 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3, wrap = tl > 1, y = "top" })
 	local which = string.format("%d/%d", i, #Quests.list)
 	UIKit.text(f, which, UDim2.fromOffset(26, 10), UDim2.fromOffset(w - 30 - (if not done then 9 else 0), 2), { x = "right", color = UIKit.color("text_dim"), name = "Which", z = 3 })
-	UIKit.text(f, q.text, UDim2.fromOffset(textW, lines * 10), UDim2.fromOffset(5, 14 + dy), { color = UIKit.color("text"), wrap = lines > 1, name = "Words", z = 3 })
+	-- (folded: the title row, then the progress and Go straight under it; open: the words between)
 	local y = 15 + lines * 10 + 1 + dy
+	if folded then
+		y = 15
+	else
+		UIKit.text(f, q.text, UDim2.fromOffset(textW, lines * 10), UDim2.fromOffset(5, 14 + dy), { color = UIKit.color("text"), wrap = lines > 1, name = "Words", z = 3 })
+	end
 	if done then
 		-- its reward, and Claim
 		local x = 5

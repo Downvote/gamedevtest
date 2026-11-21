@@ -1821,7 +1821,7 @@ hatch, index, looks, top, settings, build; centred between the left 30% of the s
 `Label_<panel>` names only where they fit; `Menu_build` mint with a `BuildRing` outline under it; the camera keeps the
 row clear), `Status` and `Quest` at the left edge under the top bar, `MenuSide` (`Menu_rewards`, `Menu_store`), `TreeCard` as a square (`TreeOpen`, `TreeBar`,
 `TreeNext` showing the time alone), `CoinsPlus` on the coins chip, `CardFold` on
-the island card and `QuestFold` on the quest's card (both fold on every screen). On a desktop: `TopBar` spans the
+the island card and `QuestFold` on the quest's card (both fold on every screen; the quest's starts folded on a touch screen, still showing `Which`, `Bar`, `Progress` and `QuestGo`, its `Words` only when open, as many lines as they wrap to), `Chip_season` / `Chip_weather` with their time alone (UI/WeatherChip), the island card in the top bar's row and `Offers` flush right. On a desktop: `TopBar` spans the
 canvas with `Chip_rate`, `Chip_isle` and `Chip_charm` besides the coins, season and weather; `MenuBar`'s buttons carry
 `Key` caps and tooltips; the keys (B P H N L G T M K, E for the tree) open and shut their menus.
 Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
