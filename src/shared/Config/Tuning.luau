@@ -370,6 +370,12 @@ local Tuning = {
 	-- from the ray plane 500 studs off, Roblox's single-precision ball test blurred the edges of small balls)
 	PixelRayTop = 80,
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
+	-- the islands' picture is kept this many art px past each edge of the screen: the view moves within it by showing
+	-- another window of the image, and the picture scrolls (re-centred under the view) only once the view comes within
+	-- PixelPanEdge px of its edge (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it
+	-- smooth and lerp to the player?")
+	PixelPanMargin = 12,
+	PixelPanEdge = 2,
 	PixelPanCacheTiles = 768, -- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 20 bytes a pixel, about 15.7 MB); 0: off
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	-- and at most this long a frame (a slow device or a slow stretch of rays spreads the re-cast over more frames: the

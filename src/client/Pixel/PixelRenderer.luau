@@ -122,6 +122,13 @@ type Surf = {
 	static: Raster.Frame,
 	frame: Raster.Frame,
 	ready: boolean?, -- a finished bake is in its buffers (a re-bake then works behind it: `back`)
+	-- the screen's window of the layer: the margin kept round it (art px; 0 on a stage), its size, and where it stands in
+	-- the layer now (showWindow: CameraController.pan less the layer's top-left)
+	m: number,
+	vw: number,
+	vh: number,
+	ox: number,
+	oy: number,
 }
 
 -- A static part's surface texture (Shading.TEX_*), worked out once per part and id table: its colour (a pixel tinted
@@ -1558,6 +1565,11 @@ local function startBake()
 			sWave = buffer.create(n),
 			static = { W = s.W, H = s.H, color = sColor, depth = sDepth, id = sId },
 			frame = s.frame,
+			m = s.m,
+			vw = s.vw,
+			vh = s.vh,
+			ox = s.ox,
+			oy = s.oy,
 		}
 		backTabs = { ids = {}, albedos = {}, waters = {}, texs = {}, nextId = 1 }
 	else
@@ -1598,6 +1610,54 @@ local function refreshExclude()
 	end
 	params.FilterDescendantsInstances = excluded
 	SG.exclVer += 1
+end
+
+-- The picture is kept `marginOf` art px past each edge of the screen: the view moves within it by showing another
+-- window of the image (`showWindow`), and the picture scrolls only once the view comes within Tuning.PixelPanEdge of
+-- its edge, re-centred under it (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it
+-- smooth and lerp to the player?": every frame the view moved, every buffer of the picture shifted and the whole image
+-- went up again; now that happens once every few frames). A stage keeps the same margin, its view standing in the
+-- middle, so the island's kept picture and a stage's are one size and the island's comes back after it (the stash).
+local function marginOf(_v: CameraController.View): number
+	return Tuning.PixelPanMargin
+end
+
+-- The layer's camera with its top-left global art px at (gx, gy): the screen's size and the margin all round.
+local function layerCam(v: CameraController.View, gx: number, gy: number, K: number): Raster.Cam
+	local m = marginOf(v)
+	local fx, fy = v.fullX, v.fullY
+	if m > 0 then
+		-- (Raster.cam takes ceil(full / K) pixels: half a pixel short of the whole count, so no rounding adds one)
+		local w0, h0 = math.ceil(fx / K), math.ceil(fy / K)
+		fx, fy = (w0 + 2 * m - 0.5) * K, (h0 + 2 * m - 0.5) * K
+	end
+	return Raster.gridCam(v.rot12, CameraController.gridAt(gx, gy), fx, fy, K, Tuning.CamRayBack)
+end
+
+-- The screen's window of layer s: where the view stands now (CameraController.pan) less the layer's top-left, kept
+-- on the picture (a view that ran ahead of the picture's scroll waits at its edge), shown through the image's
+-- ImageRectOffset (exact at any pixel size: an Offset is a whole number of units, a pixel 2.4 at 125%).
+local function showWindow(s: Surf)
+	local im = image
+	if s.m == 0 then
+		s.ox, s.oy = 0, 0
+		if im and im.ImageRectSize ~= Vector2.zero then
+			im.ImageRectOffset, im.ImageRectSize = Vector2.zero, Vector2.zero
+		end
+		return
+	end
+	local px, py = CameraController.pan()
+	s.ox = math.clamp(px - s.cam.gx, 0, s.W - s.vw)
+	s.oy = math.clamp(py - s.cam.gy, 0, s.H - s.vh)
+	if im then
+		local o, z = Vector2.new(s.ox, s.oy), Vector2.new(s.vw, s.vh)
+		if im.ImageRectOffset ~= o then
+			im.ImageRectOffset = o
+		end
+		if im.ImageRectSize ~= z then
+			im.ImageRectSize = z
+		end
+	end
 end
 
 -- A layer for the camera's view: buffers, image and a fresh bake (or the kept street picture when its view comes back).
@@ -1641,7 +1701,9 @@ local function buildSurf(v: CameraController.View)
 			if image then
 				image.Visible = true
 				image.ImageTransparency = 0
+				image.Size = UDim2.fromOffset(st.surf.vw, st.surf.vh)
 			end
+			showWindow(st.surf)
 			if st.dirty then
 				-- (on screen at once, baked again behind it)
 				rush = true
@@ -1651,7 +1713,9 @@ local function buildSurf(v: CameraController.View)
 		end
 	end
 	local K = v.K
-	local W, H = math.ceil(v.fullX / K), math.ceil(v.fullY / K)
+	local m = marginOf(v)
+	local W0, H0 = math.ceil(v.fullX / K), math.ceil(v.fullY / K)
+	local W, H = W0 + 2 * m, H0 + 2 * m
 	local _, im = ensureLayer()
 	local newImg = img
 	if newImg == nil or newImg.Size.X ~= W or newImg.Size.Y ~= H then
@@ -1671,7 +1735,7 @@ local function buildSurf(v: CameraController.View)
 		shown = false
 		im.ImageTransparency = 1
 	end
-	im.Size = UDim2.fromOffset(W, H)
+	im.Size = UDim2.fromOffset(W0, H0)
 	local psz = im:FindFirstChildOfClass("UIScale")
 	if psz then
 		psz.Scale = K
@@ -1684,7 +1748,7 @@ local function buildSurf(v: CameraController.View)
 		im.ImageTransparency = 1
 	end
 	local px, py = CameraController.pan()
-	local cam = Raster.gridCam(v.rot12, CameraController.gridAt(px, py), v.fullX, v.fullY, K, Tuning.CamRayBack)
+	local cam = layerCam(v, px - m, py - m, K)
 	local n = W * H
 	local frame = Raster.newFrame(W, H)
 	local sColor, sDepth, sId = buffer.create(n * 4), buffer.create(n * 4), buffer.create(n * 2)
@@ -1711,7 +1775,13 @@ local function buildSurf(v: CameraController.View)
 		sWave = buffer.create(n),
 		static = { W = W, H = H, color = sColor, depth = sDepth, id = sId },
 		frame = frame,
+		m = m,
+		vw = W0,
+		vh = H0,
+		ox = m,
+		oy = m,
 	}
+	showWindow(surf :: Surf)
 	prevRects = {}
 	startBake()
 end
@@ -4096,7 +4166,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local v = s.view
 	if math.abs(dx) >= W // 2 or math.abs(dy) >= H // 2 then
 		-- a jump (the view sent home from the far end of the street): bake again at the new pan
-		s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(tx, ty), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
+		s.cam = layerCam(v, tx, ty, s.K)
 		s.ready = false -- (the picture on screen is of another place: no point keeping it alive)
 		startBake()
 		return
@@ -4168,7 +4238,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 			buffer.fill(lm, 0, 0, -sy * W)
 		end
 	end
-	s.cam = Raster.gridCam(v.rot12, CameraController.gridAt(cam.gx + sx, cam.gy + sy), v.fullX, v.fullY, s.K, Tuning.CamRayBack)
+	s.cam = layerCam(v, cam.gx + sx, cam.gy + sy, s.K)
 	local rays = 0
 	local strips: { Rect } = {}
 	if sx > 0 then
@@ -4593,6 +4663,11 @@ function PC.start(s: Surf): boolean
 		sShare = buffer.create(n),
 		sWClass = buffer.create(n),
 		sWave = buffer.create(n),
+		m = 0,
+		vw = PC.SIDE,
+		vh = PC.SIDE,
+		ox = 0,
+		oy = 0,
 	}
 	PC.store.setMax(900)
 	PC.store.clear()
@@ -5005,10 +5080,18 @@ local function frameStep(dt: number)
 	end
 	local s = surf
 	if s and not baking then
+		-- (the picture scrolls only when the view nears its edge, re-centred under it; the view's window moves every
+		-- frame: showWindow)
 		local tx, ty = CameraController.pan()
+		local m = s.m
+		local ox, oy = tx - s.cam.gx, ty - s.cam.gy
+		local edge = math.min(Tuning.PixelPanEdge, m)
 		local sc0 = SG.clock()
 		local before = stats.scrolls
-		scrollToward(s, tx, ty)
+		if m == 0 or ox < edge or oy < edge or ox > s.W - s.vw - edge or oy > s.H - s.vh - edge then
+			scrollToward(s, tx - m, ty - m)
+		end
+		showWindow(s)
 		if stats.scrolls ~= before then
 			SG.panAt = os.clock()
 			stats.perf.panFrames += 1
@@ -5026,6 +5109,9 @@ local function frameStep(dt: number)
 			PC.step(s, p0 + Tuning.PixelPreCastMs / 1000)
 			stats.perf.preMs += (SG.clock() - p0) * 1000
 		end
+	elseif s then
+		-- (a re-bake behind the picture on screen: the view still moves within its margin)
+		showWindow(s)
 	end
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
 	if s and tier ~= "low" then
@@ -5595,7 +5681,8 @@ function PixelRenderer.project(world: Vector3): (Vector2, boolean)
 	local s = surf
 	if s and tier ~= "off" then
 		local px, py, d = Raster.project(s.cam, world.X, world.Y, world.Z)
-		local x, y = math.floor(px) * s.K, math.floor(py) * s.K
+		-- (on the screen: the layer less the window's place in it, showWindow)
+		local x, y = (math.floor(px) - s.ox) * s.K, (math.floor(py) - s.oy) * s.K
 		return Vector2.new(x, y), d > 0 and x >= 0 and y >= 0 and x < s.view.fullX and y < s.view.fullY
 	end
 	local cam = workspace.CurrentCamera
@@ -5628,8 +5715,8 @@ function PixelRenderer.screenRay(pos: Vector2): (Vector3, Vector3)
 	local s = surf
 	if s and tier ~= "off" then
 		local cam = s.cam
-		local i = math.clamp(math.floor((x + cam.offX) / cam.K), 0, cam.W - 1)
-		local j = math.clamp(math.floor((y + cam.offY) / cam.K), 0, cam.H - 1)
+		local i = math.clamp(math.floor((x + cam.offX) / cam.K) + s.ox, 0, cam.W - 1)
+		local j = math.clamp(math.floor((y + cam.offY) / cam.K) + s.oy, 0, cam.H - 1)
 		local ox, oy, oz = Raster.origin(cam, i, j)
 		return Vector3.new(ox, oy, oz), Vector3.new(cam.lx, cam.ly, cam.lz) * FAR
 	end
@@ -5648,7 +5735,8 @@ function PixelRenderer.nearScreen(world: Vector3, pad: number): boolean
 	local s = surf
 	if s and tier ~= "off" then
 		local px, py = Raster.project(s.cam, world.X, world.Y, world.Z)
-		return px >= -pad and py >= -pad and px < s.W + pad and py < s.H + pad
+		px, py = px - s.ox, py - s.oy
+		return px >= -pad and py >= -pad and px < s.vw + pad and py < s.vh + pad
 	end
 	local cam = workspace.CurrentCamera
 	if cam == nil then
@@ -6130,7 +6218,7 @@ function PixelRenderer.debugShown(model: Model): (number?, number?)
 	return r.x0 + 1 - s.cam.gx, r.y0 + 1 - s.cam.gy
 end
 
-function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, behind: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number, px: number, py: number, scrolls: number, scrollRays: number, recasts: number, queued: number }
+function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking: boolean, behind: boolean, shown: boolean, color: buffer?, rays: number, bakes: number, ticks: number, composeMs: number, dyn: number, px: number, py: number, ox: number, oy: number, scrolls: number, scrollRays: number, recasts: number, queued: number }
 	local s = surf
 	local n = 0
 	for _ in dyns do
@@ -6149,8 +6237,11 @@ function PixelRenderer.debugStatic(): { W: number, H: number, K: number, baking:
 		ticks = stats.ticks,
 		composeMs = stats.composeMs,
 		dyn = n,
-		px = if s then s.cam.gx else 0,
-		py = if s then s.cam.gy else 0,
+		-- (the pan the screen shows: the layer's top-left plus the window's place in it)
+		px = if s then s.cam.gx + s.ox else 0,
+		py = if s then s.cam.gy + s.oy else 0,
+		ox = if s then s.ox else 0,
+		oy = if s then s.oy else 0,
 		scrolls = stats.scrolls,
 		scrollRays = stats.scrollRays,
 		recasts = stats.recasts,

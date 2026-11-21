@@ -2749,7 +2749,14 @@ text (the requests and how each was met) is in the history of this file, up to c
   on a soft spring (the request of 2026-11-18: "Could you make the camera a smooth lerp follow the player like most top
   down games instead of sharply cutting to the player?"): when you set off it starts gently and trails you by about
   three studs, and when you stop it eases in and comes to rest on you about half a second later. It used to keep
-  within about a stud of you and stop dead. A Build mode drag still moves the view with your finger at once. On
+  within about a stud of you and stop dead. A Build mode drag still moves the view with your finger at once. Then
+  (2026-11-21): "camera moving is extremely laggy still. could you make it smooth and lerp to the player?" Every frame
+  the view moved, the whole picture of the island was shifted, put together again and sent to the screen. Now the
+  picture reaches 12 art px past each edge of the screen, and the view glides over it by showing a different part of
+  it; the picture itself only moves once the view nears its edge, about once every three or four frames of walking.
+  The follow is the same soft spring, still a whole art pixel at a time so the founder stays put on the screen. A frame
+  while walking costs about a quarter less (17 ms from 23 in the preview's emulator on new ground, 13 from 20 on ground
+  seen before), and about half as many frames go over 25 ms. On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

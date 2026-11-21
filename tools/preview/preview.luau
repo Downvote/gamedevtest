@@ -95,6 +95,13 @@ local function modOr(p, rel)
 	return if ok then m else nil
 end
 
+-- Where the screen's window stands in the pixel layer's picture (art px): the picture is kept past the screen's edges
+-- (PixelRenderer's margin), so a point PR.project puts on the screen is this much further on in the layer's buffers.
+local function layerOff(p, PR)
+	local st = H.inClient(p, PR.debugStatic)
+	return st.ox or 0, st.oy or 0
+end
+
 local function pixelImageState(p)
 	-- the visible ImageLabel that shows an EditableImage (the pixel layer), if any
 	local pg = p:FindFirstChild("PlayerGui")
@@ -2672,11 +2679,12 @@ local function dropScenario(drag: boolean)
 	local W, H0 = st0.W, st0.H
 	local K = st0.K
 	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	local OX, OY = layerOff(p, PR)
 	for _, c in { { 0, 0 }, { 4, 0 }, { 0, 4 }, { 4, 4 } } do
 		for _, up in { 0, 6 } do
 			local sp = H.inClient(p, PR.project, E.v3(ox + bx + c[1], Street.LAWN_Y + up, oz + bz + c[2]))
-			x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
-			x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+			x0, y0 = math.min(x0, sp.X / K + OX), math.min(y0, sp.Y / K + OY)
+			x1, y1 = math.max(x1, sp.X / K + OX), math.max(y1, sp.Y / K + OY)
 		end
 	end
 	x0, y0 = math.max(0, math.floor(x0)), math.max(0, math.floor(y0))
@@ -2735,7 +2743,8 @@ local function dropScenario(drag: boolean)
 		if stand then
 			sx, sy = H.inClient(p, PR.debugShown, stand)
 			local sp = H.inClient(p, PR.project, stand:GetPivot().Position)
-			px, py = sp.X / K, sp.Y / K
+			local lx, ly = layerOff(p, PR)
+			px, py = sp.X / K + lx, sp.Y / K + ly
 		end
 		local real = false
 		if decor then
@@ -2749,7 +2758,8 @@ local function dropScenario(drag: boolean)
 		if drag and stand then
 			-- (where the server's model stands on the layer now, against where the stand-in was drawn)
 			local rp = H.inClient(p, PR.project, E.v3(ox + bx + 2, Street.LAWN_Y, oz + bz + 2))
-			log("dropdrag frame %d: the spot at %.1f,%.1f on the layer; casting %s", f, rp.X / K, rp.Y / K, tostring(real and decor and H.inClient(p, function()
+			local rx, ry = layerOff(p, PR)
+			log("dropdrag frame %d: the spot at %.1f,%.1f on the layer; casting %s", f, rp.X / K + rx, rp.Y / K + ry, tostring(real and decor and H.inClient(p, function()
 				for _, c in decor:GetChildren() do
 					if string.find(c.Name, ":" .. id .. ":", 1, true) then
 						return PR.casting(c)
@@ -3728,13 +3738,14 @@ local function expandRim(arg: string)
 		end
 		local cf, size = (m :: any):GetBoundingBox()
 		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		local OX, OY = layerOff(p, PR)
 		for _, sx in { -0.5, 0.5 } do
 			for _, sy in { -0.5, 0.5 } do
 				for _, sz in { -0.5, 0.5 } do
 					local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
 					local sp = H.inClient(p, PR.project, w.Position)
-					x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
-					x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+					x0, y0 = math.min(x0, sp.X / K + OX), math.min(y0, sp.Y / K + OY)
+					x1, y1 = math.max(x1, sp.X / K + OX), math.max(y1, sp.Y / K + OY)
 				end
 			end
 		end
@@ -3969,13 +3980,14 @@ local function treeWalk(arg: string)
 		end
 		local cf, size = (m :: any):GetBoundingBox()
 		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		local OX, OY = layerOff(p, PR)
 		for _, sx in { -0.5, 0.5 } do
 			for _, sy in { -0.5, 0.5 } do
 				for _, sz in { -0.5, 0.5 } do
 					local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
 					local sp = H.inClient(p, PR.project, w.Position)
-					x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
-					x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+					x0, y0 = math.min(x0, sp.X / K + OX), math.min(y0, sp.Y / K + OY)
+					x1, y1 = math.max(x1, sp.X / K + OX), math.max(y1, sp.Y / K + OY)
 				end
 			end
 		end
@@ -4206,13 +4218,14 @@ local function treeSplit(arg: string)
 	local K, W, Hh = st.K, st.W, st.H
 	local cf, size = (m :: any):GetBoundingBox()
 	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	local OX, OY = layerOff(p, PR)
 	for _, sx in { -0.5, 0.5 } do
 		for _, sy in { -0.5, 0.5 } do
 			for _, sz in { -0.5, 0.5 } do
 				local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
 				local sp = H.inClient(p, PR.project, w.Position)
-				x0, y0 = math.min(x0, sp.X / K), math.min(y0, sp.Y / K)
-				x1, y1 = math.max(x1, sp.X / K), math.max(y1, sp.Y / K)
+				x0, y0 = math.min(x0, sp.X / K + OX), math.min(y0, sp.Y / K + OY)
+				x1, y1 = math.max(x1, sp.X / K + OX), math.max(y1, sp.Y / K + OY)
 			end
 		end
 	end
@@ -4300,13 +4313,14 @@ local function treeBake(arg: string)
 	if m then
 		local cf, size = (m :: any):GetBoundingBox()
 		local a0, b0, a1, b1 = math.huge, math.huge, -math.huge, -math.huge
+		local OX, OY = layerOff(p, PR)
 		for _, sx in { -0.5, 0.5 } do
 			for _, sy in { -0.5, 0.5 } do
 				for _, sz in { -0.5, 0.5 } do
 					local w = cf * E.cf.new(sx * size.X, sy * size.Y, sz * size.Z)
 					local sp = H.inClient(p, PR.project, w.Position)
-					a0, b0 = math.min(a0, sp.X / K), math.min(b0, sp.Y / K)
-					a1, b1 = math.max(a1, sp.X / K), math.max(b1, sp.Y / K)
+					a0, b0 = math.min(a0, sp.X / K + OX), math.min(b0, sp.Y / K + OY)
+					a1, b1 = math.max(a1, sp.X / K + OX), math.max(b1, sp.Y / K + OY)
 				end
 			end
 		end

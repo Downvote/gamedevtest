@@ -310,7 +310,9 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.2: the follow's smooth time), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
-  frame the founder walks), `PixelPanRays`, `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
+  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (12: art px of picture kept past each screen edge) and
+  `PixelPanEdge` (2: the window's distance from the layer's edge that scrolls it), `PixelPanCacheTiles` (768: the pan
+  cache's tiles at most, 0 off),
 `PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
   drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
@@ -1353,7 +1355,9 @@ instead of sharply cutting to the player"): it sets off gently, trails a steady 
 moved `CamGlide` 0.18 of the way a 60th of a second, at least an art px a frame, and stopped dead.) The pan is the
 target's pixel less the gap's (`round(t) - round(t - cam)` on each axis), so through a steady walk it steps with the
 founder pixel for pixel and they keep still on the screen; it moves at most what the renderer can scroll in a frame
-(`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake. In the
+(`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake. The pan
+is where the screen is: the renderer shows it as a window of a picture kept past the screen's edges and scrolls that
+picture only when the window nears its edge (9.3, the window). In the
 classic style the Roblox camera stands on the unrounded place. A target more than three quarters of the screen away
 snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
 (Roblox drops it mid-street before the server moves it home). Build mode (GAME_DESIGN 4.5: "make the camera still follow
@@ -1439,8 +1443,23 @@ posed; its kept picture slides between them), `debugShown(model) -> (x?, y?)` (w
 layer px), `debugShadowCheck() -> { high, darkened, ground, shadows }` (the blob shadows' pixels on raised surfaces,
 those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
-- **Pans** (every frame): when `CameraController.pan()` differs from the layer's, every static buffer shifts by whole
-  art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
+- **The window** (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it smooth and lerp
+  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (12) all round (`marginOf`, on a
+  stage too, so the island's kept picture and a stage's are one size and the stash comes back; `layerCam(v, gx, gy,
+  K)`: the grid camera of a layer whose top-left is global art px (gx, gy), the full size given half a pixel short of
+  the whole count so `Raster.cam`'s ceil adds none). `Surf.m` is the margin, `vw`, `vh` the screen's size and `ox`,
+  `oy` where the screen stands in the layer (`showWindow(s)`, every step: `CameraController.pan()` less the layer's
+  top-left, clamped to the picture), shown through the image's `ImageRectOffset` / `ImageRectSize` (the label stays the
+  screen's size at 0, 0; an Offset is whole units, a pixel 2.4 at 125%). The layer scrolls only once the window comes
+  within `Tuning.PixelPanEdge` (2) of its edge, re-centred under it (`scrollToward(s, pan - m)`, at most
+  `PixelPanRays` a frame as before), so a walk shifts, composes and uploads the whole picture once every 3 to 4 frames,
+  not every frame; between, nothing but the window moves (and the moving models, composed incrementally). `project`
+  gives screen px (`(layer px - ox) * K`), so `projectPixel` and the World canvas are unchanged; `screenRay` adds the
+  window back, `nearScreen` tests the screen, not the layer; `debugStatic()` gives `px, py` as the pan the screen shows
+  and `ox, oy`. The `pan` probe (walking at 60 frames a second): 61 frames scrolled of 240 (all before), a frame 17 ms
+  (23) on new ground and 13 (20) over the pan cache, frames over 25 ms 51 and 28 (78 and 41).
+- **Pans** (when the window nears the layer's edge): when the re-centred pan differs from the layer's, every static
+  buffer shifts by whole art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
   even-even anchor first with its sun ray, then the pixels sharing it), their shadow edges refined once all of them are
   in (`castRect(..., noRefine)`, then `refineShadows` over each strip and a pixel round it), re-outlined with a pixel
   round them and their water set to the frame now (`SG.waterFix`); at most `Tuning.PixelPanRays` rays a frame (a
