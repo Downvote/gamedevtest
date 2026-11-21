@@ -14,6 +14,8 @@ local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Store = require(ReplicatedStorage.Shared.Logic.Store)
 local Rewards = require(ReplicatedStorage.Shared.Logic.Rewards)
 local Social = require(ReplicatedStorage.Shared.Logic.Social)
+local Undo = require(ReplicatedStorage.Shared.Logic.Undo)
+local Layout = require(ReplicatedStorage.Shared.Logic.Layout)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local WorldClock = require(script.Parent.WorldClock)
 
@@ -32,6 +34,9 @@ export type S = {
 	minuteClock: number?, -- seconds toward the pass track's next minute of points (GAME_DESIGN 14)
 	shopRot: number?, -- the rotating shop's rotation last sent
 	offline: Types.OfflineReport?, -- what the island made while its player was away, waiting to be collected (GAME_DESIGN 14.3)
+	-- Build mode's Undo (Logic/Undo, GAME_DESIGN 4.7): the build actions this session can take back, the newest last
+	-- (never saved: gone when the player leaves, emptied when the island grows)
+	undo: { Undo.Step },
 }
 
 local Session = {}
@@ -58,6 +63,7 @@ function Session.create(player: Player, profile: Types.Profile, plot: number): S
 		reqTimes = {},
 		minuteClock = 0,
 		shopRot = (Store.rotation(WorldClock.now())),
+		undo = {},
 	}
 	sessions[player] = s
 	return s
@@ -143,6 +149,8 @@ function Session.view(s: S): Types.ClientView
 		rewards = Rewards.view(p, now),
 		boosts = table.clone(p.boosts),
 		social = Social.view(p, os.time()),
+		undo = #s.undo,
+		layouts = Layout.view(p),
 	}
 end
 

@@ -439,6 +439,13 @@ ICONS = {
     "friends": ([".hhi.oou.", "h44i.o44u", "4432.4432", ".32...32.", ".876.dcb.", "87765dcbb", "87665cbba", "76655bbaa", "........."], ["F", "G", "B"], {"h": "brn2", "i": "brn0", "o": "org2", "u": "org0"}),
     # Settings: a steel gear with a hole through it
     "gear": (["...443...", ".4.443.3.", "..44433..", "443...332", "443...322", "433...322", "..33222..", ".3.322.2.", "...221..."], ["S"], None),
+    # Build mode's tools (the request of 2026-11-21: "add an undo button, selection tool and saving/loading of plots"):
+    # Undo, a teal arrow pointing back left, its tail bending down on the right
+    "undo": (["..4......", ".443.....", "4w44443..", "44333333.", ".432..332", "..2....32", ".......32", "......32.", "......21."], ["C"], None),
+    # Select, a white box drawn in dashes with a gold pointer over its corner
+    "select": (["44.4.32..", "4.....2..", ".........", "3.....2..", "....8....", "3...88...", "32..877..", "....8776.", "....86..."], ["W", "Y"], None),
+    # Layouts, a cream plan on a blue one behind it, two lines drawn on it
+    "layouts": (["...888887", "...877776", "...877766", "444443766", "4lll32665", "433332655", "4lll22...", "333222...", "322211..."], ["E", "B"], {"l": "blu1"}),
 }
 for _k, (_rows, _ramps, _flat) in ICONS.items():
     for _r in _rows:

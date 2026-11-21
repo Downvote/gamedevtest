@@ -59,5 +59,14 @@
 #                   again at leaving), ten minutes of play paying the inviter live, a friend finishing while the
 #                   inviter is away (queued, paid at the next join; past today's cap kept queued), the boards (lb.get,
 #                   the Top sheet's rows, the Driftlings board), junk boards
+#   sim_build.luau  Build mode's Undo, Select tool, tap twice and saved layouts (GAME_DESIGN 4.7): every build action an
+#                   Undo step taken back exactly (uids, inventory, coins, a driftling home again), refused with a reason
+#                   (nothing left, a sale's coins spent), the stack capped and emptied when the island grows; a group
+#                   moved, turned (four turns come back), refused off the even studs or on the tree, put away (the tree
+#                   stays), copied (the inventory's first, never the tree); a layout saved, quoted, refused for coins,
+#                   loaded (the island's own pieces keep their uids) and undone, kept over a rejoin; malicious payloads
+#                   (one deliberate NaN); the tray: Undo, tap twice (a footprint, a tall ghost's model), Select (V, a
+#                   tap, a box, gold frames, "N selected", Move and a copy stamp by tapping twice, a right click, Del,
+#                   Esc), the tools' tooltips and keys, the layouts' bar (Save, Load asking first)
 SIM=$(cd "$(dirname "$0")" && pwd)
-sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log" "sim_social.luau:out_social.log"
+sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log" "sim_social.luau:out_social.log" "sim_build.luau:out_build.log"

@@ -40,6 +40,9 @@ export type Look = {
 export type Piece = { uid: number, id: string, x: number, z: number, rot: number, lvl: number }
 -- The island's pieces (GAME_DESIGN 4).
 export type PlotSave = { placed: { Piece } }
+-- A saved layout (Logic/Layout; GAME_DESIGN 4.7): when it was saved (os.time; 0 an empty slot), the island's tier then,
+-- its pieces (the tree apart) and the pieces themselves in Layout.pack's short string ("" empty).
+export type LayoutSave = { at: number, tier: number, n: number, code: string }
 
 -- A driftling (GAME_DESIGN 6): its species (Data/Creatures), where it lives (`home`: a hut's Piece uid, 0: no hut, as
 -- when its hut was cleared away: it waits for room, Logic/Tree.settle), the building it works at (a Piece uid, 0:
@@ -167,6 +170,8 @@ export type Profile = {
 	boosts: { [string]: number },
 	-- leaderboards and friends (GAME_DESIGN 16; 2026-11-21)
 	social: Social,
+	-- Build mode's saved layouts (Logic/Layout, GAME_DESIGN 4.7; 2026-11-21): always Tuning.LayoutSlots of them
+	layouts: { LayoutSave },
 }
 
 -- What the client sees (Session.view): the profile plus what the rules derive from it.
@@ -228,6 +233,10 @@ export type ClientView = {
 	boosts: { [string]: number },
 	-- friends (Logic/Social.view): friends invited and rewarded, today's left, the Roblox friends here and what they add
 	social: { invited: number, todayLeft: number, here: number, boost: number, referred: boolean },
+	-- Build mode (GAME_DESIGN 4.7): the steps Undo can take back this session, and each saved layout's time, tier and
+	-- pieces (n 0: an empty slot; the layouts themselves stay on the server: Layout.view)
+	undo: number,
+	layouts: { { at: number, tier: number, n: number } },
 }
 
 export type ErrCode =
