@@ -16,8 +16,9 @@ local Monetization = {
 	} :: { [string]: number },
 	-- the Roblox group (Community) whose members get the group gift once (a rare egg and shells) and 10% more shells
 	-- while they stay in it (Logic/Store.setGroup; MonetizationService checks at every join and on the Store's Claim).
-	-- Put the group's id here; 0: no group yet (the Store's group card says so and its button waits).
-	Group = { Id = 0 } :: { Id: number },
+	-- The game's group since 2026-11-21 (the user's "make the group id this 255554513"); 0 would mean no group (the
+	-- Store's group card says so and its button waits).
+	Group = { Id = 255554513 } :: { Id: number },
 	-- the developer products (MonetizationService: ProcessReceipt, Logic/Store.product)
 	DevProducts = {
 		EggUncommon = 3734112045, -- an egg of that rarity into the bag, to hatch for nothing (any kind of that rarity)

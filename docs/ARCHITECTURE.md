@@ -324,7 +324,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `ReferralStoreName` (`PI_Referral_v1`, never renamed), `ReferralMaxAgeSec` (86400: a save that young takes an
   invite), `ReferralMinPlaySec` (600), `ReferralDailyCap` (10), `FriendsBoostEach` (0.1), `FriendsBoostMax` (0.4).
   `Data/Rewards.REFERRAL` { invitee (a rare egg, 10 min of coins), inviter (an epic egg, 20 min, a 30 min Lucky Hour) }.
-- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14), `DevProducts` (RefreshEggs among them since 2026-11-14), `Group = { Id }` (the Roblox group for the group gift, 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
+- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14), `DevProducts` (RefreshEggs among them since 2026-11-14), `Group = { Id }` (the Roblox group for the group gift: 255554513; 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
   Random Bakery's, each named in a comment; the weather's `RainLight` 9112852671, `RainHeavy` 9112858162, `WindGusts`
   9114057104 and `Thunder` 9120017047, measured with ffprobe) and `Music` (`{ day, night }`: lists of `{ id, gain }`, APM Music

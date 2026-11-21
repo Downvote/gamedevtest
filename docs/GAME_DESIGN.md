@@ -3592,7 +3592,8 @@ Pass: 24 h at full pace.") with See pass, which opens the Store's Passes tab. **
 island's first three days (`OfflineDoubleDays`) **Collect x2** is there too, free. Closed without collecting, it waits
 behind an "Away earnings +3,240" chip under the right-hand cards; leaving the game pays it as shown, so nothing is lost.
 
-**The group gift.** `Config/Monetization.Group.Id` holds the game's Roblox group (0 until it is made). The Store's
+**The group gift.** `Config/Monetization.Group.Id` holds the game's Roblox group, 255554513 (the request of
+2026-11-21: "make the group id this 255554513"; 0 would mean none). The Store's
 Passes tab opens with a card for it: "Join for a rare egg, 30 minutes of shells and 10% more
 shells." Join first looks whether the player is in the group already, opens Roblox's join prompt if not, then
 looks again. In the group: the gift comes once (a rare egg in the bag, `GroupEgg`, and 30 minutes of shells,
