@@ -1007,6 +1007,72 @@ function SCEN.stress(legs: number?)
 	return p
 end
 
+-- "tabout": the window shrunk the way a minimised one can be (a title bar's strip, 1 x 1, 0 x 0), held a while, then
+-- back; after each step the pixel layer's state (its size, baking, shown, the image's transparency) and how much of
+-- the island its picture shows (the user's report of 2026-11-21, "the island sometimes disappeared when the player
+-- tabs out")
+function SCEN.tabout()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local CC = modOr(p, "Controllers.CameraController")
+	if PR == nil then
+		return p
+	end
+	local cam = E.workspace.CurrentCamera
+	local full = E.viewport
+	local function layerImage()
+		for _, d in p.PlayerGui:GetDescendants() do
+			if d:IsA("ImageLabel") and d.Name == "Image" and d.Parent and d.Parent.Name == "PixelLayer" then
+				return d
+			end
+		end
+		return nil
+	end
+	local function report(label)
+		local st = H.inClient(p, PR.debugStatic)
+		local drawn = 0
+		local c = st.color
+		if c then
+			for i = 0, st.W * st.H - 1 do
+				local v = buffer.readu32(c, i * 4)
+				if v // 16777216 > 0 then
+					drawn += 1
+				end
+			end
+		end
+		local im = layerImage()
+		local v = CC and H.inClient(p, CC.view) or nil
+		log("tabout %s: screen %dx%d; layer %dx%d K %d, baking %s, shown %s, image %s (transparency %.2f, %s); %d of %d px drawn; view %s", label, E.viewport.X, E.viewport.Y, st.W, st.H, st.K, tostring(st.baking), tostring(st.shown), if im then "here" else "none", if im then im.ImageTransparency else -1, if im and im.Visible then "visible" else "hidden", drawn, st.W * st.H, if v then string.format("%dx%d K %d", v.fullX, v.fullY, v.K) else "?")
+	end
+	report("settled")
+	capture(p, "tabout_before")
+	for _, small in { E.v2(160, 28), E.v2(1, 1), E.v2(0, 0) } do
+		E.viewport = small
+		E.guiViewport = small
+		I.firePropChanged(cam, getD(cam), "ViewportSize")
+		E.flushDeferred()
+		E.run(0.2)
+		report(string.format("shrunk to %dx%d, 0.2 s", small.X, small.Y))
+		E.run(3)
+		report(string.format("shrunk to %dx%d, 3 s", small.X, small.Y))
+		E.viewport = full
+		E.guiViewport = nil
+		I.firePropChanged(cam, getD(cam), "ViewportSize")
+		E.flushDeferred()
+		E.run(0.2)
+		report(string.format("back from %dx%d, 0.2 s", small.X, small.Y))
+		E.run(2)
+		report(string.format("back from %dx%d, 2 s", small.X, small.Y))
+		E.run(6)
+		report(string.format("back from %dx%d, 8 s", small.X, small.Y))
+		capture(p, string.format("tabout_back_%dx%d", small.X, small.Y))
+	end
+	return p
+end
+
 function SCEN.pan()
 	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
 	local p = join(2, "Wren")
@@ -5279,6 +5345,7 @@ local function hatchPerfScenario(code)
 		-- (real time by callback: every connected function's resumes, by its source line)
 		E.coTime = {}
 		local f0, px0, w0 = E.frame, C.pixelsWritten or 0, os.clock()
+		C.writesBySize = {}
 		local rs = E.raycastStats
 		local r0 = rs.rays
 		-- (each frame timed: the slowest, and how many took over 33 ms, the ones a player feels)
@@ -5322,6 +5389,35 @@ local function hatchPerfScenario(code)
 			table.insert(words, string.format("%s %.1f", list[i][1], list[i][2]))
 		end
 		log("hatchperf %s: %-21s by callback (ms a frame): %s", code, label, table.concat(words, ", "))
+		local sizes = {}
+		for k, v in C.writesBySize or {} do
+			table.insert(sizes, { k, v / n })
+		end
+		C.writesBySize = nil
+		table.sort(sizes, function(a, b)
+			return a[2] > b[2]
+		end)
+		-- (each image named by the labels showing it)
+		local names = {}
+		for _, d in p.PlayerGui:GetDescendants() do
+			if d:IsA("ImageLabel") then
+				local ok, obj = pcall(function()
+					local ct = d.ImageContent
+					return if ct.SourceType == "Object" then ct.Object else nil
+				end)
+				obj = ok and obj or nil
+				local id = obj and C.imgIds and C.imgIds[obj]
+				if id then
+					names[id] = d.Name
+				end
+			end
+		end
+		local sw = {}
+		for i = 1, math.min(6, #sizes) do
+			local id = tonumber(string.match(sizes[i][1], "#(%d+)$"))
+			table.insert(sw, string.format("%s (%s) %.0f", sizes[i][1], if id and names[id] then names[id] else "?", sizes[i][2]))
+		end
+		log("hatchperf %s: %-21s px uploaded a frame by image size: %s", code, label, table.concat(sw, ", "))
 		local sb = state()
 		log("hatchperf %s: %-21s baked %s at %.2f s (%d of %d drawn; %d frames standing still after its way out, the standing picture changed %d times)",
 			code, label, tostring(sb.baked), sb.clock, sb.bakedReady, sb.bakedAll, sb.bakedStill, sb.bakedMoved)

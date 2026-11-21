@@ -1259,6 +1259,7 @@ local ringBorn: { number } = {}
 local ringOn = false
 local ringNext = 0
 local ringDirty = false
+local ringKey = "" -- the rings last drawn (each one's radii and colour)
 
 makeRings = function(r: number, K: number)
 	local base = ringBase
@@ -1295,6 +1296,7 @@ makeRings = function(r: number, K: number)
 	l.ZIndex = 6
 	l.Parent = layer or g
 	ringDirty = true
+	ringKey = "?"
 end
 
 -- One clean 1 px ellipse (the midpoint way: no doubled pixels, no gaps), centred in the ring image.
@@ -1347,20 +1349,33 @@ local function drawRings()
 	if im == nil or buf == nil or base == nil then
 		return
 	end
-	buffer.fill(buf, 0, 0)
 	local bw = math.max(8, base.w)
 	local r0, r1 = bw * 0.5, bw * 0.97
 	local keep: { number } = {}
+	local draw: { number } = {}
 	for _, born in ringBorn do
 		local u = (lifeClock - born) / RING_LIFE
 		if u < 1 then
 			table.insert(keep, born)
 			local rad = r0 + (r1 - r0) * (1 - (1 - u) * (1 - u))
-			local col = if u < 0.35 then ringCols[1] elseif u < 0.7 then ringCols[2] else ringCols[3]
-			ellipse(buf, math.floor(rad + 0.5), math.floor(rad * 0.42 + 0.5), col)
+			local ci = if u < 0.35 then 1 elseif u < 0.7 then 2 else 3
+			table.insert(draw, math.floor(rad + 0.5))
+			table.insert(draw, math.floor(rad * 0.42 + 0.5))
+			table.insert(draw, ci)
 		end
 	end
 	ringBorn = keep
+	-- (drawn and sent up only when a ring has moved a whole pixel or stepped fainter: it widens slowly, so most frames
+	-- nothing changes)
+	local key = table.concat(draw, ",")
+	if key == ringKey then
+		return
+	end
+	ringKey = key
+	buffer.fill(buf, 0, 0)
+	for i = 1, #draw, 3 do
+		ellipse(buf, draw[i], draw[i + 1], ringCols[draw[i + 2]])
+	end
 	pcall(function()
 		im:WritePixelsBuffer(Vector2.zero, Vector2.new(ringW, ringH), buf)
 	end)
@@ -1438,6 +1453,9 @@ local hushFrame: Frame? = nil
 local fan: Fan? = nil
 local lightNow: Light? = nil
 local glowBox = { 0, 0, -1, -1 } -- what the glow covered when last drawn
+local glowList: { number } = {} -- the pixels it wrote when last drawn
+local glowMark: buffer? = nil -- (u32 a pixel: the draw that last wrote it, glowGen)
+local glowGen = 0
 local haloBox = { 0, 0, -1, -1 }
 local haloKey = ""
 local glowAt = -1
@@ -1479,15 +1497,37 @@ local function upload(im: EditableImage, buf: buffer, x0: number, y0: number, x1
 	end)
 end
 
--- Clear a box of a buffer (rows of zeros).
-local function clearBox(buf: buffer, b: { number })
-	for y = math.max(0, b[2]), math.min(lightH - 1, b[4]) do
-		local x0 = math.max(0, b[1])
-		local w = math.min(lightW - 1, b[3]) - x0 + 1
-		if w > 0 then
-			buffer.fill(buf, (y * lightW + x0) * 4, 0, w * 4)
+-- What goes up of a light image: the TILE x TILE tiles holding a pixel whose value changed, a run of them along a row
+-- of tiles at a time (a beam is a thin wedge and a ring a 1 px line: the box round them, which went up before, was
+-- most of the screen; the request of 2026-11-21 to draw the shockwave rings without uploading the whole sky).
+local TILE = 16
+local tileCols, tileRows = 0, 0
+local raysTiles: buffer? = nil
+local haloTiles: buffer? = nil
+local glowTiles: buffer? = nil
+
+-- (the tile of pixel p, index y * lightW + x, marked)
+local function markPx(tiles: buffer, p: number)
+	local y = p // lightW
+	buffer.writeu8(tiles, (y // TILE) * tileCols + (p - y * lightW) // TILE, 1)
+end
+
+local function flushTiles(im: EditableImage, buf: buffer, tiles: buffer)
+	for ty = 0, tileRows - 1 do
+		local row = ty * tileCols
+		local tx = 0
+		while tx < tileCols do
+			if buffer.readu8(tiles, row + tx) ~= 0 then
+				local t0 = tx
+				while tx + 1 < tileCols and buffer.readu8(tiles, row + tx + 1) ~= 0 do
+					tx += 1
+				end
+				upload(im, buf, t0 * TILE, ty * TILE, (tx + 1) * TILE - 1, (ty + 1) * TILE - 1)
+			end
+			tx += 1
 		end
 	end
+	buffer.fill(tiles, 0, 0)
 end
 
 makeLight = function(W: number, H: number, K: number)
@@ -1504,6 +1544,10 @@ makeLight = function(W: number, H: number, K: number)
 		raysBuf, haloBuf, glowBuf = buffer.create(W * H * 4), buffer.create(W * H * 4), buffer.create(W * H * 4)
 	end
 	lightW, lightH = W, H
+	tileCols, tileRows = math.ceil(W / TILE), math.ceil(H / TILE)
+	raysTiles, haloTiles, glowTiles = buffer.create(tileCols * tileRows), buffer.create(tileCols * tileRows), buffer.create(tileCols * tileRows)
+	glowList, glowGen = {}, 0
+	glowMark = buffer.create(W * H * 4)
 	local ri, hi, gi, rb, hb, gb = raysImg, haloImg, glowImg, raysBuf, haloBuf, glowBuf
 	if ri == nil or hi == nil or gi == nil or rb == nil or hb == nil or gb == nil then
 		return
@@ -1537,7 +1581,8 @@ local function freeLight()
 		end
 	end
 	raysImg, haloImg, glowImg, raysBuf, haloBuf, glowBuf, hushFrame, fan, lightNow = nil, nil, nil, nil, nil, nil, nil, nil, nil
-	lightW, lightH = 0, 0
+	raysTiles, haloTiles, glowTiles, glowMark, glowList = nil, nil, nil, nil, {}
+	lightW, lightH, tileCols, tileRows = 0, 0, 0, 0
 end
 
 -- The fan's beams round (cx, cy): n of them, the long ones `reach` px, every other one shorter, each the pixels of a
@@ -1629,8 +1674,8 @@ end
 
 -- Pixels j0 .. j1 - 1 of a beam drawn at brightness lvl in colour col (lvl 0: cleared).
 local function beamPixels(b: Beam, j0: number, j1: number, lvl: number, col: number)
-	local buf, sky = raysBuf, skyPx
-	if buf == nil or sky == nil then
+	local buf, sky, tiles = raysBuf, skyPx, raysTiles
+	if buf == nil or sky == nil or tiles == nil then
 		return
 	end
 	local pb, ib = b.pix, b.info
@@ -1648,7 +1693,10 @@ local function beamPixels(b: Beam, j0: number, j1: number, lvl: number, col: num
 				out = math.floor(r0 + (cr - r0) * a + 0.5) + math.floor(g0 + (cg - g0) * a + 0.5) * 256 + math.floor(b0 + (cb - b0) * a + 0.5) * 65536 + 4278190080
 			end
 		end
-		buffer.writeu32(buf, p * 4, out)
+		if buffer.readu32(buf, p * 4) ~= out then
+			buffer.writeu32(buf, p * 4, out)
+			markPx(tiles, p)
+		end
 	end
 end
 
@@ -1700,7 +1748,10 @@ local function drawRays(l: Light?)
 	end
 	if x1 >= x0 then
 		raysBlank = false
-		upload(im, buf, x0, y0, x1, y1)
+		local tiles = raysTiles
+		if tiles then
+			flushTiles(im, buf, tiles)
+		end
 	end
 end
 
@@ -1722,38 +1773,53 @@ local function drawHalo(l: Light?)
 		return
 	end
 	haloKey = key
+	local tiles = haloTiles
+	if tiles == nil then
+		return
+	end
 	local ob = haloBox
-	clearBox(buf, ob)
 	local nb = { 0, 0, -1, -1 }
+	local W, H = lightW, lightH
 	if hr > 0 and l then
-		local W, H = lightW, lightH
-		local mask = pedMask
-		local cr, cg, cb = rgb(l.haloCol)
-		local k3 = hk / 8 * 3
-		local r2 = hr * hr
 		nb = { math.max(0, hx - hr), math.max(0, hy - hr), math.min(W - 1, hx + hr), math.min(H - 1, hy + hr) }
-		for y = nb[2], nb[4] do
-			local dy = y + 0.5 - hy
-			for x = nb[1], nb[3] do
+	end
+	-- (every pixel of the old box and the new worked out and compared: only the tiles where one changed go up)
+	local mask = pedMask
+	local cr, cg, cb = 0, 0, 0
+	local k3, r2 = 0, 1
+	if l then
+		cr, cg, cb = rgb(l.haloCol)
+		k3, r2 = hk / 8 * 3, math.max(1, hr * hr)
+	end
+	local ux0, uy0 = math.max(0, math.min(ob[1], nb[1])), math.max(0, math.min(ob[2], nb[2]))
+	local ux1, uy1 = math.min(W - 1, math.max(ob[3], nb[3])), math.min(H - 1, math.max(ob[4], nb[4]))
+	for y = uy0, uy1 do
+		local dy = y + 0.5 - hy
+		local inY = y >= nb[2] and y <= nb[4]
+		for x = ux0, ux1 do
+			local i = y * W + x
+			local out = 0
+			if inY and x >= nb[1] and x <= nb[3] then
 				local dx = x + 0.5 - hx
 				local d2 = (dx * dx + dy * dy) / r2
-				if d2 < 1 then
-					local i = y * W + x
-					if mask == nil or buffer.readu8(mask, i) <= 1 then
-						local step = math.min(3, math.floor(k3 * FALL_OFF[math.floor(d2 * 256) + 1] + bay(x, y)))
-						if step > 0 then
-							local bg = sky[i + 1]
-							local a = step * 0.13
-							local r0, g0, b0 = bit32.rshift(bg, 16), bit32.band(bit32.rshift(bg, 8), 255), bit32.band(bg, 255)
-							buffer.writeu32(buf, i * 4, math.floor(r0 + (cr - r0) * a + 0.5) + math.floor(g0 + (cg - g0) * a + 0.5) * 256 + math.floor(b0 + (cb - b0) * a + 0.5) * 65536 + 4278190080)
-						end
+				if d2 < 1 and (mask == nil or buffer.readu8(mask, i) <= 1) then
+					local step = math.min(3, math.floor(k3 * FALL_OFF[math.floor(d2 * 256) + 1] + bay(x, y)))
+					if step > 0 then
+						local bg = sky[i + 1]
+						local a = step * 0.13
+						local r0, g0, b0 = bit32.rshift(bg, 16), bit32.band(bit32.rshift(bg, 8), 255), bit32.band(bg, 255)
+						out = math.floor(r0 + (cr - r0) * a + 0.5) + math.floor(g0 + (cg - g0) * a + 0.5) * 256 + math.floor(b0 + (cb - b0) * a + 0.5) * 65536 + 4278190080
 					end
 				end
+			end
+			if buffer.readu32(buf, i * 4) ~= out then
+				buffer.writeu32(buf, i * 4, out)
+				markPx(tiles, i)
 			end
 		end
 	end
 	haloBox = nb
-	upload(im, buf, math.min(ob[1], nb[1]), math.min(ob[2], nb[2]), math.max(ob[3], nb[3]), math.max(ob[4], nb[4]))
+	flushTiles(im, buf, tiles)
 end
 
 local function drawGlow(l: Light?)
@@ -1761,11 +1827,18 @@ local function drawGlow(l: Light?)
 	if im == nil or buf == nil or sky == nil then
 		return
 	end
+	local tiles, marks = glowTiles, glowMark
+	if tiles == nil or marks == nil then
+		return
+	end
 	local W, H = lightW, lightH
 	local mask = pedMask
 	local hush = if l then math.clamp(l.hush, 0, 1) * HUSH_MAX else 0
-	local ob = glowBox
-	clearBox(buf, ob)
+	-- (drawn over what it drew last: a pixel written now is compared with what is there, and the pixels of the last
+	-- draw not written now are cleared; only the tiles where one changed go up)
+	glowGen += 1
+	local gen = glowGen
+	local newList: { number } = {}
 	local nb = { W, H, -1, -1 }
 	-- a pixel blended toward colour c by a (over the sky as the hush leaves it); `keep` the pedestal's parts it may cover
 	local function blend(x: number, y: number, c: number, a: number, keep: number)
@@ -1783,7 +1856,15 @@ local function drawGlow(l: Light?)
 		if hush > 0 then
 			bg = mix(bg, HUSH, hush)
 		end
-		buffer.writeu32(buf, i * 4, packed(mix(bg, c, a)))
+		local out = packed(mix(bg, c, a))
+		if buffer.readu32(marks, i * 4) ~= gen then
+			buffer.writeu32(marks, i * 4, gen)
+			table.insert(newList, i)
+		end
+		if buffer.readu32(buf, i * 4) ~= out then
+			buffer.writeu32(buf, i * 4, out)
+			markPx(tiles, i)
+		end
 		nb[1], nb[2], nb[3], nb[4] = math.min(nb[1], x), math.min(nb[2], y), math.max(nb[3], x), math.max(nb[4], y)
 	end
 	if l then
@@ -1858,8 +1939,15 @@ local function drawGlow(l: Light?)
 			blend(math.floor(mo[i]), math.floor(mo[i + 1]), mo[i + 2], 0.9, 1)
 		end
 	end
+	for _, i in glowList do
+		if buffer.readu32(marks, i * 4) ~= gen and buffer.readu32(buf, i * 4) ~= 0 then
+			buffer.writeu32(buf, i * 4, 0)
+			markPx(tiles, i)
+		end
+	end
+	glowList = newList
 	glowBox = nb
-	upload(im, buf, math.min(ob[1], nb[1]), math.min(ob[2], nb[2]), math.max(ob[3], nb[3]), math.max(ob[4], nb[4]))
+	flushTiles(im, buf, tiles)
 end
 
 -- The light behind the egg now (nil: none); drawn on the next step.

@@ -103,6 +103,24 @@ IMPL.EditableImage = {
 		d.lastWrite = E.frame
 		E.imageWrites += 1
 		C.pixelsWritten = (C.pixelsWritten or 0) + sw * sh
+		-- (by the image's size, for probes that tell the images apart: hatchperf)
+		local bySize = C.writesBySize
+		if bySize then
+			-- (each image numbered by its first write, so two of one size are told apart)
+			local ids = C.imgIds
+			if ids == nil then
+				ids = setmetatable({}, { __mode = "k" })
+				C.imgIds, C.imgN = ids, 0
+			end
+			local id = ids[self]
+			if id == nil then
+				C.imgN += 1
+				id = C.imgN
+				ids[self] = id
+			end
+			local key = W .. "x" .. H .. "#" .. id
+			bySize[key] = (bySize[key] or 0) + sw * sh
+		end
 	end,
 	ReadPixelsBuffer = function(self, pos, size)
 		local d, W, H = imgState(self)

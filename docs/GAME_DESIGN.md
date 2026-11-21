@@ -2495,6 +2495,17 @@ different:
 The prismoth (a moth, the slowest) went from 90 ms a frame coming out and 160 standing, single frames to almost half a
 second, to about 22 and 18, in the preview's emulator.
 
+> And (2026-11-21), asked what costs the most while the egg hatches, then: "do that" (the egg on an image of its own,
+> and the shockwave rings drawn without sending the whole sky up again)
+
+Counting the pixels sent to the screen by image showed the god rays sent the most, not the rings: whenever a beam
+pulsed, the box round every changed beam went up, most of the screen. The rays, the halo and the shockwave rings now
+send only the 16 px tiles where a pixel changed, and the pedestal's rings only when one has moved a pixel. A rare egg's
+hatch sends a third of what it did (the build-up 51k pixels a frame instead of 129k, the reveal 77k instead of 242k, the
+creature standing there 14k instead of 57k). The egg's own image stayed an idea: its lights pass in front of it and
+behind it, so they would have to leave the 3D picture with it, and most of what the shaking egg costs is drawing its
+new poses, which an image of its own would not save.
+
 - **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), a deep starry sky with a ringed planet, the band of the galaxy slanting

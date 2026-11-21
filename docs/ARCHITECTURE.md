@@ -2770,7 +2770,13 @@ name's letters, `showLetters`, 0.035 s apart, z 36, the name's own label hidden)
 up, 0.25 to 0.85 in the build-up from uncommon up, a burst fanning out over 0.3 s and fading over 1.2 s (1.6 at the
 hatch), 0.6 behind what hatched from epic up; a wave of brightness travelling round them; `SHINE[r]` colours, moving
 round the fan for mythic and celestial), the halo (`RAY[r][1]`), the shadow while it falls, the `waves` as rings, the
-motes behind it and `s.hush`.
+motes behind it and `s.hush`. `HatchBackdrop`'s three light images (Rays, Halo, Glow, each W x H) go up a tile at a
+time (since 2026-11-21, asked to draw the shockwave rings without uploading the whole sky: the box round a pulsing fan
+or a widening ring was most of the screen, up to 200k px a frame): a pixel is written only when its value changes,
+which marks its `TILE` 16 tile (`markPx`), and `flushTiles` sends each run of marked tiles along a row of tiles; the
+glow keeps the pixels it wrote (`glowList`, `glowMark` by draw) and clears only those it no longer writes, the halo
+works out its old box and its new and compares. The pedestal's ring image goes up only when a ring has moved a whole
+pixel or stepped fainter (`ringKey`). `hatchperf` tallies the pixels sent a frame by image (the label showing it).
 `play` builds the queue of reveals (`Reveal = { kind = "rise", r }` for each rarity from `r + 1` to `hr`, then
 `{ kind = "mut", i }` for each mutation) and opens at once: the moving things in `HatchDynamic`, each registered with
 the renderer: the egg (`EggModels.hero(r, EGG_H[r])`: `EGG_H` 2.3 .. 2.8, its foot `FLOAT_Y` 1.2 studs above `ORIGIN`
