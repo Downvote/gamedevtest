@@ -82,6 +82,16 @@ local zoom = Tuning.CamZoomDefault -- the View slider's notch (setZoom)
 local savedZoom: number? = nil -- the notch the profile last said (a change there is applied; a tap waiting on it is not undone)
 local stage: Stage? = nil
 local stageShift = Vector3.zero -- an endless islet's camera: how far along the stage looks (setStageShift)
+-- The founder on the screen (the report of 2026-11-21, "the camera now stutters the player as they walk"): where the
+-- follow puts the founder's ground point this frame (`fGX, fGY`, global art px, nil when it follows something else),
+-- where that lands on the screen (`lockX, lockY`, whole art px from its top-left), and where AvatarView last put the
+-- founder's rig, snapped to the art grid (`drawnAt`, setDrawn). The pixel layer's window is placed from the rig as
+-- drawn (drawnPan), so the founder stands exactly where the follow wants it whatever order the frame's steps run in.
+local fGX: number?, fGY: number? = nil, nil
+local lockX: number?, lockY: number? = nil, nil
+local drawnAt: Vector3? = nil
+local lockOff = false -- (previews: the window put from the pan alone, debugLock)
+local DRAWN_SLACK = 8 -- art px the rig as drawn may be from the follow before the pan is shown as it is
 
 -- (the whole screen, a notched phone's safe-area margins too: Camera.ViewportSize left them out there, and the
 -- pixel layer drawn from the screen's left edge stopped short of the right one: Pixel/ScreenSize)
@@ -283,6 +293,58 @@ function CameraController.pan(): (number, number)
 	return panX, panY
 end
 
+-- World point p moved across the ground (x and z) so that its ground point at the follow's height lands on a whole art
+-- px of the view's grid: AvatarView puts the founder's rig there, so its picture steps a whole pixel exactly when the
+-- follow's does (a rig between pixels drew a pixel off now and then and back the next frame). p as it is with no view.
+function CameraController.snapGround(p: Vector3): Vector3
+	local v = current
+	if v == nil or v.stage then
+		return p
+	end
+	local y = Street.LAWN_Y + 1.5
+	local g = v.grid
+	local x0, y0 = Raster.gridPoint(ROT12, g, p.X, y, p.Z)
+	local x1, y1 = Raster.gridPoint(ROT12, g, p.X + 1, y, p.Z)
+	local x2, y2 = Raster.gridPoint(ROT12, g, p.X, y, p.Z + 1)
+	-- (the grid is linear in x and z: solve for the step that rounds both)
+	local a, b, c, d = x1 - x0, x2 - x0, y1 - y0, y2 - y0
+	local det = a * d - b * c
+	if math.abs(det) < 1e-9 then
+		return p
+	end
+	local rx, ry = math.floor(x0 + 0.5) - x0, math.floor(y0 + 0.5) - y0
+	local dx, dz = (rx * d - b * ry) / det, (a * ry - c * rx) / det
+	return Vector3.new(p.X + dx, p.Y, p.Z + dz)
+end
+
+-- Where AvatarView put the founder's rig (snapGround's point; nil: none).
+function CameraController.setDrawn(p: Vector3?)
+	drawnAt = p
+end
+
+-- The pan the pixel layer shows: the one that puts the founder's rig, as AvatarView last put it (what the renderer
+-- draws this frame), where the follow wants the founder on the screen; `pan()` when the view follows something else.
+function CameraController.drawnPan(): (number, number)
+	local v, at = current, drawnAt
+	local lx, ly = lockX, lockY
+	if v == nil or v.stage or at == nil or lx == nil or ly == nil or lockOff then
+		return panX, panY
+	end
+	local gx, gy = Raster.gridPoint(ROT12, v.grid, at.X, Street.LAWN_Y + 1.5, at.Z)
+	local px, py = math.floor(gx + 0.5) - lx, math.floor(gy + 0.5) - ly
+	if math.abs(px - panX) > DRAWN_SLACK or math.abs(py - panY) > DRAWN_SLACK then
+		-- (the rig not where the follow is: a jump home, the view there a frame before the rig. The pan, so the picture
+		-- is not sent back to where the rig was)
+		return panX, panY
+	end
+	return px, py
+end
+
+-- Previews: false puts the layer's window from the pan alone (as before the founder was locked to it), true again.
+function CameraController.debugLock(on: boolean)
+	lockOff = not on
+end
+
 function CameraController.setHudRects(rects: { Raster.Rect }?)
 	hudRects = rects
 	CameraController.refit()
@@ -386,6 +448,7 @@ local function target(v: View): (number, number)
 		return v.grid.px + math.floor(gx1 - gx0 + 0.5), v.grid.py + math.floor(gy1 - gy0 + 0.5)
 	end
 	local p: Vector3
+	fGX, fGY = nil, nil
 	if focus then
 		p = focus :: Vector3
 	else
@@ -401,6 +464,9 @@ local function target(v: View): (number, number)
 	-- the founder (or a cutscene's focus) in the middle of the screen between the HUD's strips (the ground under
 	-- them: their feet)
 	local gx, gy = Raster.gridPoint(ROT12, v.grid, p.X, Street.LAWN_Y + 1.5, p.Z)
+	if focus == nil then
+		fGX, fGY = gx, gy
+	end
 	local W, H = v.fullX / v.K, v.fullY / v.K
 	local top, bottom = hudStrips(v)
 	local tx = gx - W / 2
@@ -441,6 +507,16 @@ local function follow(cur: number, to: number, vel: number, dt: number): (number
 	return out, nv
 end
 
+-- Where the founder lands on the screen this frame (the follow's own place less its ground point), or none.
+local function lockOn()
+	local gx, gy = fGX, fGY
+	if gx and gy then
+		lockX, lockY = math.floor(gx - camX + 0.5), math.floor(gy - camY + 0.5)
+	else
+		lockX, lockY = nil, nil
+	end
+end
+
 local function step(dt: number?)
 	local v = current
 	if v == nil then
@@ -471,6 +547,7 @@ local function step(dt: number?)
 	local W, H = v.fullX / v.K, v.fullY / v.K
 	if not v.stage and (math.abs(tx - camX) > W * 0.75 or math.abs(ty - camY) > H * 0.75) then
 		jumpTo(tx, ty)
+		lockOn()
 		pose(v)
 		return
 	end
@@ -493,6 +570,7 @@ local function step(dt: number?)
 		panX, panY = nx, ny
 		pose(v)
 	end
+	lockOn()
 end
 
 -- Build mode: the view stays where it is dragged (true) or follows the founder again (false). It starts where the

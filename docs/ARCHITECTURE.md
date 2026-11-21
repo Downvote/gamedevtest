@@ -1357,7 +1357,19 @@ target's pixel less the gap's (`round(t) - round(t - cam)` on each axis), so thr
 founder pixel for pixel and they keep still on the screen; it moves at most what the renderer can scroll in a frame
 (`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake. The pan
 is where the screen is: the renderer shows it as a window of a picture kept past the screen's edges and scrolls that
-picture only when the window nears its edge (9.3, the window). In the
+picture only when the window nears its edge (9.3, the window). **The founder held still** (the report of 2026-11-21,
+"the camera now stutters the player as they walk"): the follow notes the founder's ground point (`fGX, fGY`) and where
+it lands on the screen (`lockX, lockY` = its point less the follow's place, rounded, each frame); AvatarView puts the own
+founder's rig on a whole art px of the grid (`snapGround(p)`: p moved across the ground, x and z, so its ground point
+at the follow's height rounds exactly; solved from the grid's slopes) and says where (`setDrawn(p)`, nil when it has
+none or a cutscene poses it); `drawnPan()` is that point's grid px less the lock, so the founder as drawn this frame
+lands exactly where the follow wants it whichever of RenderStepped, AvatarView's Heartbeat and the renderer's runs
+first (the rig between pixels, and drawn a frame after the follow had moved, fell a pixel off now and then and back
+the next frame). `pan()` stands in on a stage, under a cutscene's focus, with no founder, and when the rig is more than
+`DRAWN_SLACK` (8) px from the follow (a jump home, the view there a frame before the rig). `debugLock(on)` (previews)
+puts the window from `pan()` alone. The `pan` probe walks the founder held standing (`AvatarView.debugStill`) with the
+window from the pan and then from the founder: its picture went back and forth from one frame to the next 31 times in
+240 frames, then 6 (the rest the follow easing round the square's corners). In the
 classic style the Roblox camera stands on the unrounded place. A target more than three quarters of the screen away
 snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
 (Roblox drops it mid-street before the server moves it home). Build mode (GAME_DESIGN 4.5: "make the camera still follow
@@ -1456,7 +1468,11 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   not every frame; between, nothing but the window moves (and the moving models, composed incrementally). `project`
   gives screen px (`(layer px - ox) * K`), so `projectPixel` and the World canvas are unchanged; `screenRay` adds the
   window back, `nearScreen` tests the screen, not the layer; `debugStatic()` gives `px, py` as the pan the screen shows
-  and `ox, oy`. The `pan` probe (walking at 60 frames a second): 61 frames scrolled of 240 (all before), a frame 17 ms
+  and `ox, oy`. A window that moves sets `SG.touch`, so that frame composes (otherwise only the tier's `hz` composes
+  ran, and the founder, drawn 30 times a second under a window moving 60, slipped and caught up: the report of
+  2026-11-21, "the camera now stutters the player as they walk"). The window is put from
+  `CameraController.drawnPan()`, not `pan()`: the founder's rig as AvatarView last placed it (what this frame draws),
+  less where the follow wants the founder on the screen. The `pan` probe (walking at 60 frames a second): 61 frames scrolled of 240 (all before), a frame 17 ms
   (23) on new ground and 13 (20) over the pan cache, frames over 25 ms 51 and 28 (78 and 41).
 - **Pans** (when the window nears the layer's edge): when the re-centred pan differs from the layer's, every static
   buffer shifts by whole art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's

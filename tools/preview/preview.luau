@@ -1046,6 +1046,53 @@ function SCEN.pan()
 	local dt = 1 / 60
 	H.inClient(p, PR.debugPerf)
 	local tally = incTally(p, PR, 20)
+	-- (where the own founder's picture lands on the screen each frame: the picture's place in the layer less the
+	-- window's. Through a steady walk it keeps still, moving a pixel now and then as the view catches up; back and forth
+	-- from one frame to the next is the stutter of the report of 2026-11-21, "the camera now stutters the player as they
+	-- walk")
+	local AV = modOr(p, "Controllers.AvatarView")
+	local rig = AV and H.inClient(p, AV.debugRig, p)
+	local fModel = rig and rig.model
+	local onScreen = { frames = 0, moved = 0, far = 0, back = 0, lx = nil, ly = nil, dx = 0, dy = 0 }
+	local function founderStep()
+		if fModel == nil then
+			return
+		end
+		-- (its picture's corner on the screen: the founder is held standing for these walks, AvatarView.debugStill, so
+		-- the corner moves only with the picture)
+		local fx, fy = H.inClient(p, PR.debugShown, fModel)
+		if fx == nil then
+			return
+		end
+		local ox, oy = layerOff(p, PR)
+		local sx, sy = fx - ox, fy - oy
+		local o = onScreen
+		o.frames += 1
+		if o.lx ~= nil then
+			local dx, dy = sx - o.lx, sy - o.ly
+			if dx ~= 0 or dy ~= 0 then
+				o.moved += 1
+			end
+			if math.abs(dx) > 1 or math.abs(dy) > 1 then
+				o.far += 1
+			end
+			if (dx ~= 0 and o.dx ~= 0 and (dx > 0) ~= (o.dx > 0)) or (dy ~= 0 and o.dy ~= 0 and (dy > 0) ~= (o.dy > 0)) then
+				o.back += 1
+			end
+			if dx ~= 0 then
+				o.dx = dx
+			end
+			if dy ~= 0 then
+				o.dy = dy
+			end
+		end
+		o.lx, o.ly = sx, sy
+	end
+	local function founderReport(label)
+		local o = onScreen
+		log("pan %s: the founder on the screen over %d frames: moved on %d, by more than a pixel on %d, back and forth %d times", label, o.frames, o.moved, o.far, o.back)
+		o.frames, o.moved, o.far, o.back, o.lx, o.ly, o.dx, o.dy = 0, 0, 0, 0, nil, nil, 0, 0
+	end
 	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 	local at = root and root.Position or E.v3(0, 3, 0)
 	local speed = 16
@@ -1100,6 +1147,34 @@ function SCEN.pan()
 	end
 	report("walking again", realClock() - wall0)
 	castCheck("walking again")
+	-- (the founder held standing while it walks the square again: where its picture lands on the screen, first with the
+	-- layer's window put from the pan alone, then from the founder as drawn, CameraController.drawnPan)
+	local CCp = modOr(p, "Controllers.CameraController")
+	if AV and AV.debugStill and CCp and CCp.debugLock then
+		H.inClient(p, AV.debugStill, true)
+		for pass = 1, 2 do
+			H.inClient(p, CCp.debugLock, pass == 2)
+			for i = 1, 240 do
+				local d = (i * dt * speed) % 48
+				local ox, oz
+				if d < 12 then
+					ox, oz = d, 0
+				elseif d < 24 then
+					ox, oz = 12, -(d - 12)
+				elseif d < 36 then
+					ox, oz = 12 - (d - 24), -12
+				else
+					ox, oz = 0, -12 + (d - 36)
+				end
+				p.Character:PivotTo(E.cf.new(at.X + ox, at.Y, at.Z + oz))
+				E.step(dt)
+				founderStep()
+			end
+			founderReport(if pass == 1 then "held still, window from the pan" else "held still, window from the founder")
+		end
+		H.inClient(p, AV.debugStill, false)
+		H.inClient(p, CCp.debugLock, true)
+	end
 	H.inClient(p, PR.debugPerf)
 	wall0 = realClock()
 	for i = 481, 720 do

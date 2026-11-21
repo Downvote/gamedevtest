@@ -33,6 +33,7 @@ local Looks = require(ReplicatedStorage.Shared.Data.Looks)
 local Cosmetics = require(ReplicatedStorage.Shared.Data.Cosmetics)
 local Street = require(ReplicatedStorage.Shared.Data.Street)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local CameraController = require(script.Parent.CameraController)
 local Audio = require(script.Parent.Audio)
 local Puffs = require(script.Parent.Puffs)
 local NameTags = require(script.Parent.NameTags)
@@ -223,7 +224,12 @@ local function hide(char: Model)
 	char.DescendantAdded:Connect(one)
 end
 
+local still = false -- (previews: debugStill)
+
 local function drop(pl: Player)
+	if pl == Players.LocalPlayer then
+		CameraController.setDrawn(nil)
+	end
 	local r = recs[pl]
 	if r then
 		PixelRenderer.unregisterDynamic(r.rig.model)
@@ -336,6 +342,7 @@ local function step(dt: number)
 		if pl == me and override then
 			-- (a cutscene poses the own founder: its tag steps aside)
 			(override :: (CharacterModels.Rig, number, number) -> ())(rec.rig, t, dt)
+			CameraController.setDrawn(nil)
 			rec.tag.frame.Visible = false
 			rec.last = nil
 			rec.idle = 0
@@ -352,9 +359,17 @@ local function step(dt: number)
 		local flat = Vector3.new(fwd.X, 0, fwd.Z)
 		local yaw = if flat.Magnitude > 1e-3 then math.atan2(flat.X, flat.Z) else 0
 		local fy, airborne = feetY(rec, char, root)
-		local base = CFrame.new(pos.X, fy, pos.Z) * CFrame.Angles(0, yaw, 0)
-		-- (the own founder's feet are heard: library sounds in place of Roblox's own, which RbxCharacterSounds turns off)
 		local mine = pl == me
+		local at = Vector3.new(pos.X, fy, pos.Z)
+		if mine then
+			-- (the own founder on a whole art px of the view's grid, and the camera told where: the layer's window is put
+			-- from it, so the founder keeps still on the screen as they walk; the report of 2026-11-21, "the camera now
+			-- stutters the player as they walk")
+			at = CameraController.snapGround(at)
+			CameraController.setDrawn(at)
+		end
+		local base = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
+		-- (the own founder's feet are heard: library sounds in place of Roblox's own, which RbxCharacterSounds turns off)
 		if airborne then
 			-- a jump: knees up, arms up, off the ground with the character
 			CharacterModels.poseAction(rec.rig, base, t, 0, "jump")
@@ -388,6 +403,9 @@ local function step(dt: number)
 			local squash = if rec.landAt >= 0 and t - rec.landAt < LAND_SECS then 1 - (t - rec.landAt) / LAND_SECS else 0
 			if mine and t < cheerUntil then
 				CharacterModels.poseAction(rec.rig, base, t, rec.speed, "cheer")
+			elseif still then
+				-- (previews: standing, so a probe follows where the picture goes and nothing else)
+				CharacterModels.poseFounder(rec.rig, base, 0, 0, 0, false, true, 0)
 			else
 				CharacterModels.poseFounder(rec.rig, base, t, rec.speed, rec.idle, asleep, quietMotion(), squash)
 			end
@@ -417,6 +435,11 @@ local function step(dt: number)
 		end
 	end
 	stepZeds(t)
+end
+
+-- Previews: founders posed standing still whatever they do (debugStill), so a probe follows their picture alone.
+function AvatarView.debugStill(on: boolean)
+	still = on
 end
 
 -- The founder's position on this client (the local player's rig's feet), for the HUD and Build mode.

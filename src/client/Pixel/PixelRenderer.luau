@@ -1646,9 +1646,16 @@ local function showWindow(s: Surf)
 		end
 		return
 	end
-	local px, py = CameraController.pan()
-	s.ox = math.clamp(px - s.cam.gx, 0, s.W - s.vw)
-	s.oy = math.clamp(py - s.cam.gy, 0, s.H - s.vh)
+	local px, py = CameraController.drawnPan()
+	local ox = math.clamp(px - s.cam.gx, 0, s.W - s.vw)
+	local oy = math.clamp(py - s.cam.gy, 0, s.H - s.vh)
+	if ox ~= s.ox or oy ~= s.oy then
+		-- (the window moved: this frame composes, so the founder the view follows is drawn where it stands now. Composed
+		-- only at the tier's hz, it kept still on the picture for a frame while the window moved under it and then jumped
+		-- on: the report of 2026-11-21, "the camera now stutters the player as they walk")
+		SG.touch = true
+	end
+	s.ox, s.oy = ox, oy
 	if im then
 		local o, z = Vector2.new(s.ox, s.oy), Vector2.new(s.vw, s.vh)
 		if im.ImageRectOffset ~= o then
@@ -5082,7 +5089,7 @@ local function frameStep(dt: number)
 	if s and not baking then
 		-- (the picture scrolls only when the view nears its edge, re-centred under it; the view's window moves every
 		-- frame: showWindow)
-		local tx, ty = CameraController.pan()
+		local tx, ty = CameraController.drawnPan()
 		local m = s.m
 		local ox, oy = tx - s.cam.gx, ty - s.cam.gy
 		local edge = math.min(Tuning.PixelPanEdge, m)
