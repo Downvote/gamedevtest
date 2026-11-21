@@ -2892,7 +2892,14 @@ camp, a stall, a hut and a level of the tree.)
 under the chips (it steps aside for a panel). The card has the quest's icon and title, which of the nineteen it is, what
 to do and where, and its progress with **Go**, which opens the place it needs (the Driftlings panel, the Tree panel,
 Build mode on the right tab, the Index, the Hatchery). When the goal is met, Go turns into **Claim** (shining) next to
-the reward; Claim pays it, says so, and the next quest slides in. Each goal counts what the island has now or what its
+the reward; Claim pays it, says so, and the next quest slides in. A quest for driftlings at work (put one to work,
+three at work, ten at work) sends Go to what the island is short of first (the request of 2026-11-21: "for this quest
+and other work type quests, the go should bring the player to the huts tab if they dont have enough spots for
+creatures, the egg hatching screen if they are missing creatures, and lastly the workspace tab if there isnt enough
+workspaces"): too few beds, Build mode on the Huts tab; then too few driftlings, the Tree panel's eggs; then too few
+places at work, the Work tab; with all of them there, the Driftlings panel to put them to work. When the island's room
+for beds or places at work is already full (ten at work on a first island), Go opens Build mode, where Expand is.
+Each goal counts what the island has now or what its
 stats have kept (eggs hatched from the tree, sold, the Hatchery's hatched, the rarest had), so one already met can be
 claimed at once. Rewritten for the eggs (2026-11-13), in order: place down 4 huts (the first since 2026-11-21, the
 request above: "the first goal after the tutorial should be "Place down 4 huts""; four huts are the first island's

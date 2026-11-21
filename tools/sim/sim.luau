@@ -3175,6 +3175,96 @@ do
 	H.clickNamed(p, "QuestClaim", { wait = 0.5 })
 	H.expect(prof.quest == questAt("help") + 1 and prof.shells >= shells0 + (reward.shells or 0), "quests", "Claim pays the reward (shells) and moves on", string.format("quest %d, shells %+d", prof.quest, prof.shells - shells0))
 end
+-- "Three at work" and the other quests for driftlings at work: Go goes to what the island is short of (the request of
+-- 2026-11-21: "the go should bring the player to the huts tab if they dont have enough spots for creatures, the egg
+-- hatching screen if they are missing creatures, and lastly the workspace tab if there isnt enough workspaces"): with
+-- too few beds the Huts tab, then with too few driftlings the tree's eggs, then with too few places at work the Work
+-- tab, and with all of them the Driftlings panel (each case the island trimmed for a moment, then put back)
+do
+	local qi = questAt("three")
+	local n = Quests.list[qi].goal.n
+	local placed0, pals0 = prof.plot.placed, prof.pals
+	local work0: { [number]: number } = {}
+	for _, x in prof.pals do
+		work0[x.id] = x.work
+		x.work = 0
+	end
+	prof.quest = qi
+	local function press(): (boolean, string?, string?)
+		H.push(p, 0.5)
+		if H.buttonNamed(p, "QuestGo") == nil then
+			return false, nil, nil
+		end
+		H.clickNamed(p, "QuestGo", { wait = 0.4 })
+		local tab = if BuildUI.isOpen() then tostring(H.inClient(p, BuildUI.debugState).tab) else nil
+		local panel = H.currentPanel(p)
+		if tab then
+			H.clickNamed(p, "BuildDone", { wait = 0.3 })
+		elseif panel then
+			H.closePanel(p)
+			E.run(0.3)
+		end
+		return true, tab, panel
+	end
+	local function without(kind: string, keepJobs: number?): { any }
+		local out, jobs = {}, 0
+		for _, q in placed0 do
+			local d = Buildings.byId[q.id]
+			if d and d.kind == kind then
+				if keepJobs and jobs < keepJobs then
+					jobs += d.jobs
+					table.insert(out, q)
+				end
+				continue
+			end
+			table.insert(out, q)
+		end
+		return out
+	end
+	-- too few beds: no huts at all
+	prof.plot.placed = without("nest")
+	local ok, tab, panel = press()
+	H.expect(ok and tab == "nest", "quests", "Three at work, too few beds: Go opens the Huts tab", string.format("%s %s", tostring(tab), tostring(panel)))
+	prof.plot.placed = placed0
+	-- beds enough, too few driftlings: the tree's eggs
+	if Plot.housing(placed0) >= n then
+		prof.pals = { pals0[1] }
+		ok, tab, panel = press()
+		H.expect(ok and panel == "tree" and tab == nil, "quests", "Three at work, too few driftlings: Go opens the tree's eggs", string.format("%s %s", tostring(tab), tostring(panel)))
+		prof.pals = pals0
+	end
+	-- beds and driftlings enough (more lent for the moment if the island has too few), too few places at work: the
+	-- Work tab (one workplace left, under three places)
+	local lent = table.clone(pals0)
+	local top = 0
+	for _, x in pals0 do
+		top = math.max(top, x.id)
+	end
+	while #lent < n and #pals0 > 0 do
+		local x = table.clone(pals0[1])
+		top += 1
+		x.id, x.work = top, 0
+		table.insert(lent, x)
+	end
+	prof.pals = lent
+	if Plot.housing(placed0) >= n and #lent >= n then
+		prof.plot.placed = without("work", 1)
+		if Plot.work(prof.plot.placed) < n then
+			ok, tab, panel = press()
+			H.expect(ok and tab == "work", "quests", "Three at work, too few places at work: Go opens the Work tab", string.format("%s %s", tostring(tab), tostring(panel)))
+		end
+		prof.plot.placed = placed0
+		if Plot.work(placed0) >= n then
+			ok, tab, panel = press()
+			H.expect(ok and panel == "pals" and tab == nil, "quests", "Three at work, everything there: Go opens Driftlings", string.format("%s %s", tostring(tab), tostring(panel)))
+		end
+	end
+	prof.pals = pals0
+	for _, x in prof.pals do
+		x.work = work0[x.id] or x.work
+	end
+	H.push(p, 0.5)
+end
 -- a quest's Go naming a row ("build:work": Another workplace, "build:gen": Build a boost) opens Build mode on Work's row
 -- of that name (the second camp's quest went on 2026-11-18: the first island's work spaces ran out before Another
 -- farm); the first of them not met yet here (a met one shows Claim instead)

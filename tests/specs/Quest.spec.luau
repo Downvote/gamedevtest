@@ -194,4 +194,47 @@ return function()
 		local jobs = need * each
 		T.truthy(jobs <= Plot.workLimit(1), string.format("%d work spaces asked for, %d on the first island", jobs, Plot.workLimit(1)))
 	end)
+
+	T.it("a quest for driftlings at work goes to what the island is short of: beds, driftlings, places at work", function()
+		local q = Quests.list[1]
+		for _, x in Quests.list do
+			if x.id == "three" then
+				q = x
+			end
+		end
+		T.eq(q.goal.kind, "helpers", "Three at work counts driftlings at work")
+		local work = ""
+		for _, d in Buildings.list do
+			if d.kind == "work" and d.tier == 1 and work == "" then
+				work = d.id
+			end
+		end
+		local function facts(huts: number, works: number, pals: number, tier: number?): any
+			local pieces = {}
+			for i = 1, huts do
+				table.insert(pieces, { id = "nest", uid = i })
+			end
+			for i = 1, works do
+				table.insert(pieces, { id = work, uid = 100 + i })
+			end
+			local ps = {}
+			for i = 1, pals do
+				table.insert(ps, { id = i, work = 0, home = 0 })
+			end
+			return { pals = ps, pieces = pieces, tier = tier or 1, seen = {}, stats = {} }
+		end
+		T.eq(Quest.goFor(facts(1, 2, 3), q), "build:nest", "two beds for three: the Huts tab")
+		T.eq(Quest.goFor(facts(2, 2, 1), q), "tree", "beds enough, one driftling: the tree's eggs")
+		T.eq(Quest.goFor(facts(2, 1, 3), q), "build:work", "beds and driftlings enough, two places at work: the Work tab")
+		T.eq(Quest.goFor(facts(2, 2, 3), q), q.go, "all of it there: the quest's own place (Driftlings)")
+		local ten = Quests.list[1]
+		for _, x in Quests.list do
+			if x.id == "housed" then
+				ten = x
+			end
+		end
+		T.truthy(Plot.housingLimit(1) < ten.goal.n, "the first island holds fewer than ten")
+		T.eq(Quest.goFor(facts(4, 1, 2, 1), ten), "build", "Ten at work on a full first island: Build mode, to expand")
+		T.eq(Quest.goFor(facts(0, 0, 0), Quests.list[1]), Quests.list[1].go, "another quest: its own place")
+	end)
 end

@@ -7,6 +7,7 @@
 local Types = require(script.Parent.Parent.Types)
 local Buildings = require(script.Parent.Parent.Data.Buildings)
 local Quests = require(script.Parent.Parent.Data.Quests)
+local Plot = require(script.Parent.Plot)
 
 type Profile = Types.Profile
 
@@ -98,6 +99,30 @@ end
 
 function Quest.done(f: Facts, q: Quests.Quest): boolean
 	return Quest.count(f, q.goal) >= q.goal.n
+end
+
+-- Where a quest's Go takes the player now. A quest for driftlings at work (or in huts) sends them to what they are
+-- short of first (the request of 2026-11-21: "for this quest and other work type quests, the go should bring the
+-- player to the huts tab if they dont have enough spots for creatures, the egg hatching screen if they are missing
+-- creatures, and lastly the workspace tab if there isnt enough workspaces"): too few beds, the Huts tab (Build mode
+-- with Expand when the island's room is full: no hut more fits); too few driftlings, the tree's eggs; too few places
+-- at work, the Work tab (Expand again when the island's work spaces are full); all of them there, the quest's own
+-- place (Driftlings, to put them to work). Every other quest goes to its own place.
+function Quest.goFor(f: Facts, q: Quests.Quest): string
+	local k, n = q.goal.kind, q.goal.n
+	if k ~= "helpers" and k ~= "housed" then
+		return q.go
+	end
+	if Plot.housing(f.pieces) < n then
+		return if Plot.housingLimit(f.tier) < n then "build" else "build:nest"
+	end
+	if #f.pals < n then
+		return "tree"
+	end
+	if k == "helpers" and Plot.work(f.pieces) < n then
+		return if Plot.workLimit(f.tier) < n then "build" else "build:work"
+	end
+	return q.go
 end
 
 -- Claim the quest on the go: its reward paid, the next one up. Errors: "not_found" (the tips are on, or every quest

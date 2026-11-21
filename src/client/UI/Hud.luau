@@ -1363,7 +1363,9 @@ local function updateQuest(v: Types.ClientView)
 		UIKit.rect(back, UDim2.fromOffset(math.floor((bw - 2) * have / math.max(1, need)), 2), UDim2.fromOffset(1, 1), UIKit.color("good"), 4).Name = "Fill"
 		UIKit.text(f, string.format("%d/%d", have, need), UDim2.fromOffset(30, 10), UDim2.fromOffset(5 + bw + 3, y + 1), { color = UIKit.color("text_dim"), name = "Progress", z = 3 })
 		local b = UIKit.button(f, "Go", UDim2.fromOffset(40, 12), UDim2.fromOffset(w - 44, y), function()
-			goTo(q.go)
+			-- (what the island is short of now, not when the card was drawn: a hut built since changes it)
+			local cv = StateClient.view() or v
+			goTo(Quest.goFor({ pals = cv.pals, pieces = cv.pieces, tier = cv.tier, seen = cv.seen, stats = cv.stats }, q))
 		end, { name = "QuestGo" })
 		b.ZIndex = 4
 	end
