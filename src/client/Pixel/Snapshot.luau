@@ -37,6 +37,8 @@
 --   Snapshot.release(key: string) / Snapshot.clear()
 --       Forget pictures (their images are destroyed and bound labels go blank). A forgotten Snap stays failed (a new
 --       one takes its key): whoever holds on to one asks for its key again.
+--   Snapshot.keep(key: string, on: boolean)   keep a picture from eviction, or let it go with the rest again (still
+--       cached until the cache needs the room: the hatch scene's pictures of a driftling, played again at its next hatch)
 --   Snapshot.pending(): number      pictures still to draw
 --   Snapshot.hold(on: boolean)  while on nothing is drawn (the queue waits): a busy moment holds pictures back
 --   Snapshot.setBudget(ms: number?)  drawing time per frame while a screen needs pictures fast and the world is not
@@ -706,6 +708,13 @@ function Snapshot.clear()
 		drop(key)
 	end
 	table.clear(queue)
+end
+
+function Snapshot.keep(key: string, on: boolean)
+	local snap = cache[key]
+	if snap then
+		snap.keep = on
+	end
 end
 
 function Snapshot.setBudget(ms: number?)

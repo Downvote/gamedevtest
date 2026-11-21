@@ -93,6 +93,8 @@ export type Job = {
 	grade: ((rgba: number) -> number)?, -- Options.grade
 	lift: buffer?, -- with textures drawn: each pixel's texture step, 0 down, 1 none, 2 up
 	texPx: number, -- studs an art px (the textures' marks are one wide)
+	blendJob: Raster.BlendJob?, -- the blended body while it is drawn (a row at a time)
+	blendBegun: boolean,
 }
 
 -- The opaque solids that can shade (not glowing), binned across the sun: seen down the sun's direction each one's
@@ -411,6 +413,8 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		grade = o.grade,
 		lift = lift,
 		texPx = 1 / math.max(pxPerStud, 1e-6),
+		blendJob = nil,
+		blendBegun = false,
 	}
 end
 
@@ -515,11 +519,13 @@ local function rasterSolid(job: Job, k: number)
 	Raster.drawPart(job.frame, job.cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.rgb, k, capture, nil, s.prm)
 end
 
--- Phase 1, last: the blended body (Raster.drawBlend) into the G-buffer, one radius for it (its members' averaged).
-local function rasterBlend(job: Job)
+-- Phase 1, last: the blended body (Raster.blendJob) into the G-buffer, one radius for it (its members' averaged),
+-- drawn a row at a time by Picture.step (a body this big takes the time of several frames: the user's report of
+-- 2026-11-21, "it now lags alot while the egg is hatched"). Nil when there is none.
+local function rasterBlend(job: Job): Raster.BlendJob?
 	local list = job.blend
 	if #list == 0 then
-		return
+		return nil
 	end
 	local cam = job.cam
 	local W = job.W
@@ -554,7 +560,7 @@ local function rasterBlend(job: Job)
 		return 0
 	end
 	-- (a still picture: blended at any size)
-	Raster.drawBlend(job.frame, cam, M, #M, k, capture, 0)
+	return Raster.blendJob(job.frame, cam, M, #M, k, capture, 0)
 end
 
 -- The job's ShadowGrid (margins a little wider than the discs, so rounding never drops a solid that blocks).
@@ -726,8 +732,16 @@ function Picture.step(job: Job, deadline: number): boolean
 		if job.phase == 1 then
 			local k = job.opaque[job.cursor]
 			if k == nil then
-				rasterBlend(job)
-				job.phase, job.cursor = 2, 0
+				local bj = job.blendJob
+				if bj == nil and not job.blendBegun then
+					job.blendBegun = true
+					bj = rasterBlend(job)
+					job.blendJob = bj
+				end
+				if bj == nil or Raster.blendStep(bj, deadline) then
+					job.blendJob = nil
+					job.phase, job.cursor = 2, 0
+				end
 			else
 				rasterSolid(job, k)
 				job.cursor += 1

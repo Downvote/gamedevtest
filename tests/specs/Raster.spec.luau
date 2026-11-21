@@ -3,7 +3,7 @@
 -- slopes, scale and phase snapping, pans that keep every global pixel's ray, clean steps and outlines on 2:1 edges, the
 -- Close view's follow rules), box / sphere / cylinder / wedge / corner wedge coverage with exact depth (checked against
 -- independent ray intersections), sub-pixel dots, see-through blending, depth testing, floor shadows; and
--- Render/Picture (Snapshot's engine).
+-- Render/Picture (Snapshot's engine), and a blended body drawn over many calls coming out the same as one drawn at once.
 local T = require("../TestKit")
 local Raster = require("../../build/luautest/shared/Render/Raster")
 local Picture = require("../../build/luautest/shared/Render/Picture")
@@ -1225,6 +1225,99 @@ return function()
 				end
 			end
 		end
+	end)
+
+	-- (a driftling's body: overlapping round members blended into one surface)
+	local function blendBody(): { Picture.Solid }
+		local function ell(x: number, y: number, z: number, sx: number, sy: number, sz: number, rgb: number): Picture.Solid
+			local s = Picture.solid("Ell", { x, y, z, 1, 0, 0, 0, 1, 0, 0, 0, 1 }, sx, sy, sz, rgb)
+			s.blend = 0.3
+			return s
+		end
+		return {
+			ell(0, 0.6, 0, 1.4, 1.1, 1.2, 0xF2A7C3),
+			ell(0, 1.45, 0.15, 1.0, 0.9, 0.95, 0xF6C8D8),
+			ell(-0.45, 0.15, 0.3, 0.35, 0.5, 0.35, 0xE58FB0),
+			ell(0.45, 0.15, 0.3, 0.35, 0.5, 0.35, 0xE58FB0),
+			ell(-0.35, 1.95, 0, 0.3, 0.6, 0.25, 0xF2A7C3),
+			ell(0.35, 1.95, 0, 0.3, 0.6, 0.25, 0xF2A7C3),
+		}
+	end
+
+	T.it("picture: a blended body drawn a row at a time is the same picture as one drawn at once", function()
+		local rot = Raster.rotation(45, ISO_PITCH)
+		local solids = blendBody()
+		local W, H = 64, 64
+		local cam = Picture.fit({ rot }, solids, W, H, 1)[1]
+		local whole = Picture.render(solids, cam)
+		-- (a deadline long gone: each call does the least it can, a member, a row or a column)
+		local job = Picture.new(solids, cam)
+		local calls = 0
+		while not Picture.step(job, 0) do
+			calls += 1
+			T.truthy(calls < 5000, "it finishes")
+		end
+		T.truthy(calls > H, "it was drawn over many calls (" .. calls .. ")")
+		local same = 0
+		for i = 0, W * H - 1 do
+			if buffer.readu32(whole, i * 4) == buffer.readu32(job.pixels, i * 4) then
+				same += 1
+			end
+		end
+		T.eq(same, W * H, "every pixel the same")
+	end)
+
+	T.it("blend: a job drawn over many calls, other blends drawn at once in between, matches Raster.drawBlend", function()
+		local rot = Raster.rotation(45, ISO_PITCH)
+		local solids = blendBody()
+		local W, H = 72, 72
+		local cam = Picture.fit({ rot }, solids, W, H, 1)[1]
+		local function frame(): Raster.Frame
+			local depth = buffer.create(W * H * 4)
+			for i = 0, W * H - 1 do
+				buffer.writef32(depth, i * 4, 1e9)
+			end
+			return { W = W, H = H, color = buffer.create(W * H * 4), depth = depth, id = buffer.create(W * H * 2) }
+		end
+		local function members(): { Raster.BlendMember }
+			local M = {}
+			for i, s in solids do
+				local m = Raster.blendMember(cam, s.shape, s.cf, s.sx, s.sy, s.sz, s.prm, s.rgb, i, s.blend or 0)
+				if m then
+					table.insert(M, m)
+				end
+			end
+			return M
+		end
+		local function shade(m: number, rgb: number, nx: number, ny: number, nz: number, _x: number, _y: number, _t: number): number
+			local l = math.clamp(0.5 - 0.5 * ny + 0.25 * nx + 0.1 * nz, 0, 1)
+			return bit32.bor(bit32.band(rgb, 0xFFFF00), math.floor(l * 255), bit32.lshift(m, 24))
+		end
+		local once = frame()
+		local M1 = members()
+		local written = Raster.drawBlend(once, cam, M1, #M1, 0.3, shade, 0)
+		T.truthy(written > 300, "the body drawn (" .. written .. " px)")
+		local slow = frame()
+		local M2 = members()
+		local job = Raster.blendJob(slow, cam, M2, #M2, 0.3, shade, 0)
+		T.truthy(job ~= nil, "a job")
+		local calls = 0
+		while job and not Raster.blendStep(job, 0) do
+			calls += 1
+			-- (the pixel filter drawing another body meanwhile, with the shared scratch)
+			local other = frame()
+			local M3 = members()
+			Raster.drawBlend(other, cam, M3, #M3, 0.3, shade, 0)
+			T.truthy(calls < 2000, "it finishes")
+		end
+		T.truthy(calls > H, "drawn over many calls (" .. calls .. ")")
+		local diff = 0
+		for i = 0, W * H - 1 do
+			if buffer.readu32(once.color, i * 4) ~= buffer.readu32(slow.color, i * 4) or buffer.readf32(once.depth, i * 4) ~= buffer.readf32(slow.depth, i * 4) or buffer.readu16(once.id, i * 2) ~= buffer.readu16(slow.id, i * 2) then
+				diff += 1
+			end
+		end
+		T.eq(diff, 0, "colour, depth and id the same everywhere")
 	end)
 
 	T.it("picture: sun shadows inside the model, day palette whatever the world's mode", function()

@@ -2446,6 +2446,26 @@ the last picture of it slides along by whole pixels, and a pose it has been in b
 picture. The fall and the wait before it cost a quarter to a fifth of what they did, and taps and the hatch itself
 about a third less.
 
+> Then (2026-11-21): "it now lags alot while the egg is hatched"
+
+Waiting for the landing had moved the pictures onto the break and the reveal for anyone who taps straight through, and
+one picture of a creature's body took the time of several frames in one go (its soft joins between body parts, up to
+a tenth of a second on a celestial one). Now a picture is drawn a few rows at a time, never more than about 4 ms a
+frame, starting the moment the scene opens. Nothing is drawn while the creature comes out, the flash, the rings and its
+card; its last landing pose stands in until the standing pictures are done. A player who taps through before its way
+out is drawn sees the egg shake a little longer, at its hardest, two seconds at most. When the shell breaks, its top
+flies off as a piece of its own and the rest drops by sliding its picture, so the whole egg is no longer drawn again
+20 times a second. Tapping straight through a rare egg, the break and the reveal went from about 40 to 45 ms a frame
+(single frames up to a tenth of a second) to about 20 to 25, in the preview's emulator.
+
+> And (2026-11-21): "cant you store the animation of the models and play it instead of actually baking them right
+> during the egg animation?"
+
+That is what the pictures are, but what hatches is only known once the egg is opened (the server rolls it then), and
+the pictures are made for the screen's pixel size, so a creature's first hatch still draws them in the scene. They are
+kept afterwards for the last four creatures hatched: the next hatch of one of those plays its pictures at once, with
+nothing to draw.
+
 - **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), a deep starry sky with a ringed planet, the band of the galaxy slanting

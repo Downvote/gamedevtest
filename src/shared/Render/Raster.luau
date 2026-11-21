@@ -1879,6 +1879,8 @@ end
 --   Raster.drawBlend(f, cam, members, n, k, shade, minPx?) -> (written, x0, y0, x1, y1)
 --       shade(m, rgb, nx, ny, nz, x, y, t): the colour for member m (1..n) at layer pixel (x, y), hit t along its ray;
 --       a blend radius under minPx art pixels (BLEND_MIN_PX unless given: 0 for a still picture) draws plain solids
+--   Raster.blendJob(f, cam, members, n, k, shade, minPx?) -> BlendJob?   the same, drawn over several calls:
+--   Raster.blendStep(job, deadline) -> boolean   on until os.clock() reaches deadline (a row at least); true when done
 --   Raster.blendWorth(cam, k) -> boolean   whether a blend of radius k is drawn in this view
 --   Raster.blendField(members, n, k, x, y, z) -> (d, nx, ny, nz, m)   the union at a world point (specs, tools)
 export type BlendMember = {
@@ -2113,14 +2115,46 @@ local function byK(a: BlendMember, b: BlendMember): boolean
 	return a.ix < b.ix
 end
 
-function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: number, shade: BlendShade, minPx: number?): (number, number, number, number, number)
-	if n <= 0 then
-		return 0, 0, 0, -1, -1
-	end
+-- A blend drawn a piece at a time (Raster.blendJob, Raster.blendStep): its members in fold order and their neighbours,
+-- its own buffers for the pixels' state, and where it has got to (`phase`: 0 its members drawn plain, 1 each member
+-- over its own silhouette, 2 and 3 the join pixels spread along rows then columns, 4 the covered pixels, 5 and 6 the
+-- fillet pixels spread, 7 the fillets, 8 done; `cursor` the member, row or column next).
+export type BlendJob = {
+	f: Frame,
+	cam: Cam,
+	M: { BlendMember },
+	n: number,
+	k: number,
+	shade: BlendShade,
+	O: { BlendMember },
+	adj: { number },
+	adjS: { number },
+	adjE: { number },
+	X0: number,
+	Y0: number,
+	X1: number,
+	Y1: number,
+	w: number,
+	h: number,
+	mask: buffer,
+	near: buffer,
+	cnt: buffer,
+	own: buffer,
+	tB: buffer,
+	nB: buffer,
+	phase: number,
+	cursor: number,
+	written: number,
+}
+local BLEND_DONE = 8
+
+-- Set a blend up (the members folded thickest first, each one's neighbours). `ownBuffers`: its own buffers and lists
+-- (a job drawn over several frames while other blends are drawn meanwhile), else the shared scratch (drawn at once).
+local function blendSetup(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: number, shade: BlendShade, minPx: number?, ownBuffers: boolean): BlendJob
 	local X0, Y0, X1, Y1 = math.huge, math.huge, -math.huge, -math.huge
 	-- (folded thickest first: each member meets what came before with its own radius, so a thin one never takes a
 	-- thick one's)
-	local O = bOrd
+	local O: { BlendMember } = if ownBuffers then table.create(n) else bOrd
 	for i = 1, n do
 		local m = M[i]
 		m.ix = i
@@ -2130,52 +2164,95 @@ function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: 
 	for i = n + 1, #O do
 		O[i] = nil :: any
 	end
+	local J: BlendJob = {
+		f = f,
+		cam = cam,
+		M = M,
+		n = n,
+		k = k,
+		shade = shade,
+		O = O,
+		adj = if ownBuffers then {} else bAdj,
+		adjS = if ownBuffers then table.create(n) else bAdjS,
+		adjE = if ownBuffers then table.create(n) else bAdjE,
+		X0 = X0,
+		Y0 = Y0,
+		X1 = X1,
+		Y1 = Y1,
+		w = X1 - X0 + 1,
+		h = Y1 - Y0 + 1,
+		mask = bMask,
+		near = bNear,
+		cnt = bCnt,
+		own = bOwn,
+		tB = bT,
+		nB = bN,
+		phase = 1,
+		cursor = 1,
+		written = 0,
+	}
 	if n == 1 or k <= 1e-6 or k * cam.s / cam.K < (minPx or BLEND_MIN_PX) then
 		-- (nothing to blend with, or a blend too small to pay for: a driftling on the islands; plain solids)
-		local written = 0
-		for i = 1, n do
-			written += Raster.drawBlendOne(f, cam, M[i], i, shade)
-		end
-		return written, X0, Y0, X1, Y1
+		J.phase = 0
+		return J
 	end
 	table.sort(O, byK)
 	-- each member's neighbours: the members whose bounding balls come within the pair's radius of its own (itself
 	-- included), in fold order. Only they can bend the surface near it.
+	local adj, adjS, adjE = J.adj, J.adjS, J.adjE
 	local na = 0
 	for a = 1, n do
 		local ma = O[a]
-		bAdjS[a] = na + 1
+		adjS[a] = na + 1
 		for b = 1, n do
 			local mb = O[b]
 			local ex, ey, ez = ma.cx - mb.cx, ma.cy - mb.cy, ma.cz - mb.cz
 			local lim = ma.br + mb.br + math.min(ma.k, mb.k)
 			if b == a or ex * ex + ey * ey + ez * ez < lim * lim then
 				na += 1
-				bAdj[na] = b
+				adj[na] = b
 			end
 		end
-		bAdjE[a] = na
+		adjE[a] = na
 	end
-	local w, h = X1 - X0 + 1, Y1 - Y0 + 1
 	-- (each pixel's state: 0 nothing, 1 a member's own hit, 2 a hit near a join)
-	if w * h > bMaskN then
-		bMaskN = w * h
-		bMask = buffer.create(bMaskN)
-		bNear = buffer.create(bMaskN)
-		bCnt = buffer.create(bMaskN)
-		bOwn = buffer.create(bMaskN)
-		bT = buffer.create(bMaskN * 4)
-		bN = buffer.create(bMaskN * 12)
+	local wh = J.w * J.h
+	if ownBuffers then
+		J.mask, J.near, J.cnt, J.own = buffer.create(wh), buffer.create(wh), buffer.create(wh), buffer.create(wh)
+		J.tB, J.nB = buffer.create(wh * 4), buffer.create(wh * 12)
+	else
+		if wh > bMaskN then
+			bMaskN = wh
+			bMask = buffer.create(bMaskN)
+			bNear = buffer.create(bMaskN)
+			bCnt = buffer.create(bMaskN)
+			bOwn = buffer.create(bMaskN)
+			bT = buffer.create(bMaskN * 4)
+			bN = buffer.create(bMaskN * 12)
+		end
+		J.mask, J.near, J.cnt, J.own, J.tB, J.nB = bMask, bNear, bCnt, bOwn, bT, bN
 	end
-	local mask = bMask
-	buffer.fill(mask, 0, 0, w * h)
+	buffer.fill(J.mask, 0, 0, wh)
+	buffer.fill(J.cnt, 0, 0, wh)
+	return J
+end
+
+-- Draw the blend on from where it got to until os.clock() reaches `deadline` (a member, a row or a column at least;
+-- math.huge: to the end). Returns true when it is all drawn.
+local function blendRun(J: BlendJob, deadline: number): boolean
+	local f, cam = J.f, J.cam
+	local n, k, shade = J.n, J.k, J.shade
+	local O = J.O
+	local bAdj, bAdjS, bAdjE = J.adj, J.adjS, J.adjE
+	local X0, Y0, X1, Y1, w, h = J.X0, J.Y0, J.X1, J.Y1, J.w, J.h
+	local mask, nearB, cnt, ownB, tB, nB = J.mask, J.near, J.cnt, J.own, J.tB, J.nB
 	local W = f.W
 	local color, depth, ids = f.color, f.depth, f.id
 	local bias = cam.bias
 	local lx, ly, lz = cam.lx, cam.ly, cam.lz
 	local studPx = cam.K / cam.s -- studs a layer pixel
 	local eps = 0.15 * studPx
-	local written = 0
+	local written = J.written
 	local cM, cQX, cQY, cQZ, cD, cH, cW = bcM, bcQX, bcQY, bcQZ, bcD, bcH, bcW
 
 	-- the candidates at pixel (i, j) owned by the member at place o: o and its neighbours; how many
@@ -2372,11 +2449,9 @@ function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: 
 		return nil
 	end
 
-	-- pass 1: each member over its own silhouette (as Raster.drawSolid), keeping each pixel's nearest hit (its t, its
-	-- member's place in the fold order, its normal) and how many members cover it
-	local cnt, ownB, tB, nB = bCnt, bOwn, bT, bN
-	buffer.fill(cnt, 0, 0, w * h)
-	for r = 1, n do
+	-- pass 1: member r (in fold order) over its own silhouette (as Raster.drawSolid), keeping each pixel's nearest hit
+	-- (its t, its member's place in the fold order, its normal) and how many members cover it
+	local function pass1(r: number)
 		local m = O[r]
 		local g = m.g
 		local mdx, mdy, mdz = m.dx, m.dy, m.dz
@@ -2407,58 +2482,58 @@ function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: 
 		end
 	end
 
-	-- the pixels a join may touch: where two members cover the same pixel, spread rpx each way (bNear bit 2)
+	-- the pixels a join may touch: where two members cover the same pixel (or, for the fillets, where the union took a
+	-- pixel), spread rpx each way (bNear bit 2): along row y, then down column x
 	local rpx = math.max(1, math.ceil(k / studPx))
-	local nearB = bNear
-	local function spread(flagOf: (o: number) -> boolean)
-		buffer.fill(nearB, 0, 0, w * h)
-		for y = 0, h - 1 do
-			local ro = y * w
-			local c = 0
-			for x = 0, math.min(rpx, w - 1) do
-				if flagOf(ro + x) then
-					c += 1
-				end
-			end
-			for x = 0, w - 1 do
-				if c > 0 then
-					buffer.writeu8(nearB, ro + x, 1)
-				end
-				local xin, xout = x + rpx + 1, x - rpx
-				if xin < w and flagOf(ro + xin) then
-					c += 1
-				end
-				if xout >= 0 and flagOf(ro + xout) then
-					c -= 1
-				end
+	local function joins(o: number): boolean
+		return buffer.readu8(cnt, o) >= 2
+	end
+	local function unions(o: number): boolean
+		return buffer.readu8(mask, o) == 2
+	end
+	local function spreadRow(y: number, flagOf: (o: number) -> boolean)
+		local ro = y * w
+		local c = 0
+		for x = 0, math.min(rpx, w - 1) do
+			if flagOf(ro + x) then
+				c += 1
 			end
 		end
 		for x = 0, w - 1 do
-			local c = 0
-			for y = 0, math.min(rpx, h - 1) do
-				c += bit32.band(buffer.readu8(nearB, y * w + x), 1)
+			if c > 0 then
+				buffer.writeu8(nearB, ro + x, 1)
 			end
-			for y = 0, h - 1 do
-				local o = y * w + x
-				if c > 0 then
-					buffer.writeu8(nearB, o, bit32.bor(buffer.readu8(nearB, o), 2))
-				end
-				local yin, yout = y + rpx + 1, y - rpx
-				if yin < h then
-					c += bit32.band(buffer.readu8(nearB, yin * w + x), 1)
-				end
-				if yout >= 0 then
-					c -= bit32.band(buffer.readu8(nearB, yout * w + x), 1)
-				end
+			local xin, xout = x + rpx + 1, x - rpx
+			if xin < w and flagOf(ro + xin) then
+				c += 1
+			end
+			if xout >= 0 and flagOf(ro + xout) then
+				c -= 1
 			end
 		end
 	end
-	spread(function(o: number): boolean
-		return buffer.readu8(cnt, o) >= 2
-	end)
+	local function spreadCol(x: number)
+		local c = 0
+		for y = 0, math.min(rpx, h - 1) do
+			c += bit32.band(buffer.readu8(nearB, y * w + x), 1)
+		end
+		for y = 0, h - 1 do
+			local o = y * w + x
+			if c > 0 then
+				buffer.writeu8(nearB, o, bit32.bor(buffer.readu8(nearB, o), 2))
+			end
+			local yin, yout = y + rpx + 1, y - rpx
+			if yin < h then
+				c += bit32.band(buffer.readu8(nearB, yin * w + x), 1)
+			end
+			if yout >= 0 then
+				c -= bit32.band(buffer.readu8(nearB, yout * w + x), 1)
+			end
+		end
+	end
 
-	-- pass 2: each covered pixel: its nearest member's own surface, or near a join the union's
-	for j = Y0, Y1 do
+	-- pass 2: row j's covered pixels: each its nearest member's own surface, or near a join the union's
+	local function pass2(j: number)
 		local ro = (j - Y0) * w - X0
 		for i = X0, X1 do
 			local mo = ro + i
@@ -2514,11 +2589,8 @@ function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: 
 		end
 	end
 
-	-- pass 3: the pixels missing every member but near a join: a fillet may lie there (seen edge on, a crease filled)
-	spread(function(o: number): boolean
-		return buffer.readu8(mask, o) == 2
-	end)
-	for j = Y0, Y1 do
+	-- pass 3: row j's pixels missing every member but near a join: a fillet may lie there (seen edge on, a crease filled)
+	local function pass3(j: number)
 		for i = X0, X1 do
 			local mo = (j - Y0) * w + (i - X0)
 			if buffer.readu8(mask, mo) ~= 0 or bit32.band(buffer.readu8(nearB, mo), 2) == 0 then
@@ -2608,7 +2680,84 @@ function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: 
 			end
 		end
 	end
-	return written, X0, Y0, X1, Y1
+
+	local phase, cursor = J.phase, J.cursor
+	local timed = deadline < math.huge
+	while phase < BLEND_DONE do
+		if phase == 0 then
+			if cursor > n then
+				phase = BLEND_DONE
+			else
+				written += Raster.drawBlendOne(f, cam, J.M[cursor], cursor, shade)
+				cursor += 1
+			end
+		elseif phase == 1 then
+			if cursor > n then
+				buffer.fill(nearB, 0, 0, w * h)
+				phase, cursor = 2, 0
+			else
+				pass1(cursor)
+				cursor += 1
+			end
+		elseif phase == 2 or phase == 5 then
+			if cursor >= h then
+				phase, cursor = phase + 1, 0
+			else
+				spreadRow(cursor, if phase == 2 then joins else unions)
+				cursor += 1
+			end
+		elseif phase == 3 or phase == 6 then
+			if cursor >= w then
+				phase, cursor = phase + 1, Y0
+			else
+				spreadCol(cursor)
+				cursor += 1
+			end
+		elseif phase == 4 then
+			if cursor > Y1 then
+				buffer.fill(nearB, 0, 0, w * h)
+				phase, cursor = 5, 0
+			else
+				pass2(cursor)
+				cursor += 1
+			end
+		else
+			if cursor > Y1 then
+				phase = BLEND_DONE
+			else
+				pass3(cursor)
+				cursor += 1
+			end
+		end
+		if timed and os.clock() >= deadline then
+			break
+		end
+	end
+	J.phase, J.cursor, J.written = phase, cursor, written
+	return phase >= BLEND_DONE
+end
+
+function Raster.drawBlend(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: number, shade: BlendShade, minPx: number?): (number, number, number, number, number)
+	if n <= 0 then
+		return 0, 0, 0, -1, -1
+	end
+	local J = blendSetup(f, cam, M, n, k, shade, minPx, false)
+	blendRun(J, math.huge)
+	return J.written, J.X0, J.Y0, J.X1, J.Y1
+end
+
+-- The same blend drawn over several calls (a still picture drawn a few milliseconds a frame): Raster.blendJob sets
+-- it up, Raster.blendStep(job, deadline) draws on until os.clock() reaches the deadline and says whether it is done.
+-- The job keeps its own buffers, so blends drawn at once meanwhile (the pixel filter's) leave it be. Nil for no members.
+function Raster.blendJob(f: Frame, cam: Cam, M: { BlendMember }, n: number, k: number, shade: BlendShade, minPx: number?): BlendJob?
+	if n <= 0 then
+		return nil
+	end
+	return blendSetup(f, cam, M, n, k, shade, minPx, true)
+end
+
+function Raster.blendStep(J: BlendJob, deadline: number): boolean
+	return blendRun(J, deadline)
 end
 
 -- Whether a blend of radius k (studs) is worth drawing in this view (BLEND_MIN_PX): when not, draw the members as

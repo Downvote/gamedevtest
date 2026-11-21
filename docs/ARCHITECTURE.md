@@ -1296,7 +1296,7 @@ says it is one with its "PixelShape" attribute (and "PixelK" for `prm`): `regist
 read them; with the pixel filter off an ellipsoid or an egg shows through a sphere `SpecialMesh` and a limb as a
 cylinder. A driftling's body is drawn as one blended surface (the request of 2026-11-16: "You should not be able to
 see the shapes that the creatures consist of ... make them all look like one connected mesh"; `Raster.blendMember`,
-`Raster.drawBlend`, `Raster.blendWorth`, `Raster.blendField`): its body solids (parts with a "PixelBlend" attribute,
+`Raster.drawBlend`, `Raster.blendJob`, `Raster.blendStep`, `Raster.blendWorth`, `Raster.blendField`): its body solids (parts with a "PixelBlend" attribute,
 the blend radius as a share of the part's largest size; `DriftModels.build` sets it, `registerDynamic` reads it into
 `DynPart.blend`, `Snapshot` into `Picture.Solid.blend`) are the smooth union of their distance fields, a polynomial
 smooth minimum folded over them thickest first, each member's own radius the model's or 0.6 x its smallest size if
@@ -1310,7 +1310,15 @@ silhouettes between two different members march the union for a fillet. With no 
 pass draws no ink along it. The details (eyes, claws, whiskers, teeth, lit bits) are drawn first as plain parts, so
 the body must be truly in front to cover them. Below `BLEND_MIN_PX` (3 art pixels of blend radius: the islands, where
 a driftling is a small figure among dozens) the members draw as plain solids; a still picture (`Picture`, the
-portraits) blends at any size. The **effect layers** (9.3,
+portraits) blends at any size. `Raster.blendJob(f, cam, members, n, k, shade, minPx?) -> BlendJob?` sets the same blend
+up to be drawn over several calls and `Raster.blendStep(job, deadline) -> boolean` draws on until `os.clock()` reaches
+the deadline, a member, a row or a column at least (phases: the members drawn plain, each member over its silhouette,
+the join pixels spread along rows then columns, the covered pixels row by row, the fillet pixels spread, the fillets
+row by row); true when done. A job keeps its own lists and per-pixel buffers, so `drawBlend` (the filter's, on the
+shared scratch) can run between its steps; the picture is the same byte for byte (`Raster.spec`). `Render/Picture`
+draws its blended body this way (`Job.blendJob`, `blendBegun`), so `Picture.step` keeps to its deadline: the user's
+report of 2026-11-21, "it now lags alot while the egg is hatched", one hatch picture's body took 45 to 100 ms in one
+call. The **effect layers** (9.3,
 `Render/Fx`) draw over both every tick: 2D sprites and pixels in the world (the islands' small lives,
 `AmbientView`), depth-tested, colour only. Without EditableImages (or with Classic picked) the layer hides and the
 Roblox camera shows the 3D world.
@@ -1810,7 +1818,9 @@ pixel in `Job.lift` from `DynTex.uv` and `DynTex.lift` at `Job.texPx` studs a pi
 and `grade` (a function on every shaded pixel that does not glow): a picture that sits in the world, the hatch scene's
 baked driftling (§10.11). Without them a picture is drawn as before. `Snapshot.hold(on)` (since the user's report of
 2026-11-21, "it still is pretty laggy while hatching, even when the egg is dropping down"): while on, nothing is drawn
-and the queue waits, so a screen busy for a moment (the hatch scene's egg shaking at a tap) holds its pictures back.
+and the queue waits, so a screen busy for a moment (the hatch scene's egg coming out) holds its pictures back.
+`Snapshot.keep(key, on)`: a picture kept from eviction or let go with the rest again, still cached until the cache needs
+the room (the hatch scene's pictures of a driftling, played again at its next hatch).
 
 ## 10. Interface
 
@@ -2555,18 +2565,29 @@ its way out (`popEnd` = `POP_UP` + its leap + 0.6 s of spring, priority 6), then
 2.4 s (priority 5). They are drawn as the pixel filter draws a moving model: `outline` "inner", no shadows inside it,
 `place` `Shading.INDOOR`, its surface `textures` and `grade` the light of the rarity it hatches as (`GRADE[hr]`,
 `PixelRenderer.gradePixel`, glowing parts left alone). Snapshot draws for `BAKE_MS` 4 ms a frame meanwhile
-(`setBudget`, back to nil when the scene closes). Since the user's report of 2026-11-21 ("it still is pretty laggy
-while hatching, even when the egg is dropping down") the bake begins once the egg is down and settled (`s.wait` +
-`DROP`), not from the first frames, and is held (`Snapshot.hold`, `s.bakeHeld`) while the egg shakes at a tap (0.6 s)
-or squashes (0.5 s); the hold is let go at `bakeStop`. At the hatch, with every way-out picture ready (`allReady`), `bake.mode`
+(`setBudget`, back to nil when the scene closes), a row at a time (`Raster.blendJob`: since the user's report of
+2026-11-21, "it now lags alot while the egg is hatched", a picture's blended body no longer takes one frame 45 to 100
+ms). The bake begins as the scene opens (once `stageScale()` is known; for a while it began only once the egg had
+landed, which put it on the break and the reveal for players tapping straight through) and is held (`Snapshot.hold`,
+`s.bakeHeld`) for `REVEAL_HOLD` 1.2 s from the hatch (`s.topOff`: the flash, the rings, the card), the last way-out
+picture standing in until the standing ones are ready; the hold is let go at `bakeStop`. The build-up waits for the
+way out (`popReady(s)`): past `s.build`, or at a tap that would skip it (`s.build` cut to now), it hatches once every
+way-out picture is ready or `BUILD_WAIT` 2 s later, shaking at its hardest meanwhile. **Kept between hatches** (the
+user's question of 2026-11-21, "cant you store the animation of the models and play it instead of actually baking them
+right during the egg animation?": what hatches is only known from `egg.hatch`, so a new one is drawn in the scene):
+the pictures' keys are `hatch:<sp>:<hr>:<scale x 100>:<n>`, the framing (`w`, `h`, `ax`, `ay`) kept in `bakedKinds`
+(the last `KINDS_KEPT` 4, the oldest's pictures released); a kind baked before reuses its framing and its pictures
+(`Snapshot.get` returns them drawn), and the model (`MicroModels.species`) is only made when a picture must be drawn
+again (`model()`). `bakeStop` lets the drawn pictures go back to the cache (`Snapshot.keep(key, false)`) and releases
+the rest. At the hatch, with every way-out picture ready (`allReady`), `bake.mode`
 "pop" and no model is made; else the live model as before ("live"), and the standing pictures take over once it has
 landed and settled 0.6 s (`dropPal`). `stepBaked` shows the picture for the moment (nearest `k * BAKE_FPS`; standing,
 played there and back) on one `ImageLabel` (`Snapshot.label`, then `Snapshot.show`), "HatchPal", ZIndex 20 on
 `HatchBackdrop.layer()` (the sky's life layer, under the pixel layer, so the shell stays in front of it as the live
 model's depth had it; made again with the layer on a resize), its feet at `projectPixel` of its spot raised by its hop.
 The landing's thud, dust, ring, jolt and stars (`palLanded`) are the same for both. The screen changing size while it
-waits bakes again; once it shows, the live model takes over (`newPal`, white if it still is). `bakeStop` releases the
-pictures and the model at the close. The preview `hatch=<r><hr>` logs the frames' real time and rays while it comes out
+waits bakes again; once it shows, the live model takes over (`newPal`, white if it still is). `bakeStop` destroys the
+model at the close. The preview `hatch=<r><hr>` logs the frames' real time and rays while it comes out
 and stands (the request's numbers: hatch=33 from 109.7 to about 50 ms a frame coming out and 80 to about 7 standing,
 hatch=77 from 143 to about 72 and 107 to about 12, in the preview's emulator).
 `HatchScene.play(res, after?)` (`res = { sp, muts, r, hr, new? }` from `egg.hatch`; one scene at a time; `after` runs when it
@@ -2669,7 +2690,11 @@ while it only wobbles and breathes; between, and through its bounces, bobs and j
 slides with it (`PixelRenderer.glide(egg, foot, s.posedAt)`), and posed again it says its pose
 (`PixelRenderer.pose(egg, key)`) so a pose it had is put back from the renderer's picture of it. High in its fall
 (`GLIDE_LIFT` 1.5 studs over its spot) it is posed every frame: it starts above the picture, and the renderer keeps no
-picture of a model not wholly on the layer. Measured in the preview's emulator with the client's clock on real time
+picture of a model not wholly on the layer. When it breaks (`stepShell`, the user's report of 2026-11-21, "it now lags
+alot while the egg is hatched") the top's parts (`s.top`) move into a model of their own, "EggTop" (`s.topModel`, the
+egg's attributes copied, both registered again), flying off on its arc and turning (`arc(u)`), posed `POSE_HZ` times a
+second and sliding between (`glide(top, arc(u), arc(s.topU))`); the rest is posed once where it broke, the cracks gone,
+and drops by its kept picture sliding (`glide(egg, foot - fall, foot)`), nothing drawn; both go at u = 1 (`dropEgg`). Measured in the preview's emulator with the client's clock on real time
 (celestial, `hatchperf=77`, ms a frame before and after): the wait before the fall 42 and 8, the fall 56 and 14, the
 bounces 44 and 19, a tap 45 and 32, coming out 49 and 35; resting carries the bake now (about 24 before, 34 while it
 bakes), and the timings move by a third from run to run.

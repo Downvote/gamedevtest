@@ -5049,6 +5049,8 @@ end
 local function hatchPerfScenario(code)
 	local r = tonumber(string.sub(code, 1, 1)) or 1
 	local hr = tonumber(string.sub(code, 2, 2)) or r
+	-- ("f": a player tapping through as soon as the egg is down, no mutations to show: the hatch comes at once)
+	local fast = string.sub(code, 3, 3) == "f"
 	seedProfile(61, 10, { pieces = VILLAGE, pals = { "mossbun" }, shells = 9e6 })
 	local p = join(61, "Hatcher")
 	settle(p)
@@ -5068,6 +5070,40 @@ local function hatchPerfScenario(code)
 			hbMs += (os.clock() - t) * 1000
 		end
 	end)
+	-- (the pictures' drawing, Picture.step, by the phase it started and ended in: its longest single call is what one
+	-- frame can be held up by)
+	local pic = { calls = {}, ms = {}, max = {}, newMs = 0, fitMs = 0 }
+	do
+		local ctx = E.clientCtx(p)
+		local inst = E.find("ReplicatedStorage.Shared.Render.Picture")
+		local e = ctx and inst and ctx.modules[inst]
+		local Pic = e and e.value
+		if Pic then
+			local step0, new0, fit0 = Pic.step, Pic.new, Pic.fit
+			Pic.step = function(job, deadline)
+				local a, t = job.phase, os.clock()
+				local done = step0(job, deadline)
+				local ms = (os.clock() - t) * 1000
+				local k = string.format("%d>%d", a, job.phase)
+				pic.calls[k] = (pic.calls[k] or 0) + 1
+				pic.ms[k] = (pic.ms[k] or 0) + ms
+				pic.max[k] = math.max(pic.max[k] or 0, ms)
+				return done
+			end
+			Pic.new = function(...)
+				local t = os.clock()
+				local j = new0(...)
+				pic.newMs += (os.clock() - t) * 1000
+				return j
+			end
+			Pic.fit = function(...)
+				local t = os.clock()
+				local a = fit0(...)
+				pic.fitMs += (os.clock() - t) * 1000
+				return a
+			end
+		end
+	end
 	local Creatures = H.sharedServer("Data.Creatures")
 	local sp = nil
 	for _, d in Creatures.list do
@@ -5076,7 +5112,7 @@ local function hatchPerfScenario(code)
 		end
 	end
 	H.inClient(p, function()
-		HS.play({ sp = sp or "mossbun", muts = { "busy1", "grower2" }, r = r, hr = hr, new = true }, nil)
+		HS.play({ sp = sp or "mossbun", muts = if fast then {} else { "busy1", "grower2" }, r = r, hr = if fast then r else hr, new = true }, nil)
 	end)
 	local function state()
 		return H.inClient(p, HS.debugState)
@@ -5109,7 +5145,18 @@ local function hatchPerfScenario(code)
 		local f0, px0, w0 = E.frame, C.pixelsWritten or 0, os.clock()
 		local rs = E.raycastStats
 		local r0 = rs.rays
+		-- (each frame timed: the slowest, and how many took over 33 ms, the ones a player feels)
+		local step0 = E.step
+		local worst, over = 0, 0
+		E.step = function(dt)
+			local t = os.clock()
+			step0(dt)
+			local ms = (os.clock() - t) * 1000
+			worst = math.max(worst, ms)
+			over += if ms > 33 then 1 else 0
+		end
 		fn()
+		E.step = step0
 		local wall = (os.clock() - w0) * 1000
 		local n = math.max(1, E.frame - f0)
 		local pf = H.inClient(p, PR.debugPerf)
@@ -5123,8 +5170,8 @@ local function hatchPerfScenario(code)
 			end
 		end
 		table.sort(keys)
-		log("hatchperf %s: %-14s %3d frames, %6.1f ms a frame; backdrop %.1f; %6.0f px uploaded a frame; %d gui shown; renderer a frame: %s",
-			code, label, n, wall / n, hbMs / n, ((C.pixelsWritten or 0) - px0) / n, guiCount(), table.concat(keys, ", "))
+		log("hatchperf %s: %-21s %3d frames, %6.1f ms a frame (slowest %.0f, %d over 33); backdrop %.1f; %6.0f px uploaded a frame; %d gui shown; renderer a frame: %s",
+			code, label, n, wall / n, worst, over, hbMs / n, ((C.pixelsWritten or 0) - px0) / n, guiCount(), table.concat(keys, ", "))
 		local ct = E.coTime or {}
 		E.coTime = nil
 		local list = {}
@@ -5138,27 +5185,56 @@ local function hatchPerfScenario(code)
 		for i = 1, math.min(6, #list) do
 			table.insert(words, string.format("%s %.1f", list[i][1], list[i][2]))
 		end
-		log("hatchperf %s: %-14s by callback (ms a frame): %s", code, label, table.concat(words, ", "))
-		log("hatchperf %s: %-14s baked %s at %.2f s", code, label, tostring(state().baked), state().clock)
+		log("hatchperf %s: %-21s by callback (ms a frame): %s", code, label, table.concat(words, ", "))
+		log("hatchperf %s: %-21s baked %s at %.2f s", code, label, tostring(state().baked), state().clock)
+		local pw = {}
+		for k, c in pic.calls do
+			table.insert(pw, string.format("%s %d calls %.1f ms (longest %.1f)", k, c, pic.ms[k], pic.max[k]))
+		end
+		table.sort(pw)
+		if #pw > 0 or pic.newMs > 0 then
+			log("hatchperf %s: %-21s pictures drawn: %s; Picture.new %.1f ms, fit %.1f ms", code, label, table.concat(pw, ", "), pic.newMs, pic.fitMs)
+		end
+		pic.calls, pic.ms, pic.max, pic.newMs, pic.fitMs = {}, {}, {}, 0, 0
+	end
+	-- (once, then, with "f", the same driftling hatched again: its pictures kept from the first time play at once)
+	for round = 1, if fast then 2 else 1 do
+	local pre = if round == 2 then "again: " else ""
+	if round == 2 then
+		-- (the scene closed with taps, then the same egg and driftling again)
+		for _ = 1, 4 do
+			if not state().open then
+				break
+			end
+			H.inClient(p, HS.skip)
+			E.run(0.6)
+		end
+		E.run(1)
+		log("hatchperf %s: closed: %s", code, tostring(not state().open))
+		H.inClient(p, function()
+			HS.play({ sp = sp or "mossbun", muts = {}, r = r, hr = r, new = false }, nil)
+		end)
 	end
 	E.run(0.05)
 	local st = state()
-	timed("before the fall", function()
+	timed(pre .. "before the fall", function()
 		runTo(st.wait)
 	end)
-	timed("falling", function()
+	timed(pre .. "falling", function()
 		runTo(st.wait + 0.55)
 	end)
-	timed("bouncing", function()
+	timed(pre .. "bouncing", function()
 		runTo(st.wait + 1.1)
 	end)
-	timed("resting", function()
-		runTo(st.wait + 2.6)
-	end)
-	timed("a tap", function()
-		H.inClient(p, HS.skip)
-		E.run(0.6)
-	end)
+	if not fast then
+		timed("resting", function()
+			runTo(st.wait + 2.6)
+		end)
+		timed("a tap", function()
+			H.inClient(p, HS.skip)
+			E.run(0.6)
+		end)
+	end
 	-- (the taps left, then the one that hatches it)
 	for _ = 1, 6 do
 		if state().left == 0 then
@@ -5168,18 +5244,19 @@ local function hatchPerfScenario(code)
 		E.run(0.4)
 	end
 	H.inClient(p, HS.skip)
-	timed("build-up", function()
+	timed(pre .. "build-up", function()
 		E.runUntil(function()
 			return state().phase ~= "breaking"
 		end, 5, 0.02)
 	end)
 	local t0 = state().clock
-	timed("coming out", function()
+	timed(pre .. "coming out", function()
 		runTo(t0 + 0.55)
 	end)
-	timed("standing", function()
+	timed(pre .. "standing", function()
 		runTo(t0 + 2.0)
 	end)
+	end
 	E.simClock = sim0
 	return p
 end
@@ -5880,7 +5957,7 @@ for _, name in list do
 			return weatherScenario(wxArg)
 		end
 	end
-	local hatchperf = string.match(name, "^hatchperf=(%d%d)$")
+	local hatchperf = string.match(name, "^hatchperf=(%d%df?)$")
 	if hatchperf then
 		fn = function()
 			return hatchPerfScenario(hatchperf)

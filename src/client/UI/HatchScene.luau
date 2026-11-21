@@ -132,16 +132,26 @@ local POP_UP = 0.12 -- what hatched: seconds it takes to come up out of the shel
 -- way out of the shell and its standing about are drawn once as pictures through Pixel/Snapshot (the world's look,
 -- its view, pixel size, shading, texture and the scene's light, each picture anchored at its feet), then shown one
 -- after another on the scene's canvas
--- in place of the whole model the pixel filter would draw again every frame (begun once the egg has landed, held while
--- it shakes or squashes at a tap: step). BAKE_FPS pictures a second for its way
+-- in place of the whole model the pixel filter would draw again every frame. BAKE_FPS pictures a second for its way
 -- out (the white silhouette, the leap, the squash on landing and the spring back), then IDLE_N of it standing over
--- IDLE_T s, played there and back. Snapshot draws for BAKE_MS a frame meanwhile (the world shows nothing else). The
--- live model stands in while the pictures are not ready (or cannot be made), and they take over once they are.
+-- IDLE_T s, played there and back. They are begun as the scene opens (what hatches is known by then, from the server)
+-- and drawn BAKE_MS a frame, a row at a time (Render/Picture: one picture is several frames' work, the user's report
+-- of 2026-11-21, "it now lags alot while the egg is hatched"); held while it comes out (the flash, the rings, its card:
+-- REVEAL_HOLD s), the last picture of its way out standing in until the standing ones are ready. A player who taps
+-- straight through waits at most BUILD_WAIT s more in the build-up, still shaking, for its way out; past that the live
+-- model stands in until the pictures are ready. They stay cached afterwards (the last KINDS_KEPT driftlings, at this
+-- pixel size and rarity), so the next hatch of the same one plays them at once with nothing to draw (the user's
+-- question of 2026-11-21, "cant you store the animation of the models and play it instead of actually baking them
+-- right during the egg animation?": what hatches is only known once the egg is opened, so a new one is still drawn
+-- in the scene).
 local BAKE_FPS = 10
 local IDLE_N = 8
 local IDLE_T = 2.4
 local BAKE_MS = 4
 local BAKE_PAD = 6 -- art px kept round its widest stretch for its moves
+local REVEAL_HOLD = 1.2
+local BUILD_WAIT = 2
+local KINDS_KEPT = 4
 
 -- The baked pictures of what hatches (`bakeStart`): `mode` "baking" (on their way), "live" (the live model shows, the
 -- pictures may take over once it has landed), "pop" and "idle" (the pictures show), "off" (none: no pixel filter or
@@ -157,10 +167,13 @@ type Bake = {
 	idle: { Snapshot.Snap }, -- standing, from popEnd
 	keys: { string },
 	popEnd: number, -- s after the pop when its way out has ended
-	thing: MicroModels.Thing?,
+	thing: MicroModels.Thing?, -- the model posed for each picture (made when a picture is first drawn)
 	holder: Folder?,
 	label: ImageLabel?,
 }
+
+-- The driftlings baked lately (the most recent last): their pictures' keys and framing, to play again.
+type Baked = { kind: string, w: number, h: number, ax: number, ay: number, keys: { string } }
 
 -- How grand each rarity's scene is (by the rarity it is now; the hatch's by the rarity it hatched as).
 type Glory = {
@@ -295,6 +308,8 @@ type Scene = {
 	-- the egg
 	egg: Model?,
 	lights: Model?, -- its lights (motes, halo, rings of beads) in a model of their own: they move every frame
+	topModel: Model?, -- once it hatched, the top of its shell in a model of its own, flying off (stepShell)
+	topU: number, -- how far through its flight the top was last posed (0 .. 1)
 	posedAt: Vector3?, -- where the egg's foot was when its parts were last posed (its picture slides from there)
 	poseKey: string?, -- its shape as last posed, in steps (rock, tilt, spin, squash, cracks)
 	posedClock: number, -- when it was last posed (s.real)
@@ -417,7 +432,12 @@ local function dropEgg(s: Scene)
 		PixelRenderer.unregisterDynamic(lights)
 		lights:Destroy()
 	end
-	s.lights, s.posedAt, s.poseKey = nil, nil, nil
+	local top = s.topModel
+	if top then
+		PixelRenderer.unregisterDynamic(top)
+		top:Destroy()
+	end
+	s.lights, s.topModel, s.posedAt, s.poseKey = nil, nil, nil, nil
 	s.egg, s.parts, s.top, s.fx, s.cracks, s.glowing = nil, {}, {}, {}, {}, false
 	s.sizes, s.crackSizes = {}, {}
 end
@@ -1167,7 +1187,7 @@ local VIEW = Raster.rotation(Tuning.CamYaw, Tuning.CamPitch)
 local VIEW_R = Vector3.new(VIEW[4], VIEW[7], VIEW[10])
 local VIEW_U = Vector3.new(VIEW[5], VIEW[8], VIEW[11])
 local PAL_CF = CFrame.Angles(0, math.pi / 4 + PAL_TURN, 0)
-local bakeSerial = 0
+local bakedKinds: { Baked } = {}
 
 -- The stage's art px a stud now (across the view: ten studs measured on the art grid), 0 before it is drawn.
 local function stageScale(): number
@@ -1202,6 +1222,12 @@ local function bakedReady(b: Bake?): number
 	return n
 end
 
+-- Whether what hatches can come out now: its way out drawn, or no pictures coming (the live model then).
+local function popReady(s: Scene): boolean
+	local b = s.bake
+	return b == nil or b.mode ~= "baking" or allReady(b.pop)
+end
+
 local function noBake(): Bake
 	return { mode = "off", scale = 0, w = 0, h = 0, ax = 0, ay = 0, pop = {}, idle = {}, keys = {}, popEnd = 0 }
 end
@@ -1216,8 +1242,16 @@ local function bakeStop(s: Scene)
 	if label then
 		label:Destroy()
 	end
-	for _, key in b.keys do
-		Snapshot.release(key)
+	-- (the drawn ones stay cached for its next hatch, no longer kept from the cache's eviction; the rest are dropped,
+	-- not drawn on after the scene)
+	for _, list in { b.pop, b.idle } do
+		for _, snap in list do
+			if snap.ready and not snap.failed then
+				Snapshot.keep(snap.key, false)
+			else
+				Snapshot.release(snap.key)
+			end
+		end
 	end
 	local holder = b.holder
 	if holder then
@@ -1229,7 +1263,9 @@ local function bakeStop(s: Scene)
 end
 
 -- Draw what hatches as pictures: its way out (the shapes palShape gives, BAKE_FPS a second) first, then standing.
--- One model posed for each picture as it is drawn (Snapshot calls the builders one at a time).
+-- One model posed for each picture as it is drawn (Snapshot calls the builders one at a time). A driftling baked lately
+-- at this pixel size and rarity has its pictures still: they play again, nothing drawn (any the cache let go of are
+-- drawn again).
 local function bakeStart(s: Scene)
 	if not (PixelRenderer.isActive() and Snapshot.available()) then
 		s.bake = noBake()
@@ -1240,30 +1276,60 @@ local function bakeStart(s: Scene)
 		return -- (the stage is not drawn yet: next frame)
 	end
 	local r = math.clamp(s.res.hr, 1, Traits.RMAX)
-	local thing = MicroModels.species(s.res.sp)
-	local holder = Instance.new("Folder")
-	holder.Name = "HatchBake"
-	thing.model.Parent = holder
-	-- (the box its widest stretch and tallest squash fill, seen from the view: the pictures' size and its feet's place)
-	MicroModels.scale(thing, Vector3.new(1.2, 1.32, 1.2) * PAL_SCALE)
-	MicroModels.animate(thing, 0, "idle", 0)
-	MicroModels.place(thing, PAL_CF)
-	local cf, size = thing.model:GetBoundingBox()
-	local u0, u1, v0, v1 = math.huge, -math.huge, math.huge, -math.huge
-	for _, dx in { -0.5, 0.5 } do
-		for _, dy in { -0.5, 0.5 } do
-			for _, dz in { -0.5, 0.5 } do
-				local q = cf:PointToWorldSpace(Vector3.new(dx * size.X, dy * size.Y, dz * size.Z))
-				local u, v = q:Dot(VIEW_R), q:Dot(VIEW_U)
-				u0, u1, v0, v1 = math.min(u0, u), math.max(u1, u), math.min(v0, v), math.max(v1, v)
-			end
+	local kind = string.format("hatch:%s:%d:%d", s.res.sp, r, math.floor(scale * 100 + 0.5))
+	local known: Baked? = nil
+	for i, k in bakedKinds do
+		if k.kind == kind then
+			known = k
+			table.remove(bakedKinds, i)
+			break
 		end
 	end
-	local ax = math.ceil(-u0 * scale) + BAKE_PAD
-	local ay = math.ceil(v1 * scale) + BAKE_PAD
-	local w = ax + math.ceil(u1 * scale) + BAKE_PAD
-	local h = ay + math.ceil(-v0 * scale) + BAKE_PAD
-	bakeSerial += 1
+	local holder: Folder? = nil
+	local thing: MicroModels.Thing? = nil
+	-- (the model, made the first time a picture needs drawing)
+	local function model(): MicroModels.Thing
+		local had = thing
+		if had then
+			return had
+		end
+		local h = Instance.new("Folder")
+		h.Name = "HatchBake"
+		local t = MicroModels.species(s.res.sp)
+		t.model.Parent = h
+		holder, thing = h, t
+		local bk = s.bake
+		if bk then
+			bk.holder, bk.thing = h, t
+		end
+		return t
+	end
+	local w, h, ax, ay
+	if known then
+		w, h, ax, ay = known.w, known.h, known.ax, known.ay
+	else
+		local t = model()
+		-- (the box its widest stretch and tallest squash fill, seen from the view: the pictures' size and its feet's
+		-- place)
+		MicroModels.scale(t, Vector3.new(1.2, 1.32, 1.2) * PAL_SCALE)
+		MicroModels.animate(t, 0, "idle", 0)
+		MicroModels.place(t, PAL_CF)
+		local cf, size = t.model:GetBoundingBox()
+		local u0, u1, v0, v1 = math.huge, -math.huge, math.huge, -math.huge
+		for _, dx in { -0.5, 0.5 } do
+			for _, dy in { -0.5, 0.5 } do
+				for _, dz in { -0.5, 0.5 } do
+					local q = cf:PointToWorldSpace(Vector3.new(dx * size.X, dy * size.Y, dz * size.Z))
+					local u, v = q:Dot(VIEW_R), q:Dot(VIEW_U)
+					u0, u1, v0, v1 = math.min(u0, u), math.max(u1, u), math.min(v0, v), math.max(v1, v)
+				end
+			end
+		end
+		ax = math.ceil(-u0 * scale) + BAKE_PAD
+		ay = math.ceil(v1 * scale) + BAKE_PAD
+		w = ax + math.ceil(u1 * scale) + BAKE_PAD
+		h = ay + math.ceil(-v0 * scale) + BAKE_PAD
+	end
 	-- (drawn as the pixel filter draws a moving model, its texture on, in the light the scene will have when it hatches:
 	-- its rarity's, GRADE, glowing parts left as they are)
 	local light = GRADE[r] or GRADE[1]
@@ -1282,13 +1348,14 @@ local function bakeStart(s: Scene)
 	local function picture(list: { Snapshot.Snap }, k: number, t: number, prio: number): boolean
 		local grow, sx, sy, _, white = palShape(r, k)
 		local sc = PAL_SCALE * grow
-		local key = string.format("hatch:%d:%d", bakeSerial, #b.keys + 1)
+		local key = string.format("%s:%d", kind, #b.keys + 1)
 		local snap = Snapshot.get(key, function(): Instance?
-			MicroModels.recolor(thing, if white then "white" else nil)
-			MicroModels.scale(thing, Vector3.new(sx * sc, sy * sc, sx * sc))
-			MicroModels.animate(thing, t, "idle", 0)
-			MicroModels.place(thing, PAL_CF)
-			return thing.model
+			local m = model()
+			MicroModels.recolor(m, if white then "white" else nil)
+			MicroModels.scale(m, Vector3.new(sx * sc, sy * sc, sx * sc))
+			MicroModels.animate(m, t, "idle", 0)
+			MicroModels.place(m, PAL_CF)
+			return m.model
 		end, { w = w, h = h, yaw = 0, scale = scale, anchor = Vector2.new(ax, ay), outline = "inner", shadows = false, priority = prio, keep = true, place = Shading.INDOOR, textures = true, grade = lit })
 		if snap == nil then
 			return false
@@ -1307,6 +1374,14 @@ local function bakeStart(s: Scene)
 	end
 	for j = 0, IDLE_N - 1 do
 		picture(b.idle, b.popEnd + 1, b.popEnd + j * IDLE_T / IDLE_N, 5)
+	end
+	-- (remembered as the latest; the oldest past KINDS_KEPT let go)
+	table.insert(bakedKinds, { kind = kind, w = w, h = h, ax = ax, ay = ay, keys = table.clone(b.keys) })
+	while #bakedKinds > KINDS_KEPT do
+		local old = table.remove(bakedKinds, 1) :: Baked
+		for _, key in old.keys do
+			Snapshot.release(key)
+		end
 	end
 end
 
@@ -1577,7 +1652,13 @@ function HatchScene.skip()
 	elseif s.phase == "breaking" then
 		if s.clock - s.breakAt >= 0.35 then
 			s.lastTap, s.tapAt = s.clock, s.real
-			hatch(s)
+			if popReady(s) then
+				hatch(s)
+			else
+				-- (its way out still being drawn: the build-up ends now, at its hardest, and it opens once they are
+				-- ready, BUILD_WAIT s at most)
+				s.build = math.min(s.build, s.clock - s.breakAt)
+			end
 		end
 		return
 	elseif s.phase == "hatched" then
@@ -1714,6 +1795,71 @@ local function stepLights(s: Scene, c: number, cf: CFrame, foot: Vector3, eh: nu
 	end
 end
 
+-- The shell breaking apart (it hatched at `off`): the top flies off turning, in a model of its own drawn afresh
+-- POSE_HZ times a second and sliding between (PixelRenderer.glide); the rest drops straight down, posed once where it
+-- broke, its kept picture sliding down with nothing drawn. Before, the whole shell was drawn again at every move, the
+-- dearest frames of the scene (the user's report of 2026-11-21, "it now lags alot while the egg is hatched").
+local function stepShell(s: Scene, c: number, cf: CFrame, foot: Vector3, eh: number, off: number)
+	local egg = s.egg
+	if egg == nil then
+		return
+	end
+	local u = (c - off) / 0.6
+	if u > 1 then
+		dropEgg(s)
+		return
+	end
+	local function arc(v: number): CFrame
+		return cf * CFrame.new(1.1 * v, eh * (1.1 * v - 0.8 * v * v), 0.7 * v) * CFrame.Angles(0, 0, -2.6 * v)
+	end
+	local top = s.topModel
+	local first = top == nil
+	if top == nil then
+		local m = Instance.new("Model")
+		m.Name = "EggTop"
+		for k, v in egg:GetAttributes() do
+			m:SetAttribute(k, v)
+		end
+		for _, p in s.top do
+			p.Parent = m
+		end
+		m.Parent = egg.Parent
+		-- (the rest where it broke, at rest; the cracks gone with the light that streamed out of them)
+		PixelRenderer.unregisterDynamic(egg)
+		for i, rp in s.parts do
+			if table.find(s.top, rp.p) == nil then
+				local base = s.sizes[i]
+				if base then
+					rp.p.Size = base
+				end
+				rp.p.CFrame = cf * rp.off
+			end
+		end
+		for _, kk in s.cracks do
+			kk.p.CFrame = CFrame.new(foot - Vector3.new(0, 30, 0))
+		end
+		PixelRenderer.registerDynamic(egg)
+		PixelRenderer.registerDynamic(m)
+		s.topModel, s.topU = m, 0
+		top = m
+	end
+	PixelRenderer.glide(egg, foot - Vector3.new(0, ease(u) * eh * 1.6, 0), foot)
+	if first or s.real - s.posedClock >= 1 / POSE_HZ then
+		s.posedClock, s.topU = s.real, u
+		local at = arc(u)
+		for i, rp in s.parts do
+			if table.find(s.top, rp.p) then
+				local base = s.sizes[i]
+				if base then
+					rp.p.Size = base
+				end
+				rp.p.CFrame = at * rp.off
+			end
+		end
+	end
+	PixelRenderer.glide(top :: Model, arc(u).Position, arc(s.topU).Position)
+end
+
 local function stepEgg(s: Scene, c: number, d: number)
 	local r = s.r
 	local eh = EGG_H[r] or 2.4
@@ -1811,13 +1957,13 @@ local function stepEgg(s: Scene, c: number, d: number)
 	local due = s.real - s.posedClock >= 1 / (if lively then POSE_HZ else POSE_IDLE_HZ) or s.crack ~= s.posedCrack
 	-- (high in its fall it is posed every frame: it starts above the picture, and the renderer keeps no picture of a
 	-- model not wholly on the layer to slide; once below GLIDE_LIFT, the bounces and the leaps slide)
-	if egg and off == nil and s.posedAt ~= nil and lift < GLIDE_LIFT and (key == s.poseKey or not due) then
-		PixelRenderer.glide(egg, foot, s.posedAt)
+	if egg and off ~= nil then
+		stepShell(s, c, cf, foot, eh, off)
 		stepLights(s, c, cf, foot, eh, off)
 		return
 	end
-	if egg and off ~= nil and not due then
-		-- (the shell breaking apart: its pieces fly POSE_HZ times a second)
+	if egg and s.posedAt ~= nil and lift < GLIDE_LIFT and (key == s.poseKey or not due) then
+		PixelRenderer.glide(egg, foot, s.posedAt)
 		stepLights(s, c, cf, foot, eh, off)
 		return
 	end
@@ -1825,7 +1971,7 @@ local function stepEgg(s: Scene, c: number, d: number)
 	if egg then
 		-- (a pose it has been in before is put down from the renderer's picture of it: PixelRenderer.pose)
 		PixelRenderer.glide(egg, foot, foot)
-		PixelRenderer.pose(egg, if off then nil else key)
+		PixelRenderer.pose(egg, key)
 	end
 	local resize = q ~= s.sq
 	s.sq = q
@@ -1836,15 +1982,6 @@ local function stepEgg(s: Scene, c: number, d: number)
 			local base = s.sizes[i]
 			if base then
 				rp.p.Size = base * sx
-			end
-		end
-		if off then
-			local u = (c - off) / 0.6
-			if table.find(s.top, rp.p) then
-				here = cf * CFrame.new(1.1 * u, eh * (1.1 * u - 0.8 * u * u), 0.7 * u) * CFrame.Angles(0, 0, -2.6 * u) * rp.off
-			else
-				-- (the rest of the shell falls away under what hatched)
-				here = here - Vector3.new(0, ease(u) * eh * 1.6, 0)
 			end
 		end
 		rp.p.CFrame = here
@@ -1858,9 +1995,6 @@ local function stepEgg(s: Scene, c: number, d: number)
 			end
 		end
 		kk.p.CFrame = if off == nil and kk.stage <= s.crack then cf * CFrame.new(o.X * sx, o.Y * sy, o.Z * sx) * o.Rotation else CFrame.new(foot - Vector3.new(0, 30, 0))
-	end
-	if off and c - off > 0.6 and s.egg then
-		dropEgg(s)
 	end
 	stepLights(s, c, cf, foot, eh, off)
 end
@@ -2372,11 +2506,12 @@ local function step(s: Scene, dt: number)
 	stepBeams(s, c)
 	if s.phase == "breaking" then
 		local b = c - s.breakAt
-		if b >= s.build then
+		if b >= s.build and (popReady(s) or b >= s.build + BUILD_WAIT) then
 			hatch(s)
 		elseif c >= s.tick then
-			-- (a crackle a step higher each time, coming faster, and sparks spitting from the cracks)
-			local u = b / s.build
+			-- (a crackle a step higher each time, coming faster, and sparks spitting from the cracks; on at its
+			-- hardest while it waits for its pictures)
+			local u = math.min(1, b / s.build)
 			Audio.play("tick", { pitch = 0.8 + 0.7 * u, volume = 1.2 })
 			s.tick = c + 0.2 - 0.12 * u
 			local cr = s.cracks[math.random(1, math.max(1, #s.cracks))]
@@ -2412,13 +2547,13 @@ local function step(s: Scene, dt: number)
 	if bk and bs > 0 and math.abs(bs - bk.scale) > 0.01 then
 		bakeStop(s)
 	end
-	-- (baked once the egg is down and settled, so its fall shows nothing else; held while it squashes or shakes at a
-	-- tap, the frames that cost the most already: the user's report of 2026-11-21, "it still is pretty laggy while
-	-- hatching, even when the egg is dropping down")
-	if s.bake == nil and c >= s.wait + DROP then
+	-- (begun as the scene opens, a row at a time; held while it comes out, the frames that cost the most already: see
+	-- BAKE_FPS)
+	if s.bake == nil and s.popAt == nil then
 		bakeStart(s)
 	end
-	local busy = s.bake ~= nil and s.bake.mode == "baking" and s.phase == "egg" and (c - s.kickAt < 0.6 or c - s.squashAt < 0.5)
+	local top = s.topOff
+	local busy = s.bake ~= nil and top ~= nil and c - top < REVEAL_HOLD
 	if busy ~= s.bakeHeld then
 		s.bakeHeld = busy
 		Snapshot.hold(busy)
@@ -2589,6 +2724,8 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		shake = 0,
 		egg = nil,
 		lights = nil,
+		topModel = nil,
+		topU = 0,
 		posedAt = nil,
 		poseKey = nil,
 		posedClock = -10,
