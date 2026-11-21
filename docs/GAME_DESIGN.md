@@ -2840,10 +2840,12 @@ text (the requests and how each was met) is in the history of this file, up to c
   walls); where one small thing sits close by, the pixel's own line is checked against that thing's box, which is
   far cheaper than a ray. The previews check the picture against a ray for every pixel: the same picture. Each ray's
   result is also read once instead of several times. Walking the first island off its edge (`scrollcost`), the
-  pixel filter's work a frame on new ground went from about 22 ms to 13; walking the whole top-tier island
-  (`stress`), its first long leg went from 41.6 ms a frame to 36.6, with 45% fewer rays in all. In the middle of a
-  crowded top-tier town (`scrollcost=20`) it about breaks even: most of what shows there is small detail with edges
-  of its own, and those still need their rays. On
+  pixel filter's work a frame on new ground went from 19.3 ms on average to 15.2 (26.9 to 23.7 at the 90th
+  percentile), on ground seen before from 14.9 to 11.5, and casting the whole picture again from 2.4 s to 1.9 in the
+  preview's emulator; walking the whole top-tier island (`stress`), its first long leg went from 41.6 ms a frame to
+  between 36.6 and 39.8 over two runs, with about half the rays. In the middle of a crowded top-tier town
+  (`scrollcost=20`) it breaks even (the whole picture cast again within 2% either way): most of what shows there is
+  small detail with edges of its own, and those still need their rays. On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud
