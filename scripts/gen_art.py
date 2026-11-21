@@ -446,6 +446,197 @@ for _k, (_rows, _ramps, _flat) in ICONS.items():
     assert len(_rows) == 9, _k
     HAND("mini_" + _k, _rows, _ramps, _flat)
 
+# ---------------------------------------------------------------- the big icons, 15 x 15 (phones and tablets)
+# The touch screens' squares (UI/Hud: the menus down the left, Eggs, Gifts and Store on the right, Build by the jump
+# button) and the sheets' tabs there. The request of 2026-11-21: "rearrange and redo the UI on mobile and tablet.
+# Reference other mobile tycoon games in landscape and replicate their UI design", then "You are also allowed to make
+# new sprites and details specifically for the phone ui". Each its own drawing at 13 x 13 inside its ink ring (never
+# the small one scaled up), hand-toned like the small ones: lit from the top left, a white glint, the same ramps.
+BIG = {
+    # Driftlings: a round driftling, ears up, eyes two pixels tall, pink cheeks and a small mouth
+    "pal": ([
+        "..4.......2..",
+        ".443.....322.",
+        ".44433333322.",
+        "4w44333333322",
+        "4444333333322",
+        "443x33333x322",
+        "443x33333x322",
+        "43p3331333p22",
+        "3333333333222",
+        "3333333332221",
+        ".33333322221.",
+        "..332222211..",
+        "....22111....",
+    ], ["C"], {"p": "pnk2"}),
+    # Index: a gold star, a glint near its top
+    "star": ([
+        "......4......",
+        ".....443.....",
+        ".....4w3.....",
+        "....44433....",
+        "4444444333332",
+        ".44444433332.",
+        "..444443332..",
+        "...4444332...",
+        "...4443332...",
+        "..4443.3332..",
+        "..433...322..",
+        ".432.....321.",
+        ".............",
+    ], ["Y"], None),
+    # Looks: a founder's head and shoulders, orange hair, a green shirt
+    "visitor": ([
+        "....cddcb....",
+        "...cdddccb...",
+        "..cddddcccb..",
+        "..c4444433b..",
+        "..44x443x32..",
+        "..444443332..",
+        "...4433322...",
+        "....43322....",
+        "..887777766..",
+        ".88877777665.",
+        "8887777776655",
+        "8877777766655",
+        "8777777666555",
+    ], ["F", "G", "O"], None),
+    # Top: a gold cup, a handle each side, on a brown foot
+    "trophy": ([
+        "..444443332..",
+        "4444w44333222",
+        "4.444443332.2",
+        "4.444443322.2",
+        ".44444433222.",
+        "..444443322..",
+        "...4443322...",
+        "....44322....",
+        ".....432.....",
+        ".....332.....",
+        "...8877665...",
+        "..887776655..",
+        "..776666555..",
+    ], ["Y", "N"], None),
+    # Settings: a steel gear, eight teeth, a hole through it
+    "gear": ([
+        ".....443.....",
+        "..44.443.32..",
+        "..444444332..",
+        "...4443332...",
+        "..444433322..",
+        "44444...33222",
+        "44443...32221",
+        "44433...22211",
+        "..433322221..",
+        "...3332221...",
+        "..333222211..",
+        "..33.322.21..",
+        ".....221.....",
+    ], ["S"], None),
+    # the Hatchery: a cream egg with pink spots
+    "egg": ([
+        ".....443.....",
+        "....44433....",
+        "...4w44333...",
+        "...444p333...",
+        "..444443333..",
+        "..4p4433332..",
+        ".44444333p32.",
+        ".44443333322.",
+        ".443333p3222.",
+        ".33333332221.",
+        "..333322221..",
+        "...3222211...",
+        "....22111....",
+    ], ["E"], {"p": "pnk2"}),
+    # Gifts: a red box, a gold ribbon down its middle and a bow on its lid
+    "gift": ([
+        "..88.....66..",
+        "..8778.7665..",
+        "...8778765...",
+        "4444448333332",
+        "4444447333322",
+        "2222226222221",
+        ".44444733332.",
+        ".44444733322.",
+        ".44443733222.",
+        ".33333632222.",
+        ".33333622221.",
+        ".33332622211.",
+        ".22222511111.",
+    ], ["R", "Y"], None),
+    # Store: a market stall, a cream and red awning over two gold heaps on a plank counter
+    "store": ([
+        "ee44ee44ee332",
+        "ee44ee44ff322",
+        "ff33ff33ff221",
+        "..3...3...2..",
+        ".c.........b.",
+        ".c..8...8..b.",
+        ".c.876.876.b.",
+        ".c.765.765.b.",
+        "dccccccccbbba",
+        "ccbcccbcccbaa",
+        "ccbcccbcccbaa",
+        "ccbcccbcccbaa",
+        "bbabbbabbbaaa",
+    ], ["R", "Y", "N"], {"e": "crm3", "f": "crm2"}),
+    # Eggs (the Tree of Life): a round green crown hung with gold fruit, a brown trunk on spreading roots
+    "tree": ([
+        "....44433....",
+        "..444w43333..",
+        ".4444d433332.",
+        "444444333d332",
+        "4d44433333222",
+        "44333333d3222",
+        ".33333222221.",
+        "...2267621...",
+        ".....675.....",
+        ".....675.....",
+        "....67755....",
+        "...667.555...",
+        "..66.....55..",
+    ], ["G", "N", "Y"], None),
+    # Build: a cream house under a red roof, a brown door between two blue windows
+    "home": ([
+        "......8......",
+        ".....887.....",
+        "....88776....",
+        "...8877766...",
+        "..887777666..",
+        ".88877776665.",
+        "8887777766655",
+        ".44443333332.",
+        ".4lk4ccb3lk2.",
+        ".4kk4cbb3kk2.",
+        ".4443cdb3322.",
+        ".3333cbb2222.",
+        ".2222cba1111.",
+    ], ["E", "R", "N"], {"l": "blu3", "k": "blu2"}),
+    # a sheet's exit on a touch screen: a cream cross, its strokes three pixels wide, lit from the top left (on the coral
+    # button top right)
+    "close": ([
+        "44.........33",
+        "444.......333",
+        ".444.....333.",
+        "..444...333..",
+        "...444.333...",
+        "....44333....",
+        ".....433.....",
+        "....33322....",
+        "...333.222...",
+        "..333...222..",
+        ".333.....222.",
+        "333.......222",
+        "33.........22",
+    ], ["E"], None),
+}
+for _k, (_rows, _ramps, _flat) in BIG.items():
+    for _r in _rows:
+        assert len(_r) == 13, (_k, _r)
+    assert len(_rows) == 13, _k
+    HAND("big_" + _k, _rows, _ramps, _flat)
+
 # the coin (the coins counter and every price; the scallop shell until the request of 2026-11-20: "change the
 # currency to just coins", then "make coin icons coins now, including developer products"): a round gold coin lit from
 # the top left, a glint on its rim, a ring pressed into its face (the ring's upper left in shadow, its lower right

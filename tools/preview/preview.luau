@@ -62,6 +62,9 @@ local DEVICES = {
 	desktop = { w = 1920, h = 1080, inset = 58, touch = false },
 	laptop = { w = 1366, h = 768, inset = 58, touch = false },
 	phone = { w = 844, h = 390, inset = 58, touch = true },
+	-- a notched phone held sideways (the report of 2026-11-21, "There is a bug causing a bar to appear at the right"):
+	-- 47 px kept clear at each side for inset ScreenGuis, and the camera's ViewportSize leaving them out
+	notch = { w = 932, h = 430, inset = 58, touch = true, safe = 47, camSafe = true },
 	tablet = { w = 1024, h = 768, inset = 58, touch = true },
 	portrait = { w = 390, h = 844, inset = 58, touch = true },
 	android = { w = 800, h = 360, inset = 58, touch = true },
@@ -71,6 +74,8 @@ local DEVICES = {
 local dev = DEVICES[device] or error("unknown device " .. device)
 E.viewport = v2(dev.w, dev.h)
 E.inset = insetArg or dev.inset
+E.safe = dev.safe or 0
+E.camSafe = dev.camSafe == true
 
 H.patchMonetizationIds(tree)
 E.boot(tree)

@@ -315,11 +315,14 @@ local function build(body: Frame, arg: any?)
 	for _, t in TopUI.TABS do
 		table.insert(items, { id = t.id, text = t.text, icon = t.icon })
 	end
-	local top = UIKit.tabs(body, items, tab, 0, function(id: string)
+	-- (down the left on a touch screen: UIKit.tabbed)
+	local page, top = UIKit.tabbed(body, items, tab, function(id: string)
 		tab = id
 		Audio.play("flip")
 		UIKit.refreshPanel()
-	end) + 3
+	end)
+	body = page
+	W, H = UIKit.bodyWidth(page), UIKit.bodyHeight(page)
 	if tab == "friends" then
 		local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 		list.AutomaticCanvasSize = Enum.AutomaticSize.None

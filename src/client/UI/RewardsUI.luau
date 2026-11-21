@@ -636,11 +636,14 @@ local function build(body: Frame, arg: any?)
 	for _, t in RewardsUI.TABS do
 		table.insert(items, { id = t.id, text = t.text, icon = t.icon, dot = dots[t.id] })
 	end
-	local top = UIKit.tabs(body, items, tab, 0, function(id: string)
+	-- (down the left on a touch screen: UIKit.tabbed)
+	local page, top = UIKit.tabbed(body, items, tab, function(id: string)
 		tab = id
 		Audio.play("flip")
 		UIKit.refreshPanel()
-	end) + 3
+	end)
+	body = page
+	W, H = UIKit.bodyWidth(page), UIKit.bodyHeight(page)
 	if tab ~= "codes" then
 		local f = codeField
 		if f then

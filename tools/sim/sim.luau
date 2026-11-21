@@ -109,10 +109,16 @@ local ms = H.inClient(p, AudioM.musicState)
 H.expect((ms.mood == "day" or ms.mood == "night") and ms.on and ms.tracks >= 1, "join", "the island's music plays", string.format("%s %s %d", tostring(ms.mood), tostring(ms.on), ms.tracks))
 H.expect(H.buttonNamed(p, "MusicToggle", true) == nil, "settings", "no music note in the corner any more")
 do
-	-- (the island card up in the top row where the note was, level with the top bar)
+	-- (a desktop's top bar is a resource bar across the screen, the PC builders' (2026-11-21: "research on popular
+	-- desktop tycoons and replicate their UIs"); the island card docked under it at the right)
 	local hudCard = p.PlayerGui:FindFirstChild("IslandCard", true)
 	local hudTop = p.PlayerGui:FindFirstChild("TopBar", true)
-	H.expect(hudCard ~= nil and hudTop ~= nil and math.abs(hudCard.AbsolutePosition.Y - hudTop.AbsolutePosition.Y) <= 1, "settings", "the island card moved up level with the top bar", hudCard and hudTop and string.format("%d vs %d", hudCard.AbsolutePosition.Y, hudTop.AbsolutePosition.Y) or "missing")
+	local below = hudCard and hudTop and hudCard.AbsolutePosition.Y - (hudTop.AbsolutePosition.Y + hudTop.AbsoluteSize.Y)
+	H.expect(hudCard ~= nil and hudTop ~= nil and hudTop.AbsoluteSize.X >= E.viewport.X * 0.9 and below ~= nil and below >= 0 and below <= 12, "settings", "the top bar runs across the screen, the island card docked under it", hudCard and hudTop and string.format("bar %d wide of %d, card %s px under it", hudTop.AbsoluteSize.X, E.viewport.X, tostring(below)) or "missing")
+	local rate = p.PlayerGui:FindFirstChild("Chip_rate", true)
+	local isle = p.PlayerGui:FindFirstChild("Chip_isle", true)
+	local rv = rate and rate:FindFirstChild("Value")
+	H.expect(rv ~= nil and string.find(rv.Text, "/min", 1, true) ~= nil and isle ~= nil, "hud", "the resource bar has the coins a minute and the island's level", rv and rv.Text or "missing")
 	-- (its Working line: the driftlings at work out of the places at work; the requests of 2026-11-16, "can you make
 	-- another detail to show creatures working, with x/y", and 2026-11-17, "for working, make it x/y, where x is
 	-- amount of creatures working and y being the amount of work spaces available")
@@ -3992,6 +3998,50 @@ do
 	end
 	local K = H.inClient(p, UIKitC.P)
 	local need = math.ceil(44 / K)
+	-- the touch layout (2026-11-21: "rearrange and redo the UI on mobile and tablet. Reference other mobile tycoon
+	-- games in landscape and replicate their UI design"): the menus as squares a fingertip wide in a grid down the
+	-- left, Build a mint button beside Roblox's jump button, no button of the HUD's under the jump button, and the
+	-- bottom left (the thumbstick's corner) clear of buttons
+	local function touchHud(tag: string)
+		E.run(0.6)
+		local cs = H.inClient(p, UIKitC.size, "Hud")
+		local Kn = H.inClient(p, UIKitC.P)
+		local hud = p.PlayerGui:FindFirstChild("Hud")
+		local canvas = hud and hud:FindFirstChild("Canvas")
+		if canvas == nil then
+			H.expect(false, "touch", tag .. ": the HUD's canvas")
+			return
+		end
+		local small = math.min(cs.X, cs.Y) * Kn <= 500
+		local js = (if small then 70 else 120) / Kn
+		local jx0, jy0 = cs.X - (if small then 95 else 170) / Kn, cs.Y - (if small then 90 else 210) / Kn
+		local under, corner = {}, {}
+		for _, d in canvas:GetDescendants() do
+			if d:IsA("GuiButton") and d.Name ~= "Hit" and H.guiVisible(d) then
+				local x0 = (d.AbsolutePosition.X - canvas.AbsolutePosition.X) / Kn
+				local y0 = (d.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / Kn
+				local x1, y1 = x0 + d.AbsoluteSize.X / Kn, y0 + d.AbsoluteSize.Y / Kn
+				if x0 < jx0 + js and x1 > jx0 and y0 < jy0 + js and y1 > jy0 then
+					table.insert(under, d.Name)
+				end
+				if x0 < cs.X * 0.3 and y1 > cs.Y * 0.62 then
+					table.insert(corner, d.Name)
+				end
+			end
+		end
+		H.expect(#under == 0, "touch", tag .. ": no HUD button under the jump button", table.concat(under, ", "))
+		H.expect(#corner == 0, "touch", tag .. ": the thumbstick's corner (bottom left) clear of buttons", table.concat(corner, ", "))
+		local pals = H.buttonNamed(p, "Menu_pals")
+		H.expect(pals ~= nil and pals.Parent ~= nil and pals.Parent.Name == "MenuBar" and pals.AbsoluteSize.X >= 43 and pals.AbsoluteSize.Y >= 43, "touch", tag .. ": the menus are squares a fingertip wide in the grid down the left", pals and tostring(pals.AbsoluteSize) or "missing")
+		local mb = H.buttonNamed(p, "Menu_build")
+		local bx1 = mb and (mb.AbsolutePosition.X + mb.AbsoluteSize.X - canvas.AbsolutePosition.X) / Kn
+		local by0 = mb and (mb.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / Kn
+		H.expect(mb ~= nil and bx1 ~= nil and by0 ~= nil and bx1 <= jx0 and bx1 >= jx0 - 8 and by0 < jy0 + js and by0 + mb.AbsoluteSize.Y / Kn > jy0, "touch", tag .. ": Build beside the jump button, level with it", if mb then string.format("Build ends at %.0f, jump at %.0f..%.0f", bx1 or -1, jx0, jx0 + js) else "missing")
+	end
+	screen(844, 390, true)
+	touchHud("a phone")
+	screen(1024, 768, true)
+	touchHud("a tablet")
 	screen(844, 390, true)
 	H.openPanel(p, "pals")
 	E.run(0.6)

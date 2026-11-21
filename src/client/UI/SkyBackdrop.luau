@@ -38,6 +38,7 @@ local CameraController = require(script.Parent.Parent.Controllers.CameraControll
 local WeatherView = require(script.Parent.Parent.Controllers.WeatherView)
 local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local ScreenSize = require(script.Parent.Parent.Pixel.ScreenSize)
 local ImageMemory = require(script.Parent.Parent.Pixel.ImageMemory)
 
 local SkyBackdrop = {}
@@ -1060,8 +1061,8 @@ local function step(dt: number)
 		gg.Enabled = true
 	end
 	local K = math.max(1, PixelRenderer.pixelScale())
-	local cam = workspace.CurrentCamera
-	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	-- (the whole screen, a notched phone's margins too: Pixel/ScreenSize)
+	local vp = ScreenSize.full()
 	local W, H = math.max(1, math.ceil(vp.X / K)), math.max(1, math.ceil(vp.Y / K))
 	local kind = WeatherView.kind()
 	local wx = WX[kind] or CLEAR

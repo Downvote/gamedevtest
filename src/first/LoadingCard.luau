@@ -263,7 +263,16 @@ local function viewport(): Vector2
 	local cam = Workspace.CurrentCamera
 	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
 	if vp.X < 2 or vp.Y < 2 then
-		return Vector2.new(1280, 720)
+		vp = Vector2.new(1280, 720)
+	end
+	-- (the card's own ScreenGui ignores every inset, so it spans the whole screen: on a notched phone held sideways
+	-- Camera.ViewportSize left the safe-area margins out, and the card stopped short of the right edge)
+	local g = S.gui
+	if g then
+		local a = g.AbsoluteSize
+		if a.X >= 2 and a.Y >= 2 then
+			vp = Vector2.new(math.max(vp.X, a.X), math.max(vp.Y, a.Y))
+		end
 	end
 	return vp
 end

@@ -485,9 +485,17 @@ E.types.OverlapParams = {
 ------------------------------------------------------------------ Camera
 E.viewport = v2(1280, 720)
 E.inset = 36
+-- E.safe: px a notched phone held sideways keeps clear at each side for an inset ScreenGui; E.camSafe: the camera's
+-- ViewportSize leaves those margins out too (the phone in the report of 2026-11-21 whose pixel layer stopped short of
+-- the right edge)
+E.safe = 0
+E.camSafe = false
 DEFAULT.Camera = { FieldOfView = 70, CFrame = CF.identity, NearPlaneZ = -0.1, Focus = CF.identity }
 GET.Camera = {
 	ViewportSize = function()
+		if E.camSafe and (E.safe or 0) > 0 then
+			return v2(E.viewport.X - 2 * E.safe, E.viewport.Y)
+		end
 		return E.viewport
 	end,
 }
@@ -594,7 +602,8 @@ local function guiAbs(self)
 		if full then
 			return v2(0, -E.inset), E.viewport
 		end
-		return v2(0, 0), v2(E.viewport.X, E.viewport.Y - E.inset)
+		local sx = E.safe or 0
+		return v2(sx, 0), v2(E.viewport.X - 2 * sx, E.viewport.Y - E.inset)
 	end
 	local parent = d.props.Parent
 	local pPos, pSize = v2(0, 0), v2(0, 0)

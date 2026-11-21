@@ -50,6 +50,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local ScreenSize = require(script.Parent.Parent.Pixel.ScreenSize)
 local ImageMemory = require(script.Parent.Parent.Pixel.ImageMemory)
 
 local HatchBackdrop = {}
@@ -1109,8 +1110,8 @@ local backs: { Frame } = {} -- behind the picture, its top and bottom colours (s
 
 function HatchBackdrop.show(r: number, ex: number, ey: number, base: BaseAt?)
 	local K = math.max(1, PixelRenderer.pixelScale())
-	local cam = workspace.CurrentCamera
-	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	-- (the whole screen, a notched phone's margins too: Pixel/ScreenSize)
+	local vp = ScreenSize.full()
 	local W, H = math.ceil(vp.X / K), math.ceil(vp.Y / K)
 	local im = image
 	if im == nil or im.Size.X ~= W or im.Size.Y ~= H then

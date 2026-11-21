@@ -826,6 +826,29 @@ local function buildStore(body: Frame, arg: any?)
 	end
 	tabSeq = UIKit.openCount()
 	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	-- a touch screen: the tabs down the left as big tiles (UIKit.tabbed), the tab's page beside them
+	if UIKit.touch() then
+		local items: { UIKit.Tab } = {}
+		for _, t in StoreUI.TABS do
+			table.insert(items, { id = t.id, text = t.text, icon = t.icon })
+		end
+		local page = UIKit.tabbed(body, items, tab, function(id: string)
+			tab = id
+			Audio.play("flip")
+			UIKit.refreshPanel()
+		end)
+		W, H = UIKit.bodyWidth(page), UIKit.bodyHeight(page)
+		if tab == "passes" then
+			buildPasses(page, v, W, H, 0)
+		elseif tab == "eggs" then
+			buildEggs(page, v, W, H, 0)
+		elseif tab == "shop" then
+			buildShop(page, v, W, H, 0)
+		else
+			buildTrack(page, v, W, H, 0)
+		end
+		return
+	end
 	-- the tabs: each its icon and words, the one open in the accent
 	local x = 0
 	for _, t in StoreUI.TABS do
