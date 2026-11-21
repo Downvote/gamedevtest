@@ -124,6 +124,15 @@ as in Roblox), captures what it writes into its `EditableImage`
 PREVIEW_KEEP=1 sh tools/preview/render.sh <scenario> <outdir> "desktop phone" [tier]
 ```
 
+Devices: `desktop` (1920 x 1080), `laptop`, `desktop1440`, `phone` (844 x 390), `tablet` (1024 x 768), `android`,
+`iphone8`, `portrait`, and `notch` (932 x 430: a notched phone held sideways, 47 px kept clear at each side for inset
+ScreenGuis and the camera's `ViewportSize` leaving them out, as Roblox does on such a phone). Each frame's log line says
+whether the pixel layer covers the screen ("covers the screen") or leaves the world showing ("world drawn
+underneath"): on `notch` that is the check for the right-edge bar of 2026-11-21 (`Pixel/ScreenSize`). A touch device's
+frames show Roblox's jump button where its TouchJump puts it, inside the safe area. The simulator's touch phase
+(`sim.luau`, "touch") checks the touch HUD on a phone and a tablet: the menus as fingertip squares, Build beside the jump
+button, no HUD button under it and the thumbstick's corner clear.
+
 Every frame's log (with `PREVIEW_KEEP=1`, in `<outdir>/_logs`) lists each label on show whose words need more room
 than its box as an `OVERFLOW` line: its name, its words, the room needed and the box, "(clipped)" when it ends in
 "..." (`PixelText.overflows`; GAME_DESIGN 2). There should be none: `grep -h OVERFLOW <outdir>/_logs/*`. The fake

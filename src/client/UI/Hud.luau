@@ -13,6 +13,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
@@ -45,11 +46,12 @@ local SettingsUI = require(script.Parent.SettingsUI)
 local VisitUI = require(script.Parent.VisitUI)
 local WelcomeUI = require(script.Parent.WelcomeUI)
 local BuildUI = require(script.Parent.BuildUI)
+local HatchScene = require(script.Parent.HatchScene)
 
 local Hud = {}
 
 local TOP_H = 14 -- the top bar's height
-local BAR_H = 14 -- a menu button's height
+local BAR_H = 20 -- a menu button's height (a desktop's toolbar: the big icons, GAME_DESIGN 2.1)
 -- (on a phone the menu's buttons are icons only, square and taller, so the bar is short enough to stay clear of
 -- Roblox's jump button at the bottom right: the request of 2026-11-19, "make mobile and tablet as responsive and
 -- catered to as possible"; each still gets UIKit's fingertip pad)
@@ -67,6 +69,54 @@ local PAD = UIKit.PAD -- inside a block
 local CARD_W = 116 -- the right column's width (104 on phones)
 local CARD_MAX_H = 150
 local LINE_H = 11
+
+------------------------------------------------------------------ phones and tablets
+-- The request of 2026-11-21, with a phone held sideways: "rearrange and redo the UI on mobile and tablet. Reference
+-- other mobile tycoon games in landscape and replicate their UI design." What those games share (GAME_DESIGN 2.1):
+-- the money in a pill at the top left with a "+" to the store; the menus as big square buttons down the left; the
+-- store, the gifts and whatever runs on a timer as squares on the right, under the island's card; the main action
+-- (here Build) a big button by the right thumb, beside Roblox's jump button; the bottom left kept free for the
+-- thumbstick and nothing under the jump button; the cards fold away. A touch screen (UIKit.touch: no mouse) gets it: a
+-- phone icon-only squares, a tablet bigger ones with their names under them. A desktop keeps the menu bar.
+local function mobile(): boolean
+	return UIKit.touch()
+end
+local SQ_PHONE, SQ_TABLET = 22, 28 -- a square's side (22 UI px: 44 screen px, a fingertip, at a phone's pixel size)
+local LABEL_H = 9 -- a tablet square's name under it
+local function sq(): number
+	return if UIKit.phone() then SQ_PHONE else SQ_TABLET
+end
+local function labelled(): boolean
+	return not UIKit.phone()
+end
+local cellW = SQ_PHONE -- the left grid's column (a tablet's as wide as its longest name)
+local cellR = SQ_PHONE -- the right row's (a third of the island card's width)
+local menuSide: Frame? = nil -- the right row's Gifts and Store (the Eggs square is the tree's card)
+local buildBox: Frame? = nil -- Build by the jump button
+local buildBtn: TextButton? = nil -- Build, the menu bar's or the touch screen's own
+local plusButton: TextButton? = nil -- the coins' "+"
+-- (the island card folded to its name and coins a minute, or open: nil till tapped, a phone starting folded and a
+-- tablet open; the quest's card folded to its title)
+local cardOpen: boolean? = nil
+local questOpen = true
+local function cardFolded(): boolean
+	if cardOpen == nil then
+		return mobile() and UIKit.phone()
+	end
+	return not cardOpen
+end
+-- Roblox's jump button in the HUD canvas's UI px, x0, y0, x1, y1 (its TouchJump: 70 px at 95 px from the right and 90
+-- from the bottom on a screen whose short side is 500 px or less, else 120 px at 170 and 210; inside the safe area
+-- and down to the screen's bottom, as the HUD's canvas is)
+local function jumpRect(): (number, number, number, number)
+	local s = UIKit.size("Hud")
+	local K = UIKit.P()
+	local small = math.min(s.X, s.Y) * K <= 500
+	local size = if small then 70 else 120
+	local x0 = s.X - (if small then 95 else 170) / K
+	local y0 = s.Y - (if small then 90 else 210) / K
+	return x0, y0, x0 + size / K, y0 + size / K
+end
 
 local chips: { [string]: TextLabel } = {}
 local chipFrames: { [string]: Frame } = {}
@@ -149,7 +199,19 @@ local function hudRects()
 	end
 	local half = math.floor(barW / 2) + DOCK + 1
 	local list: { Raster.Rect }
-	if UIKit.phone() then
+	if mobile() then
+		-- a touch screen: nothing along the bottom any more (the squares keep to the sides), so a phone keeps only
+		-- Roblox's top bar clear, the founder in the middle of what's left; a tablet the top bar's row and the right
+		-- column too, as a desktop does
+		if UIKit.phone() then
+			list = { { x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y } }
+		else
+			list = {
+				{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (CHIP_Y + TOP_H + 2) * K },
+				r(s.X - CARD_W - EDGE - 2, rightTop() - 2, s.X, rightTop() + CARD_MAX_H),
+			}
+		end
+	elseif UIKit.phone() then
 		-- a phone (Random Bakery's rule): only Roblox's top bar and the menu bar are kept clear
 		list = {
 			{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y },
@@ -169,11 +231,20 @@ end
 -- One glass strip of chips (Random Bakery's top bar): each chip its 11 px icon and its value; the day's chip has a
 -- thin bar under its words for how far through the day it is.
 local CHIP_GAP = 7
+local PLUS_W = 12 -- (a touch screen's "+" at the end of the coins chip: the Store)
 -- (the top bar is one line: the shells, then the season and the weather, Hud.topChip; the day count went from it on
 -- 2026-11-14: "also, this can be compressed into one line. remove the "day 1" as well")
-local CHIP_MIN: { [string]: number } = { shells = 40, season = 24, weather = 24 }
-local CHIP_ORDER = { "shells", "season", "weather" }
--- Each chip as wide as its words need (never under its minimum), the strip round them, Home after it.
+local CHIP_MIN: { [string]: number } = { shells = 40, season = 24, weather = 24, rate = 0, isle = 30, charm = 20 }
+-- (a desktop's resource bar also has the coins a minute after the coins, and at its right end the island's name and
+-- level and its charm: the PC builders' bar across the top, GAME_DESIGN 2.1; the chips a screen lacks are skipped)
+local CHIP_ORDER = { "shells", "rate", "season", "weather" }
+local CHIP_RIGHT = { "isle", "charm" }
+local function chipWidth(name: string, words: string): number
+	local icon = (chipIcons :: { [string]: GuiObject? })[name] ~= nil
+	return math.max(CHIP_MIN[name] or 40, (if icon then 13 else 0) + UIKit.textWidth(words) + 1)
+end
+-- Each chip as wide as its words need (never under its minimum), the strip round them, Home after it. A desktop's
+-- strip runs the screen's width, the right chips at its far end.
 local function layoutTop()
 	local tb = topBar
 	if tb == nil then
@@ -186,22 +257,51 @@ local function layoutTop()
 		local words = if l then tostring(l:GetAttribute("Source") or l.Text) else ""
 		-- (a chip with nothing to say yet takes no room)
 		if f and l and words ~= "" then
-			local w = math.max(CHIP_MIN[name] or 40, 13 + UIKit.textWidth(words) + 1)
+			local w = chipWidth(name, words)
+			-- (a touch screen's coins chip ends in its "+")
+			local pb = plusButton
+			if name == "shells" and pb then
+				w += PLUS_W + 2
+				pb.Position = UDim2.fromOffset(w - PLUS_W, 1)
+			end
 			f.Visible = true
 			f.Position = UDim2.fromOffset(x, 0)
 			f.Size = UDim2.fromOffset(w, TOP_H)
-			x += w + CHIP_GAP
+			x += w + (if name == "shells" and chipFrames.rate then 3 else CHIP_GAP)
 		elseif f then
 			f.Visible = false
 		end
 	end
 	local w = x - CHIP_GAP + PAD - 1
+	local leftW = w
+	if not mobile() then
+		w = UIKit.size("Hud").X - 2 * EDGE
+		local rx = w - PAD + 1
+		for i = #CHIP_RIGHT, 1, -1 do
+			local name = CHIP_RIGHT[i]
+			local f, l = chipFrames[name], chips[name]
+			local words = if l then tostring(l:GetAttribute("Source") or l.Text) else ""
+			if f and l and words ~= "" then
+				local cw = chipWidth(name, words)
+				rx -= cw
+				-- (never over the left chips: a narrow window drops the island's chips first)
+				f.Visible = rx > leftW + 8
+				f.Position = UDim2.fromOffset(rx, 0)
+				f.Size = UDim2.fromOffset(cw, TOP_H)
+				rx -= CHIP_GAP
+			elseif f then
+				f.Visible = false
+			end
+		end
+	end
 	if tb.Size.X.Offset ~= w then
 		tb.Size = UDim2.fromOffset(w, TOP_H)
 	end
 	for _, b in { homeButton, visitButton } :: { TextButton? } do
 		if b then
-			b.Position = UDim2.fromOffset(EDGE + w + GAP, CHIP_Y)
+			-- (in the desktop's strip after the left chips; beside a touch screen's)
+			b.Position = UDim2.fromOffset(EDGE + leftW + GAP, CHIP_Y)
+			b.ZIndex = 4
 		end
 	end
 	-- (the top bar grew or shrank: the right-hand column may move between the top row and under it)
@@ -210,7 +310,7 @@ local function layoutTop()
 		restackSoon()
 	end
 end
-local function chip(name: string, x: number, w: number, icon: string): number
+local function chip(name: string, x: number, w: number, icon: string?): number
 	local f = Instance.new("Frame")
 	f.Name = "Chip_" .. name
 	f.BackgroundTransparency = 1
@@ -218,10 +318,27 @@ local function chip(name: string, x: number, w: number, icon: string): number
 	f.Position = UDim2.fromOffset(x, 0)
 	f.ZIndex = 2
 	f.Parent = topBar
-	chipIcons[name] = PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(0, 1), 3)
-	chips[name] = UIKit.text(f, "", UDim2.new(1, -13, 0, 10), UDim2.fromOffset(13, 2), { name = "Value", z = 3 })
+	local ox = 0
+	if icon then
+		chipIcons[name] = PixelSprites.image(f, "mini_" .. icon, UDim2.fromOffset(0, 1), 3)
+		ox = 13
+	end
+	chips[name] = UIKit.text(f, "", UDim2.new(1, -ox, 0, 10), UDim2.fromOffset(ox, 2), { name = "Value", z = 3 })
 	chipFrames[name] = f
 	return x + w + CHIP_GAP
+end
+-- A chip's words and their colour (the desktop's coins a minute, island and charm: updateTop).
+local function setChip(name: string, words: string, color: Color3?)
+	local l = (chips :: { [string]: TextLabel? })[name]
+	if l == nil then
+		return
+	end
+	if l:GetAttribute("Source") ~= words then
+		l:SetAttribute("Source", words)
+		UIKit.setText(l, words)
+		layoutTop()
+	end
+	UIKit.setTextColor(l, color or UIKit.color("text"))
 end
 
 local function buildTop()
@@ -233,8 +350,35 @@ local function buildTop()
 	topBar = tb
 	local x = PAD
 	x = chip("shells", x, widths.shells, "coin")
+	if not mobile() then
+		-- (a desktop's resource bar: the coins a minute in green after the coins, the island and its charm at the right)
+		x = chip("rate", x, 20, nil)
+		chip("isle", 0, widths.isle, "tree")
+		chip("charm", 0, widths.charm, "charm")
+	end
 	x = chip("season", x, widths.season, "sun")
 	x = chip("weather", x, widths.weather, "sun")
+	-- the coins' "+" (a touch screen: the mobile games' pill, a tap to the Store), a white cross drawn on mint, its
+	-- shadow the mint's ink; the coins' words make room for it
+	if mobile() then
+		local cf = chipFrames.shells
+		local pb = UIKit.button(cf, "", UDim2.fromOffset(PLUS_W, PLUS_W), UDim2.fromOffset(widths.shells - PLUS_W, 1), function()
+			UIKit.openPanel("store")
+		end, { name = "CoinsPlus", color = UIKit.color("button_ok") })
+		pb.ZIndex = 4
+		local ink = UIKit.inkOf(UIKit.color("button_ok"))
+		for _, r in { { 3, 6, 6, 2 }, { 5, 4, 2, 6 } } do
+			UIKit.rect(pb, UDim2.fromOffset(r[3], r[4]), UDim2.fromOffset(r[1], r[2]), ink, 5).Name = "Shade"
+		end
+		for _, r in { { 3, 5, 6, 2 }, { 5, 3, 2, 6 } } do
+			UIKit.rect(pb, UDim2.fromOffset(r[3], r[4]), UDim2.fromOffset(r[1], r[2]), UIKit.color("text"), 6).Name = "Cross"
+		end
+		plusButton = pb
+		local l = chips.shells
+		if l then
+			l.Size = UDim2.new(1, -(13 + PLUS_W + 2), 0, 10)
+		end
+	end
 	layoutTop()
 	-- Home: shown while the founder is off their own island (char.home sends them back to their tree)
 	local hb = UIKit.button(canvas, "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(EDGE + w + GAP, CHIP_Y), function()
@@ -274,6 +418,7 @@ local function layoutStatus()
 		local l = statusLines[name]
 		if l then
 			l.Position = UDim2.fromOffset(PAD - 1, y)
+			l.Size = UDim2.fromOffset(STATUS_W - 2 * PAD + 2, LINE_H)
 			y += LINE_H
 		end
 	end
@@ -393,6 +538,14 @@ end
 
 local function updateTop(v: Types.ClientView)
 	showStore("shells", v.shells, last.shells == nil)
+	if chips.rate then
+		local n = v.rates.shells
+		setChip("rate", Numbers.perMin(n * 60 / Tuning.TurnSeconds), if n < -0.05 then UIKit.color("bad") elseif n > 0.05 then UIKit.color("good") else UIKit.color("text_dim"))
+		local plan = Office.plans[v.tier]
+		local name = if plan then plan.name else "Your island"
+		setChip("isle", Lang.keep(Lang.t(name) .. " · " .. Lang.f("Level {1}/{2}", v.tier, #Office.plans)), UIKit.color("accent"))
+		setChip("charm", Numbers.int(math.floor(v.charm)), UIKit.color("pink"))
+	end
 end
 
 -- A chip on the top bar's line after the shells (UI/WeatherChip: "season", "weather"): its icon, its words and their
@@ -456,17 +609,169 @@ local function menus(): { Menu }
 end
 local MENU_ICON = 13 -- a menu button's icon (11 px and a gap) before its words
 local giftDot: Frame? = nil
+-- The desktop's shortcuts, one key a menu (letters clear of Roblox's own: W A S D, I and O for the zoom, Space, Tab,
+-- the slash for chat), shown on the toolbar's key caps and in the tooltips; E opens the tree's panel.
+local KEYS: { [string]: string } = { build = "B", pals = "P", hatch = "H", index = "N", looks = "L", rewards = "G", top = "T", store = "M", settings = "K", tree = "E" }
+-- What each menu opens, a line in its tooltip (a desktop's on hover, a touch screen's on a held finger).
+local MENU_TIPS: { [string]: string } = {
+	build = "Place huts, work spots and decor.",
+	pals = "Your driftlings: where they live and work.",
+	hatch = "Pair two driftlings for an egg.",
+	index = "Every kind you have found so far.",
+	looks = "Change how your founder looks.",
+	rewards = "Daily gifts, tasks, the spin and codes.",
+	top = "Leaderboards and your friends.",
+	store = "Passes, eggs and the shop.",
+	settings = "Sound, view, text and language.",
+	tree = "Hatch the eggs under the tree.",
+}
+
+local function openMenu(m: Menu)
+	if m.panel == "build" then
+		BuildUI.open()
+	else
+		UIKit.openPanel(m.panel)
+	end
+end
+local function menuOf(panel: string): Menu?
+	for _, m in menus() do
+		if m.panel == panel then
+			return m
+		end
+	end
+	return nil
+end
+-- the red dot over the gift while something waits (RewardsUI.ready; Hud's second shows and hides it)
+local function makeGiftDot(b: GuiObject, x: number)
+	local dot = UIKit.rect(b, UDim2.fromOffset(5, 5), UDim2.fromOffset(x, 0), UIKit.inkOf(UIKit.color("bad")), 7)
+	dot.Name = "Dot"
+	UIKit.rect(dot, UDim2.fromOffset(3, 3), UDim2.fromOffset(1, 1), UIKit.color("bad"), 8)
+	dot.Visible = false
+	giftDot = dot
+end
+
+-- A touch screen's square: dark glass (UIKit's neutral button), the menu's big icon in the middle (UI/PixelSprites:
+-- the 15 px `big_` set drawn for the touch screens, the 11 px one where none is drawn), centred in a cell `cw` wide;
+-- on a tablet its name under it.
+local function bigIcon(icon: string): (string, number)
+	if PixelSprites.has("big_" .. icon) then
+		return "big_" .. icon, 15
+	end
+	return "mini_" .. icon, 11
+end
+local function square(parent: Instance, m: Menu, x: number, y: number, cw: number): TextButton
+	local n = sq()
+	local b = UIKit.button(parent, "", UDim2.fromOffset(n, n), UDim2.fromOffset(x + math.floor((cw - n) / 2), y), function()
+		openMenu(m)
+	end, { name = "Menu_" .. m.panel, color = UIKit.color("glass") })
+	local name, size = bigIcon(m.icon)
+	PixelSprites.image(b, name, UDim2.fromOffset(math.floor((n - size) / 2), math.floor((n - size) / 2)), 6).Name = "Icon"
+	if labelled() then
+		UIKit.text(parent, m.text, UDim2.fromOffset(cw, LABEL_H), UDim2.fromOffset(x, y + n + 1), { x = "center", name = "Label_" .. m.panel, z = 3 })
+	end
+	-- (a held finger shows its name and what it opens: a phone's squares have no names under them)
+	UIKit.tooltip(b, m.text, MENU_TIPS[m.panel])
+	if m.panel == "rewards" then
+		makeGiftDot(b, n - 6)
+	end
+	return b
+end
+
+-- The touch screen's menus: the left grid (two columns of squares under the top bar: Driftlings, the Hatchery once
+-- it's open, Index, Looks, Top, Settings), the right row's Gifts and Store (`stack` sets it beside the Eggs square
+-- under the island card) and Build, a big mint button by the jump button.
+local LEFT_MENUS = { "pals", "hatch", "index", "looks", "top", "settings" }
+local function buildSquares()
+	local canvas = UIKit.canvas("Hud")
+	local n = sq()
+	cellW = n
+	if labelled() then
+		for _, id in LEFT_MENUS do
+			local m = menuOf(id)
+			if m then
+				cellW = math.max(cellW, UIKit.textWidth(m.text) + 4)
+			end
+		end
+		cellW = math.min(cellW, 60)
+	end
+	cellR = math.max(n, math.floor((CARD_W - 2 * GAP) / 3))
+	local rh = n + (if labelled() then LABEL_H + 1 else 0)
+	local list: { Menu } = {}
+	for _, id in LEFT_MENUS do
+		local m = menuOf(id)
+		if m then
+			table.insert(list, m)
+		end
+	end
+	local rows = math.ceil(#list / 2)
+	local f = Instance.new("Frame")
+	f.Name = "MenuBar"
+	f.BackgroundTransparency = 1
+	f.Size = UDim2.fromOffset(2 * cellW + GAP, rows * rh + (rows - 1) * GAP)
+	f.Parent = canvas
+	for i, m in list do
+		square(f, m, ((i - 1) % 2) * (cellW + GAP), ((i - 1) // 2) * (rh + GAP), cellW)
+	end
+	bar = f
+	barW = 0
+	local side = Instance.new("Frame")
+	side.Name = "MenuSide"
+	side.BackgroundTransparency = 1
+	side.Size = UDim2.fromOffset(2 * cellR + GAP, rh)
+	side.Parent = canvas
+	local x = 0
+	for _, id in { "rewards", "store" } do
+		local m = menuOf(id)
+		if m then
+			square(side, m, x, 0, cellR)
+			x += cellR + GAP
+		end
+	end
+	menuSide = side
+	local bm = menuOf("build")
+	if bm then
+		local bw = math.max(2 * n, UIKit.buttonWidth(bm.text, 5) + MENU_ICON + 3)
+		local box = Instance.new("Frame")
+		box.Name = "BuildBox"
+		box.BackgroundTransparency = 1
+		box.Size = UDim2.fromOffset(bw, n)
+		box.Parent = canvas
+		local b = UIKit.button(box, bm.text, UDim2.fromOffset(bw, n), UDim2.new(), function()
+			BuildUI.open()
+		end, { name = "Menu_build", color = UIKit.color("button_ok") })
+		b.ZIndex = 2
+		local name, size = bigIcon(bm.icon)
+		PixelSprites.image(b, name, UDim2.fromOffset(4, math.floor((n - size) / 2)), 6).Name = "Icon"
+		local words = b:FindFirstChild("Words")
+		if words and words:IsA("GuiObject") then
+			words.Position = UDim2.fromOffset(size + 5, 0)
+			words.Size = UDim2.new(1, -(size + 7), 1, 0)
+		end
+		buildBox = box
+		buildBtn = b
+	end
+end
 
 local function buildBar()
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
-	if bar then
-		bar:Destroy()
+	for _, f in { bar, menuSide, buildBox } :: { Instance? } do
+		if f then
+			f:Destroy()
+		end
 	end
+	bar, menuSide, buildBox, buildBtn, giftDot = nil, nil, nil, nil, nil
+	if mobile() then
+		buildSquares()
+		return
+	end
+	-- A desktop's toolbar (the PC builders' row of named buttons along the bottom, GAME_DESIGN 2.1): each button its
+	-- big icon and its name, its shortcut on a key cap at its top right corner, a tooltip with what it opens.
 	local phone = UIKit.phone()
 	local bh = barH()
+	local ICON_W = 19
 	local function widthOf(m: Menu): number
-		return if phone then BTN_PHONE else UIKit.buttonWidth(m.text, 4) + MENU_ICON
+		return if phone then BTN_PHONE else UIKit.buttonWidth(m.text, 4) + ICON_W + 3
 	end
 	local total = 0
 	for _, m in menus() do
@@ -502,20 +807,23 @@ local function buildBar()
 			textColor = if m.panel == "build" then UIKit.color("accent") else nil,
 		})
 		b.ZIndex = 2
-		PixelSprites.image(b, "mini_" .. m.icon, if phone then UDim2.fromOffset(math.floor((w - 11) / 2), math.floor((bh - 11) / 2)) else UDim2.fromOffset(3, 2), 6)
+		local icon, isz = bigIcon(m.icon)
+		PixelSprites.image(b, icon, if phone then UDim2.fromOffset(math.floor((w - isz) / 2), math.floor((bh - isz) / 2)) else UDim2.fromOffset(3, math.floor((bh - isz) / 2)), 6).Name = "Icon"
 		if m.panel == "rewards" then
-			-- the red dot over the gift while something waits (RewardsUI.ready; Hud's second shows and hides it)
-			local dot = UIKit.rect(b, UDim2.fromOffset(5, 5), UDim2.fromOffset(10, 0), UIKit.inkOf(UIKit.color("bad")), 7)
-			dot.Name = "Dot"
-			UIKit.rect(dot, UDim2.fromOffset(3, 3), UDim2.fromOffset(1, 1), UIKit.color("bad"), 8)
-			dot.Visible = false
-			giftDot = dot
+			makeGiftDot(b, isz - 1)
+		elseif m.panel == "build" then
+			buildBtn = b
 		end
 		local words = b:FindFirstChild("Words")
 		if words and words:IsA("GuiObject") then
-			words.Position = UDim2.fromOffset(MENU_ICON + 1, 0)
-			words.Size = UDim2.new(1, -(MENU_ICON + 4), 1, 0)
+			words.Position = UDim2.fromOffset(ICON_W + 1, 0)
+			words.Size = UDim2.new(1, -(ICON_W + 4), 1, 0)
 		end
+		local key = KEYS[m.panel]
+		if key and not phone then
+			UIKit.keyCap(b, key, UDim2.fromOffset(w - 8, -5), 7)
+		end
+		UIKit.tooltip(b, m.text, MENU_TIPS[m.panel], key)
 		x += w + 2
 	end
 	bar = f
@@ -557,8 +865,11 @@ local function cardKey(v: Types.ClientView): string
 	return string.format("%d|%d/%d|%d/%d|%d|%d|%d", v.tier, housedOf(v), v.nests, workingOf(v), Island.jobPlaces(v.pieces), math.floor(v.charm), math.round((v.charmBonus or 0) * 100), math.floor(v.rates.shells + 0.5))
 end
 
+local restackCard: () -> () = function() end
 local function updateCard(v: Types.ClientView)
-	local key = cardKey(v)
+	-- (a touch screen's card folds to its name and the coins a minute: a tap on it folds or opens it)
+	local folded = cardFolded()
+	local key = cardKey(v) .. (if folded then "|f" else "|o")
 	if card and card:GetAttribute("Key") == key then
 		return
 	end
@@ -569,14 +880,37 @@ local function updateCard(v: Types.ClientView)
 	local canvas = UIKit.canvas("Hud")
 	local s = UIKit.size("Hud")
 	local w = CARD_W
-	local h = 15 + 4 * LINE_H + 4 + LINE_H + 2
+	local h = if folded then 15 + LINE_H + 2 else 15 + 4 * LINE_H + 4 + LINE_H + 2
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(s.X - w - EDGE, rightTop()), 2)
 	f.Name = "IslandCard"
 	local plan = Office.plans[v.tier]
 	-- the island's name, a faint rule under it
 	UIKit.plank(f, 11)
-	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 2 * PAD, 10), UDim2.fromOffset(PAD, 2), { color = UIKit.color("accent"), kind = "shadow", z = 4, name = "Title" })
+	UIKit.text(f, if plan then plan.name else "Your island", UDim2.fromOffset(w - 2 * PAD - 9, 10), UDim2.fromOffset(PAD, 2), { color = UIKit.color("accent"), kind = "shadow", z = 4, name = "Title" })
+	-- (it folds on every screen, a docked panel as the PC builders' are: a click or tap on its title, or anywhere on it
+	-- while folded)
+	do
+		PixelSprites.image(f, if folded then "arrow_down_t" else "arrow_up_t", UDim2.fromOffset(w - PAD - 7, 3), 5).Name = "Fold"
+		local tap = UIKit.button(f, "", if folded then UDim2.fromScale(1, 1) else UDim2.new(1, 0, 0, 13), UDim2.new(), function()
+			cardOpen = folded
+			local cv = StateClient.view()
+			if cv then
+				updateCard(cv)
+				restackCard()
+			end
+		end, { name = "CardFold", ghost = true })
+		tap.ZIndex = 6
+	end
 	local y = 15
+	if folded then
+		local n = v.rates.shells
+		local c = if n < -0.05 then UIKit.color("bad") elseif n > 0.05 then UIKit.color("good") else UIKit.color("text_dim")
+		line(f, "coin", "Coins", y, w, nil, Numbers.perMin(n * 60 / Tuning.TurnSeconds), c, "Rate_coin")
+		f:SetAttribute("Key", key)
+		f.Visible = not BuildUI.isOpen()
+		card = f
+		return
+	end
 	local housed = housedOf(v)
 	line(f, "pal", "In huts", y, w, nil, string.format("%d/%d", housed, v.nests), if housed >= v.nests and v.nests > 0 then UIKit.color("orange") else nil, "Pals")
 	y += LINE_H
@@ -619,7 +953,46 @@ local function clock(secs: number): string
 	local s = math.max(0, math.ceil(secs))
 	return string.format("%d:%02d", s // 60, s % 60)
 end
+-- A touch screen's Eggs square: the tree's big icon over a bar running down to the next eggs, the time under it; a tap
+-- opens the tree's panel. (The egg rows went from phones on 2026-11-14: "for mobile, remove the egg list in the tree
+-- tab".)
+local function treeSquare()
+	local key = sq() * 1000 + cellR -- (its size: made again when the screen changes)
+	if treeCard and treeCard:GetAttribute("Key") == key then
+		return
+	end
+	if treeCard then
+		treeCard:Destroy()
+		treeCard = nil
+	end
+	local n = sq()
+	local f = Instance.new("Frame")
+	f.Name = "TreeCard"
+	f.BackgroundTransparency = 1
+	f.Size = UDim2.fromOffset(cellR, n + LABEL_H + 1)
+	f.Parent = UIKit.canvas("Hud")
+	local b = UIKit.button(f, "", UDim2.fromOffset(n, n), UDim2.fromOffset(math.floor((cellR - n) / 2), 0), function()
+		UIKit.openPanel("tree")
+	end, { name = "TreeOpen", color = UIKit.color("glass") })
+	local name, size = bigIcon("tree")
+	PixelSprites.image(b, name, UDim2.fromOffset(math.floor((n - size) / 2), math.floor((n - size - 4) / 2)), 6).Name = "Icon"
+	local back = UIKit.rect(b, UDim2.fromOffset(n - 8, 3), UDim2.fromOffset(4, n - 5), UIKit.color("glass"), 6)
+	back.BackgroundTransparency = 0.1
+	back.Name = "TreeBar"
+	treeBar = UIKit.rect(back, UDim2.fromOffset(n - 10, 1), UDim2.fromOffset(1, 1), UIKit.color("good"), 7)
+	UIKit.tooltip(b, "Eggs", MENU_TIPS.tree)
+	local t = UIKit.text(f, "", UDim2.fromOffset(cellR, LABEL_H), UDim2.fromOffset(0, n + 1), { x = "center", raw = true, color = UIKit.color("text"), z = 3, name = "TreeNext" })
+	t:SetAttribute("Short", true)
+	treeTime = t
+	f:SetAttribute("Key", key)
+	treeCard = f
+end
+
 local function updateTree(v: Types.ClientView)
+	if mobile() then
+		treeSquare()
+		return
+	end
 	-- (on a phone no egg rows: just the card's name, Open and the time to the next eggs; the request of 2026-11-14:
 	-- "for mobile, remove the egg list in the tree tab")
 	local phone = UIKit.phone()
@@ -694,7 +1067,86 @@ end
 -- The cards stack down the right edge, GAP apart (on a phone the tree's card sits on the left, clear of the jump
 -- button); down the left, the status panel and the quest's card under it.
 local offers: Frame? = nil -- the store's offers (UI/StoreUI.offers: the Starter Pack, VIP's gift)
+
+-- A touch screen's blocks: the grid of squares down the left under the top bar; the island card at the top right, the
+-- row of squares under it (Eggs, Gifts, Store) and the offers under that, slid left of the jump button when they would
+-- reach it; Build beside the jump button, level with it; the status panel and the quest's card right of the grid (or
+-- under everything on a screen too narrow for that). Nothing goes in the bottom left, where the thumbstick is.
+local function stackTouch()
+	local s = UIKit.size("Hud")
+	local hide = BuildUI.isOpen() or UIKit.currentPanel() ~= nil
+	local gridR, gridB = EDGE, CARD_Y
+	local b = bar
+	if b then
+		b.Visible = not hide
+		b.Position = UDim2.fromOffset(EDGE, CARD_Y)
+		gridR, gridB = EDGE + b.Size.X.Offset, CARD_Y + b.Size.Y.Offset
+	end
+	local colX = s.X - CARD_W - EDGE
+	local y = rightTop()
+	local c = card
+	if c then
+		c.Visible = not hide
+		c.Position = UDim2.fromOffset(colX, y)
+		y += c.Size.Y.Offset + GAP
+	end
+	local e, side = treeCard, menuSide
+	local x = colX
+	local rowB = y
+	if e then
+		e.Visible = not hide
+		e.Position = UDim2.fromOffset(x, y)
+		x += cellR + GAP
+		rowB = math.max(rowB, y + e.Size.Y.Offset)
+	end
+	if side then
+		side.Visible = not hide
+		side.Position = UDim2.fromOffset(x, y)
+		rowB = math.max(rowB, y + side.Size.Y.Offset)
+	end
+	local colB = rowB
+	local jx0, jy0, _, jy1 = jumpRect()
+	local of = offers
+	if of then
+		of.Visible = not hide
+		local oy = rowB + GAP
+		local ox = colX
+		if oy + of.Size.Y.Offset > jy0 - GAP and colX + CARD_W > jx0 then
+			ox = math.floor(jx0) - GAP - CARD_W
+		end
+		of.Position = UDim2.fromOffset(ox, oy)
+		colB = oy + of.Size.Y.Offset
+	end
+	local bb = buildBox
+	if bb then
+		bb.Visible = not hide
+		bb.Position = UDim2.fromOffset(math.floor(jx0) - GAP - bb.Size.X.Offset, math.floor((jy0 + jy1 - bb.Size.Y.Offset) / 2))
+	end
+	local lx, ly = gridR + GAP, CARD_Y
+	if lx + STATUS_W > colX - GAP then
+		lx, ly = EDGE, math.max(gridB, colB) + GAP
+	end
+	local st = status
+	if st then
+		layoutStatus()
+		st.Position = UDim2.fromOffset(lx, ly)
+		if st.Visible then
+			st.Visible = not hide
+			ly += st.Size.Y.Offset + GAP
+		end
+	end
+	local qf = quest
+	if qf then
+		qf.Visible = not hide
+		qf.Position = UDim2.fromOffset(lx, ly)
+	end
+end
+
 local function stack()
+	if mobile() then
+		stackTouch()
+		return
+	end
 	local s = UIKit.size("Hud")
 	local c, e = card, treeCard
 	-- (they step aside for Build mode and for any panel: the panel's glass would show them through it)
@@ -759,6 +1211,7 @@ restackSoon = function()
 	stack()
 	hudRects()
 end
+restackCard = restackSoon
 
 ------------------------------------------------------------------ the questline
 -- Where a quest's Go takes the player (Data/Quests' `go`): a panel (the tree's too) or Build mode on a tab.
@@ -802,7 +1255,13 @@ local function updateQuest(v: Types.ClientView)
 		local facts: Quest.Facts = { pals = v.pals, pieces = v.pieces, tier = v.tier, seen = v.seen, stats = v.stats }
 		have, need = Quest.progress(facts, q)
 	end
-	local key = if q then string.format("%s:%d:%d", q.id, have, need) else ""
+	-- (a touch screen's card folds away to its title and progress at a tap on its title; a quest done always shows
+	-- its Claim)
+	local done = have >= need
+	local folded = not questOpen and not done
+	local key = if q then string.format("%s:%d:%d:%s:%d", q.id, have, need, if folded then "f" else "o", QUEST_W) else ""
+	local was = quest
+	local same = was ~= nil and q ~= nil and string.split(tostring(was:GetAttribute("Key") or ""), ":")[1] == q.id
 	if quest and quest:GetAttribute("Key") == key then
 		return
 	end
@@ -813,7 +1272,6 @@ local function updateQuest(v: Types.ClientView)
 	if q == nil then
 		return
 	end
-	local done = have >= need
 	local canvas = UIKit.canvas("Hud")
 	local w = QUEST_W
 	local textW = w - 10
@@ -821,17 +1279,36 @@ local function updateQuest(v: Types.ClientView)
 	local lines = math.clamp(math.ceil(UIKit.textWidth(q.text) / textW), 1, 4)
 	-- (a title too long for its line wraps onto a second one rather than run under the count: "Discover 12 unique
 	-- creatures", 2026-11-14)
-	local titleW = w - 44
-	local tl = math.clamp(UIKit.lines(q.title, titleW), 1, 2)
+	local titleW = w - 44 - (if not done then 9 else 0)
+	local tl = if folded then 1 else math.clamp(UIKit.lines(q.title, titleW), 1, 2)
 	local dy = (tl - 1) * 10
-	local h = 16 + lines * 10 + 16 + dy
+	local h = if folded then 14 else 16 + lines * 10 + 16 + dy
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(EDGE, CARD_Y), 2)
 	f.Name = "Quest"
 	f:SetAttribute("Key", key)
+	if not done then
+		PixelSprites.image(f, if folded then "arrow_down_t" else "arrow_up_t", UDim2.fromOffset(w - 10, 3), 5).Name = "Fold"
+		local tap = UIKit.button(f, "", UDim2.new(1, 0, 0, 13), UDim2.new(), function()
+			questOpen = folded
+			local cv = StateClient.view()
+			if cv then
+				updateQuest(cv)
+			end
+		end, { name = "QuestFold", ghost = true })
+		tap.ZIndex = 6
+	end
+	if folded then
+		PixelSprites.image(f, "mini_" .. q.icon, UDim2.fromOffset(3, 2), 3)
+		UIKit.text(f, q.title, UDim2.fromOffset(w - 50, 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3 })
+		UIKit.text(f, string.format("%d/%d", have, need), UDim2.fromOffset(28, 10), UDim2.fromOffset(w - 42, 2), { x = "right", color = UIKit.color("text_dim"), name = "Progress", z = 3 })
+		quest = f
+		stack()
+		return
+	end
 	PixelSprites.image(f, "mini_" .. q.icon, UDim2.fromOffset(3, 2), 3)
 	UIKit.text(f, q.title, UDim2.fromOffset(titleW, tl * 10), UDim2.fromOffset(16, 2), { color = UIKit.color("accent"), name = "Title", z = 3, wrap = tl > 1, y = "top" })
 	local which = string.format("%d/%d", i, #Quests.list)
-	UIKit.text(f, which, UDim2.fromOffset(26, 10), UDim2.fromOffset(w - 30, 2), { x = "right", color = UIKit.color("text_dim"), name = "Which", z = 3 })
+	UIKit.text(f, which, UDim2.fromOffset(26, 10), UDim2.fromOffset(w - 30 - (if not done then 9 else 0), 2), { x = "right", color = UIKit.color("text_dim"), name = "Which", z = 3 })
 	UIKit.text(f, q.text, UDim2.fromOffset(textW, lines * 10), UDim2.fromOffset(5, 14 + dy), { color = UIKit.color("text"), wrap = lines > 1, name = "Words", z = 3 })
 	local y = 15 + lines * 10 + 1 + dy
 	if done then
@@ -867,9 +1344,12 @@ local function updateQuest(v: Types.ClientView)
 		b.ZIndex = 4
 	end
 	quest = f
-	-- a new quest slides in from the left
+	-- a new quest slides in from the left (one only folded or opened stays put)
 	f.Position = UDim2.fromOffset(-w - 8, CARD_Y)
 	stack()
+	if same then
+		return
+	end
 	local to = f.Position
 	f.Position = UDim2.fromOffset(-w - 8, to.Y.Offset)
 	UIKit.tween(f, 0.22, { Position = to })
@@ -898,7 +1378,17 @@ local function tipsLift(): number
 		local chip = v ~= nil and not (v.passes and v.passes.FreeDecor)
 		return BuildUI.trayHeight() + (if chip then 18 else 12)
 	end
+	-- (a touch screen has no menu bar along the bottom: the note sits on the bottom edge)
+	if mobile() then
+		return EDGE + 2
+	end
 	return barH() + 2 * DOCK + EDGE + 4
+end
+-- A touch screen's note keeps left of Build and the jump button: centred on the screen when it fits, else pushed left.
+local function tipsRoom(): number
+	local jx0 = jumpRect()
+	local bb = buildBox
+	return math.floor(jx0) - GAP - (if bb then bb.Size.X.Offset + GAP else 0)
 end
 
 local function updateTips(v: Types.ClientView)
@@ -922,12 +1412,17 @@ local function updateTips(v: Types.ClientView)
 	-- width up to the jump button (it had the room left of the card there too, 59 px, and cut its words off after two
 	-- lines: "Shells pay / for..."). As many lines as its words need
 	local portrait = UIKit.phone() and s.Y > s.X
-	local room = if portrait then s.X - 64 elseif UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
+	local touch = mobile() and not BuildUI.isOpen()
+	local right = if touch then tipsRoom() else s.X
+	local room = if touch then right - EDGE elseif portrait then s.X - 64 elseif UIKit.phone() then s.X - CARD_W - 24 else s.X - 20
 	local want = UIKit.textWidth(text) + (if ok then 40 else 12)
 	local w = math.min(want, room)
 	local lines = math.max(1, UIKit.lines(text, w - (if ok then 36 else 2 * PAD)))
 	local h = 5 + 10 * lines
-	local left = if portrait then 10 elseif UIKit.phone() then math.floor((s.X - CARD_W - 12 - w) / 2) else math.floor((s.X - w) / 2)
+	local left = if touch then (if math.floor((s.X + w) / 2) <= right then math.floor((s.X - w) / 2) else math.max(EDGE, right - w))
+		elseif portrait then 10
+		elseif UIKit.phone() then math.floor((s.X - CARD_W - 12 - w) / 2)
+		else math.floor((s.X - w) / 2)
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.new(0, left, 1, -tipsLift()), 2)
 	f.AnchorPoint = Vector2.new(0, 1)
 	f.Name = "Tips"
@@ -1122,8 +1617,12 @@ local function rebuild()
 		end
 	end
 	offers, offerKey = nil, nil
-	card, treeCard, tips, quest, homeButton, visitButton, topBar = nil, nil, nil, nil, nil, nil, nil
+	card, treeCard, tips, quest, homeButton, visitButton, topBar, plusButton = nil, nil, nil, nil, nil, nil, nil, nil
+	treeBar, treeTime = nil, nil
 	CARD_W = if UIKit.phone() then 104 else 116
+	-- (a phone's left column narrower: right of the grid of squares it keeps clear of the founder in the middle)
+	QUEST_W = if mobile() and UIKit.phone() then 136 else 150
+	STATUS_W = QUEST_W
 	buildTop()
 	for name, said in chipSaid do
 		Hud.topChip(name, said.icon, said.text, said.color)
@@ -1145,6 +1644,8 @@ local function rebuild()
 end
 
 function Hud.start()
+	-- (each window shows its desktop shortcut, the key that shuts it again)
+	UIKit.setPanelKeys(KEYS)
 	Menus.init()
 	StoreUI.init()
 	FounderUI.init()
@@ -1181,6 +1682,33 @@ function Hud.start()
 	end)
 	UIKit.Resized:Connect(function()
 		rebuild()
+	end)
+	-- the desktop's shortcuts (KEYS, on the toolbar's key caps): a menu's key opens it, or shuts it when it's the one
+	-- open; never while typing (the chat, a code), in Build mode (its own keys), during a hatch or on a touch screen
+	UserInputService.InputBegan:Connect(function(input: InputObject, done: boolean)
+		if done or input.UserInputType ~= Enum.UserInputType.Keyboard or UIKit.touch() or BuildUI.isOpen() or HatchScene.isOpen() then
+			return
+		end
+		if UserInputService:GetFocusedTextBox() then
+			return
+		end
+		for panel, key in KEYS do
+			if input.KeyCode == (Enum.KeyCode :: any)[key] then
+				if panel == "hatch" and not hatchShown then
+					return
+				end
+				Audio.play("click")
+				if panel == "build" then
+					UIKit.closePanel()
+					BuildUI.open()
+				elseif UIKit.currentPanel() == panel then
+					UIKit.closePanel()
+				else
+					UIKit.openPanel(panel)
+				end
+				return
+			end
+		end
 	end)
 	-- Build mode has its own tray: the menu bar and the cards step aside; the tips stay (lifted over the tray)
 	local function aside()
@@ -1237,8 +1765,8 @@ function Hud.start()
 		-- the menu bar's Build button pulses yellow (a shine across it now and then, its words white on it) while a tip
 		-- asks for something built and Build mode is shut: the hut's tip and the workplace's (the tips of 2026-11-21:
 		-- "Guide the player to put down a hut", "Guide the player to put down a workspace")
-		local bb = if bar then bar:FindFirstChild("Menu_build") else nil
-		if bb and bb:IsA("GuiButton") then
+		local bb = buildBtn
+		if bb and bb.Parent then
 			local tv = StateClient.view()
 			local want = tv ~= nil and (tv.tut == Plot.TIP_HUT or tv.tut == Plot.TIP_WORK) and not BuildUI.isOpen() and UIKit.currentPanel() == nil
 			local plate = bb:FindFirstChild("Plate")
@@ -1256,9 +1784,10 @@ function Hud.start()
 				bb:SetAttribute("TipPulse", true)
 			elseif bb:GetAttribute("TipPulse") then
 				bb:SetAttribute("TipPulse", nil)
-				UIKit.setButtonColor(bb, UIKit.color("button"))
+				local own = buildBox ~= nil -- (a touch screen's own Build: mint, its words white)
+				UIKit.setButtonColor(bb, UIKit.color(if own then "button_ok" else "button"))
 				if words and words:IsA("TextLabel") then
-					UIKit.setTextColor(words, UIKit.color("accent"))
+					UIKit.setTextColor(words, UIKit.color(if own then "text" else "accent"))
 				end
 			end
 		end
@@ -1272,7 +1801,7 @@ function Hud.start()
 			if tb.Size.X.Offset ~= w then
 				tb.Size = UDim2.fromOffset(w, 1)
 			end
-			local text = "New eggs in " .. clock(left)
+			local text = if tt:GetAttribute("Short") then clock(left) else "New eggs in " .. clock(left)
 			if tt.Text ~= text then
 				tt.Text = text
 			end

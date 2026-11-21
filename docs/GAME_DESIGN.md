@@ -546,7 +546,8 @@ floor, it just looks noisy", 2026-11-14),
     fold; the sweep of 2026-11-19).
   - Interactive things stay inside the safe area (the notch, Roblox's top bar): the HUD, panels and notices sit in
     ScreenGuis that keep Roblox's core UI insets. The game is landscape only (StarterGui `LandscapeSensor`).
-  - On a phone the menu bar is icons only, square, so it stays clear of Roblox's jump button at the bottom right.
+  - On a phone the menu bar was icons only, square, so it stayed clear of Roblox's jump button at the bottom right;
+    since 2026-11-21 a touch screen has its own layout (2.1).
 
   > The request (2026-11-14, with a picture of Random Bakery's HUD: a top bar of chips on one black see-through
   > rounded panel, "Winter · 2 h" on a second one under it): "make the ui appear like this instead, with a black transparent background and make it neater. also, zoom into the
@@ -660,6 +661,85 @@ floor, it just looks noisy", 2026-11-14),
 
 - **One source:** `scripts/gen_art.py` holds every sprite as a text mask and makes `UI/ArtData` (and a contact sheet
   with `--png`); the client draws each sprite once into an EditableImage shown pixelated (or from 1 px rects).
+
+### 2.1 The HUD and the menus on each screen (`UI/Hud`, `UIKit.tabbed`, `UIKit.tooltip`, `Pixel/ScreenSize`)
+
+> The request (2026-11-21, with a screenshot of a phone held sideways): "There is a bug causing a bar to appear at the
+> right. Also, rearrange and redo the UI on mobile and tablet. Reference other mobile tycoon games in landscape and
+> replicate their UI design." Later that day: "You are also allowed to make new sprites and details specifically for
+> the phone ui. Try to make it for all memus and ui everywhere on mobile", then "Similarly, research on popular desktop
+> tycoons and replicate their UIs".
+
+**The bar at the right.** On a notched phone held sideways Roblox keeps a safe margin at each side, and there
+`Camera.ViewportSize` leaves those margins out. The pixel layer (a ScreenGui that ignores every inset, drawn from the
+screen's left edge) took its width from the viewport, so it came out two margins too narrow and Roblox's own 3D view
+showed through in a strip down the right. `Pixel/ScreenSize.full` now measures the whole screen with a probe ScreenGui
+that ignores every inset too, and takes the larger of it and the viewport; the camera's fit, the pixel layer, both
+painted skies, the loading card and UIKit's full-screen canvases read it, and it fires `Changed` when it changes. A
+canvas kept inside the safe area knows how far right of the screen's edge it starts (`UIKit.canvasOrigin`). The
+preview's `notch` device (932 x 430, 47 px margins, a viewport that leaves them out) checks it: its log says the pixel
+layer covers the screen.
+
+**What mobile tycoons and simulators share in landscape** (looked at for this: Pet Simulator 99, Grow a Garden, Bee
+Swarm Simulator, Adopt Me, Tycoon games on Roblox, and Roblox's own touch controls):
+- the money in a pill at the top left, with a "+" that opens the store;
+- the menus as big square buttons down the left side, two columns, kept above the lower third;
+- the store, the gifts and anything on a timer as squares on the right, a dot or a timer on each;
+- the main action as one big coloured button near the right thumb, beside the jump button;
+- the bottom left kept empty for the thumbstick (Roblox's starts anywhere in the left 40%, bottom two thirds) and
+  nothing under the jump button (70 px at 95 from the right and 90 from the bottom on a small screen, 120 px at 170 and
+  210 on a big one);
+- cards that fold away, hints at the bottom centre, notices at the top centre;
+- full-screen menus with a big red close button at the top right, tabs down the side as big tiles.
+
+**Phones and tablets** (a touch screen with no mouse, `UIKit.touch`; a phone has a short side of 500 px or less):
+- The top bar: the coins with a mint "+" (the Store), the season and the weather.
+- Down the left, under it: a grid of dark glass squares two wide, 22 UI px on a phone (44 screen px) and 28 on a
+  tablet with each one's name under it: Driftlings, the Hatchery once it opens, Index, Looks, Top, Settings. Each shows
+  its big icon. A held finger shows a tooltip with its name and what it opens.
+- At the top right: the island card, folded on a phone to its name and the coins a minute (a tap opens it), open on a
+  tablet. Under it a row of three squares across the card's width: Eggs (the tree's big icon over a bar running down to
+  the next eggs, the time under it), Gifts (its red dot) and Store. The offers (Starter Pack, the group) under them,
+  moved left of the jump button when they would reach it.
+- Build: a big mint button with the house and its name, beside the jump button and level with it.
+- Right of the grid: the status lines and the quest's card, which folds to its title and progress at a tap on its
+  title (a quest done always shows its Claim). On a screen too narrow for that they go under everything.
+- The tips at the bottom centre, left of Build. Nothing in the bottom left.
+- The camera keeps only Roblox's top bar clear on a phone, so the founder stands in the middle of what is left.
+
+**What the PC builders share** (RollerCoaster Tycoon and OpenRCT2, Planet Coaster, Parkitect, Two Point Hospital and
+Campus, Cities: Skylines, Islanders, Stardew Valley's menus; on Roblox, Theme Park Tycoon 2, Restaurant Tycoon 2, Retail
+Tycoon 2, Pet Simulator 99 and Bee Swarm Simulator played with a mouse):
+- a resource bar: the money and how fast it comes, the date, season and weather, the park's rating or level;
+- a toolbar of named icon buttons along the bottom, each with a tooltip and a keyboard shortcut;
+- the objectives and the park's details docked to the sides, each able to fold away;
+- windows with a title bar that drags, tabs along the top and a close X at the top right;
+- messages stacking in a corner;
+- tooltips with full detail on hover.
+
+**Desktop:**
+- The top bar runs the screen's width: the coins, the coins a minute in green, the season, the weather; at its right
+  end the island's name and level ("Castaway Cay · Level 3/20") and its charm. Home or Visit sit in it after the
+  weather.
+- The toolbar along the bottom: Build, Driftlings, the Hatchery, Index, Looks, Gifts, Top, Store, Settings, each its
+  big icon and its name, its key on a small teal key cap at its corner (B, P, H, N, L, G, T, M, K; E opens the tree's
+  panel). The letters keep clear of Roblox's own (W A S D, I and O, Space, Tab, the slash). A key shuts its menu when
+  it is the one open, and does nothing while typing, in Build mode or during a hatch. Hovering a button shows its
+  tooltip: name, key, what it opens.
+- The island card and the tree's card docked at the right under the top bar, the status lines and the quest's card at
+  the left; the island card and the quest's card fold at a click on their titles.
+- Notices stack in the bottom right corner over the toolbar's height, the newest lowest.
+- A menu's window drags by its awning (in whole UI px, never off the screen) and shows its key on a cap left of
+  its close mark. On a touch screen the Driftlings list's Move, Work and Sell and My founder's tabs are taller.
+
+**The sheets.** On a touch screen the close button is 22 UI px, coral red with a big cream cross; the awning shows the
+sheet's big icon; the Store's, the Rewards' and the Top sheet's tabs are a rail of tiles down the left side
+(`UIKit.tabbed`: icon over name, the picked one teal, a red dot on one with something waiting), the tab's page beside
+them. On a desktop the tabs run along the top as before.
+
+**The big icons** (`big_` in `scripts/gen_art.py`, 15 x 15): Driftlings, Index, Looks, Top, Settings, the Hatchery,
+Gifts, Store, Eggs (the tree), Build and the close cross, each drawn at its own size with the small icons' ramps, lit
+from the top left inside a one pixel outline. The squares, the toolbar and the touch awnings show them.
 
 ## 3. The island's turns and the sea's days (`Logic/Island`, `WorldClock`)
 

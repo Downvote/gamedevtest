@@ -1798,6 +1798,30 @@ it.
 ## 10. Interface
 
 ### 10.1 `UIKit`
+The screens' layouts (GAME_DESIGN 2.1, 2026-11-21): `touch()` (touch and no mouse) picks the touch layout, `phone()`
+the phone's sizes. `canvasOrigin(root)` gives a root's canvas top left in full-screen px, `AbsolutePosition.X` added for a
+root kept inside a notched phone's safe area. `tabbed(body, items, picked, onPick, prefix?) -> (page, top)`: a desktop's
+tabs across the top (`tabs`, the page the body, `top` under them), a touch screen's rail of tiles down the left
+(`Tab_<id>`, icon over name, a dot on one with something waiting), the page a `TabBody` frame beside it with its own
+`W`/`H`. `tooltip(target, title, detail?, key?)`: a glass card over the target, shown on hover after 0.25 s on a desktop
+and while a finger holds it on a touch screen (`onHold`); `hideTip()`. `keyCap(parent, key, pos, z?) -> Frame`: a
+shortcut's letter on a teal cap (`Key`, raw text). `setPanelKeys(map)`: a desktop window's shortcut shown left of its
+close mark (the HUD hands over its key map). `relayout()`: every canvas laid out again and `Resized` fired (a screen
+change with no signal: the simulator's device switch). On a touch screen the close mark is 22 UI px on coral
+(`button_close`) with `big_close`, and the awning shows `big_<icon>` when one is drawn; on a desktop the awning drags
+the window (in whole UI px, clamped to the canvas). `NOTICE_FOOT` (36) and `NOTICE_W` (200): a desktop's notices stack
+in the bottom right corner, the newest lowest, `NOTICE_FOOT` over the canvas's bottom, at most `NOTICE_W` wide;
+`setNoticeTop` moves only a touch screen's (top centred) stack.
+`Pixel/ScreenSize`: `full() -> Vector2` (the whole screen in UI units: the larger of `Camera.ViewportSize` and a probe
+ScreenGui that ignores every inset, so a notched phone's side margins count), `Changed` (fires when it changes),
+`start()`. `CameraController.screenSize`, `PixelRenderer`'s layer, `SkyBackdrop`, `HatchBackdrop`, UIKit's viewport and
+`LoadingCard` read it (the right-edge bar of 2026-11-21).
+`UI/Hud` on a touch screen: `MenuBar` (the left grid of `Menu_<panel>` squares: pals, hatch, index, looks, top,
+settings), `MenuSide` (`Menu_rewards`, `Menu_store`), `TreeCard` as a square (`TreeOpen`, `TreeBar`, `TreeNext` showing
+the time alone), `BuildBox` (`Menu_build`, mint, beside the jump button), `CoinsPlus` on the coins chip, `CardFold` on
+the island card and `QuestFold` on the quest's card (both fold on every screen). On a desktop: `TopBar` spans the
+canvas with `Chip_rate`, `Chip_isle` and `Chip_charm` besides the coins, season and weather; `MenuBar`'s buttons carry
+`Key` caps and tooltips; the keys (B P H N L G T M K, E for the tree) open and shut their menus.
 Roots `World` (DisplayOrder 7, full screen: popups over the islands), `Hud` (10), `Modal` (20), `Popup` (25), each
 with a `Canvas` frame in UI px (UIScale K) on the screen's grid. `color(key)`, `inkOf(c)` (an outline's colour
 beside `c`: 0.45 of it plus 0.3 of the UI's ink, the world's step; every outline the UI draws takes it), `hex`, `P`, `size(root)`, `phone`,

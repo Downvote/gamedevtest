@@ -31,6 +31,7 @@ local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local StateClient = require(script.Parent.StateClient)
 local DisplayScale = require(script.Parent.Parent.Pixel.DisplayScale)
+local ScreenSize = require(script.Parent.Parent.Pixel.ScreenSize)
 
 export type Room = { x0: number, x1: number, z0: number, z1: number, y1: number }
 -- A microgame's stage: its origin on the ground (the ray plane's anchor), the points its picture must show (x, y, z
@@ -82,9 +83,10 @@ local savedZoom: number? = nil -- the notch the profile last said (a change ther
 local stage: Stage? = nil
 local stageShift = Vector3.zero -- an endless islet's camera: how far along the stage looks (setStageShift)
 
+-- (the whole screen, a notched phone's safe-area margins too: Camera.ViewportSize left them out there, and the
+-- pixel layer drawn from the screen's left edge stopped short of the right one: Pixel/ScreenSize)
 local function screenSize(): Vector2
-	local cam = Workspace.CurrentCamera
-	local v = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	local v = ScreenSize.full()
 	return Vector2.new(math.max(320, v.X), math.max(240, v.Y))
 end
 
@@ -626,6 +628,10 @@ function CameraController.start()
 		CameraController.refit()
 	end)
 	local cam = Workspace.CurrentCamera
+	ScreenSize.start()
+	ScreenSize.Changed:Connect(function()
+		CameraController.refit()
+	end)
 	if cam then
 		cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			CameraController.refit()

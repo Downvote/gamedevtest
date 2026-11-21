@@ -610,6 +610,8 @@ class Renderer:
             small = min(self.W, self.H) <= 500
             size = 70 if small else 120
             jx, jy = (self.W - 95, self.H - 90) if small else (self.W - 170, self.H - 210)
+            # (inside a notched phone's safe area, as Roblox's TouchGui is: the "notch" device's side margins)
+            jx -= int(meta.get("safe", 0) or 0)
             tile = Image.new("RGBA", (size, size), (0, 0, 0, 0))
             td = ImageDraw.Draw(tile)
             td.ellipse((0, 0, size - 1, size - 1), fill=(255, 255, 255, 45), outline=(255, 255, 255, 140), width=3)

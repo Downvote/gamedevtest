@@ -1019,7 +1019,9 @@ local function rootRect(d)
 		if full then
 			return 0, 0, vp.X, vp.Y
 		end
-		return 0, E.inset, vp.X, vp.Y - E.inset
+		-- (E.safe: a notched phone held sideways keeps this many px clear at each side for an inset ScreenGui)
+		local sx = E.safe or 0
+		return sx, E.inset, vp.X - 2 * sx, vp.Y - E.inset
 	end
 	-- BillboardGui / SurfaceGui: their own pixel size
 	local s = d.props.Size
@@ -1061,7 +1063,7 @@ G.rootOf = rootOf
 
 local function vpKey()
 	local vp = E.guiViewport or E.viewport
-	return vp.X .. "x" .. vp.Y .. "/" .. E.inset
+	return vp.X .. "x" .. vp.Y .. "/" .. E.inset .. "/" .. (E.safe or 0)
 end
 
 -- Lays out the root of d when needed; returns d.lay (nil when d is not under a LayerCollector).

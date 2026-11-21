@@ -528,7 +528,7 @@ function C.dump(player, label, extra)
 		end
 	end)
 	print("@@FRAME " .. label)
-	print(string.format('@@META {"w":%d,"h":%d,"inset":%d,"touch":%s,"touchControls":%s,"jump":%s,"t":%s,"label":%s%s}', vp.X, vp.Y, E.inset, if touch then "true" else "false", if touchControls then "true" else "false", if jump then "true" else "false", jnum(E.SIM.now - E.t0), jstr(label), extra or ""))
+	print(string.format('@@META {"w":%d,"h":%d,"inset":%d,"touch":%s,"touchControls":%s,"jump":%s,"safe":%d,"t":%s,"label":%s%s}', vp.X, vp.Y, E.inset, if touch then "true" else "false", if touchControls then "true" else "false", if jump then "true" else "false", E.safe or 0, jnum(E.SIM.now - E.t0), jstr(label), extra or ""))
 	for _, img in imagesShown(player) do
 		emitImage(img)
 	end

@@ -18,7 +18,8 @@
 #             | picons[=<id>,<id>] (the game passes' and products' icons' subjects: product_icons.sh)
 #             | gthumbs[=<shot>,<shot> | =cast | =cast:<id>,<id>] (the game's thumbnails and icon: game_thumbs.sh)
 #             (preview.luau's SCEN; all = island village island3 sky build day)
-#   devices:  space-separated list, default "desktop phone" (also: laptop tablet portrait android iphone8 desktop1440)
+#   devices:  space-separated list, default "desktop phone" (also: laptop tablet notch portrait android iphone8 desktop1440;
+#             notch: a notched phone held sideways, its safe-area margins and a camera viewport narrower than the screen)
 #   tier:     auto (default, what the game picks: high) | low | medium | high | off
 # Environment:
 #   REPO=<dir>          Rojo tree to boot (default: this repository; read only)

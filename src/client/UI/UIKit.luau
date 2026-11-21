@@ -31,6 +31,7 @@ local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local CharacterModels = require(ReplicatedStorage.Shared.Models.CharacterModels)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local ScreenSize = require(script.Parent.Parent.Pixel.ScreenSize)
 local PixelText = require(script.Parent.Parent.Pixel.PixelText)
 local Snapshot = require(script.Parent.Parent.Pixel.Snapshot)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
@@ -83,8 +84,8 @@ local function playerGui(): PlayerGui
 end
 
 local function viewport(): Vector2
-	local cam = Workspace.CurrentCamera
-	return if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	-- (the whole screen, a notched phone's margins too: Pixel/ScreenSize)
+	return ScreenSize.full()
 end
 
 local function insetTop(): number
@@ -253,12 +254,15 @@ function UIKit.setWallet(get: () -> number?, changed: any)
 	walletGet, walletChanged = get, changed
 end
 
--- The top-left of a root's canvas in full-screen px (the world's art grid starts at the screen's corner).
+-- The top-left of a root's canvas in full-screen px (the world's art grid starts at the screen's corner). A root
+-- kept inside the safe area (the Hud, Modal, Popup) starts right of a notched phone's left margin in landscape: its
+-- AbsolutePosition says how far.
 function UIKit.canvasOrigin(name: string): Vector2
 	local gui = UIKit.root(name)
 	local c = recs[gui].canvas
 	local top = if gui.IgnoreGuiInset then 0 else insetTop()
-	return Vector2.new(0, top + c.Position.Y.Offset)
+	local left = if gui.IgnoreGuiInset then 0 else math.max(0, gui.AbsolutePosition.X)
+	return Vector2.new(left, top + c.Position.Y.Offset)
 end
 
 local function relayoutAll()
@@ -267,6 +271,11 @@ local function relayoutAll()
 		layoutCanvas(rec)
 	end
 	scheduleResized()
+end
+-- Every canvas laid out again and the UI told (UIKit.Resized): for a screen change that came with no signal (the
+-- simulator's switch between a desktop, a phone and a tablet).
+function UIKit.relayout()
+	relayoutAll()
 end
 
 ------------------------------------------------------------------ text
@@ -1245,7 +1254,31 @@ local noticeList: { Frame } = {}
 -- place, and three notices at once (the titles a hatch can bring) all ended up on one spot, one over another.
 -- (where the notices start: under the HUD's day banner while one shows over their spot, else 24: UIKit.setNoticeTop)
 local noticeTop: number? = nil
+-- (a desktop stacks them in the bottom right corner instead, the newest lowest, over the menu bar's height: the PC
+-- builders' message corner, GAME_DESIGN 2.1)
+UIKit.NOTICE_FOOT = 36
+UIKit.NOTICE_W = 200
+local function cornerNotices(): boolean
+	return not UIKit.touch() and not UIKit.phone()
+end
 local function restackNotices(new: Frame?)
+	if cornerNotices() then
+		local s = UIKit.size("Popup")
+		local cy = s.Y - UIKit.NOTICE_FOOT
+		for i = #noticeList, 1, -1 do
+			local n = noticeList[i]
+			cy -= n.Size.Y.Offset
+			local x = s.X - 6 - n.Size.X.Offset
+			if n == new then
+				n.Position = UDim2.fromOffset(x + 10, cy)
+				UIKit.tween(n, 0.18, { Position = UDim2.fromOffset(x, cy) })
+			else
+				UIKit.tween(n, 0.12, { Position = UDim2.fromOffset(x, cy) })
+			end
+			cy -= 4
+		end
+		return
+	end
 	local y = noticeTop or 24
 	for _, n in noticeList do
 		local x = n.Position.X.Offset
@@ -1288,6 +1321,11 @@ type PanelDef = {
 	props: { string }?,
 }
 local panels: { [string]: PanelDef } = {}
+-- (a desktop's shortcut for each panel, set by the HUD: a key cap by the close mark, GAME_DESIGN 2.1)
+local panelKeys: { [string]: string } = {}
+function UIKit.setPanelKeys(keys: { [string]: string })
+	panelKeys = keys
+end
 local openName: string? = nil
 local openFrame: Frame? = nil
 local openSeq = 0
@@ -1460,23 +1498,68 @@ function UIKit.openPanel(name: string, arg: any?)
 	head.ZIndex = 2
 	head.Parent = frame
 	awning(head, sz.X, aw)
+	-- a desktop's window moves when its awning is dragged, as a PC game's windows do (GAME_DESIGN 2.1), in whole UI px
+	-- and never off the screen; a touch screen's sheet stays put
+	if not touch then
+		local grab: Vector2? = nil
+		local from = Vector2.zero
+		head.Active = true
+		head.InputBegan:Connect(function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				grab = Vector2.new(input.Position.X, input.Position.Y)
+				from = Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
+			end
+		end)
+		local moved = UserInputService.InputChanged:Connect(function(input: InputObject)
+			local g = grab
+			if g and input.UserInputType == Enum.UserInputType.MouseMovement then
+				local dx = math.floor((input.Position.X - g.X) / K + 0.5)
+				local dy = math.floor((input.Position.Y - g.Y) / K + 0.5)
+				frame.Position = UDim2.fromOffset(math.clamp(from.X + dx, 0, math.max(0, s.X - sz.X)), math.clamp(from.Y + dy, 0, math.max(0, s.Y - sz.Y)))
+			end
+		end)
+		local ended = UserInputService.InputEnded:Connect(function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				grab = nil
+			end
+		end)
+		shade.Destroying:Connect(function()
+			moved:Disconnect()
+			ended:Disconnect()
+		end)
+	end
 	local tx = 6
 	if def.icon then
-		local ic = PixelSprites.image(head, "mini_" .. def.icon, UDim2.fromOffset(6, 5 + (aw - AWNING) // 2), 5)
+		-- (a touch screen's awning shows the sheet's big icon where one is drawn: the 15 px set for phones and tablets)
+		local big = touch and PixelSprites.has("big_" .. def.icon)
+		local ic = if big
+			then PixelSprites.image(head, "big_" .. def.icon, UDim2.fromOffset(5, math.floor((aw - 15) / 2)), 5)
+			else PixelSprites.image(head, "mini_" .. def.icon, UDim2.fromOffset(6, 5 + (aw - AWNING) // 2), 5)
 		ic.Name = "Icon"
-		tx = 20
+		tx = if big then 23 else 20
 	end
 	local ty = math.floor((aw - 12) / 2)
 	UIKit.text(head, def.title, UDim2.new(0, UIKit.textWidth(def.title) + 4, 0, 12), UDim2.fromOffset(tx, ty), { color = UIKit.color("text"), kind = "outline", under = UIKit.color("ink"), name = "Title", z = 5 })
-	-- the exit: 15 px, or 20 on a touch screen (its pad makes it a fingertip wide)
-	local cs = if touch then 20 else 15
-	local right = sz.X - cs - 4
+	-- the exit: 15 px; on a touch screen 22 (a fingertip, 44 screen px), coral red with the big cross, top right where
+	-- mobile games keep it (the request of 2026-11-21: "Try to make it for all memus and ui everywhere on mobile")
+	local cs = if touch then 22 else 15
+	local right = sz.X - cs - (if touch then 2 else 4)
 	local close = UIKit.button(head, "", UDim2.fromOffset(cs, cs), UDim2.fromOffset(right, math.floor((aw - cs) / 2)), function()
 		Audio.play("close")
 		UIKit.closePanel()
-	end, { color = UIKit.color("awning_dark"), name = "Close" })
+	end, { color = UIKit.color(if touch then "button_close" else "awning_dark"), name = "Close" })
 	close.ZIndex = 5
-	PixelSprites.image(close, "mini_close", UDim2.fromOffset(math.floor((cs - 11) / 2), math.floor((cs - 11) / 2) - 1), 6)
+	local xs, xn = "mini_close", 11
+	if touch and PixelSprites.has("big_close") then
+		xs, xn = "big_close", 15
+	end
+	PixelSprites.image(close, xs, UDim2.fromOffset(math.floor((cs - xn) / 2), math.floor((cs - xn) / 2) - (if touch then 0 else 1)), 6)
+	-- (a desktop's window shows its shortcut on a key cap left of the close mark: the key shuts it too)
+	local pk = panelKeys[name]
+	if pk and not touch then
+		right -= 12
+		UIKit.keyCap(head, pk, UDim2.fromOffset(right + 1, math.floor((aw - 10) / 2)), 6)
+	end
 	-- the shells, on a touch screen (the top bar's chip is under the sheet there): kept up to date while it's open
 	if touch and walletGet then
 		local get = walletGet :: () -> number?
@@ -1575,7 +1658,8 @@ function UIKit.refreshPanel()
 	local def = panels[name]
 	local body = f:FindFirstChild("Frame") and (f :: any).Frame:FindFirstChild("Body")
 	if def and body then
-		local list = body:FindFirstChild("List")
+		-- (the list may sit in a tab's frame right of a touch screen's rail of tabs: UIKit.tabbed)
+		local list = body:FindFirstChild("List", true)
 		local pos = if list and list:IsA("ScrollingFrame") then list.CanvasPosition else nil
 		UIKit.clear(body)
 		local ok, err = pcall(function()
@@ -1584,7 +1668,7 @@ function UIKit.refreshPanel()
 		if not ok then
 			warn("[UIKit] panel " .. name .. " failed: " .. tostring(err))
 		end
-		local nl = body:FindFirstChild("List")
+		local nl = body:FindFirstChild("List", true)
 		if pos and nl and nl:IsA("ScrollingFrame") then
 			nl.CanvasPosition = pos
 		end
@@ -1645,6 +1729,150 @@ function UIKit.tabs(parent: Instance, items: { Tab }, picked: string, y: number,
 	return (row + 1) * (UIKit.TAB_H + 2)
 end
 
+-- A tooltip on `target` (GAME_DESIGN 2.1): on a desktop it shows a moment after the mouse comes over it and goes when
+-- the mouse leaves, on a touch screen while a finger holds it (UIKit.onHold). A glass card over the target (under it
+-- when there is no room above): its title in the accent, its key cap if it has one (the desktop's shortcut), and a
+-- line or two of detail in the quiet colour.
+local tipFrame: Frame? = nil
+local tipOwner: GuiObject? = nil
+local function hideTip(owner: GuiObject?)
+	if owner and tipOwner ~= owner then
+		return
+	end
+	local f = tipFrame
+	tipFrame, tipOwner = nil, nil
+	if f then
+		f:Destroy()
+	end
+end
+UIKit.hideTip = function()
+	hideTip(nil)
+end
+-- A key cap: the key's letter, white on the dark teal of the awnings, a darker step round it (the desktop's shortcuts).
+function UIKit.keyCap(parent: Instance, key: string, pos: UDim2, z: number?): Frame
+	local col = UIKit.color("awning_dark")
+	local cap = UIKit.rect(parent, UDim2.fromOffset(9, 10), pos, UIKit.inkOf(col), (z or 6))
+	cap.Name = "Key"
+	UIKit.rect(cap, UDim2.fromOffset(7, 8), UDim2.fromOffset(1, 1), col, (z or 6) + 1).Name = "Face"
+	UIKit.text(cap, key, UDim2.fromOffset(9, 10), UDim2.fromOffset(1, 0), { x = "center", raw = true, kind = "plain", z = (z or 6) + 2, name = "Letter" })
+	return cap
+end
+function UIKit.tooltip(target: GuiObject, title: string, detail: string?, key: string?)
+	local function show()
+		hideTip(nil)
+		if target.Parent == nil or not target.Visible then
+			return
+		end
+		local canvas = UIKit.canvas("Popup")
+		local s = UIKit.size("Popup")
+		local tw = UIKit.textWidth(title) + (if key then 13 else 0)
+		local w = math.min(math.max(tw, if detail then UIKit.textWidth(detail) else 0) + 10, 170)
+		w = math.max(w, tw + 10)
+		local dl = if detail then math.max(1, UIKit.lines(detail, w - 10)) else 0
+		local h = 14 + dl * 10 + (if dl > 0 then 2 else 0)
+		local cp = canvas.AbsolutePosition
+		local tx = math.floor((target.AbsolutePosition.X - cp.X) / K + 0.5)
+		local ty = math.floor((target.AbsolutePosition.Y - cp.Y) / K + 0.5)
+		local th = math.floor(target.AbsoluteSize.Y / K + 0.5)
+		local tWide = math.floor(target.AbsoluteSize.X / K + 0.5)
+		local x = math.clamp(tx + math.floor((tWide - w) / 2), 2, math.max(2, s.X - w - 2))
+		local y = ty - h - 4
+		if y < 2 then
+			y = ty + th + 4
+		end
+		local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, y), 2)
+		f.Name = "Tooltip"
+		f.ZIndex = 30
+		UIKit.text(f, title, UDim2.fromOffset(UIKit.textWidth(title) + 2, 10), UDim2.fromOffset(5, 2), { color = UIKit.color("accent"), z = 32, name = "Title" })
+		if key then
+			UIKit.keyCap(f, key, UDim2.fromOffset(w - 13, 2), 32)
+		end
+		if detail then
+			UIKit.text(f, detail, UDim2.fromOffset(w - 10, dl * 10), UDim2.fromOffset(5, 13), { color = UIKit.color("text_dim"), z = 32, wrap = dl > 1, name = "Detail" })
+		end
+		tipFrame, tipOwner = f, target
+	end
+	if UIKit.touch() then
+		UIKit.onHold(target, show, function()
+			hideTip(target)
+		end)
+	else
+		local over = 0
+		target.MouseEnter:Connect(function()
+			over += 1
+			local mine = over
+			task.delay(0.25, function()
+				if over == mine then
+					show()
+				end
+			end)
+		end)
+		target.MouseLeave:Connect(function()
+			over += 1
+			hideTip(target)
+		end)
+	end
+	target.Destroying:Connect(function()
+		hideTip(target)
+	end)
+end
+
+-- A sheet's tabs where they suit the screen: across its top on a desktop (UIKit.tabs), down its left side on a touch
+-- screen, a rail of tiles as mobile games' shops have them (each its icon over its name, a finger's size at least, the
+-- picked one teal, a red dot on one with something waiting). Returns the frame the tab's content goes in (the body, or
+-- a frame right of the rail that knows its own width and height, UIKit.bodyWidth) and the y the content starts at.
+function UIKit.tabbed(body: Frame, items: { Tab }, picked: string, onPick: (id: string) -> (), prefix: string?): (Frame, number)
+	if not UIKit.touch() then
+		return body, UIKit.tabs(body, items, picked, 0, onPick, prefix) + 3
+	end
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local phone = UIKit.phone()
+	local gap = 2
+	local n = math.max(1, #items)
+	local th = math.min(if phone then 26 else 32, math.floor((H - (n - 1) * gap) / n))
+	local rw = 0
+	for _, it in items do
+		rw = math.max(rw, UIKit.textWidth(it.text) + 6)
+	end
+	rw = math.clamp(rw, 40, if phone then 60 else 68)
+	for i, it in items do
+		local on = it.id == picked
+		local id = it.id
+		local b = UIKit.button(body, "", UDim2.fromOffset(rw, th), UDim2.fromOffset(0, (i - 1) * (th + gap)), function()
+			if id ~= picked then
+				onPick(id)
+			end
+		end, { name = (prefix or "Tab_") .. id, color = if on then UIKit.color("button") else UIKit.color("plate_light") })
+		b.ZIndex = 4
+		local big = not phone and it.icon ~= nil and PixelSprites.has("big_" .. it.icon)
+		local isz = if big then 15 else 11
+		if it.icon then
+			PixelSprites.image(b, (if big then "big_" else "mini_") .. it.icon, UDim2.fromOffset(math.floor((rw - isz) / 2), math.max(1, th - isz - 12)), 5).Name = "Icon"
+		end
+		local words = b:FindFirstChild("Words")
+		if words and words:IsA("TextLabel") then
+			words.Size = UDim2.new(1, -2, 0, 10)
+			words.Position = UDim2.fromOffset(1, th - 11)
+			UIKit.setText(words, it.text)
+		end
+		if it.dot then
+			local d = px(b, rw - 5, 0, 5, 5, UIKit.inkOf(UIKit.color("bad")), 6, "Dot")
+			px(d, 1, 1, 3, 3, UIKit.color("bad"), 6)
+		end
+	end
+	local c = Instance.new("Frame")
+	c.Name = "TabBody"
+	c.BackgroundTransparency = 1
+	c.BorderSizePixel = 0
+	c.Position = UDim2.fromOffset(rw + 4, 0)
+	c.Size = UDim2.fromOffset(W - rw - 4, H)
+	c.ZIndex = 2
+	c:SetAttribute("W", W - rw - 4)
+	c:SetAttribute("H", H)
+	c.Parent = body
+	return c, 0
+end
+
 -- A heading on a sheet: its mini icon, the words in a light teal, a little wave after them and, at the
 -- right, a note (`right`: "3 of 8", a timer). Returns the label, the note and the height (12).
 function UIKit.heading(parent: Instance, text: string, y: number, icon: string?, right: string?): (TextLabel, TextLabel?, number)
@@ -1690,7 +1918,7 @@ function UIKit.notice(text: string, color: Color3?, seconds: number?)
 	end
 	local canvas = UIKit.canvas("Popup")
 	local s = UIKit.size("Popup")
-	local w = math.min(UIKit.textWidth(text) + 14, s.X - 16)
+	local w = math.min(UIKit.textWidth(text) + 14, s.X - 16, if cornerNotices() then UIKit.NOTICE_W else math.huge)
 	-- (as many lines as the words take at that width: a long one on a narrow phone can need three)
 	local lines = math.max(1, UIKit.lines(text, w - 12))
 	local h = 6 + 10 * lines
