@@ -729,7 +729,8 @@ Tycoon 2, Pet Simulator 99 and Bee Swarm Simulator played with a mouse):
 - The island card and the tree's card docked at the right under the top bar, the status lines and the quest's card at
   the left; the island card and the quest's card fold at a click on their titles.
 - Notices stack in the bottom right corner over the toolbar's height, the newest lowest.
-- A menu's window drags by its awning (in whole UI px, never off the screen).
+- A menu's window drags by its awning (in whole UI px, never off the screen) and shows its key on a cap left of
+  its close mark. On a touch screen the Driftlings list's Move, Work and Sell and My founder's tabs are taller.
 
 **The sheets.** On a touch screen the close button is 22 UI px, coral red with a big cream cross; the awning shows the
 sheet's big icon; the Store's, the Rewards' and the Top sheet's tabs are a rail of tiles down the left side
