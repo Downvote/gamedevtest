@@ -25,6 +25,11 @@ return function(env)
 	-- 960 x 540 one (the request of 2026-11-21: "could you increase the pixel resolution of the islands?"). The game
 	-- picks 3 at 1080p (Tuning.PixelScaleSides), which the layout once read as 4, resampling every frame unevenly.
 	local artK = if mode == "day1" or mode == "icon" or string.sub(mode, 1, 6) == "day100" then 2 else 4
+	-- (the icon's island drawn at ICON_SMALL art px a stud while this is on, the widest View notch answering that in
+	-- place of 5: the island whole under a tree drawn bigger, the requests of 2026-11-21, "Make the island small enough
+	-- for the whole island to be in frame of the icon, without changing the tree size")
+	local ICON_SMALL = 3
+	local iconSmall = false
 	local join0 = env.join
 	env.join = function(uid: number, name: string)
 		local p = join0(uid, name)
@@ -35,6 +40,15 @@ return function(env)
 			H.inClient(p, function()
 				R.pixelScale = function()
 					return artK
+				end
+				if mode == "icon" then
+					local gs0 = R.gridScale
+					R.gridScale = function(fit: number, zoom: number, even: boolean): number
+						if iconSmall and fit == 5 and zoom == 1 and not even then
+							return gs0(ICON_SMALL, 1, false)
+						end
+						return gs0(fit, zoom, even)
+					end
 				end
 				CCk.refit()
 			end)
@@ -424,12 +438,38 @@ return function(env)
 			p.Character:PivotTo(E.cf.new(lx, 3, lz + Street.CENTER.z))
 		end
 		local SU = env.modOr(p, "UI.SettingsUI")
+		-- the icon in two captures from one camera point (the tree's foot): first the island without its tree, small
+		-- enough to be whole in the frame (ICON_SMALL a stud); then the tree and its eggs alone, close (notch 5);
+		-- tools/preview/game_thumbs.py sets the big tree on the small island
+		local plotI = H.session(p).plot
+		local treeModel: Instance? = nil
+		local function decorOf(): Instance?
+			local plots = E.workspace:FindFirstChild("Plots")
+			local pm = if plots then plots:FindFirstChild("Plot_" .. plotI) else nil
+			local st = if pm then pm:FindFirstChild("Static") else nil
+			return if st then st:FindFirstChild("Decor") else nil
+		end
+		if icon then
+			iconSmall = true
+			H.inClient(p, function()
+				local d = decorOf()
+				if d then
+					for _, c in d:GetChildren() do
+						if string.find(c.Name, ":tree:", 1, true) then
+							treeModel = c
+							c.Parent = nil
+						end
+					end
+				end
+			end)
+			log("gthumbs: icon tree model %s", if treeModel then "set aside" else "not found")
+		end
 		H.openPanel(p, "settings")
 		E.run(0.4)
 		if SU then
 			-- (about the widest notch's span of sky at twice the pixels: 7 art px a stud, notch 3, on the 960 x 540 grid;
-			-- the icon's tree close at 9 a stud, notch 5)
-			H.inClient(p, SU.setZoom, if icon then 5 else 3)
+			-- the icon's island at the widest notch, drawn smaller still: iconSmall)
+			H.inClient(p, SU.setZoom, if icon then 1 else 3)
 		end
 		E.run(0.8)
 		H.closePanel(p)
@@ -484,6 +524,82 @@ return function(env)
 			layer.Enabled = false
 			capture(p, name .. "_sky")
 			layer.Enabled = true
+		end
+		if icon then
+			-- the tree and its eggs alone, close: everything else on the plots out of the client's world, the
+			-- driftlings sent home (an empty list from the server), the tree back
+			prof.pals = {}
+			H.push(p, 0.5)
+			H.inClient(p, function()
+				local plots = E.workspace:FindFirstChild("Plots")
+				if plots then
+					for _, pm in plots:GetChildren() do
+						if pm.Name ~= "Plot_" .. plotI then
+							pm.Parent = nil
+						else
+							for _, c in pm:GetChildren() do
+								if c.Name ~= "Static" then
+									c.Parent = nil
+								end
+							end
+							local st = pm:FindFirstChild("Static")
+							if st then
+								for _, c in st:GetChildren() do
+									if c.Name ~= "Decor" then
+										c.Parent = nil
+									end
+								end
+							end
+						end
+					end
+				end
+				local d = decorOf()
+				if d then
+					for _, c in d:GetChildren() do
+						c.Parent = nil
+					end
+					if treeModel then
+						treeModel.Parent = d
+					end
+				end
+			end)
+			iconSmall = false
+			H.openPanel(p, "settings")
+			E.run(0.4)
+			if SU then
+				H.inClient(p, SU.setZoom, 5)
+			end
+			E.run(0.8)
+			H.closePanel(p)
+			E.run(0.5)
+			hud()
+			if CCd then
+				H.inClient(p, CCd.setFocus, Vector3.new(fx, Street.LAWN_Y, fz), true)
+			end
+			E.run(1)
+			env.settle(p, 30, 1)
+			if PRd then
+				local t, cc = 0, nil
+				while t < 900 do
+					cc = H.inClient(p, PRd.debugCastCheck, false)
+					if cc and cc.off ~= -1 then
+						break
+					end
+					E.run(2)
+					t += 2
+				end
+				local ga = if CCd then H.inClient(p, function()
+					return CCd.view().grid.a
+				end) else nil
+				log("gthumbs: icon tree baked after %d s more, %s art px a stud", t, tostring(ga))
+			end
+			E.run(1.5)
+			capture(p, "gth_icontree")
+			if layer then
+				layer.Enabled = false
+				capture(p, "gth_icontree_sky")
+				layer.Enabled = true
+			end
 		end
 		return p
 	end

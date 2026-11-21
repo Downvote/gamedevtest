@@ -3201,13 +3201,16 @@ outlined, the sky painted in bands with the sun at the top left (where the islan
 a few twinkles over the tree and a sea of clouds its point sinks into. Small props turn to noise at an icon's size, so
 the island keeps to a few bold masses of colour.
 
-> The requests (2026-11-21): "make an icon with the centerpiece being the floating island", then "zoom in more, with
-> the tree as the centerpiece"
+> The requests (2026-11-21): "make an icon with the centerpiece being the floating island", "zoom in more, with the
+> tree as the centerpiece", then "Make the island small enough for the whole island to be in frame of the icon,
+> without changing the tree size. You can zoom in further on the tree as well"
 
-So the icon is the Tree of Life up close: View notch 5 (9 art px a stud) with the camera on the tree, its crown
-against the sky in the middle of the frame, the rare eggs round its roots, the pond and the stall's striped awning at
-the edges and the island running off the frame round it. The sky behind is painted in the game's own colours for that
-height, with the sun at the top left, far islets, a small floating rock, gulls and a few twinkles round the crown.
+So the icon is the Tree of Life big on the whole island small: the tree and its rare eggs as close as View notch 5
+draws them (9 art px a stud), standing on the island drawn at 3 art px a stud, its point under it and the sea of clouds
+below. They are two pictures from one camera point, the island's taken with its tree left out and the tree's with
+everything else left out, so the tree's foot lands on its own spot; the big tree's shade falls on the lawn round it.
+The sky is painted as in the before and after, with the sun at the top left, far islets, small floating rocks, gulls
+and a few twinkles round the crown.
 
 ## 12. Out of scope for this version
 

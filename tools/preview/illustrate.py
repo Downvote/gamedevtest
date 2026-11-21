@@ -27,10 +27,11 @@ N8 = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, 1), (1, -1), (-1, -1))
 
 
 # ---------------------------------------------------------------- the island, from the two captures
-def island_mask(frame, sky, min_part=40, max_hole=6):
+def island_mask(frame, sky, min_part=40, max_hole=6, near=None):
     """True where the frame differs from the sky-only frame: the island. Parts of fewer than `min_part` pixels (8-way
     connected: leaves on the wind, a far bird) are dropped, and holes of at most `max_hole` pixels inside it (an
-    island pixel that happens to match the sky behind) filled; bigger enclosed patches are sky seen through it."""
+    island pixel that happens to match the sky behind) filled; bigger enclosed patches are sky seen through it. With
+    `near`, only the biggest part and the parts within `near` px of its box stay (gulls flying past go)."""
     W, H = frame.w, frame.h
     m = [[frame.px[y][x] != sky.px[y][x] for x in range(W)] for y in range(H)]
 
@@ -54,10 +55,25 @@ def island_mask(frame, sky, min_part=40, max_hole=6):
                             stack.append((nx, ny))
                 yield part, edge
 
+    kept = []
     for part, _ in list(parts(True)):
         if len(part) < min_part:
             for (x, y) in part:
                 m[y][x] = False
+        else:
+            kept.append(part)
+    if near is not None and kept:
+        def box(part):
+            xs = [q[0] for q in part]
+            ys = [q[1] for q in part]
+            return min(xs), min(ys), max(xs), max(ys)
+
+        big = box(max(kept, key=len))
+        for part in kept:
+            b = box(part)
+            if b[0] > big[2] + near or b[2] < big[0] - near or b[1] > big[3] + near or b[3] < big[1] - near:
+                for (x, y) in part:
+                    m[y][x] = False
     for part, edge in list(parts(False)):
         if not edge and len(part) <= max_hole:
             for (x, y) in part:
