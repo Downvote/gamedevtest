@@ -272,6 +272,11 @@ local function relayoutAll()
 	end
 	scheduleResized()
 end
+-- Every canvas laid out again and the UI told (UIKit.Resized): for a screen change that came with no signal (the
+-- simulator's switch between a desktop, a phone and a tablet).
+function UIKit.relayout()
+	relayoutAll()
+end
 
 ------------------------------------------------------------------ text
 export type TextOpts = {

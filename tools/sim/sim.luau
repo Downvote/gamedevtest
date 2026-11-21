@@ -114,7 +114,9 @@ do
 	local hudCard = p.PlayerGui:FindFirstChild("IslandCard", true)
 	local hudTop = p.PlayerGui:FindFirstChild("TopBar", true)
 	local below = hudCard and hudTop and hudCard.AbsolutePosition.Y - (hudTop.AbsolutePosition.Y + hudTop.AbsoluteSize.Y)
-	H.expect(hudCard ~= nil and hudTop ~= nil and hudTop.AbsoluteSize.X >= E.viewport.X * 0.9 and below ~= nil and below >= 0 and below <= 12, "settings", "the top bar runs across the screen, the island card docked under it", hudCard and hudTop and string.format("bar %d wide of %d, card %s px under it", hudTop.AbsoluteSize.X, E.viewport.X, tostring(below)) or "missing")
+	local hudGui = p.PlayerGui:FindFirstChild("Hud")
+	local hudCanvas = hudGui and hudGui:FindFirstChild("Canvas")
+	H.expect(hudCard ~= nil and hudTop ~= nil and hudCanvas ~= nil and hudTop.AbsoluteSize.X >= hudCanvas.AbsoluteSize.X * 0.9 and below ~= nil and below >= 0 and below <= 12, "settings", "the top bar runs across the screen, the island card docked under it", hudCard and hudTop and string.format("bar %d wide of %d, card %s px under it", hudTop.AbsoluteSize.X, if hudCanvas then hudCanvas.AbsoluteSize.X else -1, tostring(below)) or "missing")
 	local rate = p.PlayerGui:FindFirstChild("Chip_rate", true)
 	local isle = p.PlayerGui:FindFirstChild("Chip_isle", true)
 	local rv = rate and rate:FindFirstChild("Value")
@@ -3957,20 +3959,31 @@ do
 		apart = apart and ns[i].Position.Y.Offset >= ns[i - 1].Position.Y.Offset + ns[i - 1].Size.Y.Offset
 	end
 	H.expect(apart, "notices", "three notices at once each have their own place, one under another", table.concat(ys, ", "))
-	-- the first goes after 2 s: the other two move up
+	-- (a desktop stacks them in the bottom right corner, the PC builders' message corner (2026-11-21: "research on
+	-- popular desktop tycoons and replicate their UIs"): the newest lowest, its foot NOTICE_FOOT over the bottom, each
+	-- ending 6 px from the right edge)
+	local ps = UIKitP.size("Popup")
+	local foot = ps.Y - UIKitP.NOTICE_FOOT
+	local function inCorner(list: { any }): boolean
+		local ok = #list > 0 and list[#list].Position.Y.Offset + list[#list].Size.Y.Offset == foot
+		for _, n in list do
+			ok = ok and n.Position.X.Offset + n.Size.X.Offset == ps.X - 6
+		end
+		return ok
+	end
+	H.expect(inCorner(ns), "notices", "a desktop's notices stack in the bottom right corner, the newest lowest", table.concat(ys, ", "))
+	-- the oldest goes after 2 s: the newer two stay put at the foot of the corner
 	E.run(2.2)
 	local left = shown()
-	H.expect(#left == 2 and left[1].Position.Y.Offset == 24, "notices", "when the top one goes, the rest move up into its place", left[1] and tostring(left[1].Position.Y.Offset))
-	-- a new day's banner over their spot: they stack below it while it shows, and go back up after (the sweep of
-	-- 2026-11-19 found the banner over them)
+	H.expect(#left == 2 and inCorner(left), "notices", "when the oldest goes, the rest stay in the corner, the newest lowest", left[1] and tostring(left[1].Position.Y.Offset))
+	-- a new day's banner at the top: the corner stack is nowhere near it and stays (a touch screen's notices, at the top,
+	-- move down below it: the sweep of 2026-11-19 found the banner over them)
 	UIKitP.setNoticeTop(70)
 	E.run(0.3)
 	local under = shown()
-	H.expect(#under == 2 and under[1].Position.Y.Offset == 70, "notices", "with a banner over their spot, the notices move down below it", under[1] and tostring(under[1].Position.Y.Offset))
+	H.expect(#under == 2 and inCorner(under), "notices", "a banner at the top leaves the desktop's corner stack where it is", under[1] and tostring(under[1].Position.Y.Offset))
 	UIKitP.setNoticeTop(nil)
 	E.run(0.3)
-	local back = shown()
-	H.expect(#back == 2 and back[1].Position.Y.Offset == 24, "notices", "and back up when it goes", back[1] and tostring(back[1].Position.Y.Offset))
 	UIKitP.clearNotices()
 	E.run(0.2)
 end
@@ -3990,6 +4003,8 @@ do
 	local function screen(w: number, h: number, touch: boolean)
 		E.viewport = E.v2(w, h)
 		uis.TouchEnabled, uis.MouseEnabled, uis.KeyboardEnabled = touch, not touch, not touch
+		-- (the engine gives no signal for the switch: the canvases laid out again, the HUD built for the screen)
+		H.inClient(p, UIKitC.relayout)
 		E.run(0.5)
 	end
 	local function sheet()
@@ -4015,12 +4030,14 @@ do
 		local small = math.min(cs.X, cs.Y) * Kn <= 500
 		local js = (if small then 70 else 120) / Kn
 		local jx0, jy0 = cs.X - (if small then 95 else 170) / Kn, cs.Y - (if small then 90 else 210) / Kn
+		-- (the engine's AbsoluteSize may leave the canvas's UIScale out: u, its units a UI px)
+		local u = math.max(1e-6, canvas.AbsoluteSize.X / math.max(1, cs.X))
 		local under, corner = {}, {}
 		for _, d in canvas:GetDescendants() do
 			if d:IsA("GuiButton") and d.Name ~= "Hit" and H.guiVisible(d) then
-				local x0 = (d.AbsolutePosition.X - canvas.AbsolutePosition.X) / Kn
-				local y0 = (d.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / Kn
-				local x1, y1 = x0 + d.AbsoluteSize.X / Kn, y0 + d.AbsoluteSize.Y / Kn
+				local x0 = (d.AbsolutePosition.X - canvas.AbsolutePosition.X) / u
+				local y0 = (d.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / u
+				local x1, y1 = x0 + d.AbsoluteSize.X / u, y0 + d.AbsoluteSize.Y / u
 				if x0 < jx0 + js and x1 > jx0 and y0 < jy0 + js and y1 > jy0 then
 					table.insert(under, d.Name)
 				end
@@ -4032,11 +4049,11 @@ do
 		H.expect(#under == 0, "touch", tag .. ": no HUD button under the jump button", table.concat(under, ", "))
 		H.expect(#corner == 0, "touch", tag .. ": the thumbstick's corner (bottom left) clear of buttons", table.concat(corner, ", "))
 		local pals = H.buttonNamed(p, "Menu_pals")
-		H.expect(pals ~= nil and pals.Parent ~= nil and pals.Parent.Name == "MenuBar" and pals.AbsoluteSize.X >= 43 and pals.AbsoluteSize.Y >= 43, "touch", tag .. ": the menus are squares a fingertip wide in the grid down the left", pals and tostring(pals.AbsoluteSize) or "missing")
+		H.expect(pals ~= nil and pals.Parent ~= nil and pals.Parent.Name == "MenuBar" and pals.AbsoluteSize.X / u * Kn >= 43 and pals.AbsoluteSize.Y / u * Kn >= 43, "touch", tag .. ": the menus are squares a fingertip wide in the grid down the left", pals and tostring(pals.AbsoluteSize) or "missing")
 		local mb = H.buttonNamed(p, "Menu_build")
-		local bx1 = mb and (mb.AbsolutePosition.X + mb.AbsoluteSize.X - canvas.AbsolutePosition.X) / Kn
-		local by0 = mb and (mb.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / Kn
-		H.expect(mb ~= nil and bx1 ~= nil and by0 ~= nil and bx1 <= jx0 and bx1 >= jx0 - 8 and by0 < jy0 + js and by0 + mb.AbsoluteSize.Y / Kn > jy0, "touch", tag .. ": Build beside the jump button, level with it", if mb then string.format("Build ends at %.0f, jump at %.0f..%.0f", bx1 or -1, jx0, jx0 + js) else "missing")
+		local bx1 = mb and (mb.AbsolutePosition.X + mb.AbsoluteSize.X - canvas.AbsolutePosition.X) / u
+		local by0 = mb and (mb.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / u
+		H.expect(mb ~= nil and bx1 ~= nil and by0 ~= nil and bx1 <= jx0 and bx1 >= jx0 - 8 and by0 < jy0 + js and by0 + mb.AbsoluteSize.Y / u > jy0, "touch", tag .. ": Build beside the jump button, level with it", if mb then string.format("Build ends at %.0f, jump at %.0f..%.0f", bx1 or -1, jx0, jx0 + js) else "missing")
 	end
 	screen(844, 390, true)
 	touchHud("a phone")
@@ -4057,7 +4074,7 @@ do
 	prof.shells -= 12345
 	local close = H.buttonNamed(p, "Close")
 	local hit = close and close:FindFirstChild("Hit")
-	H.expect(close ~= nil and close.Size.X.Offset >= 20 and hit ~= nil and close.Size.X.Offset + 2 * -hit.Position.X.Offset >= need, "touch", "an exit button a fingertip wide (44 screen px)", close and string.format("%d + pad %d, K %d", close.Size.X.Offset, hit and -hit.Position.X.Offset or 0, K))
+	H.expect(close ~= nil and close.Size.X.Offset >= 20 and (close.Size.X.Offset >= need or (hit ~= nil and close.Size.X.Offset + 2 * -hit.Position.X.Offset >= need)), "touch", "an exit button a fingertip wide (44 screen px)", close and string.format("%d + pad %d, K %d", close.Size.X.Offset, hit and -hit.Position.X.Offset or 0, K))
 	local eggs = H.buttonNamed(p, "OpenTree")
 	local ehit = eggs and eggs:FindFirstChild("Hit")
 	H.expect(eggs ~= nil and ehit ~= nil and eggs.Size.Y.Offset + 2 * -ehit.Position.Y.Offset >= need, "touch", "a small button in the body padded too", eggs and tostring(eggs.Size))
@@ -4071,6 +4088,7 @@ do
 	H.closePanel(p)
 	E.viewport = vp0
 	uis.TouchEnabled, uis.MouseEnabled, uis.KeyboardEnabled = false, true, true
+	H.inClient(p, UIKitC.relayout)
 	E.run(0.5)
 	H.openPanel(p, "pals")
 	E.run(0.6)
