@@ -796,6 +796,14 @@ do
 			end
 		end
 		H.expect(hs.pal and taps == hs.reveals + 1, "build", "each tap reveals a step up or a mutation, the one after them hatches it", string.format("%d taps, %d reveals", taps, hs.reveals))
+		-- (the request of 2026-11-21: "the hatching of eggs is laggy, could you bake in the animation of the creatures
+		-- when it is hatched instead of rendering the whole model?": what hatched shows as its pictures, drawn while the
+		-- egg waited, where pictures can be made; the live model only stands in)
+		local SnapP = H.cmod(p, "Pixel.Snapshot")
+		local canBake = H.inClient(p, function()
+			return PRp.isActive() and SnapP.available()
+		end)
+		H.expect(not canBake or hs.baked == "pop" or hs.baked == "idle", "build", "what hatched shows as its baked pictures, not the whole model drawn again every frame", string.format("%s, %d of %d pictures, pictures here %s", hs.baked, hs.bakedReady, hs.bakedAll, tostring(canBake)))
 		H.expect(broke ~= nil and broke.shake > 0.7 and broke.crack == 3 and broke.glowing and not broke.pal and (hs.reveals == 0 or shook > 0.2), "build", "it shakes as it cracks: each tap, then harder as it breaks open, every crack lit", broke and string.format("shake %.2f at the break, cracks %d, %.2f a tap", broke.shake, broke.crack, shook) or "no break")
 		-- (the requests of 2026-11-14: "cracks sometimes become filled like this, can you make it such that light streams
 		-- out instead when this happens?", then "make light stream out, as in rays of light streaming out, like the

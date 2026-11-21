@@ -18,9 +18,15 @@
 -- solids blended on top (Shading.blend), (4) the ink outline: inner edges where the depth steps by more than
 -- `edge` art px, and the silhouette either outside the model ("outer", the icon look: background pixels next to the
 -- model turn ink, so nothing of the model is lost) or on its rim ("inner", the world's way) or not at all ("none").
+-- Options for a picture that sits in the world (the hatch scene's baked driftling, UI/HatchScene): `place` shades it
+-- as the pixel filter shades a moving model (Shading.toonAt in that place) in place of the fixed day palette,
+-- `textures` draws a driftling's surface texture on it as the filter does (Render/DynTex, from the art px a stud
+-- DynTex.MIN_PX_PER_STUD up), and `grade` puts every pixel that does not glow through the world's light (the
+-- filter's grade, PixelRenderer.gradePixel).
 local Raster = require(script.Parent.Raster)
 local Shading = require(script.Parent.Shading)
 local EyeTex = require(script.Parent.EyeTex)
+local DynTex = require(script.Parent.DynTex)
 
 export type Solid = {
 	shape: string, -- "Block" | "Ball" | "Cylinder" | "Wedge" | "CornerWedge" | "Ell" | "Egg" | "Cone" (anything else is a Block)
@@ -29,6 +35,12 @@ export type Solid = {
 	eye: { code: number, iris: number, dark: number, lid: number, side: number }?,
 	-- a member of a driftling's blended body (Raster.drawBlend): its blend radius in studs
 	blend: number?,
+	-- a driftling's surface texture (its part's PixelTex, Render/DynTex): the kind, its seed, the studs its v is lifted
+	-- by and how far a mark steps (Options.textures)
+	tex: number?,
+	texSeed: number?,
+	texV: number?,
+	texSoft: number?,
 	-- a mark painted onto the surfaces under it, not drawn (Models/DriftKit's blush): its oval's three axes in world,
 	-- each over its radius (across, up, along the normal)
 	paint: { number }?,
@@ -51,6 +63,9 @@ export type Options = {
 	outline: string?, -- "outer" (default) | "inner" | "none"
 	shadows: boolean?, -- sun shadows inside the model (default true)
 	edge: number?, -- inner ink edges where the depth steps by more than this many art px (default 3)
+	place: number?, -- shade as the world does a moving model in this place (Shading.toonAt), not the day palette
+	textures: boolean?, -- driftlings' surface textures, as the world draws them
+	grade: ((rgba: number) -> number)?, -- the world's light, on every pixel that does not glow
 }
 
 export type Job = {
@@ -74,6 +89,10 @@ export type Job = {
 	done: boolean,
 	shadowGrid: ShadowGrid?, -- phase 2's shadow candidates (made when it starts)
 	lastBlock: number, -- the solid that shaded the last shadowed pixel (tried first: neighbours share their shade)
+	place: number?, -- Options.place
+	grade: ((rgba: number) -> number)?, -- Options.grade
+	lift: buffer?, -- with textures drawn: each pixel's texture step, 0 down, 1 none, 2 up
+	texPx: number, -- studs an art px (the textures' marks are one wide)
 }
 
 -- The opaque solids that can shade (not glowing), binned across the sun: seen down the sun's direction each one's
@@ -360,6 +379,13 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		end
 	end
 	local edge = o.edge or 3
+	local pxPerStud = cam.s / math.max(cam.K, 1e-6)
+	local lift: buffer? = nil
+	if o.textures and pxPerStud >= DynTex.MIN_PX_PER_STUD then
+		local lb = buffer.create(n)
+		buffer.fill(lb, 0, 1)
+		lift = lb
+	end
 	return {
 		W = W,
 		H = H,
@@ -381,7 +407,29 @@ function Picture.new(solids: { Solid }, cam: Raster.Cam, opts: Options?): Job
 		done = false,
 		shadowGrid = nil,
 		lastBlock = 0,
+		place = o.place,
+		grade = o.grade,
+		lift = lift,
+		texPx = 1 / math.max(pxPerStud, 1e-6),
 	}
+end
+
+-- A textured solid's step at the hit t of pixel (x, y): the point in the solid's own frame laid out flat
+-- (DynTex.uv), the pattern's mark there (the pixel filter's shadeTex). Solid index k (the seed when none is set).
+local function texLift(job: Job, s: Solid, k: number, x: number, y: number, t: number): number
+	local kind = s.tex or 0
+	if kind <= 0 then
+		return 0
+	end
+	local cam = job.cam
+	local cf = s.cf
+	local ox, oy, oz = Raster.origin(cam, x, y)
+	local px, py, pz = ox + t * cam.lx - cf[1], oy + t * cam.ly - cf[2], oz + t * cam.lz - cf[3]
+	local lx = px * cf[4] + py * cf[7] + pz * cf[10]
+	local ly = px * cf[5] + py * cf[8] + pz * cf[11]
+	local lz = px * cf[6] + py * cf[9] + pz * cf[12]
+	local u, v = DynTex.uv(s.shape, lx, ly, lz)
+	return DynTex.lift(kind, u, v + (s.texV or 0), job.texPx, s.texSeed or k % 97)
 end
 
 -- The colour a mark painted at the hit t of pixel (x, y) gives the surface there (Models/DriftKit's blush), or `rgb`:
@@ -454,6 +502,10 @@ local function rasterSolid(job: Job, k: number)
 				rgb = painted(job, rgb, x, y, t)
 			end
 			buffer.writeu32(albedo, idx * 4, rgb + flag)
+			local lb = job.lift
+			if lb and t and not s.glow then
+				buffer.writeu8(lb, idx, 1 + texLift(job, s, k, x, y, t))
+			end
 		end
 		buffer.writef32(normal, idx * 12, nx)
 		buffer.writef32(normal, idx * 12 + 4, ny)
@@ -491,6 +543,11 @@ local function rasterBlend(job: Job)
 			rgb = painted(job, rgb, x, y, t)
 		end
 		buffer.writeu32(albedo, idx * 4, rgb)
+		local lb = job.lift
+		local mem = M[m]
+		if lb and mem then
+			buffer.writeu8(lb, idx, 1 + texLift(job, job.solids[mem.id], mem.id, x, y, t))
+		end
 		buffer.writef32(normal, idx * 12, nx)
 		buffer.writef32(normal, idx * 12 + 4, ny)
 		buffer.writef32(normal, idx * 12 + 8, nz)
@@ -551,6 +608,7 @@ local function shadeRow(job: Job, y: number)
 	local color, depth, ids = f.color, f.depth, f.id
 	local albedo, normal = job.albedo, job.normal
 	local solids = job.solids
+	local place, grade, liftBuf = job.place, job.grade, job.lift
 	local grid = job.shadowGrid
 	if grid == nil and job.shadows then
 		grid = shadowGrid(job)
@@ -604,7 +662,23 @@ local function shadeRow(job: Job, y: number)
 					end
 				end
 			end
-			buffer.writeu32(color, idx * 4, Shading.toon(bit32.band(a, 0xFFFFFF), nx, ny, nz, lit, x, y, true))
+			local c: number
+			if place then
+				local step, soft = 0, nil
+				if liftBuf then
+					step = buffer.readu8(liftBuf, idx) - 1
+					if step ~= 0 then
+						soft = solids[id].texSoft or DynTex.SOFT
+					end
+				end
+				c = Shading.toonAt(bit32.band(a, 0xFFFFFF), nx, ny, nz, lit, x, y, place, step, soft)
+			else
+				c = Shading.toon(bit32.band(a, 0xFFFFFF), nx, ny, nz, lit, x, y, true)
+			end
+			if grade and lit <= 1 then
+				c = grade(c)
+			end
+			buffer.writeu32(color, idx * 4, c)
 		end
 	end
 end

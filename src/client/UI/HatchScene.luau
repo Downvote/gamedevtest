@@ -81,6 +81,9 @@ local Audio = require(script.Parent.Parent.Controllers.Audio)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local DayLight = require(script.Parent.Parent.Controllers.DayLight)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
+local Snapshot = require(script.Parent.Parent.Pixel.Snapshot)
+local Raster = require(ReplicatedStorage.Shared.Render.Raster)
+local Shading = require(ReplicatedStorage.Shared.Render.Shading)
 local UIKit = require(script.Parent.UIKit)
 local PixelSprites = require(script.Parent.PixelSprites)
 local TierStars = require(script.Parent.TierStars)
@@ -113,6 +116,39 @@ local RISE_T = 0.6 -- a step up: the egg leaps up spinning and comes back down i
 local RISE_H = 0.8 -- studs it leaps
 local SLOW = 0.3 -- how fast the scene runs in its slow motion at the break
 local POP_UP = 0.12 -- what hatched: seconds it takes to come up out of the shell, stretched, before its leap
+-- What hatched, baked (the request of 2026-11-21: "the hatching of eggs is laggy, could you bake in the animation of
+-- the creatures when it is hatched instead of rendering the whole model?"): while the egg waits for its taps, its
+-- way out of the shell and its standing about are drawn once as pictures through Pixel/Snapshot (the world's look,
+-- its view, pixel size, shading, texture and the scene's light, each picture anchored at its feet), then shown one
+-- after another on the scene's canvas
+-- in place of the whole model the pixel filter would draw again every frame. BAKE_FPS pictures a second for its way
+-- out (the white silhouette, the leap, the squash on landing and the spring back), then IDLE_N of it standing over
+-- IDLE_T s, played there and back. Snapshot draws for BAKE_MS a frame meanwhile (the world shows nothing else). The
+-- live model stands in while the pictures are not ready (or cannot be made), and they take over once they are.
+local BAKE_FPS = 15
+local IDLE_N = 12
+local IDLE_T = 2.4
+local BAKE_MS = 6
+local BAKE_PAD = 6 -- art px kept round its widest stretch for its moves
+
+-- The baked pictures of what hatches (`bakeStart`): `mode` "baking" (on their way), "live" (the live model shows, the
+-- pictures may take over once it has landed), "pop" and "idle" (the pictures show), "off" (none: no pixel filter or
+-- no pictures here). All of one size and anchor (the art px where its feet are), at the stage's px a stud then.
+type Bake = {
+	mode: string,
+	scale: number,
+	w: number,
+	h: number,
+	ax: number,
+	ay: number,
+	pop: { Snapshot.Snap }, -- its way out, BAKE_FPS a second from the pop
+	idle: { Snapshot.Snap }, -- standing, from popEnd
+	keys: { string },
+	popEnd: number, -- s after the pop when its way out has ended
+	thing: MicroModels.Thing?,
+	holder: Folder?,
+	label: ImageLabel?,
+}
 
 -- How grand each rarity's scene is (by the rarity it is now; the hatch's by the rarity it hatched as).
 type Glory = {
@@ -267,6 +303,7 @@ type Scene = {
 	twinkleAt: number, -- the scene clock when the next one comes
 	shards: { Shard },
 	pal: MicroModels.Thing?,
+	bake: Bake?, -- what hatches as pictures (nil until they start)
 	popAt: number?,
 	whiteUntil: number, -- what hatched shows as a white silhouette till then
 	palDown: boolean, -- it has landed from its leap out of the shell
@@ -1026,6 +1063,336 @@ local function rise(s: Scene, r: number)
 	setTitle(s, rar.name, rar.color, true)
 end
 
+-- What hatched, k s after it pops out of the shell (k < 0: before): how big it has grown (0.3 .. 1), its squash and
+-- stretch across and up, how far over the pedestal it is (studs) and whether it is still a white silhouette; `land`
+-- (s after the pop that it landed; its leap's end by default) times the spring after it lands. Rarity r's leap.
+local function palShape(r: number, k: number, land: number?): (number, number, number, number, boolean)
+	local g = glory(r)
+	local air = 0.32 + 0.02 * r
+	local grow, sx, sy, hop = 1, 1, 1, 0
+	if k < 0 then
+		grow = 0.3
+		sx, sy = 0.8, 1.3
+	elseif k < POP_UP then
+		local u = k / POP_UP
+		grow = 0.3 + 0.7 * ease(u)
+		sx, sy = 0.78 + 0.1 * u, 1.32 - 0.12 * u
+		hop = 0.18 * u
+	elseif k < POP_UP + air then
+		local u = (k - POP_UP) / air
+		hop = (1 - u) * 0.18 + g.hop * 4 * u * (1 - u)
+		-- (stretched by its speed, round at the top of its leap)
+		local v = math.abs(1 - 2 * u)
+		sx, sy = 1 - 0.12 * v, 1 + 0.2 * v
+	else
+		local t = k - (land or (POP_UP + air))
+		if t < 0.6 then
+			local q = 0.9 * math.exp(-7 * t) * math.cos(t * 22)
+			sx, sy = 1 + 0.2 * q, 1 - 0.28 * q
+		end
+	end
+	return grow, sx, sy, hop, k < 0.07 + 0.035 * r
+end
+
+-- Down on the pedestal from its leap out of the shell: a thud, a puff of dust, a ring, a jolt from rare up, stars
+-- circling it.
+local function palLanded(s: Scene)
+	local g = glory(s.r)
+	Audio.play("pop", { pitch = 0.6 })
+	Audio.play("jump", { pitch = 0.9 })
+	local fx, fy = PixelRenderer.projectPixel(at(0, FLOAT_Y, 0))
+	for i = 1, 8 + s.r do
+		local side = if i % 2 == 0 then 1 else -1
+		addDot(s, if i % 3 == 0 then "cream" else "white", nil, fx + side * (5 + math.random(0, 5)), fy - math.random(0, 2), side * (14 + math.random() * 20), -(8 + math.random() * 12), 50, 0.4 + math.random() * 0.2)
+	end
+	wave(s, s.baseX, s.baseY, hexOf("cream"), s.baseW * 0.35, s.baseW * 1.2, 0.42, 0.45, 0.4)
+	HatchBackdrop.pulse()
+	jolt(s, if s.r >= 3 then 1 else 0)
+	-- stars circling it (uncommon up): round above its middle, a flat ring
+	if g.stars > 0 then
+		local cx, cy = PixelRenderer.projectPixel(at(0, FLOAT_Y + 0.75 * PAL_SCALE, 0))
+		for i = 1, g.stars do
+			local st = addStar(s, twinkle(s.r), cx, cy, if s.r >= 5 then 600 else 2.6, 0, 0)
+			st.loop = 0.5 + (i % 3) * 0.12
+			st.orbit = { cx, cy, s.eggPx * 1.7, s.eggPx * 0.42, i / g.stars * math.pi * 2, 1.6 }
+		end
+	end
+end
+
+------------------------------------------------------------------ what hatches, baked
+-- (the world's view: the pictures are drawn from it, so they match what the pixel filter would draw)
+local VIEW = Raster.rotation(Tuning.CamYaw, Tuning.CamPitch)
+local VIEW_R = Vector3.new(VIEW[4], VIEW[7], VIEW[10])
+local VIEW_U = Vector3.new(VIEW[5], VIEW[8], VIEW[11])
+local PAL_CF = CFrame.Angles(0, math.pi / 4 + PAL_TURN, 0)
+local bakeSerial = 0
+
+-- The stage's art px a stud now (across the view: ten studs measured on the art grid), 0 before it is drawn.
+local function stageScale(): number
+	local p0 = at(0, FLOAT_Y, 0)
+	local x0, y0, on0 = PixelRenderer.projectPixel(p0)
+	local x1, y1, on1 = PixelRenderer.projectPixel(p0 + VIEW_R * 10)
+	if not on0 or not on1 then
+		return 0
+	end
+	return math.sqrt((x1 - x0) ^ 2 + (y1 - y0) ^ 2) / 10
+end
+
+local function allReady(list: { Snapshot.Snap }): boolean
+	for _, snap in list do
+		if snap.failed or not snap.ready or snap.image == nil then
+			return false
+		end
+	end
+	return #list > 0
+end
+
+local function bakedReady(b: Bake?): number
+	local n = 0
+	if b then
+		for _, snap in b.pop do
+			n += if snap.ready then 1 else 0
+		end
+		for _, snap in b.idle do
+			n += if snap.ready then 1 else 0
+		end
+	end
+	return n
+end
+
+local function noBake(): Bake
+	return { mode = "off", scale = 0, w = 0, h = 0, ax = 0, ay = 0, pop = {}, idle = {}, keys = {}, popEnd = 0 }
+end
+
+local function bakeStop(s: Scene)
+	local b = s.bake
+	if b == nil then
+		return
+	end
+	s.bake = nil
+	local label = b.label
+	if label then
+		label:Destroy()
+	end
+	for _, key in b.keys do
+		Snapshot.release(key)
+	end
+	local holder = b.holder
+	if holder then
+		holder:Destroy()
+	end
+	Snapshot.setBudget(nil)
+end
+
+-- Draw what hatches as pictures: its way out (the shapes palShape gives, BAKE_FPS a second) first, then standing.
+-- One model posed for each picture as it is drawn (Snapshot calls the builders one at a time).
+local function bakeStart(s: Scene)
+	if not (PixelRenderer.isActive() and Snapshot.available()) then
+		s.bake = noBake()
+		return
+	end
+	local scale = stageScale()
+	if scale <= 0 then
+		return -- (the stage is not drawn yet: next frame)
+	end
+	local r = math.clamp(s.res.hr, 1, Traits.RMAX)
+	local thing = MicroModels.species(s.res.sp)
+	local holder = Instance.new("Folder")
+	holder.Name = "HatchBake"
+	thing.model.Parent = holder
+	-- (the box its widest stretch and tallest squash fill, seen from the view: the pictures' size and its feet's place)
+	MicroModels.scale(thing, Vector3.new(1.2, 1.32, 1.2) * PAL_SCALE)
+	MicroModels.animate(thing, 0, "idle", 0)
+	MicroModels.place(thing, PAL_CF)
+	local cf, size = thing.model:GetBoundingBox()
+	local u0, u1, v0, v1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, dx in { -0.5, 0.5 } do
+		for _, dy in { -0.5, 0.5 } do
+			for _, dz in { -0.5, 0.5 } do
+				local q = cf:PointToWorldSpace(Vector3.new(dx * size.X, dy * size.Y, dz * size.Z))
+				local u, v = q:Dot(VIEW_R), q:Dot(VIEW_U)
+				u0, u1, v0, v1 = math.min(u0, u), math.max(u1, u), math.min(v0, v), math.max(v1, v)
+			end
+		end
+	end
+	local ax = math.ceil(-u0 * scale) + BAKE_PAD
+	local ay = math.ceil(v1 * scale) + BAKE_PAD
+	local w = ax + math.ceil(u1 * scale) + BAKE_PAD
+	local h = ay + math.ceil(-v0 * scale) + BAKE_PAD
+	bakeSerial += 1
+	-- (drawn as the pixel filter draws a moving model, its texture on, in the light the scene will have when it hatches:
+	-- its rarity's, GRADE, glowing parts left as they are)
+	local light = GRADE[r] or GRADE[1]
+	local cache: { [number]: number } = {}
+	local function lit(c: number): number
+		local g = cache[c]
+		if g == nil then
+			g = PixelRenderer.gradePixel(c, light)
+			cache[c] = g
+		end
+		return g
+	end
+	local b: Bake = { mode = "baking", scale = scale, w = w, h = h, ax = ax, ay = ay, pop = {}, idle = {}, keys = {}, popEnd = POP_UP + 0.32 + 0.02 * r + 0.6, thing = thing, holder = holder, label = nil }
+	s.bake = b
+	Snapshot.setBudget(BAKE_MS)
+	local function picture(list: { Snapshot.Snap }, k: number, t: number, prio: number): boolean
+		local grow, sx, sy, _, white = palShape(r, k)
+		local sc = PAL_SCALE * grow
+		local key = string.format("hatch:%d:%d", bakeSerial, #b.keys + 1)
+		local snap = Snapshot.get(key, function(): Instance?
+			MicroModels.recolor(thing, if white then "white" else nil)
+			MicroModels.scale(thing, Vector3.new(sx * sc, sy * sc, sx * sc))
+			MicroModels.animate(thing, t, "idle", 0)
+			MicroModels.place(thing, PAL_CF)
+			return thing.model
+		end, { w = w, h = h, yaw = 0, scale = scale, anchor = Vector2.new(ax, ay), outline = "inner", shadows = false, priority = prio, keep = true, place = Shading.INDOOR, textures = true, grade = lit })
+		if snap == nil then
+			return false
+		end
+		table.insert(b.keys, key)
+		table.insert(list, snap)
+		return true
+	end
+	local n = math.ceil(b.popEnd * BAKE_FPS)
+	for i = 0, n do
+		if not picture(b.pop, i / BAKE_FPS, i / BAKE_FPS, 6) then
+			bakeStop(s)
+			s.bake = noBake()
+			return
+		end
+	end
+	for j = 0, IDLE_N - 1 do
+		picture(b.idle, b.popEnd + 1, b.popEnd + j * IDLE_T / IDLE_N, 5)
+	end
+end
+
+-- The live model goes (the pictures take over).
+local function dropPal(s: Scene)
+	local thing = s.pal
+	if thing then
+		PixelRenderer.unregisterDynamic(thing.model)
+		thing.model:Destroy()
+		s.pal = nil
+	end
+end
+
+-- The baked pictures, k s after the pop: its way out, then standing (there and back), its feet where the live model's
+-- would be (moved by its hop on the art grid).
+local function stepBaked(s: Scene, b: Bake, k: number)
+	local snap: Snapshot.Snap? = nil
+	if k < b.popEnd then
+		snap = b.pop[math.clamp(math.floor(math.max(0, k) * BAKE_FPS + 0.5) + 1, 1, #b.pop)]
+	elseif allReady(b.idle) then
+		b.mode = "idle"
+		local f = math.floor((k - b.popEnd) * IDLE_N / IDLE_T)
+		local period = 2 * (IDLE_N - 1)
+		local j = f % period
+		if j >= IDLE_N then
+			j = period - j
+		end
+		snap = b.idle[j + 1]
+	else
+		-- (standing pictures not ready yet: the last of its way out, settled)
+		snap = b.pop[#b.pop]
+	end
+	if snap == nil then
+		return
+	end
+	-- (on the sky's life layer, under the pixel layer: the shell it comes out of stays in front of it, as the live
+	-- model's depth had it; that layer is made again when the screen changes size)
+	local holder: GuiObject = HatchBackdrop.layer() or s.root
+	local label: ImageLabel
+	local had = b.label
+	if had == nil or had.Parent ~= holder then
+		if had then
+			had:Destroy()
+		end
+		label = Snapshot.label(snap, nil, true)
+		label.Name = "HatchPal"
+		label.ZIndex = 20
+		label.Parent = holder
+		b.label = label
+	else
+		label = had
+		Snapshot.show(label, snap)
+	end
+	local pop = s.popAt
+	local _, _, _, hop = palShape(s.r, k, if s.palDown and pop then s.palLand - pop else nil)
+	local fx, fy = PixelRenderer.projectPixel(at(0, FLOAT_Y + hop, 0))
+	label.Position = UDim2.fromOffset(fx - b.ax, fy - b.ay)
+	if s.pal then
+		dropPal(s)
+	end
+end
+
+-- What hatched as the live model (at hatch when its pictures are not ready, or from now on when they no longer fit).
+local function newPal(s: Scene, white: boolean)
+	local thing = MicroModels.species(s.res.sp)
+	MicroModels.scale(thing, Vector3.one * 0.3)
+	if white then
+		MicroModels.recolor(thing, "white")
+	end
+	thing.model.Parent = s.dyn
+	PixelRenderer.registerDynamic(thing.model)
+	s.pal = thing
+end
+
+-- What hatched: up out of the shell as a white silhouette, stretched tall, taking its colours, a leap and down on the
+-- pedestal squashing (a thud, a puff of dust, a ring, a jolt from rare up), springing back, stars circling it; then it
+-- stands where the egg was. As baked pictures when they are ready (stepBaked), else the live model; the pictures of it
+-- standing take over from the live model once it has landed and settled.
+local function stepPal(s: Scene, c: number)
+	local pop = s.popAt
+	if pop == nil then
+		return
+	end
+	local k = c - pop
+	if k >= POP_UP + 0.32 + 0.02 * s.r and not s.palDown then
+		s.palDown, s.palLand = true, c
+		palLanded(s)
+	end
+	local b = s.bake
+	local now = if b and b.mode ~= "off" then stageScale() else 0
+	if b and now > 0 and math.abs(now - b.scale) > 0.01 then
+		-- (the screen changed size and the stage's pixel size with it: the pictures no longer fit, the live model again)
+		local showing = b.mode == "pop" or b.mode == "idle"
+		bakeStop(s)
+		s.bake = noBake()
+		b = s.bake
+		if showing and s.pal == nil then
+			local _, _, _, _, white = palShape(s.r, k)
+			newPal(s, white)
+			s.whiteUntil = if white then pop + 0.07 + 0.035 * s.r else 0
+		end
+	end
+	if b and b.mode == "live" and s.palDown and c - s.palLand > 0.6 and allReady(b.idle) then
+		b.mode = "idle"
+	end
+	if b and (b.mode == "pop" or b.mode == "idle") then
+		stepBaked(s, b, k)
+		return
+	end
+	local thing = s.pal
+	if thing == nil then
+		return
+	end
+	local grow, sx, sy, hop, white = palShape(s.r, k, if s.palDown then s.palLand - pop else nil)
+	if s.whiteUntil > 0 and not white then
+		s.whiteUntil = 0
+		MicroModels.recolor(thing, nil)
+		PixelRenderer.refreshDynamic(thing.model)
+	end
+	local sc = PAL_SCALE * grow
+	MicroModels.scale(thing, Vector3.new(sx * sc, sy * sc, sx * sc))
+	-- (idle from the start: no jump for joy once it lands, the request of 2026-11-16, "remove the creatures celebrating
+	-- after hatching, just make them idle from the start of hatching")
+	MicroModels.animate(thing, c, "idle", 0)
+	-- (turned three quarters, as its portrait: the world's view is from yaw 45, so 45 degrees faces us square on and
+	-- 30 more shows the face and the side of the body; the request of 2026-11-16, "could the creatures appear at a 3/4
+	-- angle instead of facing the player?")
+	MicroModels.place(thing, CFrame.new(at(0, FLOAT_Y + hop, 0)) * PAL_CF)
+end
+
 -- It hatches: a flash, shockwaves, the top flies off, bits of shell scatter, confetti, the god rays at full, the
 -- picture jolts and, from legendary up, slow motion; what hatched comes out of the shell (stepPal) and its card comes
 -- in piece by piece (cues), all by the rarity it hatched as.
@@ -1076,13 +1443,17 @@ local function hatch(s: Scene)
 	end
 	bits.Parent = s.dyn
 	PixelRenderer.registerDynamic(bits)
-	-- what hatched: a white silhouette at first, small in the shell
-	local thing = MicroModels.species(s.res.sp)
-	MicroModels.scale(thing, Vector3.one * 0.3)
-	MicroModels.recolor(thing, "white")
-	thing.model.Parent = s.dyn
-	PixelRenderer.registerDynamic(thing.model)
-	s.pal = thing
+	-- what hatched: a white silhouette at first, small in the shell (its baked pictures if they are ready, else the
+	-- live model)
+	local b = s.bake
+	if b and b.mode == "baking" and allReady(b.pop) then
+		b.mode = "pop"
+	else
+		if b and b.mode == "baking" then
+			b.mode = "live"
+		end
+		newPal(s, true)
+	end
 	s.popAt = c + 0.03
 	s.whiteUntil = c + 0.1 + 0.035 * r
 	jolt(s, g.jolt)
@@ -1402,78 +1773,6 @@ local function stepEgg(s: Scene, c: number, d: number)
 			PixelRenderer.refreshDynamic(s.egg :: Model)
 		end
 	end
-end
-
--- What hatched: up out of the shell as a white silhouette, stretched tall, taking its colours, a leap and down on the
--- pedestal squashing (a thud, a puff of dust, a ring, a jolt from rare up), springing back, stars circling it; then it
--- stands where the egg was.
-local function stepPal(s: Scene, c: number)
-	local thing = s.pal
-	local pop = s.popAt
-	if thing == nil or pop == nil then
-		return
-	end
-	local g = glory(s.r)
-	local k = c - pop
-	local air = 0.32 + 0.02 * s.r
-	local grow, sx, sy, hop = 1, 1, 1, 0
-	if k < 0 then
-		grow = 0.3
-		sx, sy = 0.8, 1.3
-	elseif k < POP_UP then
-		local u = k / POP_UP
-		grow = 0.3 + 0.7 * ease(u)
-		sx, sy = 0.78 + 0.1 * u, 1.32 - 0.12 * u
-		hop = 0.18 * u
-	elseif k < POP_UP + air then
-		local u = (k - POP_UP) / air
-		hop = (1 - u) * 0.18 + g.hop * 4 * u * (1 - u)
-		-- (stretched by its speed, round at the top of its leap)
-		local v = math.abs(1 - 2 * u)
-		sx, sy = 1 - 0.12 * v, 1 + 0.2 * v
-	else
-		if not s.palDown then
-			s.palDown, s.palLand = true, c
-			Audio.play("pop", { pitch = 0.6 })
-			Audio.play("jump", { pitch = 0.9 })
-			local fx, fy = PixelRenderer.projectPixel(at(0, FLOAT_Y, 0))
-			for i = 1, 8 + s.r do
-				local side = if i % 2 == 0 then 1 else -1
-				addDot(s, if i % 3 == 0 then "cream" else "white", nil, fx + side * (5 + math.random(0, 5)), fy - math.random(0, 2), side * (14 + math.random() * 20), -(8 + math.random() * 12), 50, 0.4 + math.random() * 0.2)
-			end
-			wave(s, s.baseX, s.baseY, hexOf("cream"), s.baseW * 0.35, s.baseW * 1.2, 0.42, 0.45, 0.4)
-			HatchBackdrop.pulse()
-			jolt(s, if s.r >= 3 then 1 else 0)
-			-- stars circling it (uncommon up): round above its middle, a flat ring
-			if g.stars > 0 then
-				local cx, cy = PixelRenderer.projectPixel(at(0, FLOAT_Y + 0.75 * PAL_SCALE, 0))
-				for i = 1, g.stars do
-					local st = addStar(s, twinkle(s.r), cx, cy, if s.r >= 5 then 600 else 2.6, 0, 0)
-					st.loop = 0.5 + (i % 3) * 0.12
-					st.orbit = { cx, cy, s.eggPx * 1.7, s.eggPx * 0.42, i / g.stars * math.pi * 2, 1.6 }
-				end
-			end
-		end
-		local t = c - s.palLand
-		if t < 0.6 then
-			local q = 0.9 * math.exp(-7 * t) * math.cos(t * 22)
-			sx, sy = 1 + 0.2 * q, 1 - 0.28 * q
-		end
-	end
-	if s.whiteUntil > 0 and c >= s.whiteUntil then
-		s.whiteUntil = 0
-		MicroModels.recolor(thing, nil)
-		PixelRenderer.refreshDynamic(thing.model)
-	end
-	local sc = PAL_SCALE * grow
-	MicroModels.scale(thing, Vector3.new(sx * sc, sy * sc, sx * sc))
-	-- (idle from the start: no jump for joy once it lands, the request of 2026-11-16, "remove the creatures celebrating
-	-- after hatching, just make them idle from the start of hatching")
-	MicroModels.animate(thing, c, "idle", 0)
-	-- (turned three quarters, as its portrait: the world's view is from yaw 45, so 45 degrees faces us square on and
-	-- 30 more shows the face and the side of the body; the request of 2026-11-16, "could the creatures appear at a 3/4
-	-- angle instead of facing the player?")
-	MicroModels.place(thing, CFrame.new(at(0, FLOAT_Y + hop, 0)) * CFrame.Angles(0, math.pi / 4 + PAL_TURN, 0))
 end
 
 -- Bits of shell: flying out and falling away out of the picture (nothing to land on).
@@ -2010,6 +2309,15 @@ local function step(s: Scene, dt: number)
 		s.riseDown = true
 		landed(s, 0.7)
 	end
+	-- (what hatches, baked while the egg waits: once the stage is drawn; again if the screen changes size meanwhile)
+	local bk = s.bake
+	local bs = if bk and bk.mode == "baking" and s.popAt == nil then stageScale() else 0
+	if bk and bs > 0 and math.abs(bs - bk.scale) > 0.01 then
+		bakeStop(s)
+	end
+	if s.bake == nil and c >= 0.05 then
+		bakeStart(s)
+	end
 	stepPal(s, c)
 	stepShards(s, c, d)
 	stepTwinkles(s, c)
@@ -2049,6 +2357,7 @@ local function restore(s: Scene)
 		resize:Disconnect()
 	end
 	dropEgg(s)
+	bakeStop(s)
 	for _, d in s.dots do
 		d.gui:Destroy()
 	end
@@ -2195,6 +2504,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		twinkleAt = 0,
 		shards = {},
 		pal = nil,
+		bake = nil,
 		popAt = nil,
 		whiteUntil = 0,
 		palDown = false,
@@ -2328,10 +2638,10 @@ end
 -- god rays lit behind it, `hush` how dark the sky is, `slow` whether the slow motion runs, `jolt` the picture's
 -- offset now, `squash` the egg's, `letters` the name's letters in, `ribbon` its ribbon shown, `stars` circling,
 -- `wait` the seconds before it fell, `build` the build-up's).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, egg: boolean, glowing: boolean, beams: number, title: string, titleOff: number, name: string, fresh: boolean, passive: string, light: number, hush: number, slow: boolean, jolt: number, squash: number, letters: number, ribbon: boolean, stars: number, wait: number, build: number }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, baked: string, bakedReady: number, bakedAll: number, egg: boolean, glowing: boolean, beams: number, title: string, titleOff: number, name: string, fresh: boolean, passive: string, light: number, hush: number, slow: boolean, jolt: number, squash: number, letters: number, ribbon: boolean, stars: number, wait: number, build: number }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, egg = false, glowing = false, beams = 0, title = "", titleOff = 0, name = "", fresh = false, passive = "", light = 0, hush = 0, slow = false, jolt = 0, squash = 0, letters = 0, ribbon = false, stars = 0, wait = 0, build = 0 }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, baked = "", bakedReady = 0, bakedAll = 0, egg = false, glowing = false, beams = 0, title = "", titleOff = 0, name = "", fresh = false, passive = "", light = 0, hush = 0, slow = false, jolt = 0, squash = 0, letters = 0, ribbon = false, stars = 0, wait = 0, build = 0 }
 	end
 	local t, n = s.title, s.name
 	local orbiting = 0
@@ -2356,7 +2666,10 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		muts = #s.res.muts,
 		rays = #s.rays,
 		shards = #s.shards,
-		pal = s.pal ~= nil,
+		pal = s.pal ~= nil or (s.bake ~= nil and ((s.bake :: Bake).mode == "pop" or (s.bake :: Bake).mode == "idle")),
+		baked = if s.bake then (s.bake :: Bake).mode else "",
+		bakedReady = bakedReady(s.bake),
+		bakedAll = if s.bake then #(s.bake :: Bake).pop + #(s.bake :: Bake).idle else 0,
 		egg = s.egg ~= nil,
 		glowing = s.glowing,
 		beams = s.beamsMade,

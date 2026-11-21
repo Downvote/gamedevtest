@@ -5147,9 +5147,28 @@ local function hatchScenario(code)
 	capture(p, "hatch_crack")
 	log("hatch %s: the break: slow %s, jolt %d, god rays %d", code, tostring(st.slow), st.jolt, st.light)
 	local t0 = st.clock
+	-- (what the frames cost while what hatched comes out and stands there: the renderer's time a frame, the part of it
+	-- spent on moving models, the worst frame, and all of the client's time a frame; the request of 2026-11-21, "the
+	-- hatching of eggs is laggy, could you bake in the animation of the creatures when it is hatched instead of
+	-- rendering the whole model?")
+	local function timed(label, fn)
+		if PR then
+			H.inClient(p, PR.debugPerf)
+		end
+		local rs = E.raycastStats
+		local r0, n0 = rs.rays, rs.nodeTests + rs.itemTests
+		local w0 = os.clock()
+		fn()
+		local wall = os.clock() - w0
+		local pf = if PR then H.inClient(p, PR.debugPerf) else nil
+		local n = if pf then math.max(1, pf.frames) else 1
+		log("hatch %s: %s: %d frames, %.1f ms a frame in all (real time), %.0f rays a frame (%.0f box and part tests), baked %s", code, label, n, wall * 1000 / n, (rs.rays - r0) / n, (rs.nodeTests + rs.itemTests - n0) / n, tostring(state().baked))
+	end
 	runTo(t0 + 0.12)
 	capture(p, "hatch_pop")
-	runTo(t0 + 0.55)
+	timed("coming out", function()
+		runTo(t0 + 0.55)
+	end)
 	capture(p, "hatch_out")
 	log("hatch %s: out: %d stars circling, letters %d", code, state().stars, state().letters)
 	runTo(t0 + 0.75)
@@ -5160,6 +5179,9 @@ local function hatchScenario(code)
 	E.run(0.4)
 	st = state()
 	capture(p, "hatch_reveal")
+	timed("standing", function()
+		E.run(1.5)
+	end)
 	log("hatch %s: laid %d, hatched %d as %s: phase %s, %d mutations of %d, %s, title %q, name %q, New! %s, ribbon %s, %d letters, %d stars, god rays %d", code, r, st.r, tostring(sp), st.phase, st.shown, st.muts, if st.pal then "what hatched is there" else "nothing hatched", st.title, st.name, tostring(st.fresh), tostring(st.ribbon), st.letters, st.stars, st.light)
 	H.inClient(p, HS.skip)
 	E.run(0.2)

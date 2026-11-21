@@ -1886,6 +1886,13 @@ local function drawLight()
 	end
 end
 
+-- The sky's life layer (between the painted sky and the pixel layer, on the art grid, moved with the picture), nil
+-- when none shows: the hatch scene's baked driftling stands on it, so the shell it comes out of (the pixel layer's)
+-- stays in front of it (UI/HatchScene). It is made again when the screen changes size.
+function HatchBackdrop.layer(): Frame?
+	return layer
+end
+
 -- The picture and its light moved by whole art px (a jolt), 0, 0 puts them back.
 function HatchBackdrop.offset(dx: number, dy: number)
 	local K = lifeK

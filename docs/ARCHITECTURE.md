@@ -1641,6 +1641,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   in tenths: each step re-uploads the picture) in `gradeSpan` after the grade, a static pixel (`id < DYN_ID0`) only and
   never a glowing one (`dimOf`, cached per colour: greyer by 0.35 x dim, times 1 - 0.5 x dim, cooled); the dynamic
   things (the fighters, their effects) as they are.
+- **A picture in the world's light**: `gradePixel(c, g?)` puts a packed pixel (Snapshot's format) through `gradeOf`
+  with grade `g` or the one now (as it is with none): the hatch scene's baked driftling (§10.11).
 - **The time of day** (GAME_DESIGN 8; `setGrade(Grade?)`, `debugGrade() -> string` its key, "" by day): the layers
   keep their daylight colours; every uploaded pixel (`uploadAll`, `uploadRect`; the static picture's through `SG.buf`,
   above) goes through `gradeOf` (cached per colour and light level, cleared when the grade changes, which also
@@ -1795,7 +1797,12 @@ labels on show whose words need more room than their box, a line too wide or too
 truncates them; the previews log each as an OVERFLOW line, the request of 2026-11-14, "there is a few boxes where text
 overflows. can you prevent this?"). `Pixel/Snapshot` (copied): pixel-art pictures of models drawn analytically (`Render/Picture`), for
 UI icons: the Staff panel's portraits (`UIKit.portrait`: a developer's head and shoulders turned to face the viewer). `Pixel/ImageMemory` (copied): every EditableImage is made through
-it.
+it. Since 2026-11-21 `Render/Picture.Options` (and Snapshot's) take `place` (shade as the pixel filter shades a moving
+model, `Shading.toonAt` in that place, in place of the fixed day palette), `textures` (a driftling's `PixelTex`
+surface texture drawn as the filter does: `Picture.Solid.tex`, `texSeed`, `texV`, `texSoft` read by Snapshot, a step per
+pixel in `Job.lift` from `DynTex.uv` and `DynTex.lift` at `Job.texPx` studs a pixel, from `DynTex.MIN_PX_PER_STUD` up)
+and `grade` (a function on every shaded pixel that does not glow): a picture that sits in the world, the hatch scene's
+baked driftling (§10.11). Without them a picture is drawn as before.
 
 ## 10. Interface
 
@@ -2529,13 +2536,37 @@ named on a mouse's hover. `toolTip(button, name, key?)` (a mouse only: `UserInpu
   go just above the tray or the button. Nothing else of the HUD is expected under it.
 
 ### 10.11 The hatch scene (`UI/HatchScene`, `UI/HatchBackdrop`, `Models/EggModels`; GAME_DESIGN 6.2)
+**What hatched, baked** (the request of 2026-11-21: "the hatching of eggs is laggy, could you bake in the animation of
+the creatures when it is hatched instead of rendering the whole model?"). From the scene's first frames (`bakeStart`,
+once the stage is drawn: `stageScale()`, the stage's art px a stud measured with `projectPixel` across the world view's
+right, `VIEW_R`) the kind that will hatch is drawn as pictures through `Pixel/Snapshot` while the egg waits: one
+`MicroModels.species` model in a parentless Folder, posed by each picture's builder (`palShape(r, k)`: its growth,
+squash and stretch and the white silhouette, the same function the live model follows), all at the stage's px a stud
+(`scale`) with its feet at one `anchor`, sized for its widest stretch plus `BAKE_PAD` 6 px; `BAKE_FPS` 15 a second for
+its way out (`popEnd` = `POP_UP` + its leap + 0.6 s of spring, priority 6), then `IDLE_N` 12 of it standing over `IDLE_T`
+2.4 s (priority 5). They are drawn as the pixel filter draws a moving model: `outline` "inner", no shadows inside it,
+`place` `Shading.INDOOR`, its surface `textures` and `grade` the light of the rarity it hatches as (`GRADE[hr]`,
+`PixelRenderer.gradePixel`, glowing parts left alone). Snapshot draws for `BAKE_MS` 6 ms a frame meanwhile
+(`setBudget`, back to nil when the scene closes). At the hatch, with every way-out picture ready (`allReady`), `bake.mode`
+"pop" and no model is made; else the live model as before ("live"), and the standing pictures take over once it has
+landed and settled 0.6 s (`dropPal`). `stepBaked` shows the picture for the moment (nearest `k * BAKE_FPS`; standing,
+played there and back) on one `ImageLabel` (`Snapshot.label`, then `Snapshot.show`), "HatchPal", ZIndex 20 on
+`HatchBackdrop.layer()` (the sky's life layer, under the pixel layer, so the shell stays in front of it as the live
+model's depth had it; made again with the layer on a resize), its feet at `projectPixel` of its spot raised by its hop.
+The landing's thud, dust, ring, jolt and stars (`palLanded`) are the same for both. The screen changing size while it
+waits bakes again; once it shows, the live model takes over (`newPal`, white if it still is). `bakeStop` releases the
+pictures and the model at the close. The preview `hatch=<r><hr>` logs the frames' real time and rays while it comes out
+and stands (the request's numbers: hatch=33 from 109.7 to about 50 ms a frame coming out and 80 to about 7 standing,
+hatch=77 from 143 to about 72 and 107 to about 12, in the preview's emulator).
 `HatchScene.play(res, after?)` (`res = { sp, muts, r, hr, new? }` from `egg.hatch`; one scene at a time; `after` runs when it
 ends; a hatch while a scene shows waits its turn and plays when that one closes, the tree panel shut meanwhile: two
 quick hatches showed both at once before, the sweep of 2026-11-19), `waiting() -> number` (the hatches waiting), `skip()` (a tap: the next reveal, else the hatch, else away; taps under `TAP_GAP` 0.22 s after the last count
 as one, and taps while the egg rises wait), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs),
 `debugState()` (`{ open, phase ("egg", "breaking", "hatched", "done"), r, hr, clock, lift, reveals, left, crack, shake,
-shown, muts, rays, shards, pal, egg, glowing, title, titleOff, name, fresh, passive, light, hush, slow, jolt, squash,
-letters, ribbon, stars, wait, build }`; `shake` how hard it shakes this frame; `fresh` the "New!" tag shown; `light` the
+shown, muts, rays, shards, pal, baked, bakedReady, bakedAll, egg, glowing, title, titleOff, name, fresh, passive, light,
+hush, slow, jolt, squash, letters, ribbon, stars, wait, build }`; `pal` what hatched shows (the live model or its baked
+pictures), `baked` the bake's mode ("" none yet, "baking", "live", "pop", "idle", "off") and `bakedReady` of `bakedAll`
+its pictures drawn; `shake` how hard it shakes this frame; `fresh` the "New!" tag shown; `light` the
 god rays lit (`HatchBackdrop.debugLight`), `hush` how dark the sky is, `slow` the slow motion running, `jolt` the
 picture's offset (art px), `squash` the egg's, `letters` the name's letters in, `ribbon` its ribbon shown, `stars` the
 stars circling, `wait` and `build` this scene's). `res.new` (the result's `new`: a kind

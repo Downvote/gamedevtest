@@ -2423,6 +2423,16 @@ the text gets cut off for some alerts").
 The egg bought is shown up close the moment Hatch is pressed (the requests at the top). There are no blinds and no
 wait: the egg floats on its own in front of a painted sky, and the player taps it open.
 
+> The request (2026-11-21): "the hatching of eggs is laggy, could you bake in the animation of the creatures when it is
+> hatched instead of rendering the whole model?"
+
+So what hatches is drawn once as pictures while the egg waits for its taps: its way out of the shell (the white
+silhouette, the leap, the squash on landing and the spring back) at 15 pictures a second, then twelve of it standing,
+played there and back. They are drawn the way the pixel filter draws the creature, at the same size and place, with its
+texture and in the scene's light, and stand behind the shell it comes out of. The pixel filter no longer draws the whole
+model again every frame. Tapping quickly through a common egg can beat the pictures; then the model shows as before
+until they are ready, and they take over once it has landed.
+
 - **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), a deep starry sky with a ringed planet, the band of the galaxy slanting

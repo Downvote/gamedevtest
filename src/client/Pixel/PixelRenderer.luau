@@ -898,8 +898,8 @@ local function clampByte(v: number): number
 	return if v < 0 then 0 elseif v > 255 then 255 else math.floor(v + 0.5)
 end
 
-local function gradeOf(c: number, lvl: number): number
-	local g = grade :: Grade
+local function gradeOf(c: number, lvl: number, with: Grade?): number
+	local g = (with or grade) :: Grade
 	local r, gg, b = c % 256, (c // 256) % 256, (c // 65536) % 256
 	local a = c - c % 16777216
 	local l = 0.3 * r + 0.59 * gg + 0.11 * b
@@ -5622,6 +5622,17 @@ function PixelRenderer.setGrade(g: Grade?)
 	table.clear(gradeMap)
 	needFull = true
 	SG.ok = false
+end
+
+-- A packed pixel (R in the low byte, alpha in the high one, as Pixel/Snapshot's pictures) in the light the world is
+-- drawn in now (the grade; as it is with none), or in grade `g`: a picture drawn apart from the world that sits in it,
+-- the hatch scene's baked driftling (UI/HatchScene).
+function PixelRenderer.gradePixel(c: number, g: Grade?): number
+	local use = g or grade
+	if use == nil then
+		return c
+	end
+	return gradeOf(c, 0, use)
 end
 
 -- The spotlight (nothing sets it now): the static picture darkened by k (0 .. 1, taken in tenths; each step
