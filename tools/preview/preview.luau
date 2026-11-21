@@ -2960,7 +2960,7 @@ function SCEN.buildtools()
 	if selB then
 		I.fire(I.getSig(selB, "MouseEnter"))
 	end
-	E.run(0.05)
+	E.run(0.3)
 	capture(p, "buildtools_tip")
 	if selB then
 		I.fire(I.getSig(selB, "MouseLeave"))
