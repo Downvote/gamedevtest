@@ -173,11 +173,12 @@ is `PixelIsland-<short hash>.rbxl`.)
   gold coins drawn in `product_icons.py`, `coin(cv, cx, cy, R, star?)`: two on Double Income, a heap of five in front
   of the Starter Pack's eggs). The game's own
   thumbnails (1920 x 1080) and icon (512 x 512) are `art/thumbnails/thumb_<n>_<name>.png` and `art/thumbnails/icon.png`
-  (`tools/preview/game_thumbs.sh`: frames of the game drawn by its pixel filter with the HUD off and no founder in them,
-  driftlings drawn through Pixel/Snapshot over them, the title and captions in the pixel font, all on one 4x grid;
-  `thumb_0_days.png` leads: the genre's before-and-after frame on a 2x grid, its islands drawn at 2 screen px an art
-  px and its words lettered on that grid; it and the icon, the icon's island whole on a 256 x 256 grid, are drawn as
-  pixel illustrations round the game's islands by `tools/preview/illustrate.py`, GAME_DESIGN 11.1).
+  (`tools/preview/game_thumbs.sh`: frames of the game drawn by its pixel filter with the HUD off and no founder in them
+  and driftlings and eggs drawn alone through Pixel/Snapshot, laid out as pixel illustrations by
+  `tools/preview/game_thumbs.py`, `genre_thumbs.py` and `illustrate.py`, every word lettered on its picture's own grid;
+  `thumb_0_days.png` leads, the genre's before and after on a 2x grid; `thumb_1_rarity` .. `thumb_5_rich` are the
+  genre's other frames, the ladder, the close-up and the egg on the 4x grid, the meadow and the big number on the 2x
+  one; the icon is on a 256 x 256 grid; GAME_DESIGN 11.1).
   Every outline in these and in the loading card's art is a darker step of the colour beside it, never flat ink
   (GAME_DESIGN 2): `product_icons.py`'s `Canvas.edge` and `outline` draw a shape's outline in ink and `Canvas.finish`
   gives each pixel still showing `ink_of` the colours it rings; a word's outline and depth are `ink_of(face, 0.3,

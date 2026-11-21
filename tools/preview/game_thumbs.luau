@@ -9,6 +9,9 @@
 --     gth_hatch_egg, gth_hatch_blaze, gth_hatch_out, gth_hatch_reveal.
 --   * "gthumbs=lawn": a round islet far from the others (palms, bushes, flowers, two rare eggs) with twenty
 --     driftlings on it cheering, framed close by a stage view: gth_lawn.
+--   * "gthumbs=field": a meadow full of Puddlets with one eternal (Dawnwing) in the middle, for the genre's "one rare
+--     among many" frame: gth_field, gth_field_sky and gth_field_star (the eternal alone), at 2 screen px an art px.
+--   * "gthumbs=day100:<tier>" also logs the island's coins a minute (the big number thumbnail's).
 --   * "gthumbs=cast": driftlings (and the rarest egg) drawn alone through Pixel/Snapshot (the world's palette, bands,
 --     shadows and its 1 px ink outline) at the sizes the thumbnails show them, mid-cheer, logged as
 --     `@@GTH <name> <w> <h> <RGBA hex>` lines with a `gthumbs: <n> kinds` line for the captions.
@@ -24,7 +27,7 @@ return function(env)
 	-- 4 screen px an art px for the scenes laid out on the 480 x 270 grid, 2 for the before-and-after pair on its
 	-- 960 x 540 one (the request of 2026-11-21: "could you increase the pixel resolution of the islands?"). The game
 	-- picks 3 at 1080p (Tuning.PixelScaleSides), which the layout once read as 4, resampling every frame unevenly.
-	local artK = if mode == "day1" or mode == "icon" or string.sub(mode, 1, 6) == "day100" then 2 else 4
+	local artK = if mode == "day1" or mode == "icon" or mode == "field" or string.sub(mode, 1, 6) == "day100" then 2 else 4
 	-- (the icon's island drawn at ICON_SMALL art px a stud while this is on, the widest View notch answering that in
 	-- place of 5, under a tree drawn bigger: the requests of 2026-11-21, "Make the island small enough for the whole
 	-- island to be in frame of the icon, without changing the tree size", "Zoom in to this level for the icon. Also,
@@ -59,15 +62,23 @@ return function(env)
 		return p
 	end
 
-	-- the cast: { name, species (or "egg<r>": an egg of rarity r, "egg": the rarest), size, yaw, cheer's time }
+	-- the cast: { name, species (or "egg<r>": an egg of rarity r, "egg": the rarest), size, yaw, cheer's time }, at
+	-- the sizes the thumbnails show them on their 480 x 270 grid (the request of 2026-11-21: "do more thumbnail
+	-- research, and replicate popular game thumbnails with the same genre type"; tools/preview/game_thumbs.py). (Drawn
+	-- at twice that for the 960 grid they read as flat shapes more than pixel art: a creature close up keeps the
+	-- chunkier grid.)
 	local CAST = {
-		-- the title thumbnail's two in front, and a third smaller between them
-		{ "hero_l", "blazemane", 150, 32, 0.1 },
-		{ "hero_r", "skyfox", 136, -30, 0.3 },
-		{ "hero_s", "emberpup", 92, 36, 0.5 },
-		-- the building thumbnail's two
-		{ "build_1", "frostcrown", 104, 30, 0.1 },
-		{ "build_2", "mossbun", 72, 24, 0.15 },
+		-- the rarity ladder's three, a common, a rare and an eternal, each bigger than the last
+		{ "lad_1", "puddlet", 78, 28, 0.15 },
+		{ "lad_2", "thistlemane", 100, 28, 0.3 },
+		{ "lad_3", "everwyrm", 126, 26, 0.1 },
+		-- the close-up: one big face in the middle, two more at the frame's edges looking in
+		{ "hero_big", "starmane", 250, 14, 0.12 },
+		{ "hero_lf", "skyfox", 140, 34, 0.35 },
+		{ "hero_rt", "emberpup", 128, -26, 0.55 },
+		-- the egg and what hatched from it
+		{ "hatch_egg", "egg9", 124, 0, 0 },
+		{ "hatch_pal", "nightwhale", 150, -28, 0.2 },
 	}
 
 	if mode == "cast" or string.sub(mode, 1, 5) == "cast:" then
@@ -301,6 +312,118 @@ return function(env)
 		return p
 	end
 
+	-- the field: a meadow full of one common kind with one eternal among them, close, for the "one rare among many"
+	-- thumbnail (the genre's crowd of the same creature with a single golden one in the middle): frames gth_field and
+	-- gth_field_sky (the world's layer hidden), and the eternal's head on the art grid as a `@@GTHPOS` line
+	if mode == "field" then
+		env.seedProfile(7315, 1, {})
+		local p = env.join(7315, "Meadow")
+		env.settle(p, 30, 1)
+		for _, g in p.PlayerGui:GetChildren() do
+			if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then
+				g.Enabled = false
+			end
+		end
+		local MM = env.cshared(p, "Models.MicroModels")
+		local Blocks = env.cshared(p, "Models.Blocks")
+		local PR = H.cmod(p, "Pixel.PixelRenderer")
+		local CC = H.cmod(p, "Controllers.CameraController")
+		local OX, OZ = 0, 9400
+		local ux, uz = math.sqrt(0.5), -math.sqrt(0.5)
+		local vx, vz = math.sqrt(0.5), math.sqrt(0.5)
+		local faceViewer = math.atan2(vx, vz)
+		local function at(u: number, v: number): (number, number)
+			return OX + ux * u + vx * v, OZ + uz * u + vz * v
+		end
+		local STAR, STAR_U, STAR_V = "dawnwing", 0, -1.5
+		local things = {}
+		local star = nil
+		local function hash(a: number, b: number): number
+			local h = math.sin(a * 12.9898 + b * 78.233) * 43758.5453
+			return h - math.floor(h)
+		end
+		H.inClient(p, function()
+			local m = Blocks.model(E.workspace, "ThumbField")
+			local up = CFrame.Angles(0, 0, math.rad(90))
+			Blocks.part(m, { shape = "Cylinder", size = Vector3.new(1, 70, 70), cf = CFrame.new(OX, -0.5, OZ) * up, color = "grass" })
+			local function add(sp: string, u: number, v: number, turn: number, time: number)
+				local th = MM.species(sp, "full")
+				th.model:SetAttribute("PixelShadow", 1)
+				th.model:SetAttribute("PixelGroundY", 0)
+				th.model.Parent = E.workspace
+				PR.registerDynamic(th.model)
+				local x, z = at(u, v)
+				local t = { t = th, x = x, z = z, turn = turn, time = time }
+				table.insert(things, t)
+				return t
+			end
+			-- rows of the one kind, jittered, a clear ring round the eternal so it stands alone among them
+			for row = 0, 8 do
+				for col = 0, 10 do
+					local u = (col - 5) * 2.7 + (if row % 2 == 1 then 1.35 else 0) + (hash(row, col) - 0.5) * 0.8
+					local v = -12 + row * 2.4 + (hash(col, row) - 0.5) * 0.6
+					local du, dv = u - STAR_U, v - STAR_V
+					if du * du + dv * dv > 3.4 * 3.4 then
+						add("puddlet", u, v, (hash(row + 3, col) - 0.5) * 50 - u * 1.5, 0.05 + hash(col + 7, row) * 0.6)
+					end
+				end
+			end
+			star = add(STAR, STAR_U, STAR_V, 0, 0.12)
+			local pts = {}
+			for _, q in { { -12, -12 }, { 12, -12 }, { -12, 8 }, { 12, 8 } } do
+				for _, y in { 0, 3 } do
+					local x, z = at(q[1], q[2])
+					table.insert(pts, x)
+					table.insert(pts, y)
+					table.insert(pts, z)
+				end
+			end
+			CC.setStage({ name = "thumbs", origin = Vector3.new(OX, 0, OZ), pts = pts, tight = nil, top = 0, bottom = 0 })
+		end)
+		H.inClient(p, function()
+			for _, x in things do
+				MM.animate(x.t, x.time, "cheer", 0)
+				MM.place(x.t, CFrame.new(x.x, 0, x.z) * CFrame.Angles(0, faceViewer + math.rad(x.turn), 0))
+			end
+		end)
+		env.settle(p, 90, 0.5)
+		E.run(0.5)
+		capture(p, "gth_field")
+		local layer = p.PlayerGui:FindFirstChild("PixelLayer")
+		if layer then
+			layer.Enabled = false
+			capture(p, "gth_field_sky")
+			layer.Enabled = true
+		end
+		if star then
+			local sx, sy, on = H.inClient(p, function()
+				return PR.projectPixel(Vector3.new(star.x, 2.2, star.z))
+			end)
+			local fx, fy = H.inClient(p, function()
+				return PR.projectPixel(Vector3.new(star.x, 0, star.z))
+			end)
+			print(string.format("@@GTHPOS star %d %d %d %d %s", sx, sy, fx, fy, tostring(on)))
+			-- the eternal alone over the sky (the rest and the meadow taken away): where it is on the art grid, exactly,
+			-- for the glow the layout puts round it
+			H.inClient(p, function()
+				for _, x in things do
+					if x ~= star then
+						x.t.model.Parent = nil
+					end
+				end
+				local fm = E.workspace:FindFirstChild("ThumbField")
+				if fm then
+					fm.Parent = nil
+				end
+			end)
+			env.settle(p, 30, 0.5)
+			E.run(0.5)
+			capture(p, "gth_field_star")
+		end
+		log("gthumbs: field with %d driftlings", #things)
+		return p
+	end
+
 	-- the sky: a Grand Isle (tier 3, the harbour island's pieces) floating in the painted sky, its town round the tree,
 	-- from a little further out: frame gth_sky
 	if mode == "sky" then
@@ -427,6 +550,12 @@ return function(env)
 			end
 		end
 		log("gthumbs: %s pieces %d, middle %.1f, %.1f", mode, #prof.plot.placed, cx, cz)
+		if big then
+			-- (what the island makes a minute, as the HUD's chip counts it: the big number thumbnail shows it)
+			local Tuning = H.sharedServer("Config.Tuning")
+			local v = H.view(p)
+			log("gthumbs: %s coins a minute %d", mode, math.floor((if v then v.rates.shells else 0) * 60 / Tuning.TurnSeconds))
+		end
 		local function hud()
 			for _, g in p.PlayerGui:GetChildren() do
 				if g:IsA("ScreenGui") and g.Name ~= "PixelLayer" and g.Name ~= "SkyBackdrop" then

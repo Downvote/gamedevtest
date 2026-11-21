@@ -3295,8 +3295,50 @@ Tree of Life and its first eggs, nothing built yet) floating whole in a clear mo
 "DAY 1" in white; on the right a decorated level 8 town, its rim at the bar and the rest running off the right and
 the bottom, under "DAY 100" in gold; the bar white, a pixel further left every eight rows; the arrow red with a lit top
 edge. Both halves are frames of the game under the same sky, so the sky runs on behind the bar. Upload it first on the
-Creator Dashboard; the other six follow (the title, the hatch, the driftlings to find, building, the tree's eggs, the
-island in the sky).
+Creator Dashboard; the five below (the genre's other frames) follow it.
+
+> The request (2026-11-21): "do more thumbnail research, and replicate popular game thumbnails with the same genre
+> type"
+
+What that research found: Roblox's own guide asks for 16:9 at 1920 x 1080, nothing that matters along the bottom edge
+(the player count can cover it), the game's theme readable from its colours at a glance, no ads or claims like "50%
+off", and two to five thumbnails active at once so its thumbnail personalization can show each player the one that
+works for them (it reports an average 8.5% more qualified plays where games used it). Then the thumbnails Roblox
+serves for sixteen of the most played and most liked pet, hatching, tycoon and island games (Grow a Garden, Pet
+Simulator 99, Adopt Me!, Bee Swarm Simulator, Steal An Egg, Plants & Brainrots, Islands, Build An Island!, Build a
+Zoo, Zoo Tycoon, Tropical Resort Tycoon 2, Throw Food For Animals, Collect All Pets!, Build Your World, My WATERPARK,
+Mansion Tycoon). Beside the before and after, they keep coming back to five frames, all in saturated colour with heavy
+rounded words in a thick outline:
+- the rarity ladder: three panels split by slanted bars, COMMON, RARE and MYTHICAL over a creature that gets grander
+  in each, and a bigger number under each (Zoo Tycoon);
+- the close-up: one cute creature's face filling the frame, rays fanning out behind it, more creatures cut by the
+  frame's edges (Pet Simulator 99, Adopt Me!, Build a Zoo);
+- one rare among many: a field full of the same creature with a single golden one in the middle, glowing, its rarity
+  in rainbow letters (Zoo Tycoon's IMMORTAL, Pet Simulator 99's crowd);
+- the egg and what hatched: an egg, a big curved arrow, the creature that came out, a few words (Zoo Tycoon's NEW
+  ANIMALS, Steal An Egg);
+- the big number: a huge rainbow money count over the thing that earns it (Grow a Garden, Plants & Brainrots, Build
+  An Island!'s "1/s" to "9,894,473/s").
+
+So the thumbnails after the lead take those five frames with this game's own driftlings, eggs and islands, never
+another game's (`tools/preview/genre_thumbs.py`), drawn as pixel illustrations like the before and after:
+- `thumb_1_rarity.png`: COMMON, RARE and ETERNAL (the last in rainbow letters) over Puddlet, Thistlemane and
+  Everwyrm, each on a small floating island in its own sky (plain blue, teal with rays, violet to pink with rays and
+  sparkles), and under each how much faster it works, x1, x2.5 and x40 (`Tuning.RarityWork`), with a coin.
+- `thumb_2_hero.png`: Starmane's face big in the middle of a bright sky, rays behind its head and a glow round it,
+  Skyfox and Emberpup cut by the frame's edges looking in, clouds under them. No words, as the genre's own.
+- `thumb_3_hatch.png`: the eternal egg on its nest on a little island, a big blue arrow curving to Nightwhale, the
+  eternal that hatched, rays behind it, and "HATCH RARE PETS" at the top.
+- `thumb_4_lucky.png`: a meadow full of Puddlets (`gthumbs=field`) with Dawnwing, an eternal of the same build, in the
+  middle: rays fan out from it, a glow round it, the crowd a step dimmer further away, sparkles, and ETERNAL in rainbow
+  letters at the top.
+- `thumb_5_rich.png`: a decorated tier 20 town (`gthumbs=day100:20`) cut from its sky and given its outline, coins
+  flying up through the open sky beside it and what it makes a minute with its 40 driftlings, 29,092,854/min in
+  rainbow letters with a big coin. The number is the game's own count for that island, logged by the run.
+
+The three frames built round creatures (the ladder, the close-up and the egg) are on the 480 x 270 grid: drawn on the
+finer one the driftlings came out as flat shapes more than pixel art. The meadow and the town are on 960 x 540. The
+old plain thumbnails (a frame of the game with a caption on a band) went.
 
 > The request (2026-11-21, on `thumb_0_days.png`): "could you increase the pixel resolution of the islands? also,
 > make the text respect the pixel grid instead of using mixels"
