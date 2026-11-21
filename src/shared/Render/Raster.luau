@@ -1925,6 +1925,12 @@ export type BlendMember = {
 	cy: number,
 	cz: number,
 	br: number,
+	-- the pixels a ray must pass through to come within its reach of that ball (inclusive): a pixel outside them
+	-- skips the ball test
+	bx0: number,
+	by0: number,
+	bx1: number,
+	by1: number,
 }
 export type BlendShade = (m: number, rgb: number, nx: number, ny: number, nz: number, x: number, y: number, t: number) -> number
 local BLEND_THICK = 0.6 -- a part's blend radius is at most this share of how thick it is
@@ -2046,6 +2052,11 @@ function Raster.blendMember(cam: Cam, shape: string, cf12: { number }, sx: numbe
 	local lx, ly, lz = cam.lx, cam.ly, cam.lz
 	local ix, iy, iz, jx, jy, jz = cam.ix, cam.iy, cam.iz, cam.jx, cam.jy, cam.jz
 	local ox, oy, oz = cam.ox - cf12[1], cam.oy - cf12[2], cam.oz - cf12[3]
+	local br = 0.5 * math.sqrt(sx * sx + sy * sy + sz * sz)
+	-- (the rays are parallel: the ball grown by its reach covers a disc round its centre's pixel, kept in a square a
+	-- pixel wider each way)
+	local pcx, pcy = Raster.project(cam, cf12[1], cf12[2], cf12[3])
+	local rp = (br + mk) * cam.s / cam.K + 1
 	return {
 		g = g,
 		rgb = rgb,
@@ -2084,7 +2095,11 @@ function Raster.blendMember(cam: Cam, shape: string, cf12: { number }, sx: numbe
 		cx = cf12[1],
 		cy = cf12[2],
 		cz = cf12[3],
-		br = 0.5 * math.sqrt(sx * sx + sy * sy + sz * sz),
+		br = br,
+		bx0 = math.floor(pcx - 0.5 - rp),
+		by0 = math.floor(pcy - 0.5 - rp),
+		bx1 = math.ceil(pcx - 0.5 + rp),
+		by1 = math.ceil(pcy - 0.5 + rp),
 	}
 end
 
@@ -2261,6 +2276,9 @@ local function blendRun(J: BlendJob, deadline: number): boolean
 		for a = bAdjS[o], bAdjE[o] do
 			local r = bAdj[a]
 			local m = O[r]
+			if r ~= o and (i < m.bx0 or i > m.bx1 or j < m.by0 or j > m.by1) then
+				continue -- (the ray misses its ball by more than its reach: not even near)
+			end
 			local qx, qy, qz = m.bqx + j * m.sjx + i * m.six, m.bqy + j * m.sjy + i * m.siy, m.bqz + j * m.sjz + i * m.siz
 			-- (its own member always; a neighbour only if the ray passes within its reach of its bounding ball)
 			local along = qx * m.dx + qy * m.dy + qz * m.dz

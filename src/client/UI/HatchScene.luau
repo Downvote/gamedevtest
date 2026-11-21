@@ -136,10 +136,11 @@ local POP_UP = 0.12 -- what hatched: seconds it takes to come up out of the shel
 -- out (the white silhouette, the leap, the squash on landing and the spring back), then IDLE_N of it standing over
 -- IDLE_T s, played there and back. They are begun as the scene opens (what hatches is known by then, from the server)
 -- and drawn BAKE_MS a frame, a row at a time (Render/Picture: one picture is several frames' work, the user's report
--- of 2026-11-21, "it now lags alot while the egg is hatched"); held while it comes out (the flash, the rings, its card:
--- REVEAL_HOLD s), the last picture of its way out standing in until the standing ones are ready. A player who taps
--- straight through waits at most BUILD_WAIT s more in the build-up, still shaking, for its way out; past that the live
--- model stands in until the pictures are ready. They stay cached afterwards (the last KINDS_KEPT driftlings, at this
+-- of 2026-11-21, "it now lags alot while the egg is hatched"); held for the first REVEAL_HOLD s of its coming out
+-- (the flash and the rings), all of them drawn coarse to fine and played with those drawn so far. The build-up waits,
+-- still shaking, up to BUILD_SOFT s more for all of its way out, then up to BUILD_WAIT s for the key pictures of it
+-- (a player who taps through gets it on the key ones at once); past that the live model, drawn plain, stands in until
+-- the pictures are ready. They stay cached afterwards (the last KINDS_KEPT driftlings, at this
 -- pixel size and rarity), so the next hatch of the same one plays them at once with nothing to draw (the user's
 -- question of 2026-11-21, "cant you store the animation of the models and play it instead of actually baking them
 -- right during the egg animation?": what hatches is only known once the egg is opened, so a new one is still drawn
@@ -148,8 +149,10 @@ local BAKE_FPS = 10
 local IDLE_N = 8
 local IDLE_T = 2.4
 local BAKE_MS = 4
+local BAKE_CALM_MS = 8 -- once it stands there (the scene's frames are light then): the rest of it standing comes sooner
 local BAKE_PAD = 6 -- art px kept round its widest stretch for its moves
-local REVEAL_HOLD = 1.2
+local REVEAL_HOLD = 0.5
+local BUILD_SOFT = 1
 local BUILD_WAIT = 2
 local KINDS_KEPT = 4
 
@@ -164,12 +167,17 @@ type Bake = {
 	ax: number,
 	ay: number,
 	pop: { Snapshot.Snap }, -- its way out, BAKE_FPS a second from the pop
+	key: { Snapshot.Snap }, -- the first, last and every fourth of those: drawn first, enough for it to come out
 	idle: { Snapshot.Snap }, -- standing, from popEnd
 	keys: { string },
 	popEnd: number, -- s after the pop when its way out has ended
 	thing: MicroModels.Thing?, -- the model posed for each picture (made when a picture is first drawn)
 	holder: Folder?,
 	label: ImageLabel?,
+	hurried: number, -- how far its standing pictures were moved up the queue (hurry): 0, 1 at the hatch, 2 at popEnd
+	still: number, -- (previews) frames it stood on the last of its way out after popEnd, no standing picture drawn yet
+	moved: number, -- (previews) times the standing picture shown changed
+	shown: Snapshot.Snap?,
 }
 
 -- The driftlings baked lately (the most recent last): their pictures' keys and framing, to play again.
@@ -315,6 +323,7 @@ type Scene = {
 	posedClock: number, -- when it was last posed (s.real)
 	posedCrack: number, -- the cracks it had then
 	bakeHeld: boolean, -- the bake held back for a busy moment (Snapshot.hold)
+	bakeCalm: boolean, -- the bake given BAKE_CALM_MS a frame (it stands there)
 	lightsAt: number, -- when its lights last moved (s.real)
 	shardsAt: number, -- when the bits of shell last moved (s.real)
 	parts: { { p: BasePart, off: CFrame } },
@@ -1209,6 +1218,43 @@ local function allReady(list: { Snapshot.Snap }): boolean
 	return #list > 0
 end
 
+-- Its standing pictures not drawn yet moved up the queue, every `step`-th from the first: at the hatch the key ones
+-- go ahead of the in-betweens of its way out (which come too late to be seen on a driftling that takes long to draw),
+-- once it is out all of them go ahead of what is left of its way out.
+local function hurry(b: Bake, step: number, prio: number)
+	local base = #b.pop
+	for j = 0, IDLE_N - 1, step do
+		local snap, key = b.idle[j + 1], b.keys[base + j + 1]
+		if snap and key and not snap.ready and not snap.failed then
+			Snapshot.get(key, function(): Instance?
+				return nil
+			end, { priority = prio })
+		end
+	end
+end
+
+-- The picture of a list nearest to the i-th that is drawn (the i-th itself if it is), or nil.
+local function nearestReady(list: { Snapshot.Snap }, i: number): Snapshot.Snap?
+	for d = 1, #list do
+		local a, z = list[i - d + 1], list[i + d - 1]
+		if a and a.ready and not a.failed and a.image ~= nil then
+			return a
+		elseif z and z.ready and not z.failed and z.image ~= nil then
+			return z
+		end
+	end
+	return nil
+end
+
+local function anyReady(list: { Snapshot.Snap }): boolean
+	for _, snap in list do
+		if snap.ready and not snap.failed and snap.image ~= nil then
+			return true
+		end
+	end
+	return false
+end
+
 local function bakedReady(b: Bake?): number
 	local n = 0
 	if b then
@@ -1222,14 +1268,18 @@ local function bakedReady(b: Bake?): number
 	return n
 end
 
--- Whether what hatches can come out now: its way out drawn, or no pictures coming (the live model then).
-local function popReady(s: Scene): boolean
+-- Whether what hatches can come out now, `waited` s past the build-up's end: all of its way out drawn, or after
+-- BUILD_SOFT s the key pictures of it (the rest fill in as it plays), or no pictures coming (the live model then).
+local function popReady(s: Scene, waited: number): boolean
 	local b = s.bake
-	return b == nil or b.mode ~= "baking" or allReady(b.pop)
+	if b == nil or b.mode ~= "baking" or allReady(b.pop) then
+		return true
+	end
+	return waited >= BUILD_SOFT and allReady(b.key)
 end
 
 local function noBake(): Bake
-	return { mode = "off", scale = 0, w = 0, h = 0, ax = 0, ay = 0, pop = {}, idle = {}, keys = {}, popEnd = 0 }
+	return { mode = "off", scale = 0, w = 0, h = 0, ax = 0, ay = 0, pop = {}, key = {}, idle = {}, keys = {}, popEnd = 0, hurried = 0, still = 0, moved = 0 }
 end
 
 local function bakeStop(s: Scene)
@@ -1260,6 +1310,7 @@ local function bakeStop(s: Scene)
 	Snapshot.setBudget(nil)
 	Snapshot.hold(false)
 	s.bakeHeld = false
+	s.bakeCalm = false
 end
 
 -- Draw what hatches as pictures: its way out (the shapes palShape gives, BAKE_FPS a second) first, then standing.
@@ -1342,7 +1393,7 @@ local function bakeStart(s: Scene)
 		end
 		return g
 	end
-	local b: Bake = { mode = "baking", scale = scale, w = w, h = h, ax = ax, ay = ay, pop = {}, idle = {}, keys = {}, popEnd = POP_UP + 0.32 + 0.02 * r + 0.6, thing = thing, holder = holder, label = nil }
+	local b: Bake = { mode = "baking", scale = scale, w = w, h = h, ax = ax, ay = ay, pop = {}, key = {}, idle = {}, keys = {}, popEnd = POP_UP + 0.32 + 0.02 * r + 0.6, thing = thing, holder = holder, label = nil, hurried = 0, still = 0, moved = 0 }
 	s.bake = b
 	Snapshot.setBudget(BAKE_MS)
 	local function picture(list: { Snapshot.Snap }, k: number, t: number, prio: number): boolean
@@ -1364,16 +1415,25 @@ local function bakeStart(s: Scene)
 		table.insert(list, snap)
 		return true
 	end
+	-- (coarse to fine, so a driftling that takes long to draw still comes out on time and moves: its way out's first,
+	-- last and every fourth picture first (the key ones it waits for), then the halves between, then two of it
+	-- standing, then the rest of its way out and of it standing; stepBaked shows the nearest one drawn. The report of
+	-- 2026-11-21: "a few of the creatures are very laggy to hatch")
 	local n = math.ceil(b.popEnd * BAKE_FPS)
 	for i = 0, n do
-		if not picture(b.pop, i / BAKE_FPS, i / BAKE_FPS, 6) then
+		local key = i == 0 or i == n or i % 4 == 0
+		if not picture(b.pop, i / BAKE_FPS, i / BAKE_FPS, if key then 6.4 elseif i % 2 == 0 then 6.2 else 6) then
 			bakeStop(s)
 			s.bake = noBake()
 			return
 		end
+		if key then
+			table.insert(b.key, b.pop[#b.pop])
+		end
 	end
 	for j = 0, IDLE_N - 1 do
-		picture(b.idle, b.popEnd + 1, b.popEnd + j * IDLE_T / IDLE_N, 5)
+		local rank = if j % 4 == 0 then 6.1 elseif j % 2 == 0 then 5.3 else 5.2
+		picture(b.idle, b.popEnd + 1, b.popEnd + j * IDLE_T / IDLE_N, rank)
 	end
 	-- (remembered as the latest; the oldest past KINDS_KEPT let go)
 	table.insert(bakedKinds, { kind = kind, w = w, h = h, ax = ax, ay = ay, keys = table.clone(b.keys) })
@@ -1400,19 +1460,33 @@ end
 local function stepBaked(s: Scene, b: Bake, k: number)
 	local snap: Snapshot.Snap? = nil
 	if k < b.popEnd then
-		snap = b.pop[math.clamp(math.floor(math.max(0, k) * BAKE_FPS + 0.5) + 1, 1, #b.pop)]
-	elseif allReady(b.idle) then
-		b.mode = "idle"
+		-- (the picture for the moment, or the nearest one drawn: the key ones are, it came out on them)
+		snap = nearestReady(b.pop, math.clamp(math.floor(math.max(0, k) * BAKE_FPS + 0.5) + 1, 1, #b.pop))
+	else
+		if b.hurried < 2 then
+			b.hurried = 2
+			hurry(b, 1, 6.5)
+		end
+		-- standing, there and back: the picture for the moment, or the nearest one of them drawn so far (they are drawn
+		-- coarse to fine, see bakeStart, so it breathes in a few steps at first and smoothly once all are in; before,
+		-- it stood still on the last of its way out until all were drawn: the report of 2026-11-21, "creatures seem to
+		-- freeze awhile after hatching")
 		local f = math.floor((k - b.popEnd) * IDLE_N / IDLE_T)
 		local period = 2 * (IDLE_N - 1)
 		local j = f % period
 		if j >= IDLE_N then
 			j = period - j
 		end
-		snap = b.idle[j + 1]
-	else
-		-- (standing pictures not ready yet: the last of its way out, settled)
-		snap = b.pop[#b.pop]
+		snap = nearestReady(b.idle, j + 1)
+		if snap then
+			b.mode = "idle"
+			b.moved += if snap ~= b.shown then 1 else 0
+			b.shown = snap
+		else
+			-- (none of them drawn yet: the last of its way out, settled, or the nearest of it drawn)
+			snap = nearestReady(b.pop, #b.pop)
+			b.still += 1
+		end
 	end
 	if snap == nil then
 		return
@@ -1447,6 +1521,11 @@ end
 -- What hatched as the live model (at hatch when its pictures are not ready, or from now on when they no longer fit).
 local function newPal(s: Scene, white: boolean)
 	local thing = MicroModels.species(s.res.sp)
+	-- (its parts drawn plain, not as one blended body: the blend redrawn every frame at this size cost a driftling with
+	-- big wings or a long body over 100 ms a frame; the pictures, blended, take over as soon as they are drawn)
+	for _, part in thing.parts do
+		part:SetAttribute("PixelBlend", nil)
+	end
 	MicroModels.scale(thing, Vector3.one * 0.3)
 	if white then
 		MicroModels.recolor(thing, "white")
@@ -1484,7 +1563,7 @@ local function stepPal(s: Scene, c: number)
 			s.whiteUntil = if white then pop + 0.07 + 0.035 * s.r else 0
 		end
 	end
-	if b and b.mode == "live" and s.palDown and c - s.palLand > 0.6 and allReady(b.idle) then
+	if b and b.mode == "live" and s.palDown and c - s.palLand > 0.6 and anyReady(b.idle) then
 		b.mode = "idle"
 	end
 	if b and (b.mode == "pop" or b.mode == "idle") then
@@ -1565,7 +1644,11 @@ local function hatch(s: Scene)
 	-- what hatched: a white silhouette at first, small in the shell (its baked pictures if they are ready, else the
 	-- live model)
 	local b = s.bake
-	if b and b.mode == "baking" and allReady(b.pop) then
+	if b and b.mode ~= "off" and b.hurried < 1 then
+		b.hurried = 1
+		hurry(b, 4, 6.3)
+	end
+	if b and b.mode == "baking" and allReady(b.key) then
 		b.mode = "pop"
 	else
 		if b and b.mode == "baking" then
@@ -1652,7 +1735,7 @@ function HatchScene.skip()
 	elseif s.phase == "breaking" then
 		if s.clock - s.breakAt >= 0.35 then
 			s.lastTap, s.tapAt = s.clock, s.real
-			if popReady(s) then
+			if popReady(s, math.huge) then
 				hatch(s)
 			else
 				-- (its way out still being drawn: the build-up ends now, at its hardest, and it opens once they are
@@ -2506,7 +2589,7 @@ local function step(s: Scene, dt: number)
 	stepBeams(s, c)
 	if s.phase == "breaking" then
 		local b = c - s.breakAt
-		if b >= s.build and (popReady(s) or b >= s.build + BUILD_WAIT) then
+		if b >= s.build and (popReady(s, b - s.build) or b >= s.build + BUILD_WAIT) then
 			hatch(s)
 		elseif c >= s.tick then
 			-- (a crackle a step higher each time, coming faster, and sparks spitting from the cracks; on at its
@@ -2557,6 +2640,11 @@ local function step(s: Scene, dt: number)
 	if busy ~= s.bakeHeld then
 		s.bakeHeld = busy
 		Snapshot.hold(busy)
+	end
+	local calm = s.bake ~= nil and s.palDown and c - s.palLand > 0.6
+	if calm ~= s.bakeCalm then
+		s.bakeCalm = calm
+		Snapshot.setBudget(if calm then BAKE_CALM_MS else BAKE_MS)
 	end
 	stepPal(s, c)
 	stepShards(s, c, d)
@@ -2731,6 +2819,7 @@ function HatchScene.play(res: Result, after: (() -> ())?)
 		posedClock = -10,
 		posedCrack = 0,
 		bakeHeld = false,
+		bakeCalm = false,
 		lightsAt = -10,
 		shardsAt = -10,
 		parts = {},
@@ -2888,10 +2977,10 @@ end
 -- god rays lit behind it, `hush` how dark the sky is, `slow` whether the slow motion runs, `jolt` the picture's
 -- offset now, `squash` the egg's, `letters` the name's letters in, `ribbon` its ribbon shown, `stars` circling,
 -- `wait` the seconds before it fell, `build` the build-up's).
-function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, baked: string, bakedReady: number, bakedAll: number, egg: boolean, glowing: boolean, beams: number, title: string, titleOff: number, name: string, fresh: boolean, passive: string, light: number, hush: number, slow: boolean, jolt: number, squash: number, letters: number, ribbon: boolean, stars: number, wait: number, build: number }
+function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr: number, clock: number, lift: number, rings: number, reveals: number, left: number, crack: number, shake: number, shown: number, muts: number, rays: number, shards: number, pal: boolean, baked: string, bakedReady: number, bakedAll: number, bakedStill: number, bakedMoved: number, egg: boolean, glowing: boolean, beams: number, title: string, titleOff: number, name: string, fresh: boolean, passive: string, light: number, hush: number, slow: boolean, jolt: number, squash: number, letters: number, ribbon: boolean, stars: number, wait: number, build: number, scale: number }
 	local s = scene
 	if s == nil then
-		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, baked = "", bakedReady = 0, bakedAll = 0, egg = false, glowing = false, beams = 0, title = "", titleOff = 0, name = "", fresh = false, passive = "", light = 0, hush = 0, slow = false, jolt = 0, squash = 0, letters = 0, ribbon = false, stars = 0, wait = 0, build = 0 }
+		return { open = false, phase = "", r = 0, hr = 0, clock = 0, lift = 0, rings = 0, reveals = 0, left = 0, crack = 0, shake = 0, shown = 0, muts = 0, rays = 0, shards = 0, pal = false, baked = "", bakedReady = 0, bakedAll = 0, bakedStill = 0, bakedMoved = 0, egg = false, glowing = false, beams = 0, title = "", titleOff = 0, name = "", fresh = false, passive = "", light = 0, hush = 0, slow = false, jolt = 0, squash = 0, letters = 0, ribbon = false, stars = 0, wait = 0, build = 0, scale = 0 }
 	end
 	local t, n = s.title, s.name
 	local orbiting = 0
@@ -2920,6 +3009,8 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		baked = if s.bake then (s.bake :: Bake).mode else "",
 		bakedReady = bakedReady(s.bake),
 		bakedAll = if s.bake then #(s.bake :: Bake).pop + #(s.bake :: Bake).idle else 0,
+		bakedStill = if s.bake then (s.bake :: Bake).still else 0,
+		bakedMoved = if s.bake then (s.bake :: Bake).moved else 0,
 		egg = s.egg ~= nil,
 		glowing = s.glowing,
 		beams = s.beamsMade,
@@ -2944,6 +3035,7 @@ function HatchScene.debugState(): { open: boolean, phase: string, r: number, hr:
 		stars = orbiting,
 		wait = s.wait,
 		build = s.build,
+		scale = stageScale(),
 	}
 end
 

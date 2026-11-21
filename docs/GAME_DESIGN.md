@@ -2466,6 +2466,35 @@ the pictures are made for the screen's pixel size, so a creature's first hatch s
 kept afterwards for the last four creatures hatched: the next hatch of one of those plays its pictures at once, with
 nothing to draw.
 
+> Then (2026-11-21): "also, creatures seem to freeze awhile after hatching"
+
+It stood on its last landing pose until all eight pictures of it standing were drawn, and drawing was held back for
+over a second of the reveal. Now the standing pictures are drawn coarse to fine (the first and the fifth, then the
+third and seventh, then the rest) and it breathes on whichever are done, the nearest to the moment, smoother as the
+others come in; drawing is held back for only the first half second of the reveal, and once it stands there (the
+scene is quiet then) it gets 8 ms a frame instead of 4.
+
+> And (2026-11-21): "also, a few of the creatures are very laggy to hatch, can you optimize them such that they are
+> easier to render?"
+
+The preview's `hatchcost` timed every creature's pictures. Most take 40 to 80 ms each; the moths with their layered
+wings, the big drakes and wyrms, the elder golem and the maned cats took 150 to 330 ms. Their pictures were never ready
+when the egg broke, so the live model came out instead, and its blended body was worked out again every frame: over
+100 ms a frame, for seconds, until all its standing pictures were drawn. Three changes, and no creature looks any
+different:
+
+- The way out is drawn coarse to fine too. The egg waits up to a second past its build-up for all of it, then opens
+  on its key pictures (the first, the last and every fourth), the in-betweens filling in as it plays. Once it has come
+  out, its standing pictures are drawn ahead of in-betweens it no longer needs.
+- If the live model has to stand in after all, it is drawn plain, its parts as they are, for the moment until its
+  pictures are ready, at a few ms a frame.
+- The soft joins cost less to draw: each pixel looked at every body part near its own to see which could bend the
+  surface there, working out where its ray meets each. Now a part whose reach cannot touch that pixel's column is
+  skipped with four comparisons first. Every creature's pictures are the same to the pixel, about an eighth faster.
+
+The prismoth (a moth, the slowest) went from 90 ms a frame coming out and 160 standing, single frames to almost half a
+second, to about 22 and 18, in the preview's emulator.
+
 - **The sky** is a picture drawn pixel by pixel in 2D, its own for each rarity: a sunset with a low sun (common), a golden afternoon (uncommon), a blue twilight with a crescent moon (rare), a violet night with a
   full moon and aurora (epic), a deep gold night with a great setting sun throwing beams (legendary), a rose night
   under two moons with pink aurora (mythic), a deep starry sky with a ringed planet, the band of the galaxy slanting
@@ -2796,6 +2825,12 @@ text (the requests and how each was met) is in the history of this file, up to c
   appears. Home sends you back to your own tree. Visit and Home share one cooldown (`Tuning.HomeCooldown`, 3 s). An
   invisible wall round each island's grass keeps you on it, and a founder who falls off anyway is put back home. A tap
   on a sign shows that island's day, driftlings at home and charm.
+  > The request (2026-11-21): "make a loading screen when visiting other player islands"
+
+  Both ways go through the loading card the game opens with (`ReplicatedFirst/Loading/LoadingCard`): it covers the
+  screen, the trip happens under it ("Flying over" with the island's name, or "Flying home"), it waits while the new
+  island is drawn ("Drawing the island", "Drawing your island") and opens on it. A trip the server refuses opens the
+  card again where you were, with the reason in a notice.
 
 ### 8.1 The island's small lives (`Controllers/AmbientView`, `Render/Fx`)
 

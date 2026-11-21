@@ -1305,7 +1305,10 @@ smooth minimum folded over them thickest first, each member's own radius the mod
 less (a thin antler or a flat ear meets the head in a small fillet). Each member is first drawn over its own
 silhouette (its exact hit, normal and member kept per pixel, and how many members cover it); only near pixels covered
 by two members does the union count: there the member's neighbours (members whose bounding balls come within the
-pair's radius, listed once a frame, and only those the pixel's ray passes near) give the field, and where it dips
+pair's radius, listed once a frame, and only those the pixel's ray passes near: a member's `bx0`..`by1`, the pixels
+round its centre's within its ball's radius plus its own, are tested first, four comparisons, so a far one costs no
+arithmetic; since the report of 2026-11-21, "a few of the creatures are very laggy to hatch", the same pictures to the
+pixel, an eighth faster) give the field, and where it dips
 below the hit Newton steps along the ray move to the union's surface (a shift under a pixel keeps the hit), lit by
 the members' gradients mixed by the minimum's weights and coloured by the nearest member; the pixels just outside the
 silhouettes between two different members march the union for a fillet. With no step in depth at a join, the outline
@@ -2206,7 +2209,7 @@ of it. Chips on one line (`Chip_shells`, `Chip_season`, `Chip_weather`; frames i
 `Value`; the shells easing to the store, the number flashing gold when it changes; `Hud.topChip(name, icon?, text?,
 color?)` sets the season's and the weather's icon, words and colour, nil words hiding it; no `Chip_wood` since
 2026-11-14, no `Chip_day` or `DayBar` since the same day: "also, this can be compressed into one line. remove the "day
-1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, sending `char.home`, and in its place
+1" as well"; no food chip since 2026-11-13); then `Home`, a button shown while the founder is off their own island, going home behind the loading card (`VisitUI.travel(nil)`), and in its place
 while they are home `Visit` (since 2026-11-20, when the islands took to the sky: shown when Build mode is shut and
 `VisitUI.islands()` lists someone, looked at every 0.5 s; it opens the "visit" panel) (no `MusicToggle` since 2026-11-14: the music, the sounds and the pixel art are the
 Settings panel's, `UI/SettingsUI`; the right-hand column's top is `rightTop()`: `CHIP_Y`, level with the top bar, when
@@ -2596,28 +2599,37 @@ right, `VIEW_R`) the kind that will hatch is drawn as pictures through `Pixel/Sn
 `MicroModels.species` model in a parentless Folder, posed by each picture's builder (`palShape(r, k)`: its growth,
 squash and stretch and the white silhouette, the same function the live model follows), all at the stage's px a stud
 (`scale`) with its feet at one `anchor`, sized for its widest stretch plus `BAKE_PAD` 6 px; `BAKE_FPS` 10 a second for
-its way out (`popEnd` = `POP_UP` + its leap + 0.6 s of spring, priority 6), then `IDLE_N` 8 of it standing over `IDLE_T`
-2.4 s (priority 5). They are drawn as the pixel filter draws a moving model: `outline` "inner", no shadows inside it,
+its way out (`popEnd` = `POP_UP` + its leap + 0.6 s of spring), then `IDLE_N` 8 of it standing over `IDLE_T` 2.4 s.
+Coarse to fine (the user's reports of 2026-11-21, "also, creatures seem to freeze awhile after hatching" and "a few of
+the creatures are very laggy to hatch"): the way out's first, last and every fourth picture first (`bake.key`, priority
+6.4), its other even ones (6.2), the first and fifth standing (6.1), the way out's odd ones (6), the other even
+standing ones (5.3), the rest (5.2); at the hatch the standing ones not drawn every fourth go to 6.3 and once it is out
+(past `popEnd`) all of them to 6.5 (`hurry`, `Snapshot.get` again at a higher priority; `bake.hurried` 0, 1, 2), so
+in-betweens that would come too late wait. They are drawn as the pixel filter draws a moving model: `outline` "inner", no shadows inside it,
 `place` `Shading.INDOOR`, its surface `textures` and `grade` the light of the rarity it hatches as (`GRADE[hr]`,
 `PixelRenderer.gradePixel`, glowing parts left alone). Snapshot draws for `BAKE_MS` 4 ms a frame meanwhile
 (`setBudget`, back to nil when the scene closes), a row at a time (`Raster.blendJob`: since the user's report of
 2026-11-21, "it now lags alot while the egg is hatched", a picture's blended body no longer takes one frame 45 to 100
 ms). The bake begins as the scene opens (once `stageScale()` is known; for a while it began only once the egg had
 landed, which put it on the break and the reveal for players tapping straight through) and is held (`Snapshot.hold`,
-`s.bakeHeld`) for `REVEAL_HOLD` 1.2 s from the hatch (`s.topOff`: the flash, the rings, the card), the last way-out
-picture standing in until the standing ones are ready; the hold is let go at `bakeStop`. The build-up waits for the
-way out (`popReady(s)`): past `s.build`, or at a tap that would skip it (`s.build` cut to now), it hatches once every
-way-out picture is ready or `BUILD_WAIT` 2 s later, shaking at its hardest meanwhile. **Kept between hatches** (the
+`s.bakeHeld`) for `REVEAL_HOLD` 0.5 s from the hatch (`s.topOff`: the flash, the rings); once it stands there
+(`s.palDown` and 0.6 s after `s.palLand`) Snapshot draws `BAKE_CALM_MS` 8 ms a frame (`s.bakeCalm`); the hold and the
+budget are let go at `bakeStop`. The build-up waits for the way out (`popReady(s, waited)`, `waited` s past `s.build`):
+it hatches once every way-out picture is ready, or after `BUILD_SOFT` 1 s once the key ones are, or `BUILD_WAIT` 2 s
+past `s.build` whatever is drawn, shaking at its hardest meanwhile; a tap during the break hatches it on the key ones
+(`popReady(s, math.huge)`), else cuts `s.build` to now. **Kept between hatches** (the
 user's question of 2026-11-21, "cant you store the animation of the models and play it instead of actually baking them
 right during the egg animation?": what hatches is only known from `egg.hatch`, so a new one is drawn in the scene):
 the pictures' keys are `hatch:<sp>:<hr>:<scale x 100>:<n>`, the framing (`w`, `h`, `ax`, `ay`) kept in `bakedKinds`
 (the last `KINDS_KEPT` 4, the oldest's pictures released); a kind baked before reuses its framing and its pictures
 (`Snapshot.get` returns them drawn), and the model (`MicroModels.species`) is only made when a picture must be drawn
 again (`model()`). `bakeStop` lets the drawn pictures go back to the cache (`Snapshot.keep(key, false)`) and releases
-the rest. At the hatch, with every way-out picture ready (`allReady`), `bake.mode`
-"pop" and no model is made; else the live model as before ("live"), and the standing pictures take over once it has
-landed and settled 0.6 s (`dropPal`). `stepBaked` shows the picture for the moment (nearest `k * BAKE_FPS`; standing,
-played there and back) on one `ImageLabel` (`Snapshot.label`, then `Snapshot.show`), "HatchPal", ZIndex 20 on
+the rest. At the hatch, with the key pictures ready (`allReady(bake.key)`), `bake.mode` "pop" and no model is made;
+else the live model ("live"), drawn plain (`newPal` clears its parts' "PixelBlend": blended, a creature with big wings
+or a long body cost the pixel filter over 100 ms a frame), and the standing pictures take over once it has landed and
+settled 0.6 s and one of them is drawn (`anyReady`, `dropPal`). `stepBaked` shows the picture for the moment (`k *
+BAKE_FPS` on the way out; standing, played there and back), or the nearest one drawn (`nearestReady`), the last way-out
+picture (or the nearest drawn) while none standing is, on one `ImageLabel` (`Snapshot.label`, then `Snapshot.show`), "HatchPal", ZIndex 20 on
 `HatchBackdrop.layer()` (the sky's life layer, under the pixel layer, so the shell stays in front of it as the live
 model's depth had it; made again with the layer on a resize), its feet at `projectPixel` of its spot raised by its hop.
 The landing's thud, dust, ring, jolt and stars (`palLanded`) are the same for both. The screen changing size while it
@@ -2630,10 +2642,12 @@ ends; a hatch while a scene shows waits its turn and plays when that one closes,
 quick hatches showed both at once before, the sweep of 2026-11-19), `waiting() -> number` (the hatches waiting), `skip()` (a tap: the next reveal, else the hatch, else away; taps under `TAP_GAP` 0.22 s after the last count
 as one, and taps while the egg rises wait), `isOpen()`, `setQuick(on)` (sims: it ends at once, `after` still runs),
 `debugState()` (`{ open, phase ("egg", "breaking", "hatched", "done"), r, hr, clock, lift, reveals, left, crack, shake,
-shown, muts, rays, shards, pal, baked, bakedReady, bakedAll, egg, glowing, title, titleOff, name, fresh, passive, light,
-hush, slow, jolt, squash, letters, ribbon, stars, wait, build }`; `pal` what hatched shows (the live model or its baked
-pictures), `baked` the bake's mode ("" none yet, "baking", "live", "pop", "idle", "off") and `bakedReady` of `bakedAll`
-its pictures drawn; `shake` how hard it shakes this frame; `fresh` the "New!" tag shown; `light` the
+shown, muts, rays, shards, pal, baked, bakedReady, bakedAll, bakedStill, bakedMoved, egg, glowing, title, titleOff,
+name, fresh, passive, light, hush, slow, jolt, squash, letters, ribbon, stars, wait, build, scale }`; `pal` what hatched
+shows (the live model or its baked pictures), `baked` the bake's mode ("" none yet, "baking", "live", "pop", "idle",
+"off") and `bakedReady` of `bakedAll` its pictures drawn, `bakedStill` the frames it stood on its last way-out picture
+past `popEnd` with no standing one drawn and `bakedMoved` the times the standing picture shown changed; `scale` the
+stage's art px a stud (`stageScale()`); `shake` how hard it shakes this frame; `fresh` the "New!" tag shown; `light` the
 god rays lit (`HatchBackdrop.debugLight`), `hush` how dark the sky is, `slow` the slow motion running, `jolt` the
 picture's offset (art px), `squash` the egg's, `letters` the name's letters in, `ribbon` its ribbon shown, `stars` the
 stars circling, `wait` and `build` this scene's). `res.new` (the result's `new`: a kind
@@ -3072,7 +3086,15 @@ K screen px each).
 (icon "visitor", 220 wide, a row each: the island's name, its owner and tier's name, a Visit button `Visit_<plot>`
 sending `char.visit`; "Nobody else is here yet." when alone; a refusal says to wait or that the island is gone),
 `islands() -> { { plot, name, owner, tier } }` (the other claimed plots, from `Plot_<i>`'s attributes). The HUD's Visit
-button (10.3) opens it.
+button (10.3) opens it. `travel(plot?)` (the request of 2026-11-21, "make a loading screen when visiting other player
+islands"): over to `plot`, or home with nil, behind the loading card (`LoadingCard.cover` with the island's name for a
+title and "Flying over" or "Flying home"): once covered `PixelRenderer.setHidden(true)`, `char.visit` or `char.home`,
+then it waits (4 s at most) until the founder stands on that plot (`standsOn`: within the plot's footprint), says
+"Drawing the island" or "Drawing your island" and waits (8 s at most) while `PixelRenderer.busy()`, then
+`setHidden(false)` and `LoadingCard.finish()`. A refusal finishes the card where you were and says why (`failed`:
+"Wait a moment, then try again." for the cooldown, "Can't go home right now.", "That island isn't there any more.").
+With the card already up (`cover` returns false) the founder simply goes. `busy() -> boolean`: a trip under way (a
+second one is ignored). A row's Visit and the HUD's Home both call it.
 
 ### 10.17 The sweep of 2026-11-19 (costs cut on the client)
 The request: "optimize the game further, fix bugs, and polish everything fully". What the probes showed and what

@@ -2556,16 +2556,61 @@ function SCEN.visit()
 	join(53, "Host", { client = false })
 	settle(p)
 	E.run(1)
+	-- (the trip goes behind the loading card: the request of 2026-11-21, "make a loading screen when visiting other
+	-- player islands". The card's state every frame of it: when it covered, its words, when it opened, and how long)
+	local LCm = nil
+	do
+		local ctx = E.clientCtx(p)
+		local inst = E.find("ReplicatedFirst.Loading.LoadingCard")
+		local e = ctx and inst and ctx.modules[inst]
+		LCm = e and e.value
+	end
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local function trip(label, click)
+		local t0 = E.now()
+		H.clickNamed(p, click, { optional = true, wait = 0 })
+		local coveredAt, openAt, goneAt, shot = -1, -1, -1, false
+		local words = {}
+		for _ = 1, 1200 do
+			E.step(1 / 60)
+			local st = LCm and H.inClient(p, LCm.state)
+			if st then
+				if st.cover == "held" and coveredAt < 0 then
+					coveredAt = E.now() - t0
+				end
+				if st.status and st.status ~= "" and words[#words] ~= st.status then
+					table.insert(words, st.status)
+				end
+				if st.cover == "held" and not shot and #words >= 2 then
+					shot = true
+					capture(p, label .. "_card")
+				end
+				if st.cover == "opening" and openAt < 0 then
+					openAt = E.now() - t0
+				end
+				if openAt >= 0 and not st.up then
+					goneAt = E.now() - t0
+					break
+				end
+			end
+		end
+		local busy = PR and H.inClient(p, PR.busy)
+		log("visit %s: covered at %.2f s, opened at %.2f s, gone at %.2f s; its words: %s; the picture still busy: %s", label, coveredAt, openAt, goneAt, table.concat(words, " / "), tostring(busy))
+	end
 	if H.clickNamed(p, "Visit", { optional = true }) then
 		E.run(0.5)
 		capture(p, "visit_list")
-		H.clickNamed(p, "Visit_2", { optional = true })
-		E.run(1)
+		trip("over", "Visit_2")
 	else
 		log("visit: no Visit button")
 	end
 	settle(p, 30, 1)
 	capture(p, "visit")
+	-- and home again the same way
+	E.run(3.2)
+	trip("home", "Home")
+	settle(p, 30, 1)
+	capture(p, "visit_home")
 	return p
 end
 
@@ -5138,8 +5183,10 @@ end
 local function hatchPerfScenario(code)
 	local r = tonumber(string.sub(code, 1, 1)) or 1
 	local hr = tonumber(string.sub(code, 2, 2)) or r
-	-- ("f": a player tapping through as soon as the egg is down, no mutations to show: the hatch comes at once)
+	-- ("f": a player tapping through as soon as the egg is down, no mutations to show: the hatch comes at once;
+	-- ":<id>": that driftling hatches)
 	local fast = string.sub(code, 3, 3) == "f"
+	local want = string.match(code, ":(%w+)$")
 	seedProfile(61, 10, { pieces = VILLAGE, pals = { "mossbun" }, shells = 9e6 })
 	local p = join(61, "Hatcher")
 	settle(p)
@@ -5194,7 +5241,7 @@ local function hatchPerfScenario(code)
 		end
 	end
 	local Creatures = H.sharedServer("Data.Creatures")
-	local sp = nil
+	local sp = if want and Creatures.byId[want] then want else nil
 	for _, d in Creatures.list do
 		if d.rarity == hr and sp == nil then
 			sp = d.id
@@ -5275,7 +5322,9 @@ local function hatchPerfScenario(code)
 			table.insert(words, string.format("%s %.1f", list[i][1], list[i][2]))
 		end
 		log("hatchperf %s: %-21s by callback (ms a frame): %s", code, label, table.concat(words, ", "))
-		log("hatchperf %s: %-21s baked %s at %.2f s", code, label, tostring(state().baked), state().clock)
+		local sb = state()
+		log("hatchperf %s: %-21s baked %s at %.2f s (%d of %d drawn; %d frames standing still after its way out, the standing picture changed %d times)",
+			code, label, tostring(sb.baked), sb.clock, sb.bakedReady, sb.bakedAll, sb.bakedStill, sb.bakedMoved)
 		local pw = {}
 		for k, c in pic.calls do
 			table.insert(pw, string.format("%s %d calls %.1f ms (longest %.1f)", k, c, pic.ms[k], pic.max[k]))
@@ -5345,11 +5394,180 @@ local function hatchPerfScenario(code)
 	timed(pre .. "standing", function()
 		runTo(t0 + 2.0)
 	end)
+	timed(pre .. "standing on", function()
+		runTo(t0 + 4.0)
+	end)
 	end
 	E.simClock = sim0
 	return p
 end
 SCEN.hatchperf = hatchPerfScenario
+
+-- "hatchcost[=<id>,<id>]": what each driftling costs the hatch scene (the user's report of 2026-11-21, "a few of the
+-- creatures are very laggy to hatch"): its full model's parts (blended, textured), the time to build it, one pose
+-- (scale, animate, place) and one of the scene's baked pictures (Render/Picture's steps, at the scene's pixel size, as
+-- HatchScene draws them); every driftling, most costly first, unless ids are given
+local function hatchCostScenario(arg)
+	seedProfile(63, 10, { pals = { "mossbun" } })
+	local p = join(63, "Costs")
+	settle(p, 30, 1)
+	local Creatures = H.sharedServer("Data.Creatures")
+	local ctx = E.clientCtx(p)
+	local MM = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Models.MicroModels"))
+	local Shading = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Render.Shading"))
+	local Pic = E.moduleIn(ctx, E.find("ReplicatedStorage.Shared.Render.Picture"))
+	local SN = H.cmod(p, "Pixel.Snapshot")
+	local HS = H.cmod(p, "UI.HatchScene")
+	-- (the scene's pixel size: opened once, read, shut)
+	H.inClient(p, function()
+		HS.play({ sp = "mossbun", muts = {}, r = 1, hr = 1, new = false }, nil)
+	end)
+	E.run(0.5)
+	local scale = H.inClient(p, HS.debugState).scale
+	for _ = 1, 8 do
+		if not H.inClient(p, HS.debugState).open then
+			break
+		end
+		H.inClient(p, HS.skip)
+		E.run(0.6)
+	end
+	E.run(1)
+	-- (":pix": each picture's pixels printed too, "hatchpix <id> <w> <h> <hex>", to compare two runs' drawing)
+	local pix = false
+	if arg and string.sub(arg, -4) == ":pix" then
+		pix = true
+		arg = string.sub(arg, 1, -5)
+	end
+	if arg == "all" then
+		arg = nil
+	end
+	local ids = {}
+	if arg and arg ~= "" then
+		for id in string.gmatch(arg, "[^,]+") do
+			table.insert(ids, id)
+		end
+	else
+		for _, d in Creatures.list do
+			table.insert(ids, d.id)
+		end
+	end
+	local picMs = 0
+	local step0 = Pic.step
+	-- (with ids given: each picture's time by its pass, a little at a time: "solids" the plain ones, "blend<n>" the
+	-- body's blend by its stage (Raster.BlendJob's phase), "shade", "clear", "ink")
+	local split = arg and arg ~= ""
+	local parts = {}
+	Pic.step = function(job, deadline)
+		if not split then
+			local t = os.clock()
+			local done = step0(job, deadline)
+			picMs += (os.clock() - t) * 1000
+			return done
+		end
+		local done = false
+		while not done do
+			local ph = job.phase
+			local bj = job.blendJob
+			local key = if ph == 1 then (if bj then "blend" .. bj.phase else "solids") elseif ph == 2 then "shade" elseif ph == 3 then "clear" else "ink"
+			local t = os.clock()
+			done = step0(job, 0)
+			local ms = (os.clock() - t) * 1000
+			picMs += ms
+			parts[key] = (parts[key] or 0) + ms
+		end
+		return done
+	end
+	local sim0 = E.simClock
+	local realClock = os.clock
+	E.simClock = function()
+		return realClock()
+	end
+	local rows = {}
+	for _, id in ids do
+		local d = Creatures.byId[id]
+		if d then
+			local row = H.inClient(p, function()
+				local t0 = os.clock()
+				local th = MM.species(id)
+				local buildMs = (os.clock() - t0) * 1000
+				local parts, blend, tex = 0, 0, 0
+				for _, q in th.parts do
+					parts += 1
+					blend += if q:GetAttribute("PixelBlend") then 1 else 0
+					tex += if q:GetAttribute("PixelTex") then 1 else 0
+				end
+				local cf = E.cf.Angles(0, math.pi / 4, 0)
+				t0 = os.clock()
+				for i = 1, 30 do
+					MM.scale(th, E.v3(1.35, 1.35, 1.35))
+					MM.animate(th, i * 0.1, "idle", 0)
+					MM.place(th, cf)
+				end
+				local poseMs = (os.clock() - t0) * 1000 / 30
+				th.model:Destroy()
+				return { id = id, shape = d.shape, rarity = d.rarity, parts = parts, blend = blend, tex = tex, buildMs = buildMs, poseMs = poseMs }
+			end)
+			picMs = 0
+			table.clear(parts)
+			local snap = H.inClient(p, function()
+				SN.setBudget(10000)
+				return SN.get("cost:" .. id, function()
+					local th = MM.species(id)
+					MM.scale(th, E.v3(1.35, 1.35, 1.35))
+					MM.animate(th, 1, "idle", 0)
+					MM.place(th, E.cf.Angles(0, math.pi / 4, 0))
+					return th.model
+				end, { w = 160, h = 160, yaw = 0, scale = scale, anchor = E.v2(80, 130), outline = "inner", shadows = false, priority = 10, place = Shading.INDOOR, textures = true })
+			end)
+			E.runUntil(function()
+				return snap == nil or snap.ready or snap.failed
+			end, 20, 0.02)
+			row.picMs = picMs
+			if pix and snap and snap.image then
+				local img = snap.image
+				local w, h = img.Size.X, img.Size.Y
+				local buf = img:ReadPixelsBuffer(E.v2(0, 0), E.v2(w, h))
+				local hex = table.create(w * h)
+				for q = 0, w * h - 1 do
+					hex[q + 1] = string.format("%08x", buffer.readu32(buf, q * 4))
+				end
+				print(string.format("hatchpix %s %d %d %s", id, w, h, table.concat(hex)))
+			end
+			local words = {}
+			for k, v in parts do
+				table.insert(words, string.format("%s %.1f", k, v))
+			end
+			table.sort(words)
+			row.split = table.concat(words, ", ")
+			H.inClient(p, function()
+				SN.release("cost:" .. id)
+			end)
+			table.insert(rows, row)
+		end
+	end
+	E.simClock = sim0
+	Pic.step = step0
+	H.inClient(p, function()
+		SN.setBudget(nil)
+	end)
+	table.sort(rows, function(a, b)
+		return a.picMs + 20 * a.poseMs > b.picMs + 20 * b.poseMs
+	end)
+	local total = 0
+	for _, r in rows do
+		total += r.picMs
+	end
+	log("hatchcost: %d driftlings at %.2f px a stud; a picture %.1f ms on average", #rows, scale, total / math.max(1, #rows))
+	for i, r in rows do
+		log("hatchcost %3d %-14s %-12s r%d: picture %6.1f ms, pose %5.2f ms, build %5.1f ms; %3d parts (%3d blended, %3d textured)",
+			i, r.id, r.shape, r.rarity, r.picMs, r.poseMs, r.buildMs, r.parts, r.blend, r.tex)
+		if r.split ~= "" then
+			log("hatchcost %3d %-14s by pass (ms): %s", i, r.id, r.split)
+		end
+	end
+	return p
+end
+SCEN.hatchcost = hatchCostScenario
 
 local function hatchScenario(code)
 	local r = tonumber(string.sub(code, 1, 1)) or 1
@@ -6046,7 +6264,13 @@ for _, name in list do
 			return weatherScenario(wxArg)
 		end
 	end
-	local hatchperf = string.match(name, "^hatchperf=(%d%df?)$")
+	local hatchcost = string.match(name, "^hatchcost=(.+)$")
+	if hatchcost then
+		fn = function()
+			return hatchCostScenario(hatchcost)
+		end
+	end
+	local hatchperf = string.match(name, "^hatchperf=(%d%df?:?%w*)$")
 	if hatchperf then
 		fn = function()
 			return hatchPerfScenario(hatchperf)

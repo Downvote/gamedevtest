@@ -391,10 +391,8 @@ local function buildTop()
 	layoutTop()
 	-- Home: shown while the founder is off their own island (char.home sends them back to their tree)
 	local hb = UIKit.button(canvas, "Home", UDim2.fromOffset(UIKit.buttonWidth("Home", 5), TOP_H), UDim2.fromOffset(EDGE + w + GAP, CHIP_Y), function()
-		local res = StateClient.request("char.home", {})
-		if not res.ok and res.err ~= "cooldown" then
-			UIKit.notice("Can't go home right now.", UIKit.color("bad"))
-		end
+		-- (behind the loading card, as a visit: UI/VisitUI)
+		VisitUI.travel(nil)
 	end, { name = "Home", color = UIKit.color("button_warn") })
 	hb.Visible = false
 	homeButton = hb
