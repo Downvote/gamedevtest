@@ -693,7 +693,8 @@ Swarm Simulator, Adopt Me, Tycoon games on Roblox, and Roblox's own touch contro
 - full-screen menus with a big red close button at the top right, tabs down the side as big tiles.
 
 **Phones and tablets** (a touch screen with no mouse, `UIKit.touch`; a phone has a short side of 500 px or less):
-- The top bar: the coins with a mint "+" (the Store), the season and the weather.
+- The top bar: the coins with a mint "+" (the Store), then the season's and the weather's icons, each with only the
+  time it has left ("2 h 19 min", "9 min"), so the bar stays short.
 - Along the bottom, as on a desktop: one glass strip with a row of dark glass squares, 22 UI px on a phone (44 screen
   px) and 28 on a tablet: Driftlings, the Hatchery once it opens, Index, Looks, Top, Settings, and last Build, mint
   with a 1 px outline. Each shows its big icon; a held finger shows a tooltip with its name and what it opens. The row
@@ -705,13 +706,21 @@ Swarm Simulator, Adopt Me, Tycoon games on Roblox, and Roblox's own touch contro
   > next to jump", then "For mobile could you flush the first ui part to the left, and put the second image, the
   > buttons, to the bottom, just like in pc?" (the first part: the status lines and the quest's card; the second: the
   > grid of squares that ran down the left)
-- At the top right: the island card, folded on a phone to its name and the coins a minute (a tap opens it), open on a
-  tablet. Under it a row of three squares across the card's width: Eggs (the tree's big icon over a bar running down to
-  the next eggs, the time under it), Gifts (its red dot) and Store. The offers (Starter Pack, the group) under them,
-  moved left of the jump button when they would reach it.
-- Against the left edge under the top bar: the status lines and the quest's card, which folds to its title and
-  progress at a tap on its title (a quest done always shows its Claim). On a screen too narrow for them beside the
-  right column they go under it.
+- At the top right, up in the top bar's row: the island card, folded on a phone to its name and the coins a minute (a
+  tap opens it), open on a tablet. Under it a row of three squares across the card's width: Eggs (the tree's big icon
+  over a bar running down to the next eggs, the time under it), Gifts (its red dot) and Store. The offers (Starter
+  Pack, VIP's gift, the group, the away earnings) under them, flush with the right edge; only if they would reach the
+  jump button do they move left of it.
+- Against the left edge under the top bar: the status lines and the quest's card. On a touch screen the card starts
+  folded: its title and which quest of the 19 it is, then its progress bar with the count and Go. A tap on its title
+  opens it with the whole description in as many lines as it takes, never cut short with "..." (on every screen). A
+  quest done always shows its Claim. On a screen too narrow for them beside the right column they go under it.
+
+  > The request (2026-11-21, with a picture of the phone): "Shorten the top part by removing the weather and season
+  > text on mobile like "falling leaves" and "autumn", and only show the hours. Move the right part up. Make the goal
+  > card not expanded by default, but still show the x/x and go button, and expanding shows the whole description,
+  > without needing to hide longer texts with ... also, the elements like starter pack, vip gift, etc. should be
+  > flushed to the right"
 - The tips above the row of squares, left of the jump button. Nothing in the bottom left.
 - The camera keeps only Roblox's top bar clear on a phone, so the founder stands in the middle of what is left.
 

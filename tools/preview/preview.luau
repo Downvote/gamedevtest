@@ -378,6 +378,20 @@ function SCEN.village()
 	settle(p)
 	E.run(2.5)
 	capture(p, "village")
+	-- (the quest's card on the third quest, not done yet: a touch screen's folded to its title, progress and Go, then
+	-- opened with its whole description; the request of 2026-11-21, "Make the goal card not expanded by default, but
+	-- still show the x/x and go button, and expanding shows the whole description")
+	do
+		local prof = H.profile(p)
+		prof.quest = 3
+		H.push(p, 0.6)
+		E.run(0.4)
+		capture(p, "village_quest")
+		if H.clickNamed(p, "QuestFold", { optional = true, wait = 0.4 }) then
+			capture(p, "village_quest_open")
+			H.clickNamed(p, "QuestFold", { optional = true, wait = 0.3 })
+		end
+	end
 	-- (how full the buildings are, the request of 2026-11-14: alerts over the empty ones, and a tap on a hut with
 	-- driftlings in it showing its card, village_card)
 	local BT = modOr(p, "Controllers.BuildingTags")
