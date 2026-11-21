@@ -1953,11 +1953,12 @@ end
 -- The tab buttons (named LooksTab_<id>, the open one teal), in rows across `w` px when two rows hold them, else in a
 -- strip that scrolls sideways (the open one scrolled into view). Returns the height they take.
 local function buildTabs(parent: Frame, w: number, wrapOk: boolean, onPick: (id: string) -> ()): number
-	local TH = UIKit.TAB_H
+	-- (a touch screen's tabs taller, big chips a finger can hit: GAME_DESIGN 2.1)
+	local TH = if UIKit.touch() then 18 else UIKit.TAB_H
 	local widths: { number } = {}
 	local total = 0
 	for i, t in TABS do
-		widths[i] = UIKit.textWidth(t.text) + 10
+		widths[i] = UIKit.textWidth(t.text) + (if UIKit.touch() then 14 else 10)
 		total += widths[i] + (if i > 1 then 2 else 0)
 	end
 	local rows = 1

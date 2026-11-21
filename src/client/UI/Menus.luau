@@ -691,7 +691,10 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	local passive = Lang.f("{1}: {2}@@pair", Lang.t(d.passive.name), Lang.t(Traits.describe(d.passive.fx)))
 	local pl = math.clamp(UIKit.lines(passive, tw), 1, 2)
 	local dy = (pl - 1) * 10
-	local f = row(list, order, 44 + dy)
+	-- (a touch screen's Move, Work and Sell taller, the row taller with them: GAME_DESIGN 2.1)
+	local touch = UIKit.touch()
+	local bh, bw = if touch then 14 else 12, if touch then 56 else 52
+	local f = row(list, order, math.max(44 + dy, if touch then 50 else 0))
 	f.Name = "Pal_" .. x.id
 	-- (hover or hold: what its numbers mean, the request of 2026-11-15)
 	PalTip.attach(f, x)
@@ -715,13 +718,13 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 		end
 	end
 	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 31 + dy), { color = color, z = 4, name = "Where" })
-	UIKit.button(f, "Move", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 2), function()
+	UIKit.button(f, "Move", UDim2.fromOffset(bw, bh), UDim2.new(1, -(bw + 3), 0, 2), function()
 		UIKit.openPanel("pals", { move = x.id, back = back })
 	end, { name = "Move_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
-	UIKit.button(f, "Work", UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 16), function()
+	UIKit.button(f, "Work", UDim2.fromOffset(bw, bh), UDim2.new(1, -(bw + 3), 0, 4 + bh), function()
 		UIKit.openPanel("pals", { pal = x.id })
 	end, { name = "Help_" .. x.id, enabled = x.home ~= 0 }).ZIndex = 4
-	confirmButton(f, "Sell " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(52, 12), UDim2.new(1, -55, 0, 30), function()
+	confirmButton(f, "Sell " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(bw, bh), UDim2.new(1, -(bw + 3), 0, 6 + 2 * bh), function()
 		local res = ask("pal.sell", { id = x.id })
 		if res.ok then
 			Audio.play("coins")
