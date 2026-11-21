@@ -4016,7 +4016,9 @@ do
 	-- the touch layout (2026-11-21: "rearrange and redo the UI on mobile and tablet. Reference other mobile tycoon
 	-- games in landscape and replicate their UI design"): the menus as squares a fingertip wide in a grid down the
 	-- left, Build the grid's last square ("Put the build button as the 6th button here instead of next to jump"), no
-	-- button of the HUD's under the jump button, and the bottom left (the thumbstick's corner) clear of buttons
+	-- button of the HUD's under the jump button, and the bottom left (the thumbstick's corner) clear of buttons; since
+	-- "flush the first ui part to the left, and put the second image, the buttons, to the bottom, just like in pc" the
+	-- squares in a row along the bottom and the quest's card against the left edge
 	local function touchHud(tag: string)
 		E.run(0.6)
 		local cs = H.inClient(p, UIKitC.size, "Hud")
@@ -4049,7 +4051,7 @@ do
 		H.expect(#under == 0, "touch", tag .. ": no HUD button under the jump button", table.concat(under, ", "))
 		H.expect(#corner == 0, "touch", tag .. ": the thumbstick's corner (bottom left) clear of buttons", table.concat(corner, ", "))
 		local pals = H.buttonNamed(p, "Menu_pals")
-		H.expect(pals ~= nil and pals.Parent ~= nil and pals.Parent.Name == "MenuBar" and pals.AbsoluteSize.X / u * Kn >= 43 and pals.AbsoluteSize.Y / u * Kn >= 43, "touch", tag .. ": the menus are squares a fingertip wide in the grid down the left", pals and tostring(pals.AbsoluteSize) or "missing")
+		H.expect(pals ~= nil and pals.Parent ~= nil and pals.Parent.Name == "MenuBar" and pals.AbsoluteSize.X / u * Kn >= 43 and pals.AbsoluteSize.Y / u * Kn >= 43, "touch", tag .. ": the menus are squares a fingertip wide in the row along the bottom", pals and tostring(pals.AbsoluteSize) or "missing")
 		local mb = H.buttonNamed(p, "Menu_build")
 		local last = nil
 		if mb and mb.Parent and mb.Parent.Name == "MenuBar" then
@@ -4060,8 +4062,23 @@ do
 			end
 		end
 		H.expect(mb ~= nil and last == mb and math.abs(mb.AbsoluteSize.X - pals.AbsoluteSize.X) < 1 and math.abs(mb.AbsoluteSize.Y - pals.AbsoluteSize.Y) < 1, "touch", tag .. ": Build the last square of the grid, as big as the rest", if mb then string.format("%s in %s, last %s", tostring(mb.AbsoluteSize), mb.Parent and mb.Parent.Name or "nothing", last and last.Name or "none") else "missing")
-		local bx0 = mb and (mb.AbsolutePosition.X - canvas.AbsolutePosition.X) / u
-		H.expect(bx0 ~= nil and bx0 < jx0 - 40, "touch", tag .. ": Build nowhere near the jump button", if bx0 then string.format("Build at %.0f, jump at %.0f", bx0, jx0) else "missing")
+		-- (every square of the row level with the others, its foot near the screen's bottom edge)
+		local foots, tops = {}, {}
+		local row = mb and mb.Parent
+		if row and row.Name == "MenuBar" then
+			for _, d in row:GetChildren() do
+				if d:IsA("GuiButton") and d.Visible then
+					table.insert(foots, (d.AbsolutePosition.Y + d.AbsoluteSize.Y - canvas.AbsolutePosition.Y) / u)
+					table.insert(tops, (d.AbsolutePosition.Y - canvas.AbsolutePosition.Y) / u)
+				end
+			end
+		end
+		local lowest = if #foots > 0 then math.max(table.unpack(foots)) else -1
+		local level = #tops > 0 and math.max(table.unpack(tops)) - math.min(table.unpack(tops)) < 1
+		H.expect(#foots >= 5 and level and lowest >= cs.Y - 12 and lowest <= cs.Y, "touch", tag .. ": the squares in one row along the bottom", string.format("%d squares, foot at %.0f of %d", #foots, lowest, cs.Y))
+		local qf = canvas:FindFirstChild("Quest")
+		local qx = if qf and qf:IsA("GuiObject") then (qf.AbsolutePosition.X - canvas.AbsolutePosition.X) / u else nil
+		H.expect(qx ~= nil and math.abs(qx - 5) < 1, "touch", tag .. ": the quest's card against the left edge", if qx then string.format("at %.0f", qx) else "missing")
 	end
 	screen(844, 390, true)
 	touchHud("a phone")

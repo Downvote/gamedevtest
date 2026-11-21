@@ -75,10 +75,12 @@ local LINE_H = 11
 -- other mobile tycoon games in landscape and replicate their UI design." What those games share (GAME_DESIGN 2.1):
 -- the money in a pill at the top left with a "+" to the store; the menus as big square buttons down the left; the
 -- store, the gifts and whatever runs on a timer as squares on the right, under the island's card; the bottom left
--- kept free for the thumbstick and nothing under the jump button; the cards fold away. Build is the grid's last square,
--- in mint (the user's request of 2026-11-21: "Put the build button as the 6th button here instead of next to jump"). A
--- touch screen (UIKit.touch: no mouse) gets it: a phone icon-only squares, a tablet bigger ones with their names under
--- them. A desktop keeps the menu bar.
+-- kept free for the thumbstick and nothing under the jump button; the cards fold away. Then the user's own changes the
+-- same day: Build the last of the menus' squares, in mint ("Put the build button as the 6th button here instead of
+-- next to jump"), and the squares in a row along the bottom with the status lines and the quest's card against the
+-- left edge ("flush the first ui part to the left, and put the second image, the buttons, to the bottom, just like in
+-- pc"). A touch screen (UIKit.touch: no mouse) gets it: a phone icon-only squares, a tablet bigger ones. A desktop
+-- keeps its toolbar.
 local function mobile(): boolean
 	return UIKit.touch()
 end
@@ -90,7 +92,8 @@ end
 local function labelled(): boolean
 	return not UIKit.phone()
 end
-local cellW = SQ_PHONE -- the left grid's column (a tablet's as wide as its longest name)
+local cellW = SQ_PHONE -- a square's cell in the row along the bottom (a tablet's as wide as its longest name, where they fit)
+local touchBarX, touchBarH = 0, 0 -- (where the row along the bottom starts, how tall it is without its glass)
 local cellR = SQ_PHONE -- the right row's (a third of the island card's width)
 local menuSide: Frame? = nil -- the right row's Gifts and Store (the Eggs square is the tree's card)
 local buildBtn: TextButton? = nil -- Build, the menu bar's or the touch screen's square
@@ -202,14 +205,16 @@ local function hudRects()
 	local half = math.floor(barW / 2) + DOCK + 1
 	local list: { Raster.Rect }
 	if mobile() then
-		-- a touch screen: nothing along the bottom any more (the squares keep to the sides), so a phone keeps only
-		-- Roblox's top bar clear, the founder in the middle of what's left; a tablet the top bar's row and the right
-		-- column too, as a desktop does
+		-- a touch screen: its row of squares along the bottom kept clear, as a desktop's toolbar is; a phone besides
+		-- keeps only Roblox's top bar clear, the founder in the middle of what's left; a tablet the top bar's row and
+		-- the right column too, as a desktop does
+		local row = r(touchBarX - DOCK - 1, s.Y - touchBarH - 2 * DOCK - EDGE, touchBarX + barW + DOCK + 1, s.Y)
 		if UIKit.phone() then
-			list = { { x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y } }
+			list = { { x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y }, row }
 		else
 			list = {
 				{ x0 = 0, y0 = 0, x1 = s.X * K, y1 = o.Y + (CHIP_Y + TOP_H + 2) * K },
+				row,
 				r(s.X - CARD_W - EDGE - 2, rightTop() - 2, s.X, rightTop() + CARD_MAX_H),
 			}
 		end
@@ -660,8 +665,9 @@ local function bigIcon(icon: string): (string, number)
 	end
 	return "mini_" .. icon, 11
 end
-local function square(parent: Instance, m: Menu, x: number, y: number, cw: number): TextButton
+local function square(parent: Instance, m: Menu, x: number, y: number, cw: number, named: boolean?): TextButton
 	local n = sq()
+	local withName = if named == nil then labelled() else named
 	local build = m.panel == "build"
 	local bx = x + math.floor((cw - n) / 2)
 	if build then
@@ -677,7 +683,7 @@ local function square(parent: Instance, m: Menu, x: number, y: number, cw: numbe
 	end, { name = "Menu_" .. m.panel, color = UIKit.color(if build then "button_ok" else "glass") })
 	local name, size = bigIcon(m.icon)
 	PixelSprites.image(b, name, UDim2.fromOffset(math.floor((n - size) / 2), math.floor((n - size) / 2)), 6).Name = "Icon"
-	if labelled() then
+	if withName then
 		UIKit.text(parent, m.text, UDim2.fromOffset(cw, LABEL_H), UDim2.fromOffset(x, y + n + 1), { x = "center", name = "Label_" .. m.panel, z = 3 })
 	end
 	-- (a held finger shows its name and what it opens: a phone's squares have no names under them)
@@ -691,51 +697,70 @@ local function square(parent: Instance, m: Menu, x: number, y: number, cw: numbe
 	return b
 end
 
--- The touch screen's menus: the left grid (two columns of squares under the top bar, three where two would reach the
--- thumbstick: Driftlings, the Hatchery once it's open, Index, Looks, Top, Settings, then Build in mint) and the right row's Gifts and Store (`stack` sets it
--- beside the Eggs square under the island card). Build sat by the jump button till the request of 2026-11-21: "Put the
--- build button as the 6th button here instead of next to jump".
-local LEFT_MENUS = { "pals", "hatch", "index", "looks", "top", "settings", "build" }
+-- The touch screen's menus. Since the request of 2026-11-21, "For mobile could you flush the first ui part to the
+-- left, and put the second image, the buttons, to the bottom, just like in pc": the squares in a row along the bottom
+-- on one glass strip, as a desktop's toolbar is: Driftlings, the Hatchery once it's open, Index, Looks, Top, Settings,
+-- then Build in mint (it sat by the jump button till "Put the build button as the 6th button here instead of next to
+-- jump", the same day). The row keeps out of the thumbstick's corner (the left THUMB_W of the screen) and left of the
+-- jump button: centred where it fits, a tablet's names under its squares where they fit too; on a screen too narrow
+-- even for the bare squares the corner is given up first, then the row wraps onto a second one. Gifts and Store stay
+-- in the right row beside the Eggs square under the island card (`stack` sets it).
+local BAR_MENUS = { "pals", "hatch", "index", "looks", "top", "settings", "build" }
+local THUMB_W = 0.3
 local function buildSquares()
 	local canvas = UIKit.canvas("Hud")
+	local s = UIKit.size("Hud")
 	local n = sq()
-	cellW = n
-	if labelled() then
-		for _, id in LEFT_MENUS do
-			local m = menuOf(id)
-			if m then
-				cellW = math.max(cellW, UIKit.textWidth(m.text) + 4)
-			end
-		end
-		cellW = math.min(cellW, 60)
-	end
 	cellR = math.max(n, math.floor((CARD_W - 2 * GAP) / 3))
-	local rh = n + (if labelled() then LABEL_H + 1 else 0)
 	local list: { Menu } = {}
-	for _, id in LEFT_MENUS do
+	for _, id in BAR_MENUS do
 		local m = menuOf(id)
 		if m then
 			table.insert(list, m)
 		end
 	end
-	-- two columns, or three where two would reach down into the thumbstick's corner (a phone with the Hatchery open:
-	-- seven squares, four rows of them, came down to three quarters of the screen's height)
-	local cols = 2
-	local rows = math.ceil(#list / cols)
-	if CARD_Y + rows * rh + (rows - 1) * GAP > math.floor(UIKit.size("Hud").Y * 0.6) then
-		cols = 3
-		rows = math.ceil(#list / cols)
+	local jx0 = jumpRect()
+	local left, right = math.ceil(s.X * THUMB_W) + 1, math.floor(jx0) - GAP
+	local function widthOf(cw: number, k: number): number
+		return k * cw + (k - 1) * GAP
 	end
+	local named = labelled()
+	cellW = n
+	if named then
+		for _, m in list do
+			cellW = math.max(cellW, UIKit.textWidth(m.text) + 4)
+		end
+		cellW = math.min(cellW, 60)
+		if widthOf(cellW, #list) > right - left then
+			named, cellW = false, n
+		end
+	end
+	if widthOf(cellW, #list) > right - left then
+		left = EDGE + DOCK
+	end
+	local cols = math.clamp(math.floor((right - left + GAP) / (cellW + GAP)), 1, math.max(1, #list))
+	local rows = math.ceil(#list / cols)
+	local rh = n + (if named then LABEL_H + 1 else 0)
+	local w, h = widthOf(cellW, cols), rows * rh + (rows - 1) * GAP
+	touchBarX = math.max(left, math.min(math.floor((s.X - w) / 2), right - w))
+	touchBarH = h
 	local f = Instance.new("Frame")
 	f.Name = "MenuBar"
 	f.BackgroundTransparency = 1
-	f.Size = UDim2.fromOffset(cols * cellW + (cols - 1) * GAP, rows * rh + (rows - 1) * GAP)
+	f.Size = UDim2.fromOffset(w, h)
+	-- pinned to the canvas's bottom edge, as a desktop's
+	f.AnchorPoint = Vector2.new(0, 1)
+	f.Position = UDim2.new(0, touchBarX, 1, -(DOCK + EDGE - 1))
 	f.Parent = canvas
+	local dock = UIKit.glass(f, UDim2.fromOffset(w + 2 * DOCK, h + 2 * DOCK), UDim2.fromOffset(-DOCK, -DOCK), 2)
+	dock.Name = "Dock"
+	dock.ZIndex = 0
 	for i, m in list do
-		square(f, m, ((i - 1) % cols) * (cellW + GAP), ((i - 1) // cols) * (rh + GAP), cellW)
+		square(f, m, ((i - 1) % cols) * (cellW + GAP), ((i - 1) // cols) * (rh + GAP), cellW, named)
 	end
 	bar = f
-	barW = 0
+	barW = w
+	rh = n + (if labelled() then LABEL_H + 1 else 0)
 	local side = Instance.new("Frame")
 	side.Name = "MenuSide"
 	side.BackgroundTransparency = 1
@@ -1069,19 +1094,17 @@ end
 -- button); down the left, the status panel and the quest's card under it.
 local offers: Frame? = nil -- the store's offers (UI/StoreUI.offers: the Starter Pack, VIP's gift)
 
--- A touch screen's blocks: the grid of squares down the left under the top bar, Build its last; the island card at the
--- top right, the row of squares under it (Eggs, Gifts, Store) and the offers under that, slid left of the jump button
--- when they would reach it; the status panel and the quest's card right of the grid (or under everything on a screen
--- too narrow for that). Nothing goes in the bottom left, where the thumbstick is.
+-- A touch screen's blocks: the row of squares along the bottom, Build its last; the island card at the top right, the
+-- row of squares under it (Eggs, Gifts, Store) and the offers under that, slid left of the jump button when they would
+-- reach it; the status panel and the quest's card against the left edge under the top bar (under the right column on
+-- a screen too narrow for that). Nothing goes in the bottom left, where the thumbstick is.
 local function stackTouch()
 	local s = UIKit.size("Hud")
 	local hide = BuildUI.isOpen() or UIKit.currentPanel() ~= nil
-	local gridR, gridB = EDGE, CARD_Y
 	local b = bar
 	if b then
 		b.Visible = not hide
-		b.Position = UDim2.fromOffset(EDGE, CARD_Y)
-		gridR, gridB = EDGE + b.Size.X.Offset, CARD_Y + b.Size.Y.Offset
+		b.Position = UDim2.new(0, touchBarX, 1, -(DOCK + EDGE - 1))
 	end
 	local colX = s.X - CARD_W - EDGE
 	local y = rightTop()
@@ -1118,9 +1141,11 @@ local function stackTouch()
 		of.Position = UDim2.fromOffset(ox, oy)
 		colB = oy + of.Size.Y.Offset
 	end
-	local lx, ly = gridR + GAP, CARD_Y
+	-- (the status lines and the quest's card against the left edge under the top bar, the request of 2026-11-21:
+	-- "flush the first ui part to the left"; under the right column on a screen too narrow for both)
+	local lx, ly = EDGE, CARD_Y
 	if lx + STATUS_W > colX - GAP then
-		lx, ly = EDGE, math.max(gridB, colB) + GAP
+		ly = colB + GAP
 	end
 	local st = status
 	if st then
@@ -1374,9 +1399,9 @@ local function tipsLift(): number
 		local chip = v ~= nil and not (v.passes and v.passes.FreeDecor)
 		return BuildUI.trayHeight() + (if chip then 18 else 12)
 	end
-	-- (a touch screen has no menu bar along the bottom: the note sits on the bottom edge)
+	-- (a touch screen: over its row of squares along the bottom)
 	if mobile() then
-		return EDGE + 2
+		return if bar then touchBarH + 2 * DOCK + EDGE + 4 else EDGE + 2
 	end
 	return barH() + 2 * DOCK + EDGE + 4
 end

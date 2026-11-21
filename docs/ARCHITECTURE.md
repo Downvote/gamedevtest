@@ -1816,9 +1816,10 @@ in the bottom right corner, the newest lowest, `NOTICE_FOOT` over the canvas's b
 ScreenGui that ignores every inset, so a notched phone's side margins count), `Changed` (fires when it changes),
 `start()`. `CameraController.screenSize`, `PixelRenderer`'s layer, `SkyBackdrop`, `HatchBackdrop`, UIKit's viewport and
 `LoadingCard` read it (the right-edge bar of 2026-11-21).
-`UI/Hud` on a touch screen: `MenuBar` (the left grid of `Menu_<panel>` squares: pals, hatch, index, looks, top,
-settings, build; two columns, three where two would come below 0.6 of the screen's height; `Menu_build` mint with a
-`BuildRing` outline under it), `MenuSide` (`Menu_rewards`, `Menu_store`), `TreeCard` as a square (`TreeOpen`, `TreeBar`,
+`UI/Hud` on a touch screen: `MenuBar` (a row of `Menu_<panel>` squares along the bottom on a `Dock` of glass: pals,
+hatch, index, looks, top, settings, build; centred between the left 30% of the screen and the jump button, a tablet's
+`Label_<panel>` names only where they fit; `Menu_build` mint with a `BuildRing` outline under it; the camera keeps the
+row clear), `Status` and `Quest` at the left edge under the top bar, `MenuSide` (`Menu_rewards`, `Menu_store`), `TreeCard` as a square (`TreeOpen`, `TreeBar`,
 `TreeNext` showing the time alone), `CoinsPlus` on the coins chip, `CardFold` on
 the island card and `QuestFold` on the quest's card (both fold on every screen). On a desktop: `TopBar` spans the
 canvas with `Chip_rate`, `Chip_isle` and `Chip_charm` besides the coins, season and weather; `MenuBar`'s buttons carry

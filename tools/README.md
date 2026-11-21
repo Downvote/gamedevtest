@@ -130,8 +130,9 @@ ScreenGuis and the camera's `ViewportSize` leaving them out, as Roblox does on s
 whether the pixel layer covers the screen ("covers the screen") or leaves the world showing ("world drawn
 underneath"): on `notch` that is the check for the right-edge bar of 2026-11-21 (`Pixel/ScreenSize`). A touch device's
 frames show Roblox's jump button where its TouchJump puts it, inside the safe area. The simulator's touch phase
-(`sim.luau`, "touch") checks the touch HUD on a phone and a tablet: the menus as fingertip squares, Build the grid's last
-square and far from the jump button, no HUD button under the jump button and the thumbstick's corner clear.
+(`sim.luau`, "touch") checks the touch HUD on a phone and a tablet: the menus as fingertip squares in one row along the
+bottom, Build its last square, the quest's card against the left edge, no HUD button under the jump button and the
+thumbstick's corner clear.
 
 Every frame's log (with `PREVIEW_KEEP=1`, in `<outdir>/_logs`) lists each label on show whose words need more room
 than its box as an `OVERFLOW` line: its name, its words, the room needed and the box, "(clipped)" when it ends in

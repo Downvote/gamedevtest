@@ -694,21 +694,25 @@ Swarm Simulator, Adopt Me, Tycoon games on Roblox, and Roblox's own touch contro
 
 **Phones and tablets** (a touch screen with no mouse, `UIKit.touch`; a phone has a short side of 500 px or less):
 - The top bar: the coins with a mint "+" (the Store), the season and the weather.
-- Down the left, under it: a grid of dark glass squares two wide, 22 UI px on a phone (44 screen px) and 28 on a
-  tablet with each one's name under it: Driftlings, the Hatchery once it opens, Index, Looks, Top, Settings, and last
-  Build, mint with a 1 px outline (it sits straight on the grass). Each shows its big icon. A held finger shows a
-  tooltip with its name and what it opens. Where two columns would reach down into the thumbstick's corner (a phone
-  once the Hatchery opens: seven squares), the grid is three wide.
+- Along the bottom, as on a desktop: one glass strip with a row of dark glass squares, 22 UI px on a phone (44 screen
+  px) and 28 on a tablet: Driftlings, the Hatchery once it opens, Index, Looks, Top, Settings, and last Build, mint
+  with a 1 px outline. Each shows its big icon; a held finger shows a tooltip with its name and what it opens. The row
+  is centred, kept out of the thumbstick's corner (the left 30% of the screen) and left of the jump button. A tablet
+  puts each name under its square where the names fit in that room (on a 1024 px tablet they don't, so its squares
+  are bare too). On a screen too narrow even for the bare squares the corner is given up first, then the row wraps.
 
-  > The request (2026-11-21, with a picture of the phone's grid: Driftlings, Index, Looks, Top, Settings): "Put the
-  > build button as the 6th button here instead of next to jump"
+  > The requests (2026-11-21, with pictures of the phone): "Put the build button as the 6th button here instead of
+  > next to jump", then "For mobile could you flush the first ui part to the left, and put the second image, the
+  > buttons, to the bottom, just like in pc?" (the first part: the status lines and the quest's card; the second: the
+  > grid of squares that ran down the left)
 - At the top right: the island card, folded on a phone to its name and the coins a minute (a tap opens it), open on a
   tablet. Under it a row of three squares across the card's width: Eggs (the tree's big icon over a bar running down to
   the next eggs, the time under it), Gifts (its red dot) and Store. The offers (Starter Pack, the group) under them,
   moved left of the jump button when they would reach it.
-- Right of the grid: the status lines and the quest's card, which folds to its title and progress at a tap on its
-  title (a quest done always shows its Claim). On a screen too narrow for that they go under everything.
-- The tips at the bottom centre, left of the jump button. Nothing in the bottom left.
+- Against the left edge under the top bar: the status lines and the quest's card, which folds to its title and
+  progress at a tap on its title (a quest done always shows its Claim). On a screen too narrow for them beside the
+  right column they go under it.
+- The tips above the row of squares, left of the jump button. Nothing in the bottom left.
 - The camera keeps only Roblox's top bar clear on a phone, so the founder stands in the middle of what is left.
 
 **What the PC builders share** (RollerCoaster Tycoon and OpenRCT2, Planet Coaster, Parkitect, Two Point Hospital and
