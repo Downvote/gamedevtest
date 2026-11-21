@@ -1,5 +1,5 @@
 #!/bin/sh
-# Driftling Isle preview: boots the real server + client scripts of a Rojo tree in the fake engine, runs a scenario
+# Pixel Island preview: boots the real server + client scripts of a Rojo tree in the fake engine, runs a scenario
 # and writes PNGs at the device resolution (pixel layer + GUI).
 #
 # Usage: sh render.sh <scenario> <outdir> [devices] [tier]

@@ -1,4 +1,4 @@
-# Driftling Isle: Game Design
+# Pixel Island: Game Design
 
 > The request (2026-11-20, the latest): "make the max of each boosts building to be 2. also, add another tier of
 > mutations, which are the strongest and rarest. also, make more higher tier eggs, about 2 more tiers"
@@ -338,7 +338,7 @@ from kariosoft and make a simplified version of it in gamedevtest. dont touch th
 reference"), the pixel art rules (§2) and the polish requests (§11). The game studio of the earlier versions is gone
 (§10: an old save starts a fresh island).
 
-Driftling Isle is a small island-village management game for Roblox. You wake up on a little island floating in the
+Pixel Island is a small island-village management game for Roblox. You wake up on a little island floating in the
 sky, by the Tree of Life in its middle, with clouds drifting past below. Every few minutes the tree lays **eggs**
 round its roots, each coloured and marked by its rarity with its price in shells over it: mostly cream commons, now and
 then a blue rare one with glowing stars. Hatch one and a **driftling** comes out. Build lumber camps, farms and shops,
@@ -351,6 +351,10 @@ islands of everyone on the server float side by side in a shared sky, and Visit 
 decides everything, pure Data/Logic modules with specs, and the fake-engine simulator and preview tools.
 
 ## 1. The loop in one paragraph
+
+> The request (2026-11-21): "Rename drifting isle mentions everywhere to Pixel Island. The name of the game is now
+> Pixel island." (It was Driftling Isle until then. The driftlings, the Driftling Hut and Driftling Haven keep their
+> names: they are things in the game, not its title.)
 
 Build a Lumber Camp that sells the wood it cuts, a Veggie Patch that sells what it grows, and a Driftling Hut; each
 building works a little on its own. Every turn (Tuning.TurnSeconds while you play) the island makes its coins. All the
@@ -3003,7 +3007,7 @@ reason.
 > detailed, like the bakery game, with baked in models and animations?"
 
 - **The loading card** (`src/first/LoadingCard`, put up by ReplicatedFirst's Boot before the rest of the game has
-  arrived, Random Bakery's way): Driftling Isle at dusk. A sky in dithered bands from night blue to a warm orange, stars
+  arrived, Random Bakery's way): Pixel Island at dusk. A sky in dithered bands from night blue to a warm orange, stars
   in the dark of it, the sun going down on the horizon with far islands either side, a banded sea with the sun's path
   on it and small waves; in the middle the island (its shallows, a ring of foam, wet sand, the sand with its cliff in
   front, the grass). On it the game's own models, drawn ahead of time through the game's picture path (the
@@ -3014,7 +3018,7 @@ reason.
   Torches, Flower Beds and Round Bushes, the campfire flickering and throwing embers, a Conchy cheering by it, a
   Frondle and a Pebblit wandering up and down the island with a Mossbun and a Clawdle at their heels, a Gullfin
   hopping along the front (no villagers since 2026-11-12); the old boat rocking past out at sea, gulls crossing the
-  sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Driftling Isle" in the
+  sky, stars twinkling, wave crests and glints of sun coming and going. Over the sky, centred: "Pixel Island" in the
   pixel font's big face, a status that follows the real loading ("Waking up your island", "Finding your island",
   "Drawing your island", dots counting after it), a progress bar in a frame of planks, and at the foot a tip on an
   ink plate, a new one every few seconds ("Shells pay for eggs and buildings.", "Decor adds charm. Charm brings more shells.", "Decor

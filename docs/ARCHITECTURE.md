@@ -1,4 +1,4 @@
-# Driftling Isle: Architecture and Implementation Contract
+# Pixel Island: Architecture and Implementation Contract
 
 The contract for the code in this repository (GitHub `Downvote/gamedevtest`). `docs/GAME_DESIGN.md` says what the game
 does and why; this file says how the code is laid out, what each module offers and which data goes where. Where the
@@ -147,7 +147,7 @@ tools/                 setup.sh (installs rojo, luau, luau-lsp), defs/ (Roblox A
 Rojo 7.4.4 (`rokit.toml`), luau-lsp 1.70.1 with `tools/defs/globalTypes.d.luau`, the plain Luau CLI for the specs.
 Every file is `--!strict` (`.luaurc`). `X.server.luau` is a Script, `X.client.luau` a LocalScript, everything else a
 ModuleScript; there are no `init.luau` files. (The Rojo project keeps its old name `byte-size-studio`; the place file
-is `DriftlingIsle-<short hash>.rbxl`.)
+is `PixelIsland-<short hash>.rbxl`.)
 
 ## 2. Rules for the code
 

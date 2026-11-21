@@ -1,5 +1,5 @@
 --!strict
--- The loading card (docs/ARCHITECTURE.md 8.0, GAME_DESIGN 11): Driftling Isle at dusk over the whole screen from the
+-- The loading card (docs/ARCHITECTURE.md 8.0, GAME_DESIGN 11): Pixel Island at dusk over the whole screen from the
 -- client's first frame until the first picture of the island is on screen, then it fades into it.
 --
 -- The user asked for it: "the loading screen isnt centered ... can you also make the loading screen more detailed, like
@@ -27,7 +27,7 @@
 --   specks and loose pixels cleaned, a 1 px outline all round a darker step of the colour inside, a rim of light along
 --   the edges facing the light, the underside sinking into the night, its stair steps anti-aliased against the sky);
 --   a smaller picture of it on a short canvas (a phone held flat). It is drawn at one UI px an art px, never scaled;
--- * over the sky, centred: "Driftling Isle" in the pixel font's big face (gold, its outline a darker step of the
+-- * over the sky, centred: "Pixel Island" in the pixel font's big face (gold, its outline a darker step of the
 --   gold), a short status that follows the real phases, a progress bar in a frame of planks, and at the foot a tip on
 --   an ink plate. (Every outline here is a darker step of the colour inside it, never flat ink: the request of
 --   2026-11-20, "For outlines everywhere, no longer use pure black, but a darker version of suitable neighbouring
@@ -815,7 +815,7 @@ local function setTitle()
 		old:Destroy()
 	end
 	local cover = S.mode == "cover" and S.coverTitle ~= nil
-	local text = if cover then words(S.coverTitle :: string) else "Driftling Isle"
+	local text = if cover then words(S.coverTitle :: string) else "Pixel Island"
 	if S.fallback then
 		local t = Instance.new("TextLabel")
 		t.Name = "Title"
@@ -1301,7 +1301,7 @@ end
 
 -- The card over the game for a while (an expansion: the request of 2026-11-20, "make a transition for expansion, hiding
 -- the game with a loading transition"): a bank of cloud drifts up the screen and leaves the card behind it, with
--- `title` over the sky (the join's "Driftling Isle" when nil) and `status` under it; `onCovered` runs once the card
+-- `title` over the sky (the join's "Pixel Island" when nil) and `status` under it; `onCovered` runs once the card
 -- covers the screen. progress(f) moves the bar, status(text) changes the words, finish() fills the bar and the bank
 -- drifts up again, taking the card with it (after HOLD_MIN up at least); `onOpened` runs once it is gone. False (and
 -- nothing happens) while the card is up already.

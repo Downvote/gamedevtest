@@ -1,4 +1,4 @@
-# Driftling Isle: notes for Claude
+# Pixel Island: notes for Claude
 
 ## How work is done
 
@@ -25,7 +25,7 @@ nature theme theme2 fun`, a Build mode tab or ids), `theme=<beach|garden|frost|z
 art is generated: `sh tools/preview/loading_art.sh` (after changing a model it shows); so are the game passes' and
 products' icons to upload, `art/products/<key>.png`: `sh tools/preview/product_icons.sh`, and the game's thumbnails and
 icon, `art/thumbnails/`: `sh tools/preview/game_thumbs.sh` (after changing a model or a scene they show). The place file is
-`DriftlingIsle-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
+`PixelIsland-<short hash>.rbxl` (binary, the format the user asked for) in the repository root (git-ignored).
 
 The game is our own (the user's request named another studio's game; the user chose an original game in its genre):
 never copy another game's names, creatures, islands, story or art. Driftlings, islets and buildings are this game's.

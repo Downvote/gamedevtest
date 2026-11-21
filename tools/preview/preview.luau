@@ -1,4 +1,4 @@
--- Driftling Isle's preview driver: boots the real server and client scripts in the fake engine (with the real
+-- Pixel Island's preview driver: boots the real server and client scripts in the fake engine (with the real
 -- raycast and a pixel-storing EditableImage), drives a scenario and dumps frames for topng.py.
 -- Usage: luau preview.luau -a <workdir> <scenario> <device> [tier] [inset]
 --   workdir: work/<run> (holds sources.luau); scenario: a SCEN key (below) or "panel=<name>"

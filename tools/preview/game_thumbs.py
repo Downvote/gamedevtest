@@ -232,12 +232,12 @@ def caption_band(cv, y0, y1):
 def thumb_title(sc, pics):
     cv = sc["tree"]
     caption_band(cv, 0, 52)
-    mask, w, h = text_mask("Driftling Isle", "huge")
+    mask, w, h = text_mask("Pixel Island", "huge")
     gold, teal = PAL["accent"], PAL.get("shallow", (110, 220, 210))
     x0 = TW // 2 - w // 2
-    mw = text_mask("Driftling ", "huge")[1] + 4
-    words(cv, "Driftling", 0, 42, gold, "huge", 3, x0=x0)
-    words(cv, "Isle", 0, 42, light(teal, 0.15), "huge", 3, x0=x0 + mw)
+    mw = text_mask("Pixel ", "huge")[1] + 4
+    words(cv, "Pixel", 0, 42, gold, "huge", 3, x0=x0)
+    words(cv, "Island", 0, 42, light(teal, 0.15), "huge", 3, x0=x0 + mw)
     for (x, y, big) in ((x0 - 14, 16, True), (x0 + w + 12, 30, False), (x0 + w + 20, 12, True), (x0 - 22, 36, False)):
         sparkle(cv, x, y, big, light(gold, 0.5))
     stand(cv, pics["hero_l"], 82, 260)

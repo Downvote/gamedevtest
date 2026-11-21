@@ -1,6 +1,6 @@
 # Tools
 
-Command-line tools for building and testing Driftling Isle without Roblox Studio. `docs/WORKFLOW.md` says when to
+Command-line tools for building and testing Pixel Island without Roblox Studio. `docs/WORKFLOW.md` says when to
 use which. They come from Random Bakery (`Downvote/test`): the fake engine is game-agnostic and copied as is; the
 harness, the scenarios and the preview driver are this game's own.
 

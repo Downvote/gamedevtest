@@ -1,5 +1,5 @@
 #!/bin/sh
-# Every scenario of Driftling Isle's simulator: regenerate the sources once, then run them in parallel and print each
+# Every scenario of Pixel Island's simulator: regenerate the sources once, then run them in parallel and print each
 # SIM REPORT head. Baselines (CLAUDE.md): 0 findings, 0 errors, 0 issues everywhere.
 #   sim.luau        the main run: a new island (the loading card, the campfire, the Tree of Life with its first lot of
 #                   eggs, two cheap commons among them, the HUD's tree card, the tips), building in the tips' order for

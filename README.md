@@ -1,4 +1,4 @@
-# Driftling Isle
+# Pixel Island
 
 An island-village game for Roblox. You wash up on a little island with a castaway's hut: build a veggie patch, a
 lumber camp and a snack stall, put up tents and huts, and visitors drawn by your island's charm move in and take jobs.

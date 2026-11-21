@@ -1,4 +1,4 @@
--- Harness helpers for Driftling Isle's previews (a copy of tools/sim/harness.luau run over the preview's engine copies): module access, client requests,
+-- Harness helpers for Pixel Island's previews (a copy of tools/sim/harness.luau run over the preview's engine copies): module access, client requests,
 -- UI driving, this game's invariants (profile and client mirror), findings. The fake engine (loader, engine, inst,
 -- classes, services) is game-agnostic.
 local E = require("./loader")
