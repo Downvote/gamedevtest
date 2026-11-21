@@ -1473,6 +1473,61 @@ everything boosts together, "+16% to all from 2 boosts"), and under it what one 
 ("One more adds +3%"), "2 of 2 built" once the island has two of it (the request of 2026-11-20, "make the max of
 each boosts building to be 2"), or "Max boost 70%" once they reach the cap.
 
+### 4.7 Tap twice, Undo, the Select tool and saved layouts (`UI/BuildUI`, `Logic/Undo`, `Logic/Layout`, `Plot.moveMany`)
+
+> The request (2026-11-21): "Also, when placing things in build mode, allow the player to tap twice to place the
+> building down. Also, add an undo button, selection tool and saving/loading of plots"
+
+> And for computers (the same day): "research on popular desktop tycoons and replicate their UIs". Builder and park
+> games (RollerCoaster Tycoon, Planet Coaster, Parkitect, Two Point Hospital, Cities: Skylines, Islanders, Theme Park
+> Tycoon 2, Bloxburg) share a tool strip of icon buttons that name themselves and their key under the mouse, box
+> selection with the mouse, a clear highlight with a count, and a right click or Esc to put the tool down.
+
+- **Tap twice.** On a touch screen the first tap brings a picked piece's ghost to that spot, and a second tap on the
+  ghost puts it down there, the same as Place. The second tap counts anywhere on the ghost's footprint, or on the model
+  drawn over it (a windmill's sails stand well above its footprint on the screen). A tap somewhere else moves the
+  ghost there instead. It works for a card from the catalog, one from the Inventory tab, a Copy and a piece being
+  moved. With a mouse the ghost already follows the pointer, so a click where it stands puts it down, as before. Place
+  stays.
+- **Undo** (the arrow bending back, by Done, in every bar; Ctrl+Z, or Cmd+Z on a Mac) takes back the last build
+  action: a piece put down, moved or turned, put away, replaced; tiles and fences drawn or rubbed out; Remove all; a
+  sale from the inventory; a group moved, turned, put away or copied; a layout loaded. Each puts the island back as it
+  was: the same pieces where they stood (with their own ids, so their workers and the driftlings living there come
+  back too), the inventory as it was, and the coins the action cost (a sale's coins are taken back; whatever the island
+  earned meanwhile stays yours). The server keeps the last 30 steps of the visit (`Tuning.UndoSteps`, and 12,000 pieces
+  across them, `Tuning.UndoRecords`); they go when you leave or the island grows. Undo is grey when there's nothing to
+  take back. It says why when it can't: "Nothing to undo.", "Not enough coins." (a sale's coins already spent),
+  "Doesn't fit there." and so on; the step stays for another try.
+- **Select** (the dotted box with a gold pointer, by the tabs; V) swaps the tabs for its bar. A tap on a piece adds it
+  to the group, or takes it out; a drag draws a box and adds everything inside (**Look around** to drag the view
+  instead, **Box** to go back). The group is framed in gold on the island and the bar says how many ("12 selected",
+  up to 300). Then:
+  - **Move** (M) lifts a ghost of the whole group (its pieces on cyan footprints, red where one wouldn't fit). Tap
+    where it goes, then tap it again (or Place, or E) to set it down. **Turn** (R) turns the lifted group a quarter
+    about its middle; four turns come back where they started.
+  - **Turn** with nothing lifted turns the group where it stands.
+  - **Copy** (C or Ctrl+C) lifts a copy beside the group and shows its price: the inventory's pieces first, for
+    nothing, then the rest bought ("2 from the inventory" and the coins). Put down, it stays lifted for another, like a
+    stamp, until Esc, a right click or Cancel.
+  - **Put away** (Del or X) puts the group in the inventory. The Tree of Life can be moved with a group, but it is never
+    put away or copied; a Hatchery warming an egg stays too.
+  - **Stop** (Esc) ends the tool. A right click, or Esc, always puts down whatever tool is out: a lifted group, the
+    pick, Select, Quick remove, the layouts.
+  Every group action is all or nothing, checked by the server against the island's own rules (Plot.fits for each piece
+  against its neighbours, the limits for a copy), and is one Undo step.
+- **Layouts** (the stacked plans by the tabs) shows three slots, each with when it was saved ("Saved 5 min ago"), the
+  island's level then and its pieces ("Level 3, 120 pieces"). **Save** keeps the island as it stands (over a saved
+  slot it asks first: "Tap again"). **Load** asks the server first what it takes and says so in the slot: "120 pieces,
+  all yours", or "110 yours, 10 to buy" with their price, and "3 won't fit". A second tap loads it: every piece on the
+  island goes into the inventory and the layout goes down in its place, using the island's own pieces first (they keep
+  their ids, so their driftlings stay put), then the inventory's, then buying the rest. It is refused when the coins
+  don't cover what it buys. The Tree of Life goes to its saved spot when that's free, and a Hatchery warming an egg stays
+  where it is. A piece the island has no room for (a smaller island), one it hasn't opened yet, or one past a limit is
+  left out and counted ("Layout loaded. 3 didn't fit."). A load is one Undo step. The layouts are saved with the
+  profile, in a short code (seven characters a piece).
+- **On a computer** the tool buttons name themselves and their key when the mouse is over them ("Select V", "Undo
+  Ctrl+Z", "Move M"). On a phone or a tablet the same buttons stay big enough to tap, and tap twice does the placing.
+
 ## 5. Villagers (gone)
 
 The request of 2026-11-12 quoted at the top of this file took them out: "remove villagers, only creatures should be

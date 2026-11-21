@@ -21,6 +21,9 @@
 --   "outfit" a whole number in [1, Tuning.MaxOutfits + 1] (a saved outfit; one past the last adds one)
 --   "level"  a whole number in [1, 30] (a pass track level)
 --   "bool"   true or false
+--   "uids"   1 to Plot.MANY_MAX piece uids (whole numbers 1 .. 1e9) joined by ",", none twice (Build mode's Select tool)
+--   "offset" a whole number in [-400, 400] (a group moved or copied, in studs)
+--   "layout" a whole number in [1, Tuning.LayoutSlots] (a saved layout's slot)
 --   "any"    anything (the settings value; its service checks it)
 -- Unknown fields are refused too, so a payload carries exactly what its action reads.
 local Traits = require(script.Parent.Parent.Data.Traits)
@@ -29,6 +32,8 @@ local Track = require(script.Parent.Parent.Data.Track)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 
 local Validate = {}
+
+local UIDS_MAX = 300 -- (Logic/Plot.MANY_MAX: Validate doesn't require Plot, which requires far more)
 
 local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.place"] = { id = "id", x = "coord", z = "coord", rot = "rot" },
@@ -40,6 +45,14 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["plot.unfence"] = { edges = "edges" },
 	["plot.replace"] = { i = "index", id = "id" },
 	["plot.clear"] = { what = "group" },
+	-- Build mode's Undo, Select tool and saved layouts (GAME_DESIGN 4.7; Logic/Undo, Plot.moveMany, Logic/Layout)
+	["plot.undo"] = {},
+	["plot.moveMany"] = { uids = "uids", dx = "offset", dz = "offset", rot = "rot" },
+	["plot.storeMany"] = { uids = "uids" },
+	["plot.copyMany"] = { uids = "uids", dx = "offset", dz = "offset", rot = "rot" },
+	["layout.save"] = { slot = "layout" },
+	["layout.quote"] = { slot = "layout" },
+	["layout.load"] = { slot = "layout" },
 	["inv.sell"] = { id = "id", n = "int" },
 	["island.expand"] = {},
 	["pal.work"] = { id = "int", uid = "int" },
@@ -142,6 +155,27 @@ local function check(kind: string, v: any): boolean
 		return isInt(v, 1, Track.LEVELS)
 	elseif kind == "bool" then
 		return type(v) == "boolean"
+	elseif kind == "uids" then
+		if type(v) ~= "string" or #v < 1 or #v > UIDS_MAX * 10 or string.match(v, "^%d[%d,]*%d$") == nil and string.match(v, "^%d$") == nil then
+			return false
+		end
+		if string.match(v, ",,") ~= nil then
+			return false
+		end
+		local seen: { [string]: boolean } = {}
+		local n = 0
+		for part in string.gmatch(v, "[^,]+") do
+			n += 1
+			if n > UIDS_MAX or #part > 9 or string.sub(part, 1, 1) == "0" or seen[part] then
+				return false
+			end
+			seen[part] = true
+		end
+		return n >= 1
+	elseif kind == "offset" then
+		return isInt(v, -400, 400)
+	elseif kind == "layout" then
+		return isInt(v, 1, Tuning.LayoutSlots)
 	elseif kind == "code" then
 		return type(v) == "string" and #v >= 1 and #v <= 32 and string.match(v, "^[%w_%- ]+$") ~= nil
 	elseif kind == "collect" then

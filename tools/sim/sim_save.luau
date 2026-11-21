@@ -228,7 +228,7 @@ seed(9208, { data = {
 local v12 = H.addPlayer({ userId = 9208, name = "Tidewatcher" })
 E.run(3)
 local pt = H.profile(v12)
-H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 25, "save", "a version 12 save loads as version 25", tostring(pt and pt.v))
+H.expect(pt ~= nil and pt.v == Schema.VERSION and Schema.VERSION == 26, "save", "a version 12 save loads as version 26", tostring(pt and pt.v))
 if pt then
 	local trees, tq = treesOf(pt)
 	local kept = 0
@@ -289,7 +289,7 @@ local penPrice = Tree.price({ id = 0, sp = "gullfin", home = 0, work = 0, muts =
 local v11 = H.addPlayer({ userId = 9207, name = "Treekeeper" })
 E.run(3)
 local pv = H.profile(v11)
-H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 25, "save", "a version 11 save loads as version 25", tostring(pv and pv.v))
+H.expect(pv ~= nil and pv.v == Schema.VERSION and Schema.VERSION == 26, "save", "a version 11 save loads as version 26", tostring(pv and pv.v))
 if pv then
 	-- (the old tree went at version 12 with its levels; version 13 plants a new one, with a new uid, in the island's
 	-- middle since 2026-11-20: the campfire's plaza was free, so the patch and the hut both stay)
@@ -613,7 +613,7 @@ do
 	local f13 = H.addPlayer({ userId = 9210, name = "Fencer" })
 	E.run(3)
 	local fp = H.profile(f13)
-	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 25", tostring(fp and fp.v))
+	H.expect(fp ~= nil and fp.v == Schema.VERSION, "save", "a version 13 save loads as version 26", tostring(fp and fp.v))
 	if fp then
 		H.expect(pieceList(fp.plot.placed) == pieceList({ tq, flowers }), "save", "the old fence and hedge gone, the tree and the flower bed where they stood", pieceList(fp.plot.placed))
 		H.expect(fp.wood == nil and fp.shells >= 300 + 90 + 25 * 2 + 120 and fp.shells < 300 + 90 + 25 * 2 + 120 + 2, "save", "their price back (two fences at 25, a hedge at 120) and the wood, as shells", string.format("%s %s", tostring(fp.shells), tostring(fp.wood)))

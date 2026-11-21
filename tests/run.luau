@@ -13,6 +13,7 @@ local SPECS = {
 	"PixelFont", -- the pixel font
 	"Lang", -- the languages (2026-11-20, the bakery's way)
 	"Social", -- leaderboards and friends (2026-11-21)
+	"Build", -- Build mode's Undo, Select tool and saved layouts (2026-11-21)
 }
 for _, name in SPECS do
 	local ok, specOrErr = pcall(require, "./specs/" .. name .. ".spec")

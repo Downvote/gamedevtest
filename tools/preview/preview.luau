@@ -2892,6 +2892,132 @@ function SCEN.buildui()
 	return p
 end
 
+-- "buildtools": Build mode's tools (GAME_DESIGN 4.7, the request of 2026-11-21: "allow the player to tap twice to place
+-- the building down. Also, add an undo button, selection tool and saving/loading of plots"): a flower bed's ghost after
+-- the first tap, Undo lit after a piece went down (buildtools_tap); the catalog's tray with its tools and Select's
+-- tooltip with its key (buildtools_tip); the Select tool with
+-- a box being dragged over the pieces in front of the tree (buildtools_box) and the group framed in gold with its count
+-- (buildtools_select); the group lifted by Move to a spot beside it, its ghost on cyan footprints (buildtools_move); a
+-- copy lifted with its price (buildtools_copy); the layouts' bar with slot 1 saved and its Load asked (what it takes:
+-- buildtools_layouts).
+function SCEN.buildtools()
+	seedProfile(58, 3, { pieces = VILLAGE, pals = { "mossbun" }, shells = 250000 })
+	local p = join(58, "Planner")
+	settle(p, 30, 1)
+	local BuildUI = modOr(p, "UI.BuildUI")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local Street = H.sharedServer("Data.Street")
+	local Plot = H.sharedServer("Logic.Plot")
+	local prof = H.profile(p)
+	local ox, oz = Street.origin(H.session(p).plot)
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 10, 0.5)
+	if BuildUI == nil or PR == nil then
+		capture(p, "buildtools_tap")
+		return p
+	end
+	local function screenOf(world)
+		return H.inClient(p, function()
+			local pos = PR.project(world)
+			return E.v2(pos.X, pos.Y - E.inset)
+		end)
+	end
+	-- where the founder stands in Build mode's view: in front of the tree
+	local sx, sz = Plot.spawn(prof.tier, prof.plot.placed)
+	-- tap twice: a flower bed put down by two taps (Undo lights), then another's ghost after the first tap
+	local function freeNear(id, cx, cz)
+		local best, bx, bz = math.huge, nil, nil
+		for z = math.floor(cz) - 10, math.floor(cz) + 10 do
+			for x = math.floor(cx) - 12, math.floor(cx) + 12 do
+				local dd = (x - cx) ^ 2 + (z - cz) ^ 2
+				if dd < best and Plot.fits(prof.tier, prof.plot.placed, id, x, z, 0) then
+					best, bx, bz = dd, x, z
+				end
+			end
+		end
+		return bx, bz
+	end
+	local fx, fz = freeNear("flowers", sx + 6, sz + 2)
+	if fx then
+		H.inClient(p, BuildUI.pick, "flowers", 0)
+		local at = screenOf(E.v3(ox + fx + 1, Street.LAWN_Y, oz + fz + 1))
+		H.inClient(p, BuildUI.tapScreen, at, false)
+		E.run(0.3)
+		H.inClient(p, BuildUI.tapScreen, at, false)
+		E.run(1.2)
+		local gx, gz = freeNear("flowers", sx + 9, sz + 2)
+		if gx then
+			H.inClient(p, BuildUI.tapScreen, screenOf(E.v3(ox + gx + 1, Street.LAWN_Y, oz + gz + 1)), false)
+			E.run(0.3)
+		end
+	end
+	settle(p, 6, 0.4)
+	capture(p, "buildtools_tap")
+	H.clickNamed(p, "Cancel", { optional = true, wait = 0.2 })
+	-- the catalog's tray: the tools by the tabs, Select's tooltip naming its key (a mouse over it)
+	settle(p, 6, 0.6)
+	local selB = H.buttonNamed(p, "SelectTool", true)
+	if selB then
+		I.fire(I.getSig(selB, "MouseEnter"))
+	end
+	E.run(0.05)
+	capture(p, "buildtools_tip")
+	if selB then
+		I.fire(I.getSig(selB, "MouseLeave"))
+	end
+	-- the Select tool: a box over the pieces in front of the tree, then the group
+	local box = { math.floor(sx) - 9, math.floor(sz) - 1, math.floor(sx) + 7, math.floor(sz) + 7 }
+	H.inClient(p, BuildUI.debugSelect, true, nil, { box[1], box[2], box[3], box[4], 1 })
+	settle(p, 6, 0.4)
+	capture(p, "buildtools_box")
+	local n = H.inClient(p, BuildUI.debugSelect, true, nil, box)
+	log("buildtools: %d selected", n or -1)
+	settle(p, 6, 0.4)
+	capture(p, "buildtools_select")
+	-- Move: lifted to a spot beside it (the first offset where it all fits)
+	local ids = {}
+	for _, q in prof.plot.placed do
+		local r = Plot.spanOf(q)
+		if r.x0 < box[3] + 1 and box[1] < math.max(r.x1, r.x0 + 0.01) and r.z0 < box[4] + 1 and box[2] < math.max(r.z1, r.z0 + 0.01) then
+			table.insert(ids, q)
+		end
+	end
+	local dx, dz = nil, nil
+	for _, off in { { 2, 6 }, { -2, 6 }, { 4, 8 }, { 6, 4 }, { -6, 4 }, { 2, 10 } } do
+		if dx == nil and #ids > 0 then
+			local moves = Plot.groupMoves(ids, off[1], off[2], 0)
+			if moves and Plot.movesFit(prof.tier, Plot.without(prof.plot.placed, ids), moves) then
+				dx, dz = off[1], off[2]
+			end
+		end
+	end
+	log("buildtools: move by %s,%s", tostring(dx), tostring(dz))
+	H.inClient(p, BuildUI.debugSelectAct, "move", dx or 2, dz or 6, 0, true)
+	settle(p, 8, 0.5)
+	capture(p, "buildtools_move")
+	H.clickNamed(p, "SelCancel", { optional = true, wait = 0.3 })
+	-- a copy lifted, its price shown
+	H.inClient(p, BuildUI.debugSelectAct, "copy", (dx or 2) * 2, (dz or 6) * 2, 90, true)
+	settle(p, 8, 0.5)
+	capture(p, "buildtools_copy")
+	H.clickNamed(p, "SelCancel", { optional = true, wait = 0.3 })
+	H.clickNamed(p, "SelStop", { optional = true, wait = 0.3 })
+	-- the layouts: slot 1 saved, then its Load asked
+	H.inClient(p, BuildUI.debugLayouts, true, 1, "save")
+	E.run(0.6)
+	local tx, tz = freeNear("torch", sx - 6, sz + 3)
+	if tx then
+		H.req(p, "plot.place", { id = "torch", x = tx, z = tz, rot = 0 })
+		E.run(0.4)
+	end
+	H.inClient(p, BuildUI.debugLayouts, true, 1, "load")
+	settle(p, 6, 0.5)
+	capture(p, "buildtools_layouts")
+	H.inClient(p, BuildUI.debugLayouts, false)
+	H.clickNamed(p, "BuildDone", { optional = true, wait = 0.5 })
+	return p
+end
+
 -- "inventory": Build mode's inventory (GAME_DESIGN 4.5, the request of 2026-11-14: "add an inventory system to build
 -- mode ... a button to remove all buildings, remove all path/water etc, and a tool to quick remove buildings and
 -- paths"): the Inventory tab with the pieces put away and how many, Remove all buildings asking for its second tap

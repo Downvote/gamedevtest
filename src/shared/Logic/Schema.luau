@@ -23,6 +23,7 @@ local Monetization = require(script.Parent.Parent.Config.Monetization)
 local RewardsData = require(script.Parent.Parent.Data.Rewards)
 local Rewards = require(script.Parent.Rewards)
 local Social = require(script.Parent.Social)
+local Layout = require(script.Parent.Layout)
 
 type Profile = Types.Profile
 
@@ -35,8 +36,9 @@ local Schema = {}
 -- titles, the rotating shop, the pass track: GAME_DESIGN 14); 17: offline earnings (when the island was last open) and the
 -- group gift (GAME_DESIGN 14.3); 20: the rewards for coming back and playing, the timed boosts (GAME_DESIGN 15);
 -- 22: the Tree of Life in the island's middle (no campfire); 23: the View slider's default on the seventh notch;
--- 25: the tips in a new order (a hut, an egg, a workplace) and the questline opening on four huts
-Schema.VERSION = 25
+-- 25: the tips in a new order (a hut, an egg, a workplace) and the questline opening on four huts; 26: Build mode's
+-- saved layouts (Profile.layouts)
+Schema.VERSION = 26
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -173,6 +175,7 @@ function Schema.default(now: number, seed: number): Profile
 		rewards = Rewards.fresh(),
 		boosts = {},
 		social = Social.fresh(),
+		layouts = Layout.clean(nil),
 	}
 	Tree.plant(p)
 	return p
@@ -533,6 +536,11 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 		end
 		v = 25
 	end
+	-- 25 -> 26: saved layouts (the request of 2026-11-21: "add an undo button, selection tool and saving/loading of
+	-- plots"): Profile.layouts, which reconcile fills in (every slot empty)
+	if v < 26 then
+		v = 26
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -792,6 +800,7 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 		rewards = Schema.rewards(r.rewards),
 		boosts = {},
 		social = Schema.social(r.social),
+		layouts = Layout.clean(r.layouts),
 	}
 	-- the timed boosts: known ones, their seconds in range
 	if type(r.boosts) == "table" then

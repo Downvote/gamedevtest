@@ -12,7 +12,7 @@
 #             | anim=<id> | anim=<id>:<mood>,<mood> (one driftling moving on its skeleton, eight frames a mood)
 #             | weather=<sunny|breezy|rain|storm|fog|snow|blossom|haze|leaves> | weathers (all nine)
 #             | zoom=<1..10> (the View slider's notch, on the harbour island) | zooms (notches 1, 4, 8 and 10)
-#             | sea | visit | build | buildui | inventory | water | work | ambient | late | all
+#             | sea | visit | build | buildui | buildtools | inventory | water | work | ambient | late | all
 #             | pportraits | pthumbs[=<k>of<n> | =<id>,<id>] (pictures for the sprites: portraits.sh, thumbs.sh)
 #             | cthumbs[=<k>of<n> | =<id>,<id>] (the cosmetics' pictures: cosmetic_thumbs.sh)
 #             | picons[=<id>,<id>] (the game passes' and products' icons' subjects: product_icons.sh)
@@ -41,7 +41,7 @@ case $scen in
 	hatches) scens="hatch=11 hatch=23 hatch=33 hatch=45 hatch=55 hatch=57 hatch=66 hatch=77" ;;
 	zooms) scens="zoom=1 zoom=4 zoom=8 zoom=10" ;;
 	weathers) scens="weather=sunny weather=breezy weather=rain weather=storm weather=fog weather=snow weather=blossom weather=haze weather=leaves" ;;
-	island|village|island2|island3|city|everdrift|gallery|catalog=*|theme=*|hatch=*|pals=*|palsw=*|looks=*|anim=*|weather=*|zoom=*|expandperf=*|expandrim=*|day|dusk|night|dawn|tree|treeink|treeink=*|treewalk|treewalk=*|treesplit|treesplit=*|treebake|treebake=*|f32:*|lang=*|smooth:*|hatchery|panel=*|alerts|showcase=*|sky|skies|visit|build|buildui|drop|dropdrag|inventory|expand|zoo|paths|water|work|motion|idle|pan|stress|stress=*|crowd|ambient|late|loading|screen=*|ploadingart|ploadingart=*|pportraits|pportraits_try|pthumbs|pthumbs=*|cthumbs|cthumbs=*|picons|picons=*|gthumbs|gthumbs=*) scens=$scen ;;
+	island|village|island2|island3|city|everdrift|gallery|catalog=*|theme=*|hatch=*|pals=*|palsw=*|looks=*|anim=*|weather=*|zoom=*|expandperf=*|expandrim=*|day|dusk|night|dawn|tree|treeink|treeink=*|treewalk|treewalk=*|treesplit|treesplit=*|treebake|treebake=*|f32:*|lang=*|smooth:*|hatchery|panel=*|alerts|showcase=*|sky|skies|visit|build|buildui|buildtools|drop|dropdrag|inventory|expand|zoo|paths|water|work|motion|idle|pan|stress|stress=*|crowd|ambient|late|loading|screen=*|ploadingart|ploadingart=*|pportraits|pportraits_try|pthumbs|pthumbs=*|cthumbs|cthumbs=*|picons|picons=*|gthumbs|gthumbs=*) scens=$scen ;;
 	*) echo "unknown scenario: $scen" >&2; exit 2 ;;
 esac
 mkdir -p "$out" || exit 1

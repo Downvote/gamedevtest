@@ -778,6 +778,15 @@ local function about(def: Buildings.BuildingDef, lvl: number?, tier: number): st
 	return Lang.keep(table.concat(parts, if Lang.code() == "zh" then "" else " "))
 end
 
+-- Where a GUI object stands on the Hud canvas (UI px): its AbsolutePosition is in screen pixels, the canvas's units
+-- are the pixel scale's.
+local function onHud(g: GuiObject): Vector2
+	local canvas = UIKit.canvas("Hud")
+	local s = UIKit.size("Hud")
+	local k = if canvas.AbsoluteSize.X > 0 and s.X > 0 then canvas.AbsoluteSize.X / s.X else 1
+	return (g.AbsolutePosition - canvas.AbsolutePosition) / k
+end
+
 local function closeTip()
 	if tip then
 		tip:Destroy()
@@ -794,7 +803,7 @@ local function showTip(card: GuiObject, def: Buildings.BuildingDef, v: Types.Cli
 	local text = about(def, nil, v.tier)
 	local nl = UIKit.lines(text, w - 8)
 	local h = 26 + nl * 10 + (if def.tier > v.tier then 10 else 0)
-	local at = card.AbsolutePosition - UIKit.canvasOrigin("Hud")
+	local at = onHud(card)
 	local x = math.clamp(math.floor(at.X + CARD_W / 2 - w / 2), 4, s.X - w - 4)
 	local f = UIKit.glass(canvas, UDim2.fromOffset(w, h), UDim2.fromOffset(x, s.Y - TRAY_H - 8 - h), 2)
 	f.Name = "BuildTip"
@@ -1555,7 +1564,8 @@ local function expandButton(f: Frame, v: Types.ClientView)
 	-- wider for longer words in another language ("Расширить"), its right edge staying put)
 	local label = if cost then "Expand" else "Island max"
 	local bw = math.max(56, UIKit.buttonWidth(label, 3))
-	UIKit.button(f, label, UDim2.fromOffset(bw, 13), UDim2.new(1, -48 - bw, 0, 2), function()
+	-- (left of Undo and Done)
+	UIKit.button(f, label, UDim2.fromOffset(bw, 13), UDim2.new(1, -66 - bw, 0, 2), function()
 		Audio.play("close")
 		expandIsland(v.tier)
 	end, { name = "Expand", color = UIKit.color("button_warn"), enabled = cost ~= nil and v.shells >= cost.shells })
@@ -1564,7 +1574,7 @@ local function expandButton(f: Frame, v: Types.ClientView)
 		pf.Name = "ExpandCost"
 		pf.BackgroundTransparency = 1
 		pf.Size = UDim2.fromOffset(100, 11)
-		pf.Position = UDim2.new(1, -104, 0, 17)
+		pf.Position = UDim2.new(1, -122, 0, 17)
 		pf.Parent = f
 		price(pf, 0, 0, cost.shells, v)
 	end
@@ -1589,6 +1599,844 @@ local function searchField(parent: Frame, w: number, pos: UDim2): Frame
 	sf.Size = UDim2.fromOffset(w, 12)
 	sf.Parent = parent
 	return sf
+end
+
+-- A tool's tooltip, the way builder and park games name their tools (a mouse over its button): its name and its key
+-- over the button, on the glass. Only with a mouse (a touch screen's buttons say what they do).
+local function toolTip(b: GuiObject, name: string, key: string?)
+	if not UserInputService.MouseEnabled then
+		return
+	end
+	b.MouseEnter:Connect(function()
+		closeTip()
+		local canvas = UIKit.canvas("Hud")
+		local s = UIKit.size("Hud")
+		local kw = if key then UIKit.textWidth(key) + 6 else 0
+		local nw = UIKit.textWidth(Lang.t(name)) + 2
+		local w = nw + kw + 8
+		local at = onHud(b)
+		local x = math.clamp(math.floor(at.X + b.Size.X.Offset / 2 - w / 2), 4, s.X - w - 4)
+		local f = UIKit.glass(canvas, UDim2.fromOffset(w, 14), UDim2.fromOffset(x, math.max(2, math.floor(at.Y) - 16)), 2)
+		f.Name = "ToolTip"
+		f.ZIndex = 20
+		UIKit.text(f, name, UDim2.fromOffset(nw, 10), UDim2.fromOffset(4, 2), { color = UIKit.color("text"), z = 22, name = "TipName" })
+		if key then
+			UIKit.text(f, key, UDim2.fromOffset(kw, 10), UDim2.new(1, -kw - 3, 0, 2), { x = "right", color = UIKit.color("accent"), z = 22, raw = true, name = "TipKey" })
+		end
+		tip = f
+	end)
+	b.MouseLeave:Connect(closeTip)
+end
+
+------------------------------------------------------------------ Undo, the Select tool and saved layouts (GAME_DESIGN 4.7)
+-- The request of 2026-11-21: "Also, when placing things in build mode, allow the player to tap twice to place the
+-- building down. Also, add an undo button, selection tool and saving/loading of plots".
+-- Undo: the arrow bending back, by Done (Ctrl+Z or Cmd+Z with a keyboard), takes back the last build action
+-- (plot.undo: the server keeps the steps, Logic/Undo); grey while there is none.
+-- Select: the dotted box by the tabs. A tap on a piece adds it to the group (or takes it out), a drag draws a box and
+-- adds what is inside (Look around pans instead); the group is framed in gold. Move and Copy lift a ghost of the group
+-- that follows the pointer: tap where it goes, then tap it again (or Place) to set it down; Turn (R) turns it a
+-- quarter. With nothing lifted, Turn turns the group where it stands, Put away puts it all in the inventory (the tree
+-- stays), and a lifted copy shows what it costs (the inventory's pieces first, the rest bought: Plot.copyCost).
+-- Layouts: the stacked sheets by the tabs. Tuning.LayoutSlots slots, each with when it was saved and at what island
+-- level; Load asks the server what it would take (layout.quote) and a second tap loads it (layout.load: one Undo step).
+local pieceAt: (pos: Vector2) -> number? -- (the pointer's section, below)
+local SEL_MODELS = 40 -- a lifted group shows its pieces' models up to this many (their footprints alone past it)
+local SEL_FRAMES = 80 -- the gold frames round a group up to this many (a flat gold mark each past it)
+local ASK_WAIT = 5 -- seconds a "tap again" waits
+-- (`tap`: where the tap that last moved a lifted group was, plot-local: a second tap near it sets the group down)
+type Sel = { on: boolean, uids: { [number]: boolean }, look: boolean, mode: string, dx: number, dz: number, rot: number, start: { number }?, cur: { number }?, tap: { number }? }
+local sel: Sel = { on = false, uids = {}, look = false, mode = "", dx = 0, dz = 0, rot = 0, start = nil, cur = nil, tap = nil }
+local selMarks: Model? = nil
+local selGhost: Model? = nil
+local layoutsOn = false
+type Ask = { slot: number, what: string, at: number, plan: any? }
+local layoutAsk: Ask? = nil
+
+-- The group's pieces, in the island's order, and their uids.
+local function selList(): { Types.Piece }
+	local out: { Types.Piece } = {}
+	for _, q in placed() do
+		if sel.uids[q.uid] then
+			table.insert(out, q)
+		end
+	end
+	return out
+end
+local function uidsOf(list: { Types.Piece }): { number }
+	local out: { number } = table.create(#list)
+	for _, q in list do
+		table.insert(out, q.uid)
+	end
+	return out
+end
+local function selCount(): number
+	local n = 0
+	for _ in sel.uids do
+		n += 1
+	end
+	return n
+end
+-- (pieces gone from the island leave the group)
+local function selPrune()
+	local have: { [number]: boolean } = {}
+	for _, q in placed() do
+		have[q.uid] = true
+	end
+	for uid in sel.uids do
+		if not have[uid] then
+			sel.uids[uid] = nil
+		end
+	end
+end
+
+local function clearSelMarks()
+	if selMarks then
+		PixelRenderer.unregisterDynamic(selMarks)
+		selMarks:Destroy()
+		selMarks = nil
+	end
+end
+local function clearSelGhost()
+	if selGhost then
+		PixelRenderer.unregisterDynamic(selGhost)
+		selGhost:Destroy()
+		selGhost = nil
+	end
+end
+
+-- A raised neon frame round a plot-local rect (a fence length's: a bar along its line), into model m.
+local function frameAt(m: Model, ox: number, oz: number, r: Street.Rect, color: string, top: number?)
+	local w, d = math.max(r.x1 - r.x0, 0.25), math.max(r.z1 - r.z0, 0.25)
+	local cx, cz = ox + (r.x0 + r.x1) / 2, oz + (r.z0 + r.z1) / 2
+	local y0, y1 = Street.LAWN_Y, top or 0.375
+	local h = y1 - y0
+	for _, e in { { 0, -d / 2, w, 0.25 }, { 0, d / 2, w, 0.25 }, { -w / 2, 0, 0.25, d }, { w / 2, 0, 0.25, d } } do
+		Blocks.part(m, { size = Vector3.new(e[3], h, e[4]), cf = CFrame.new(cx + e[1], (y0 + y1) / 2, cz + e[2]), color = color, name = "Edge", neon = true, collide = false, query = false })
+	end
+end
+
+-- The box being dragged, plot-local studs (its corners' cells both in).
+local function boxRect(): Street.Rect?
+	local a, b = sel.start, sel.cur
+	if a == nil or b == nil then
+		return nil
+	end
+	return { x0 = math.min(a[1], b[1]), z0 = math.min(a[2], b[2]), x1 = math.max(a[1], b[1]) + 1, z1 = math.max(a[2], b[2]) + 1 }
+end
+-- The pieces the box touches (a fence length: its line inside it).
+local function boxPieces(r: Street.Rect): { Types.Piece }
+	local out: { Types.Piece } = {}
+	for _, q in placed() do
+		local s = Plot.spanOf(q)
+		if s.x0 < r.x1 and r.x0 < math.max(s.x1, s.x0 + 0.01) and s.z0 < r.z1 and r.z0 < math.max(s.z1, s.z0 + 0.01) then
+			table.insert(out, q)
+		end
+	end
+	return out
+end
+
+-- The group's gold frames, and the box under way.
+local function showSelMarks()
+	clearSelMarks()
+	if not sel.on then
+		return
+	end
+	local list = selList()
+	local box = boxRect()
+	if #list == 0 and box == nil then
+		return
+	end
+	local ox, oz = origin()
+	local m = Blocks.model(nil, "SelMarks")
+	for k, q in list do
+		local r = Plot.spanOf(q)
+		if k <= SEL_FRAMES then
+			frameAt(m, ox, oz, r, "gold")
+		else
+			local w, d = math.max(r.x1 - r.x0, 0.25), math.max(r.z1 - r.z0, 0.25)
+			Blocks.part(m, { size = Vector3.new(w, 0.125, d), cf = CFrame.new(ox + (r.x0 + r.x1) / 2, Street.LAWN_Y + 0.2, oz + (r.z0 + r.z1) / 2), color = "gold", neon = true, collide = false, query = false, name = "Mark" })
+		end
+	end
+	if box then
+		frameAt(m, ox, oz, box, "yellow", 0.5)
+	end
+	m.Parent = workspace:FindFirstChild("PixelDynamic") or workspace
+	selMarks = m
+	PixelRenderer.registerDynamic(m)
+end
+
+-- Where the lifted group goes: its moves (Plot.groupMoves, the server's own rule), whether they all fit, the ones that
+-- don't, and why a copy can't go (Plot.roomFor: the island's limits).
+local function selMoves(): ({ Plot.Move }?, boolean, { Plot.Move }, string?)
+	local v = view()
+	local list = selList()
+	if v == nil or #list == 0 then
+		return nil, false, {}, nil
+	end
+	local moves = Plot.groupMoves(list, sel.dx, sel.dz, sel.rot)
+	if moves == nil then
+		return nil, false, {}, nil
+	end
+	local rest = if sel.mode == "copy" then v.pieces else Plot.without(v.pieces, list)
+	local ok, bad = Plot.movesFit(v.tier, rest, moves)
+	local why: string? = nil
+	if sel.mode == "copy" then
+		local ids: { string } = {}
+		for _, q in list do
+			table.insert(ids, q.id)
+		end
+		local room, err = Plot.roomFor(v.tier, v.pieces, ids)
+		if not room then
+			ok, why = false, err
+		end
+	end
+	return moves, ok, bad, why
+end
+
+-- The lifted group's ghost: each piece's model where it would go (SEL_MODELS at most) over its footprint, cyan where
+-- it fits and red where it doesn't.
+local function showSelGhost()
+	clearSelGhost()
+	if sel.mode == "" then
+		return
+	end
+	local moves, _, bad = selMoves()
+	if moves == nil then
+		return
+	end
+	local badSet: { [Types.Piece]: boolean } = {}
+	for _, mv in bad do
+		badSet[mv.q] = true
+	end
+	local ox, oz = origin()
+	local m = Blocks.model(nil, "SelGhost")
+	for k, mv in moves do
+		if k <= SEL_MODELS then
+			local w, d = Plot.footprint(mv.q.id, mv.rot)
+			local model = DecorModels.build(mv.q.id, CFrame.new(ox + mv.x + w / 2, Street.LAWN_Y, oz + mv.z + d / 2) * CFrame.Angles(0, math.rad(mv.rot), 0), mv.q.lvl)
+			for _, part in model:GetDescendants() do
+				if part:IsA("BasePart") then
+					part.CanQuery = false
+					part.CanCollide = false
+				end
+			end
+			model.Parent = m
+		end
+		local span = Plot.spanOf({ uid = 0, id = mv.q.id, x = mv.x, z = mv.z, rot = mv.rot, lvl = 1 })
+		frameAt(m, ox, oz, span, if badSet[mv.q] then "berry_red" else "screen_on")
+	end
+	m.Parent = workspace:FindFirstChild("PixelDynamic") or workspace
+	selGhost = m
+	PixelRenderer.registerDynamic(m)
+end
+
+-- The plot-local stud under a screen point.
+local function lawnCell(pos: Vector2): { number }?
+	local hit = lawnAt(pos)
+	if hit == nil then
+		return nil
+	end
+	local ox, oz = origin()
+	return { math.floor(hit.X - ox), math.floor(hit.Z - oz) }
+end
+
+-- Whether a screen ray meets a box (a model's bounding box): the slab test.
+local function rayHitsBox(o: Vector3, dir: Vector3, cf: CFrame, size: Vector3): boolean
+	local lo = cf:PointToObjectSpace(o)
+	local ld = cf:VectorToObjectSpace(dir)
+	local tmin, tmax = -math.huge, math.huge
+	for _, k in { { lo.X, ld.X, size.X / 2 }, { lo.Y, ld.Y, size.Y / 2 }, { lo.Z, ld.Z, size.Z / 2 } } do
+		local p0, dd, half = k[1], k[2], k[3]
+		if math.abs(dd) < 1e-9 then
+			if p0 < -half or p0 > half then
+				return false
+			end
+		else
+			local t1, t2 = (-half - p0) / dd, (half - p0) / dd
+			if t1 > t2 then
+				t1, t2 = t2, t1
+			end
+			tmin, tmax = math.max(tmin, t1), math.min(tmax, t2)
+			if tmin > tmax then
+				return false
+			end
+		end
+	end
+	return tmax >= 0
+end
+-- Tap twice: whether a tap puts the ghost down. Yes near the spot the ghost is centred on (within TAP_NEAR studs: a
+-- second tap on the same spot, a finger's wobble allowed), or on a model drawn over its footprints (a tall building's
+-- roof is well above its footprint on the screen: the tap's ground point falls off every footprint then). A tap
+-- elsewhere on a footprint is a nudge: the ghost moves there (a big piece moved a stud or two).
+local TAP_NEAR = 1.5
+local function tapOnGhost(pos: Vector2, center: { number }?, spans: { Street.Rect }, models: { Model }): boolean
+	local hit = lawnAt(pos)
+	if hit then
+		local ox, oz = origin()
+		local lx, lz = hit.X - ox, hit.Z - oz
+		if center and (lx - center[1]) ^ 2 + (lz - center[2]) ^ 2 <= TAP_NEAR * TAP_NEAR then
+			return true
+		end
+		for _, r in spans do
+			local pad = if r.x0 == r.x1 or r.z0 == r.z1 then 0.75 else 0
+			if lx >= r.x0 - pad and lx <= r.x1 + pad and lz >= r.z0 - pad and lz <= r.z1 + pad then
+				return false
+			end
+		end
+	end
+	local o, dir = PixelRenderer.screenRay(pos)
+	for _, m in models do
+		if m.Parent and m:FindFirstChildWhichIsA("BasePart", true) then
+			local cf, size = m:GetBoundingBox()
+			if rayHitsBox(o, dir, cf, size) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- Tap twice: a tap on the picked piece's ghost (its footprint or its model) puts it down there.
+local function onPickGhost(pos: Vector2): boolean
+	local p = pick
+	if p == nil or not p.set then
+		return false
+	end
+	local span = Plot.spanOf({ uid = 0, id = p.id, x = p.x, z = p.z, rot = p.rot, lvl = 1 })
+	local models: { Model } = {}
+	local g = ghost
+	if g then
+		table.insert(models, g)
+	end
+	return tapOnGhost(pos, { (span.x0 + span.x1) / 2, (span.z0 + span.z1) / 2 }, { span }, models)
+end
+
+-- The lifted group's footprints and models where it would go now.
+local function selGhostParts(): ({ Street.Rect }, { Model })
+	local spans: { Street.Rect } = {}
+	local moves = selMoves()
+	if moves then
+		for _, mv in moves do
+			table.insert(spans, Plot.spanOf({ uid = 0, id = mv.q.id, x = mv.x, z = mv.z, rot = mv.rot, lvl = 1 }))
+		end
+	end
+	local models: { Model } = {}
+	local g = selGhost
+	if g then
+		for _, c in g:GetChildren() do
+			if c:IsA("Model") then
+				table.insert(models, c)
+			end
+		end
+	end
+	return spans, models
+end
+
+-- The lifted group under a screen point: its box's middle on the stud there (even studs for tiles and fences). True
+-- when it didn't move.
+local function selGhostTo(pos: Vector2): boolean
+	local c = lawnCell(pos)
+	local list = selList()
+	if c == nil or #list == 0 then
+		return false
+	end
+	local hit = lawnAt(pos)
+	if hit then
+		local ox, oz = origin()
+		sel.tap = { hit.X - ox, hit.Z - oz }
+	end
+	local moves = Plot.groupMoves(list, 0, 0, sel.rot)
+	if moves == nil then
+		return false
+	end
+	local g = 1
+	local x0, z0, x1, z1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, mv in moves do
+		if Plot.isDrawn(mv.q.id) then
+			g = 2
+		end
+		local r = Plot.spanOf({ uid = 0, id = mv.q.id, x = mv.x, z = mv.z, rot = mv.rot, lvl = 1 })
+		x0, z0, x1, z1 = math.min(x0, r.x0), math.min(z0, r.z0), math.max(x1, r.x1), math.max(z1, r.z1)
+	end
+	local dx, dz = c[1] - (x0 + x1) // 2, c[2] - (z0 + z1) // 2
+	dx, dz = g * math.floor(dx / g + 0.5), g * math.floor(dz / g + 0.5)
+	dx, dz = math.clamp(dx, -400, 400), math.clamp(dz, -400, 400)
+	local same = dx == sel.dx and dz == sel.dz
+	sel.dx, sel.dz = dx, dz
+	if not same or selGhost == nil then
+		showSelGhost()
+	end
+	return same
+end
+
+-- The last build action taken back (the server's stack): the pick and a lifted group go (what they pointed at may
+-- have moved), the group keeps what is still there.
+local function undoNow(): Types.Response
+	local v = view()
+	if v and (v.undo or 0) <= 0 then
+		Audio.play("deny")
+		UIKit.notice("Nothing to undo.", UIKit.color("text_dim"), 2)
+		return { ok = false, err = "not_found" }
+	end
+	local res = StateClient.request("plot.undo", {})
+	if res.ok then
+		Audio.play("flip")
+		UIKit.notice("Undone.", UIKit.color("text_dim"), 1.5)
+		pick = nil
+		clearGhost()
+		sel.mode = ""
+		clearSelGhost()
+		layoutAsk = nil
+	else
+		Audio.play("deny")
+		UIKit.notice(if res.err == "not_found" then "That can't be undone now." else buildErr(res.err), UIKit.color("bad"))
+	end
+	task.defer(function()
+		selPrune()
+		showSelMarks()
+		rebuild()
+	end)
+	return res
+end
+
+-- The Select tool on or off (its bar in the tray): nothing picked, Quick remove and the layouts off.
+local function selectTool(on: boolean)
+	sel.on = on
+	sel.uids, sel.mode, sel.look, sel.start, sel.cur = {}, "", false, nil, nil
+	sel.dx, sel.dz, sel.rot = 0, 0, 0
+	pick = nil
+	quick.on = false
+	layoutsOn = false
+	layoutAsk = nil
+	draw.erase, draw.box, draw.look = false, false, false
+	closeTip()
+	clearGhost()
+	clearDrawGhost()
+	clearSelGhost()
+	showSelMarks()
+	Audio.play("flip")
+	if on then
+		UIKit.notice("Tap pieces to pick them, or drag a box over them.", UIKit.color("text_dim"), 2.5)
+	end
+	rebuild()
+end
+
+-- A tap with the Select tool: the piece under it into the group, or out of it.
+local function selTap(pos: Vector2)
+	local i = pieceAt(pos)
+	local q = if i then placed()[i] else nil
+	if q == nil then
+		return
+	end
+	if sel.uids[q.uid] then
+		sel.uids[q.uid] = nil
+	elseif selCount() < Plot.MANY_MAX then
+		sel.uids[q.uid] = true
+	else
+		Audio.play("deny")
+		return
+	end
+	Audio.play("click")
+	showSelMarks()
+	rebuild()
+end
+
+-- The box let go: what it touches joins the group (Plot.MANY_MAX at most).
+local function selBox()
+	local r = boxRect()
+	sel.start, sel.cur = nil, nil
+	if r then
+		local n = selCount()
+		local got = 0
+		for _, q in boxPieces(r) do
+			if not sel.uids[q.uid] and n < Plot.MANY_MAX then
+				sel.uids[q.uid] = true
+				n += 1
+				got += 1
+			end
+		end
+		Audio.play(if got > 0 then "click" else "deny")
+	end
+	showSelMarks()
+	rebuild()
+end
+
+-- Lift the group (Move or Copy): its ghost where it stands (a copy's beside it, to the east).
+local function selLift(mode: string)
+	local list = selList()
+	if #list == 0 then
+		Audio.play("deny")
+		return
+	end
+	sel.mode, sel.rot, sel.dx, sel.dz, sel.tap = mode, 0, 0, 0, nil
+	if mode == "copy" then
+		local x0, x1 = math.huge, -math.huge
+		local g = 1
+		for _, q in list do
+			local r = Plot.spanOf(q)
+			x0, x1 = math.min(x0, r.x0), math.max(x1, r.x1)
+			if Plot.isDrawn(q.id) then
+				g = 2
+			end
+		end
+		sel.dx = math.clamp(g * math.ceil((x1 - x0 + 1) / g), -400, 400)
+	end
+	Audio.play("flip")
+	showSelGhost()
+	rebuild()
+end
+
+-- The lifted group set down (plot.moveMany or plot.copyMany, all or nothing).
+local function selConfirm()
+	local list = selList()
+	if sel.mode == "" or #list == 0 then
+		return
+	end
+	local copy = sel.mode == "copy"
+	local res = StateClient.request(if copy then "plot.copyMany" else "plot.moveMany", { uids = Plot.uidString(uidsOf(list)), dx = sel.dx, dz = sel.dz, rot = sel.rot })
+	if res.ok then
+		Audio.play("close")
+		-- (a copy stays lifted for another, as a stamp: Esc, a right click or Cancel lets it go)
+		if not copy then
+			sel.mode = ""
+			clearSelGhost()
+		end
+		local paid = if copy and type(res.data) == "table" then tonumber(res.data.shells) or 0 else 0
+		if paid > 0 then
+			UIKit.notice(Lang.f("Copied for {1} coins.", Numbers.coins(paid)), UIKit.color("text_dim"), 2)
+		end
+	else
+		Audio.play("deny")
+		UIKit.notice(buildErr(res.err), UIKit.color("bad"))
+	end
+	task.defer(function()
+		showSelMarks()
+		rebuild()
+	end)
+end
+
+-- Turn: the lifted ghost a quarter, else the group where it stands.
+local function selTurn()
+	local list = selList()
+	if #list == 0 then
+		Audio.play("deny")
+		return
+	end
+	if sel.mode ~= "" then
+		sel.rot = (sel.rot + 90) % 360
+		Audio.play("flip")
+		showSelGhost()
+		rebuild()
+		return
+	end
+	local res = StateClient.request("plot.moveMany", { uids = Plot.uidString(uidsOf(list)), dx = 0, dz = 0, rot = 90 })
+	if res.ok then
+		Audio.play("flip")
+	else
+		Audio.play("deny")
+		UIKit.notice(buildErr(res.err), UIKit.color("bad"))
+	end
+	task.defer(function()
+		showSelMarks()
+		rebuild()
+	end)
+end
+
+-- Put the group away (plot.storeMany: the tree stays, and a Hatchery warming an egg).
+local function selStore()
+	local list = selList()
+	if #list == 0 then
+		Audio.play("deny")
+		return
+	end
+	local res = StateClient.request("plot.storeMany", { uids = Plot.uidString(uidsOf(list)) })
+	if res.ok and type(res.data) == "table" then
+		Audio.play("close")
+		UIKit.notice(string.format("%d put away.", tonumber(res.data.removed) or 0), UIKit.color("text_dim"), 1.5)
+	else
+		Audio.play("deny")
+		UIKit.notice(buildErr(res.err), UIKit.color("bad"))
+	end
+	task.defer(function()
+		selPrune()
+		showSelMarks()
+		rebuild()
+	end)
+end
+
+-- The Select tool's bar (in place of the tabs): Box and Look around, then what the group can do; lifted: Turn, Place,
+-- Cancel. Under them what it does, how many are in the group, and a lifted copy's price.
+local function selectBar(f: Frame, v: Types.ClientView)
+	local list = selList()
+	local n = #list
+	local x = 4
+	local function tool(text: string, on: boolean, enabled: boolean, click: () -> (), name: string, color: Color3?, key: string?)
+		local w = UIKit.buttonWidth(text, 5)
+		local b = UIKit.button(f, text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), click, { color = color or (if on then UIKit.color("accent") else UIKit.color("plate_light")), enabled = enabled, name = name })
+		if key then
+			toolTip(b, text, key)
+		end
+		x += w + 3
+	end
+	local moves, fitsAll, _, why = selMoves()
+	local lifted = sel.mode ~= ""
+	if lifted then
+		tool("Turn", false, true, selTurn, "SelTurn", nil, "R")
+		tool("Place", false, moves ~= nil and fitsAll, selConfirm, "SelPlace", UIKit.color("button_ok"), "E")
+		tool("Cancel", false, true, function()
+			sel.mode = ""
+			Audio.play("flip")
+			clearSelGhost()
+			rebuild()
+		end, "SelCancel", nil, "Esc")
+	else
+		tool("Box", not sel.look, true, function()
+			sel.look = false
+			Audio.play("flip")
+			rebuild()
+		end, "SelBox")
+		tool("Look around", sel.look, true, function()
+			sel.look = true
+			Audio.play("flip")
+			rebuild()
+		end, "SelLook")
+		tool("Move", false, n > 0, function()
+			selLift("move")
+		end, "SelMove", UIKit.color("button_ok"), "M")
+		tool("Turn", false, n > 0, selTurn, "SelTurn", nil, "R")
+		tool("Copy", false, n > 0, function()
+			selLift("copy")
+		end, "SelCopy", UIKit.color("plate_light"), "Ctrl+C")
+		tool("Put away", false, n > 0, selStore, "SelStore", UIKit.color("button_warn"), "Del")
+		tool("Stop", false, true, function()
+			selectTool(false)
+		end, "SelStop", nil, "Esc")
+	end
+	-- what it does (whole phrases, one and many: Locale/Lang)
+	local title = if sel.mode == "move" then (if n == 1 then "Moving 1 piece" else Lang.f("Moving {1} pieces", n))
+		elseif sel.mode == "copy" then (if n == 1 then "Copying 1 piece" else Lang.f("Copying {1} pieces", n))
+		elseif n == 0 then "Select"
+		elseif n == 1 then "1 selected"
+		else Lang.f("{1} selected", n)
+	local say = if lifted and sel.mode == "copy" then "Tap where the copy goes, then tap it again to put it down. Keep going for more."
+		elseif lifted then "Tap where they go, then tap them again to put them down."
+		elseif sel.look then "Drag to look around. Tap Box to pick more."
+		else "Tap pieces to pick them, or drag a box over them."
+	if lifted and why then
+		say = buildErr(why)
+	end
+	local w = f.Size.X.Offset - 8
+	local tw = w - 40 - 96
+	local nl = math.min(4, UIKit.lines(say, tw))
+	local h = math.max(PIC + 8, 14 + nl * 10 + 3)
+	local info = UIKit.row(f, UDim2.new(1, -8, 0, h), UDim2.fromOffset(4, 18))
+	info.Name = "Info"
+	PixelSprites.image(info, "mini_select", UDim2.fromOffset(10, 9), 4)
+	UIKit.text(info, title, UDim2.new(1, -40, 0, 10), UDim2.fromOffset(32, 3), { color = UIKit.color("accent"), z = 4, name = "What" })
+	UIKit.text(info, say, UDim2.fromOffset(tw, nl * 10), UDim2.fromOffset(32, 14), { color = if lifted and why then UIKit.color("bad") else UIKit.color("text_dim"), z = 4, wrap = true, name = "Blurb" })
+	-- a lifted copy's price: the inventory's pieces first, the rest bought
+	if sel.mode == "copy" and n > 0 then
+		local cost = Plot.copyCost(v, uidsOf(list))
+		if cost then
+			if cost.held > 0 then
+				UIKit.text(info, Lang.f("{1} from the inventory", cost.held), UDim2.fromOffset(92, 10), UDim2.fromOffset(math.max(4, w - 92), 14), { x = "right", color = UIKit.color("accent"), z = 4, name = "Held" })
+			end
+			price(info, math.max(4, w - 92), 3, cost.shells, v)
+		end
+	end
+end
+
+------------------------------------------------------------------ saved layouts
+local function savedAgo(at: number): string
+	local s = os.time() - at
+	if s < 60 then
+		return "Saved just now"
+	elseif s < 48 * 3600 then
+		return Lang.f("Saved {1} ago", Numbers.duration(s - 59))
+	end
+	return Lang.f("Saved {1} days ago", s // 86400)
+end
+
+local function askExpires(a: Ask)
+	task.delay(ASK_WAIT + 0.1, function()
+		if layoutAsk == a then
+			layoutAsk = nil
+			rebuild()
+		end
+	end)
+end
+
+-- Save the island into a slot (over a saved one, a second tap first).
+local function layoutSave(slot: number)
+	local v = view()
+	if v == nil then
+		return
+	end
+	local s = if v.layouts then v.layouts[slot] else nil
+	local a = layoutAsk
+	local now = os.clock()
+	if s and s.n > 0 and not (a and a.slot == slot and a.what == "save" and now < a.at) then
+		local na: Ask = { slot = slot, what = "save", at = now + ASK_WAIT }
+		layoutAsk = na
+		askExpires(na)
+		Audio.play("flip")
+		rebuild()
+		return
+	end
+	layoutAsk = nil
+	local res = StateClient.request("layout.save", { slot = slot })
+	if res.ok then
+		Audio.play("coins")
+		UIKit.notice("Layout saved.", UIKit.color("good"), 2)
+	else
+		Audio.play("deny")
+		UIKit.notice(buildErr(res.err), UIKit.color("bad"))
+	end
+	task.defer(rebuild)
+end
+
+-- Load a slot: the first tap asks the server what it takes (layout.quote), the second loads it (layout.load).
+local function layoutLoad(slot: number)
+	local v = view()
+	if v == nil then
+		return
+	end
+	local a = layoutAsk
+	local now = os.clock()
+	if a and a.slot == slot and a.what == "load" and now < a.at and a.plan then
+		layoutAsk = nil
+		local res = StateClient.request("layout.load", { slot = slot })
+		if res.ok and type(res.data) == "table" then
+			Audio.play("close")
+			local skipped = (tonumber(res.data.locked) or 0) + (tonumber(res.data.limit) or 0) + (tonumber(res.data.blocked) or 0)
+			UIKit.notice(if skipped == 0 then "Layout loaded." elseif skipped == 1 then "Layout loaded. 1 didn't fit." else Lang.f("Layout loaded. {1} didn't fit.", skipped), UIKit.color("good"), 3)
+			pick = nil
+			clearGhost()
+			sel.uids, sel.mode = {}, ""
+			clearSelGhost()
+			showSelMarks()
+		else
+			Audio.play("deny")
+			UIKit.notice(buildErr(res.err), UIKit.color("bad"))
+		end
+		task.defer(rebuild)
+		return
+	end
+	local res = StateClient.request("layout.quote", { slot = slot })
+	if res.ok and type(res.data) == "table" then
+		local na: Ask = { slot = slot, what = "load", at = now + ASK_WAIT, plan = res.data }
+		layoutAsk = na
+		askExpires(na)
+		Audio.play("flip")
+	else
+		Audio.play("deny")
+		UIKit.notice(buildErr(res.err), UIKit.color("bad"))
+	end
+	rebuild()
+end
+
+-- The layouts' bar (in place of the tabs): Back, then a plate a slot with when it was saved, the island's level and
+-- its pieces, Save and Load; a Load asked shows what it takes (the player's own pieces, the ones to buy and their
+-- price, what won't fit).
+local function layoutsBar(f: Frame, v: Types.ClientView)
+	local bw0 = UIKit.buttonWidth("Back", 5)
+	UIKit.button(f, "Back", UDim2.fromOffset(bw0, 13), UDim2.fromOffset(4, 2), function()
+		layoutsOn = false
+		layoutAsk = nil
+		Audio.play("flip")
+		rebuild()
+	end, { color = UIKit.color("plate_light"), name = "LayoutsBack" })
+	local tx = 4 + bw0 + 4
+	PixelSprites.image(f, "mini_layouts", UDim2.fromOffset(tx, 3), 6)
+	UIKit.text(f, "Layouts", UDim2.fromOffset(80, 13), UDim2.fromOffset(tx + 13, 2), { color = UIKit.color("accent"), name = "LayoutsTitle" })
+	local slots = Tuning.LayoutSlots
+	local w = f.Size.X.Offset - 8
+	local pw = math.floor((w - (slots - 1) * 3) / slots)
+	local ph = TRAY_H - 24
+	local now = os.clock()
+	for i = 1, slots do
+		local s = if v.layouts then v.layouts[i] else nil
+		local full = s ~= nil and s.n > 0
+		local plate = UIKit.row(f, UDim2.fromOffset(pw, ph), UDim2.fromOffset(4 + (i - 1) * (pw + 3), 18))
+		plate.Name = "Slot_" .. i
+		UIKit.text(plate, Lang.f("Slot {1}", i), UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 3), { color = UIKit.color("accent"), z = 4, name = "Title" })
+		local a = layoutAsk
+		local asking = a ~= nil and a.slot == i and now < a.at
+		local plan = if a and asking and a.what == "load" then a.plan else nil
+		local line1, line2 = "Empty", ""
+		if plan then
+			local placedN, held, bought = tonumber(plan.placed) or 0, tonumber(plan.held) or 0, tonumber(plan.bought) or 0
+			line1 = if bought == 0 then Lang.f("{1} pieces, all yours", placedN) else Lang.f("{1} yours, {2} to buy", held, bought)
+			local skipped = (tonumber(plan.locked) or 0) + (tonumber(plan.limit) or 0) + (tonumber(plan.blocked) or 0)
+			line2 = if skipped == 0 then "" elseif skipped == 1 then "1 won't fit" else Lang.f("{1} won't fit", skipped)
+		elseif full and s then
+			line1 = savedAgo(s.at)
+			line2 = if s.n == 1 then Lang.f("Level {1}, 1 piece", s.tier) else Lang.f("Level {1}, {2} pieces", s.tier, s.n)
+		end
+		UIKit.text(plate, line1, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, 14), { color = UIKit.color("text"), z = 4, name = "Line1" })
+		local y2 = 24
+		if plan and (tonumber(plan.shells) or 0) > 0 then
+			price(plate, 4, 24, tonumber(plan.shells) or 0, v)
+			y2 = 34
+		end
+		if line2 ~= "" then
+			UIKit.text(plate, line2, UDim2.new(1, -8, 0, 10), UDim2.fromOffset(4, y2), { color = if plan then UIKit.color("orange") else UIKit.color("text_dim"), z = 4, name = "Line2" })
+		end
+		-- Save and Load along the bottom ("Tap again" while one asks)
+		local saving = asking and a ~= nil and a.what == "save"
+		local bw = math.floor((pw - 11) / 2)
+		local by = ph - 16
+		UIKit.button(plate, if saving then "Tap again" else "Save@@layout", UDim2.fromOffset(bw, 13), UDim2.fromOffset(4, by), function()
+			layoutSave(i)
+		end, { name = "Save_" .. i, color = if saving then UIKit.color("button_close") else UIKit.color("plate_light") })
+		local afford = plan == nil or v.shells >= (tonumber(plan.shells) or 0)
+		UIKit.button(plate, if plan then "Tap again" else "Load", UDim2.fromOffset(bw, 13), UDim2.fromOffset(7 + bw, by), function()
+			layoutLoad(i)
+		end, { name = "Load_" .. i, color = if plan then UIKit.color("button_close") else UIKit.color("button_ok"), enabled = full and afford })
+	end
+end
+
+-- A right click (or Esc) lets the current tool go, as in the builder games: the picked piece, a lifted group, the
+-- Select tool, Quick remove, the layouts. False when none was out.
+local function cancelTool(): boolean
+	if pick then
+		pick = nil
+		clearGhost()
+		clearDrawGhost()
+		Audio.play("flip")
+		rebuild()
+		return true
+	elseif sel.on and sel.mode ~= "" then
+		sel.mode = ""
+		clearSelGhost()
+		Audio.play("flip")
+		rebuild()
+		return true
+	elseif sel.on then
+		selectTool(false)
+		return true
+	elseif quick.on then
+		BuildUI.quickRemove(false)
+		return true
+	elseif layoutsOn then
+		layoutsOn, layoutAsk = false, nil
+		Audio.play("flip")
+		rebuild()
+		return true
+	end
+	return false
+end
+
+-- A small square button with an icon (the tray's tools by the tabs: Select, Layouts, Quick remove; Undo by Done),
+-- named with its key on a mouse's hover.
+local function iconButton(f: Frame, icon: string, pos: UDim2, click: () -> (), name: string, color: Color3?, enabled: boolean?, tipName: string?, key: string?): GuiButton
+	local b = UIKit.button(f, "", UDim2.fromOffset(16, 13), pos, click, { name = name, color = color or UIKit.color("plate_light"), enabled = enabled })
+	PixelSprites.image(b, icon, UDim2.fromOffset(2, 1), 6)
+	if tipName then
+		toolTip(b, tipName, key)
+	end
+	return b
 end
 
 rebuild = function()
@@ -1632,12 +2480,18 @@ rebuild = function()
 		if info and info:IsA("GuiObject") then
 			f.Size = UDim2.fromOffset(f.Size.X.Offset, math.min(TRAY_H, info.Position.Y.Offset + info.Size.Y.Offset + 6))
 		end
-	elseif quick.on then
-		quickBar(f)
+	elseif quick.on or sel.on then
+		if sel.on then
+			selectBar(f, v)
+		else
+			quickBar(f)
+		end
 		local info = f:FindFirstChild("Info")
 		if info and info:IsA("GuiObject") then
 			f.Size = UDim2.fromOffset(f.Size.X.Offset, math.min(TRAY_H, info.Position.Y.Offset + info.Size.Y.Offset + 6))
 		end
+	elseif layoutsOn then
+		layoutsBar(f, v)
 	else
 		-- the tabs (their icons alone on a narrow screen), the count, Expand
 		local x = 4
@@ -1645,7 +2499,7 @@ rebuild = function()
 		for _, t in TABS do
 			wide += UIKit.buttonWidth(t.text, 5) + 13
 		end
-		local short = wide > s.X - 180
+		local short = wide > s.X - 234
 		for _, t in TABS do
 			local w = if short then 16 else UIKit.buttonWidth(t.text, 5) + 11
 			local b = UIKit.button(f, if short then "" else t.text, UDim2.fromOffset(w, 13), UDim2.fromOffset(x, 2), function()
@@ -1657,6 +2511,10 @@ rebuild = function()
 				end
 			end, { name = "Tab_" .. t.key, color = if tab == t.key then UIKit.color("accent") else UIKit.color("plate_light") })
 			PixelSprites.image(b, "mini_" .. t.icon, UDim2.fromOffset(2, 1), 6)
+			-- (the icons alone: a mouse over one names its tab)
+			if short then
+				toolTip(b, t.text)
+			end
 			local goal = tutGoal(v)
 			if goal and goal.tab == t.key and tab ~= t.key then
 				goalTab = b
@@ -1670,31 +2528,40 @@ rebuild = function()
 		expandButton(f, v)
 		if tab ~= "inv" then
 			local used, most = countFor(v)
-			UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -146, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
+			UIKit.text(f, string.format("%d/%d", used, most), UDim2.fromOffset(40, 13), UDim2.new(1, -164, 0, 2), { x = "right", color = if used >= most then UIKit.color("orange") else UIKit.color("text_dim"), name = "Count" })
 		end
-		-- Quick remove's button (the box with the arrow going in), before the count
-		local qb = UIKit.button(f, "", UDim2.fromOffset(16, 13), UDim2.new(1, -162, 0, 2), function()
+		-- the tools before the count: Quick remove (the box with the arrow going in), Select (the dotted box), Layouts
+		-- (the stacked plans)
+		iconButton(f, "mini_takeup", UDim2.new(1, -180, 0, 2), function()
 			BuildUI.quickRemove(true)
-		end, { name = "QuickRemove", color = UIKit.color("button_warn") })
-		PixelSprites.image(qb, "mini_takeup", UDim2.fromOffset(2, 1), 6)
+		end, "QuickRemove", UIKit.color("button_warn"), nil, "Quick remove")
+		iconButton(f, "mini_select", UDim2.new(1, -198, 0, 2), function()
+			selectTool(true)
+		end, "SelectTool", nil, nil, "Select", "V")
+		iconButton(f, "mini_layouts", UDim2.new(1, -216, 0, 2), function()
+			layoutsOn = true
+			layoutAsk = nil
+			Audio.play("flip")
+			rebuild()
+		end, "LayoutsTool", nil, nil, "Layouts")
 		-- the tab's rows: chips (scrolling sideways when there are many)
 		local rows: { { string } }? = CHIPS[tab]
 		-- (the search box goes up on the tabs' plank when there's room there, so a long row of chips has the width;
 		-- on a narrow screen it sits at the end of the chips' row)
 		local trayW = s.X - 16
-		local free = trayW - 166 - (x + 2)
+		local free = trayW - 220 - (x + 2)
 		local BW = 16 -- the search button's width
 		local up = free >= 62 + BW + 2 -- (a box of 62 still shows "Search" and its clear mark)
 		local sw = if up then math.min(110, free - BW - 2) elseif s.X < 500 then 70 else 96
-		searchField(f, sw, if up then UDim2.fromOffset(x + 4 + BW, 3) else UDim2.new(1, -106 - sw, 0, 17))
+		searchField(f, sw, if up then UDim2.fromOffset(x + 4 + BW, 3) else UDim2.new(1, -124 - sw, 0, 17))
 		-- the search button just before the box (a magnifier, as in Bloxburg's catalog): it puts the cursor in the box;
 		-- lit while a search is on
-		local sb = UIKit.button(f, "", UDim2.fromOffset(BW, if up then 13 else 12), if up then UDim2.fromOffset(x + 2, 2) else UDim2.new(1, -108 - sw - BW, 0, 17), function()
+		local sb = UIKit.button(f, "", UDim2.fromOffset(BW, if up then 13 else 12), if up then UDim2.fromOffset(x + 2, 2) else UDim2.new(1, -126 - sw - BW, 0, 17), function()
 			Audio.play("flip")
 			BuildUI.focusSearch()
 		end, { name = "SearchButton", color = if query ~= "" then UIKit.color("accent") else UIKit.color("plate_light") })
 		PixelSprites.image(sb, "mini_search", UDim2.fromOffset(2, if up then 1 else 0), 6)
-		local rowW = if up then -110 else -114 - sw - BW
+		local rowW = if up then -128 else -132 - sw - BW
 		if query ~= "" then
 			rows = nil
 		end
@@ -1726,6 +2593,10 @@ rebuild = function()
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
 		BuildUI.close()
 	end, { color = UIKit.color("accent"), name = "BuildDone" })
+	-- Undo by Done, in every bar (grey while there is nothing to take back)
+	iconButton(f, "mini_undo", UDim2.new(1, -62, 0, 2), function()
+		undoNow()
+	end, "Undo", nil, (v.undo or 0) > 0, "Undo", "Ctrl+Z")
 	-- the Free Decor pass while it isn't owned, on a tab over the tray's right corner (the request of 2026-11-14:
 	-- "add the free decor gamepass in the build menu")
 	if not (v.passes and v.passes.FreeDecor) then
@@ -1742,7 +2613,7 @@ rebuild = function()
 			fw.Size = UDim2.new(1, -15, 1, 0)
 		end
 	end
-	if p == nil and not quick.on then
+	if p == nil and not quick.on and not sel.on and not layoutsOn then
 		local list = UIKit.scroll(f, UDim2.new(1, -8, 0, CARD_H + 2), UDim2.fromOffset(4, 31))
 		list.Name = "Cards"
 		list.ScrollingDirection = Enum.ScrollingDirection.X
@@ -1783,7 +2654,7 @@ local function cellAt(pos: Vector2, id: string, rot: number): (number?, number?)
 end
 
 -- The index of the own plot's piece under a screen point, if any.
-local function pieceAt(pos: Vector2): number?
+pieceAt = function(pos: Vector2): number?
 	local o, dir = PixelRenderer.screenRay(pos)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
@@ -1841,7 +2712,34 @@ local function moveGhostTo(pos: Vector2, tapped: boolean?): boolean
 end
 
 local function onTap(pos: Vector2, mouse: boolean)
+	-- the Select tool: a lifted group goes where the tap is, and down on a second tap on it (a click where it already
+	-- stands); else the tap adds a piece to the group or takes it out
+	if sel.on then
+		if sel.mode ~= "" then
+			local spans, models = selGhostParts()
+			if not mouse and tapOnGhost(pos, sel.tap, spans, models) then
+				selConfirm()
+				return
+			end
+			local same = selGhostTo(pos)
+			if same and mouse then
+				selConfirm()
+			else
+				rebuild()
+			end
+		else
+			selTap(pos)
+		end
+		return
+	end
 	if pick then
+		-- tap twice (the request of 2026-11-21: "allow the player to tap twice to place the building down"): on a touch
+		-- screen the first tap brings the ghost there, a second on it (its footprint or the model over it) puts it
+		-- down, as Place does; a mouse's ghost follows the pointer, so a click where it stands puts it down
+		if not mouse and onPickGhost(pos) then
+			BuildUI.confirm()
+			return
+		end
 		local same = moveGhostTo(pos, true)
 		if same and mouse then
 			BuildUI.confirm()
@@ -1980,12 +2878,16 @@ end
 function BuildUI.open(onTab: string?)
 	if open then
 		if onTab then
-			-- (a quest's Go: the tab shows, Quick remove ends)
+			-- (a quest's Go: the tab shows, Quick remove, the Select tool and the layouts end)
 			if quick.on then
 				quick.on = false
 				draw.erase, draw.box, draw.look = false, false, false
 				clearDrawGhost()
 			end
+			sel.on, sel.uids, sel.mode, sel.start, sel.cur = false, {}, "", nil, nil
+			layoutsOn, layoutAsk = false, nil
+			clearSelMarks()
+			clearSelGhost()
 			setTab(onTab)
 			rebuild()
 		end
@@ -1999,13 +2901,56 @@ function BuildUI.open(onTab: string?)
 	local dragged = false
 	local stroking = false -- a stroke under way (drawing: the press doesn't pan)
 	local hover: Vector2? = nil -- the mouse's last place over the world (the ghost stays under it as the view follows)
+	local rightAt: Vector2? = nil -- a right click's press (a click, not a drag, lets the current tool go)
 	table.insert(conns, UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.Keyboard then
-			-- the keys: R turns, C copies, X clears away, E places, Esc drops what is picked (then leaves)
+			-- the keys: R turns, C copies, X clears away, E places, Esc drops what is picked (then leaves); Ctrl+Z (Cmd+Z)
+			-- undoes. With the Select tool: R turns the group, C and M lift it to copy or move, X puts it away, E sets
+			-- a lifted group down, Esc lets it go (then ends the tool).
 			local k = input.KeyCode
+			local ctrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+				or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+				or UserInputService:IsKeyDown(Enum.KeyCode.LeftMeta)
+				or UserInputService:IsKeyDown(Enum.KeyCode.RightMeta)
+			if k == Enum.KeyCode.Z and ctrl then
+				undoNow()
+				return
+			end
+			if k == Enum.KeyCode.V and not ctrl then
+				selectTool(not sel.on)
+				return
+			end
+			if sel.on then
+				if k == Enum.KeyCode.R then
+					selTurn()
+				elseif k == Enum.KeyCode.C and sel.mode == "" then
+					selLift("copy")
+				elseif k == Enum.KeyCode.M and sel.mode == "" then
+					selLift("move")
+				elseif (k == Enum.KeyCode.X or k == Enum.KeyCode.Delete) and sel.mode == "" then
+					selStore()
+				elseif k == Enum.KeyCode.E or k == Enum.KeyCode.Return then
+					selConfirm()
+				elseif k == Enum.KeyCode.Escape then
+					if sel.mode ~= "" then
+						sel.mode = ""
+						clearSelGhost()
+						rebuild()
+					else
+						selectTool(false)
+					end
+				end
+				return
+			end
+			if layoutsOn and k == Enum.KeyCode.Escape then
+				layoutsOn = false
+				layoutAsk = nil
+				rebuild()
+				return
+			end
 			if k == Enum.KeyCode.R then
 				rotatePicked()
 			elseif k == Enum.KeyCode.C then
@@ -2026,6 +2971,10 @@ function BuildUI.open(onTab: string?)
 					BuildUI.close()
 				end
 			end
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			rightAt = Vector2.new(input.Position.X, input.Position.Y)
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -2051,6 +3000,21 @@ function BuildUI.open(onTab: string?)
 				local c = drawCellAt(pos)
 				if c and (draw.last == nil or c[1] ~= (draw.last :: { number })[1] or c[2] ~= (draw.last :: { number })[2]) then
 					strokeTo(c)
+				end
+				last = pos
+			elseif sel.on and sel.mode == "" and not sel.look and d then
+				-- the Select tool: a drag past the tap's slack draws a box from where the press was
+				if dragged or (pos - d).Magnitude > 8 then
+					dragged = true
+					if sel.start == nil then
+						sel.start = lawnCell(d)
+					end
+					local c = lawnCell(pos)
+					local cur = sel.cur
+					if c and sel.start and (cur == nil or c[1] ~= cur[1] or c[2] ~= cur[2]) then
+						sel.cur = c
+						showSelMarks()
+					end
 				end
 				last = pos
 			elseif quickOn() and d and not draw.look then
@@ -2084,10 +3048,22 @@ function BuildUI.open(onTab: string?)
 			elseif input.UserInputType == Enum.UserInputType.MouseMovement and not processed and pick then
 				hover = pos
 				moveGhostTo(pos)
+			elseif input.UserInputType == Enum.UserInputType.MouseMovement and not processed and sel.on and sel.mode ~= "" then
+				-- (a lifted group follows the mouse)
+				hover = pos
+				selGhostTo(pos)
 			end
 		end
 	end))
 	table.insert(conns, UserInputService.InputEnded:Connect(function(input, processed)
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			local r = rightAt
+			rightAt = nil
+			if r and not processed and (Vector2.new(input.Position.X, input.Position.Y) - r).Magnitude < 6 then
+				cancelTool()
+			end
+			return
+		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			local d = downAt
 			downAt, last = nil, nil
@@ -2095,6 +3071,14 @@ function BuildUI.open(onTab: string?)
 				stroking = false
 				finishStroke()
 				return
+			end
+			if sel.on and sel.start then
+				-- (the Select tool's box let go: what it touches joins the group)
+				if dragged then
+					selBox()
+					return
+				end
+				sel.start, sel.cur = nil, nil
 			end
 			if d and not dragged and not processed and quickOn() then
 				if not draw.look then
@@ -2111,6 +3095,14 @@ function BuildUI.open(onTab: string?)
 		if open then
 			draw.memo = {}
 			showGhost()
+			-- (the group keeps what is still on the island; its frames and a lifted ghost follow the pieces)
+			if sel.on then
+				selPrune()
+				showSelMarks()
+				if sel.mode ~= "" then
+					showSelGhost()
+				end
+			end
 			rebuild()
 			-- the hut placed, the tips move on to hatching an egg: Build mode closes a moment later (the hut's puff
 			-- seen), so the Tree of Life and the arrow over it show (EggView). The request of 2026-11-14: "auto close
@@ -2140,8 +3132,12 @@ function BuildUI.open(onTab: string?)
 		if px ~= lastPanX or py ~= lastPanY then
 			lastPanX, lastPanY = px, py
 			local h = hover
-			if h and pick and downAt == nil then
-				moveGhostTo(h)
+			if h and downAt == nil then
+				if pick then
+					moveGhostTo(h)
+				elseif sel.on and sel.mode ~= "" then
+					selGhostTo(h)
+				end
 			end
 		end
 		local k = (math.sin(now * 5) + 1) / 2
@@ -2207,9 +3203,13 @@ function BuildUI.close()
 	pick = nil
 	quick.on, quick.fence, selling, confirmClear = false, false, false, nil
 	draw.erase, draw.box, draw.look = false, false, false
+	sel.on, sel.uids, sel.mode, sel.start, sel.cur = false, {}, "", nil, nil
+	layoutsOn, layoutAsk = false, nil
 	closeTip()
 	clearGhost()
 	clearDrawGhost()
+	clearSelMarks()
+	clearSelGhost()
 	draw.start, draw.last, draw.cells, draw.seen, draw.memo = nil, nil, {}, {}, {}
 	-- (the search box is cleared for next time)
 	query = ""
@@ -2230,9 +3230,13 @@ end
 function BuildUI.quickRemove(on: boolean)
 	quick.on = on
 	pick = nil
+	sel.on, sel.uids, sel.mode, sel.start, sel.cur = false, {}, "", nil, nil
+	layoutsOn, layoutAsk = false, nil
 	closeTip()
 	clearGhost()
 	clearDrawGhost()
+	clearSelMarks()
+	clearSelGhost()
 	draw.erase, draw.box, draw.look = on, false, false
 	draw.start, draw.last, draw.cells, draw.seen, draw.memo = nil, nil, {}, {}, {}
 	Audio.play("flip")
@@ -2242,10 +3246,23 @@ function BuildUI.quickRemove(on: boolean)
 	rebuild()
 end
 
--- Sims and previews: the tray's tab, its row, the tip's building (nil when none), Quick remove and Sell on or off.
-function BuildUI.debugState(): { tab: string, chip: string, goal: string?, quick: boolean, selling: boolean }
+-- Sims and previews: the tray's tab, its row, the tip's building (nil when none), Quick remove and Sell on or off, the
+-- Select tool (its group's size and whether it is lifted: "move" or "copy"), the layouts' bar, the pick's ghost.
+function BuildUI.debugState(): { tab: string, chip: string, goal: string?, quick: boolean, selling: boolean, sel: boolean, picked: number, lifted: string, layouts: boolean, ghost: boolean }
 	local g = tutGoal(view())
-	return { tab = tab, chip = chip[tab] or "", goal = if g then g.id else nil, quick = quick.on, selling = selling }
+	local p = pick
+	return {
+		tab = tab,
+		chip = chip[tab] or "",
+		goal = if g then g.id else nil,
+		quick = quick.on,
+		selling = selling,
+		sel = sel.on,
+		picked = selCount(),
+		lifted = sel.mode,
+		layouts = layoutsOn,
+		ghost = p ~= nil and p.set,
+	}
 end
 
 -- Sims and previews: pick a piece to place as a player would (its card).
@@ -2287,6 +3304,78 @@ function BuildUI.debugSearch(text: string)
 	if box and box:IsA("TextBox") then
 		box.Text = text
 	end
+end
+-- Sims and previews: Undo as its button does (the server's answer).
+function BuildUI.undo(): Types.Response
+	return undoNow()
+end
+-- Sims and previews: the Select tool on or off; with uids, those pieces join the group; with a box (two corner cells,
+-- plot-local: x0, z0, x1, z1), what it touches joins as a drag would. Returns how many are in the group.
+function BuildUI.debugSelect(on: boolean, uids: { number }?, box: { number }?): number
+	if on ~= sel.on then
+		selectTool(on)
+	end
+	if on and uids then
+		for _, u in uids do
+			sel.uids[u] = true
+		end
+	end
+	if on and box then
+		sel.start, sel.cur = { box[1], box[2] }, { box[3], box[4] }
+		if box[5] == 1 then
+			-- (the box left up, not let go: a preview's frame)
+			showSelMarks()
+			rebuild()
+			return selCount()
+		end
+		selBox()
+	end
+	showSelMarks()
+	rebuild()
+	return selCount()
+end
+-- Sims and previews: a group action as its button does. "move" and "copy" lift the group, then set it down at (dx, dz)
+-- turned by rot (`keep`: the ghost left up there, for a preview's frame); "place" sets a lifted group down; "turn" and
+-- "store" as their buttons.
+function BuildUI.debugSelectAct(what: string, dx: number?, dz: number?, rot: number?, keep: boolean?)
+	if what == "move" or what == "copy" then
+		selLift(what)
+		if dx then
+			sel.dx, sel.dz, sel.rot = dx, dz or 0, rot or 0
+			showSelGhost()
+		end
+		if not keep then
+			selConfirm()
+		end
+	elseif what == "place" then
+		selConfirm()
+	elseif what == "turn" then
+		selTurn()
+	elseif what == "store" then
+		selStore()
+	end
+	rebuild()
+end
+-- Sims and previews: the layouts' bar open or shut; with a slot, its Save or Load as a tap on it (tap twice to be sure).
+function BuildUI.debugLayouts(on: boolean, slot: number?, what: string?)
+	if on ~= layoutsOn then
+		if on then
+			pick = nil
+			quick.on = false
+			sel.on, sel.uids, sel.mode = false, {}, ""
+			clearGhost()
+			clearSelMarks()
+			clearSelGhost()
+		end
+		layoutsOn = on
+		layoutAsk = nil
+	end
+	if slot and what == "save" then
+		layoutSave(slot)
+	elseif slot and what == "load" then
+		layoutLoad(slot)
+	end
+	rebuild()
 end
 -- Sims and previews: show a card's tooltip (as a mouse over it would).
 function BuildUI.debugTip(id: string): boolean

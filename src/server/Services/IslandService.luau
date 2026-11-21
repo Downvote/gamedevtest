@@ -12,6 +12,8 @@ local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
 local Plot = require(ReplicatedStorage.Shared.Logic.Plot)
+local Undo = require(ReplicatedStorage.Shared.Logic.Undo)
+local Layout = require(ReplicatedStorage.Shared.Logic.Layout)
 local Tree = require(ReplicatedStorage.Shared.Logic.Tree)
 local Breed = require(ReplicatedStorage.Shared.Logic.Breed)
 local Quest = require(ReplicatedStorage.Shared.Logic.Quest)
@@ -69,84 +71,122 @@ local function questEgg(s: Session.S)
 end
 
 function IslandService.init()
-	-- building (GAME_DESIGN 4): every change rebuilds the island's pieces by difference
-	local function rebuilt(fn: (s: Session.S, a: any) -> (boolean, any)): (s: Session.S, a: any) -> (boolean, any)
+	-- building (GAME_DESIGN 4): every change rebuilds the island's pieces by difference, and is one step Build mode's
+	-- Undo can take back (Logic/Undo: what the action changed, taken once the huts and the work have settled round it)
+	local function recorded(what: string, fn: (s: Session.S, a: any) -> (boolean, any)): (s: Session.S, a: any) -> (boolean, any)
 		return function(s: Session.S, a: any): (boolean, any)
+			local before = Undo.capture(s.profile)
+			local ok, data = fn(s, a)
+			if ok then
+				local step = Undo.diff(before, s.profile, what)
+				if step then
+					Undo.push(s.undo, step)
+				end
+			end
+			return ok, data
+		end
+	end
+	local function rebuilt(what: string, fn: (s: Session.S, a: any) -> (boolean, any), record: boolean?): (s: Session.S, a: any) -> (boolean, any)
+		return function(s: Session.S, a: any): (boolean, any)
+			local before = if record == false then nil else Undo.capture(s.profile)
 			local ok, data = fn(s, a)
 			if ok then
 				-- (a workplace built: the hut driftlings resting take a place there, their knack's first; a hut built:
 				-- the ones with no hut move in)
 				Tree.settle(s.profile)
 				Tree.fillJobs(s.profile)
+				if before then
+					local step = Undo.diff(before, s.profile, what)
+					if step then
+						Undo.push(s.undo, step)
+					end
+				end
 				PlotService.buildDecor(s)
 				tips(s)
 			end
 			return ok, data
 		end
 	end
-	Router.on(
-		"plot.place",
-		rebuilt(function(s, a)
-			return Plot.place(s.profile, a.id, a.x, a.z, a.rot)
-		end)
-	)
-	Router.on(
-		"plot.move",
-		rebuilt(function(s, a)
-			return Plot.move(s.profile, a.i, a.x, a.z, a.rot)
-		end)
-	)
-	Router.on(
-		"plot.store",
-		rebuilt(function(s, a)
-			return Plot.store(s.profile, a.i)
-		end)
-	)
+	local function build(action: string, fn: (s: Session.S, a: any) -> (boolean, any))
+		Router.on(action, rebuilt(action, fn))
+	end
+	build("plot.place", function(s, a)
+		return Plot.place(s.profile, a.id, a.x, a.z, a.rot)
+	end)
+	build("plot.move", function(s, a)
+		return Plot.move(s.profile, a.i, a.x, a.z, a.rot)
+	end)
+	build("plot.store", function(s, a)
+		return Plot.store(s.profile, a.i)
+	end)
 	-- paths and water drawn in a line or a box, or erased; fences drawn along the grid lines or taken down (GAME_DESIGN 4)
-	Router.on(
-		"plot.paint",
-		rebuilt(function(s, a)
-			return Plot.paint(s.profile, a.id, Plot.cells(a.cells))
-		end)
-	)
-	Router.on(
-		"plot.unpaint",
-		rebuilt(function(s, a)
-			return Plot.unpaint(s.profile, Plot.cells(a.cells), a.kind)
-		end)
-	)
-	Router.on(
-		"plot.fence",
-		rebuilt(function(s, a)
-			return Plot.fence(s.profile, a.id, Plot.edges(a.edges))
-		end)
-	)
-	Router.on(
-		"plot.unfence",
-		rebuilt(function(s, a)
-			return Plot.unfence(s.profile, Plot.edges(a.edges))
-		end)
-	)
-	Router.on(
-		"plot.replace",
-		rebuilt(function(s, a)
-			return Plot.replace(s.profile, a.i, a.id)
-		end)
-	)
+	build("plot.paint", function(s, a)
+		return Plot.paint(s.profile, a.id, Plot.cells(a.cells))
+	end)
+	build("plot.unpaint", function(s, a)
+		return Plot.unpaint(s.profile, Plot.cells(a.cells), a.kind)
+	end)
+	build("plot.fence", function(s, a)
+		return Plot.fence(s.profile, a.id, Plot.edges(a.edges))
+	end)
+	build("plot.unfence", function(s, a)
+		return Plot.unfence(s.profile, Plot.edges(a.edges))
+	end)
+	build("plot.replace", function(s, a)
+		return Plot.replace(s.profile, a.i, a.id)
+	end)
 	-- Build mode's inventory (GAME_DESIGN 4.5): Remove all (a group into the inventory at once), and selling what waits
-	-- there
+	-- there (an Undo step too: the coins go back and the pieces return)
+	build("plot.clear", function(s, a)
+		return Plot.clear(s.profile, a.what)
+	end)
 	Router.on(
-		"plot.clear",
-		rebuilt(function(s, a)
-			return Plot.clear(s.profile, a.what)
+		"inv.sell",
+		recorded("inv.sell", function(s, a)
+			return Plot.sellHeld(s.profile, a.id, a.n)
 		end)
 	)
-	Router.on("inv.sell", function(s, a)
-		return Plot.sellHeld(s.profile, a.id, a.n)
+	-- Build mode's Select tool (GAME_DESIGN 4.7): a group moved (and turned), put away or copied, all or nothing
+	build("plot.moveMany", function(s, a)
+		return Plot.moveMany(s.profile, Plot.uids(a.uids), a.dx, a.dz, a.rot)
+	end)
+	build("plot.storeMany", function(s, a)
+		return Plot.storeMany(s.profile, Plot.uids(a.uids))
+	end)
+	build("plot.copyMany", function(s, a)
+		return Plot.copyMany(s.profile, Plot.uids(a.uids), a.dx, a.dz, a.rot)
+	end)
+	-- Undo: the last step taken back (refused with why when the island no longer allows it; the step stays then)
+	Router.on(
+		"plot.undo",
+		rebuilt("plot.undo", function(s, _a)
+			local step = s.undo[#s.undo]
+			if step == nil then
+				return false, "not_found"
+			end
+			local ok, data = Undo.apply(s.profile, step)
+			if ok then
+				table.remove(s.undo)
+			end
+			return ok, data
+		end, false)
+	)
+	-- saved layouts (Logic/Layout): save the island into a slot, what loading one would do, and loading it (one Undo
+	-- step)
+	Router.on("layout.save", function(s, a)
+		return Layout.save(s.profile, a.slot, os.time())
+	end)
+	Router.on("layout.quote", function(s, a)
+		return Layout.plan(s.profile, a.slot)
+	end)
+	build("layout.load", function(s, a)
+		return Layout.load(s.profile, a.slot)
 	end)
 	Router.on("island.expand", function(s, _a)
 		local ok, data = Island.expand(s.profile)
 		if ok then
+			-- (a bigger island: what Undo held is for the island before it grew)
+			table.clear(s.undo)
 			Store.addXp(s.profile, "expand")
 			-- (a bigger island: the tree lays its extra eggs at once, in the weather now)
 			local laid = Tree.fill(s.profile, s.rng, Weather.at(WorldClock.now()))

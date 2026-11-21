@@ -598,6 +598,22 @@ function Plot.price(p: any, id: string): number
 	end
 	return def.shells
 end
+-- Prices for many pieces bought at once (Plot.copyMany, Logic/Layout): Plot.price, but the tips' free workplace is free
+-- once (a copied group or a loaded layout of twenty of them pays for the other nineteen).
+function Plot.pricer(p: any): (string) -> number
+	local tipUsed = false
+	return function(id: string): number
+		local c = Plot.price(p, id)
+		local def = Buildings.byId[id]
+		if c == 0 and def and def.kind == "work" and p.tut == Plot.TIP_WORK and id == Plot.tipWork(p.tier or 1) then
+			if tipUsed then
+				return def.shells
+			end
+			tipUsed = true
+		end
+		return c
+	end
+end
 
 ------------------------------------------------------------------ actions (change the profile only on success)
 -- Place a new piece: its tier reached, room under the island's limit (a hut's room under the housing limit,
@@ -1263,6 +1279,483 @@ function Plot.cleanInv(v: any): { [string]: number }
 		end
 	end
 	return out
+end
+
+------------------------------------------------------------------ many pieces at once (GAME_DESIGN 4.7)
+-- The request of 2026-11-21: "add an undo button, selection tool and saving/loading of plots". Build mode's Select
+-- tool works on a group of pieces, named by their uids (stable, where an index moves as pieces come and go): moved
+-- together (an offset and a quarter turn about the group's middle), put away together, or copied (the inventory's
+-- first, the rest bought). Every one is all or nothing, checked against the island's own rules (Plot.fits against the
+-- pieces near each one: Plot.index), and the Tree of Life may be moved with a group but never put away or copied.
+Plot.MANY_MAX = 300 -- pieces a group action holds at most (Validate's "uids")
+-- A group's uids as a request carries them, "12,40,41" (Validate's "uids"), and back.
+function Plot.uids(s: string): { number }
+	local out: { number } = {}
+	for d in string.gmatch(s, "%d+") do
+		table.insert(out, tonumber(d) :: number)
+	end
+	return out
+end
+function Plot.uidString(uids: { number }): string
+	local parts = table.create(#uids)
+	for _, u in uids do
+		table.insert(parts, tostring(u))
+	end
+	return table.concat(parts, ",")
+end
+-- (the inventory's helpers for Logic/Undo and Logic/Layout, which put pieces away and back as these do)
+Plot.stow = stow
+Plot.takeHeld = takeHeld
+Plot.freeWorkers = freeWorkers
+Plot.clearOut = clearOut
+
+-- A spatial index of pieces in blocks of NEAR_BLOCK cells, so a fit is tried against the pieces near it alone (every
+-- piece against every other took seconds on a full island): add(q), remove(q), near(rect, skip) -> the pieces whose
+-- blocks meet the rect's (each once, `skip` left out).
+export type Index = { add: (Piece) -> (), remove: (Piece) -> (), near: (Rect, Piece?) -> { Piece } }
+local function spanOf(q: Piece): Rect
+	if kindOf(q.id) == "fence" then
+		return if q.rot % 180 == 0 then { x0 = q.x, z0 = q.z, x1 = q.x + 2, z1 = q.z } else { x0 = q.x, z0 = q.z, x1 = q.x, z1 = q.z + 2 }
+	end
+	return Plot.rect(q.id, q.x, q.z, q.rot)
+end
+Plot.spanOf = spanOf
+function Plot.index(list: { Piece }?): Index
+	local grid: { [number]: { Piece } } = {}
+	local function add(q: Piece)
+		nearKeys(spanOf(q), function(k: number)
+			local l = grid[k]
+			if l == nil then
+				l = {}
+				grid[k] = l
+			end
+			table.insert(l, q)
+		end)
+	end
+	local function remove(q: Piece)
+		nearKeys(spanOf(q), function(k: number)
+			local l = grid[k]
+			if l then
+				local at = table.find(l, q)
+				if at then
+					table.remove(l, at)
+				end
+			end
+		end)
+	end
+	local function near(r: Rect, skip: Piece?): { Piece }
+		local out: { Piece } = {}
+		local seen: { [Piece]: boolean } = {}
+		nearKeys(r, function(k: number)
+			local l = grid[k]
+			if l then
+				for _, o in l do
+					if o ~= skip and not seen[o] then
+						seen[o] = true
+						table.insert(out, o)
+					end
+				end
+			end
+		end)
+		return out
+	end
+	if list then
+		for _, q in list do
+			add(q)
+		end
+	end
+	return { add = add, remove = remove, near = near }
+end
+-- Whether `id` fits at (x, z, rot) against the pieces near it in the index (`skip`: the piece itself, when it is in it).
+function Plot.fitsNear(tier: number, idx: Index, id: string, x: number, z: number, rot: number, skip: Piece?): (boolean, string?)
+	local r: Rect = if kindOf(id) == "fence"
+		then (if rot % 180 == 0 then { x0 = x, z0 = z, x1 = x + 2, z1 = z } else { x0 = x, z0 = z, x1 = x, z1 = z + 2 })
+		else Plot.rect(id, x, z, rot)
+	return Plot.fits(tier, idx.near(r, skip), id, x, z, rot)
+end
+
+-- Whether pieces `adds` (ids) may go onto an island with `placed` on it: unlocked at the tier, under every count's
+-- limit, the housing limit, the work cap, the Hatcheries' limit and each boost building's. True, or false and why
+-- (Plot.place's codes: locked, full, huts, work, hatcheries, boosts; fixed for the tree, which is never added).
+function Plot.roomFor(tier: number, placed: { Piece }, adds: { string }): (boolean, ErrCode?)
+	local groups: { [string]: number } = {}
+	local slots, jobs, hatch = 0, 0, 0
+	local boosts: { [string]: number } = {}
+	for _, id in adds do
+		local d = Buildings.byId[id]
+		if d == nil then
+			return false, "bad_payload"
+		end
+		if d.kind == "tree" then
+			return false, "fixed"
+		end
+		if d.tier > tier then
+			return false, "locked"
+		end
+		local g = Plot.group(id)
+		groups[g] = (groups[g] or 0) + 1
+		if d.kind == "nest" then
+			slots += d.slots
+		end
+		jobs += d.jobs
+		if d.kind == "breed" then
+			hatch += 1
+		end
+		if d.kind == "gen" then
+			boosts[id] = (boosts[id] or 0) + 1
+		end
+	end
+	for g, n in groups do
+		if count(placed, g) + n > Plot.groupLimit(g, tier) then
+			return false, "full"
+		end
+	end
+	if slots > 0 and Plot.housing(placed) + slots > Plot.housingLimit(tier) then
+		return false, "huts"
+	end
+	if jobs > 0 and Plot.work(placed) + jobs > Plot.workLimit(tier) then
+		return false, "work"
+	end
+	if hatch > 0 and Plot.hatcheries(placed) + hatch > Plot.hatcheryLimit(tier) then
+		return false, "hatcheries"
+	end
+	for id, n in boosts do
+		if Plot.boosts(placed, id) + n > Plot.boostLimit() then
+			return false, "boosts"
+		end
+	end
+	return true, nil
+end
+
+-- The pieces named by `uids` (each once, in the island's order) and their indices; nil when one isn't on the island,
+-- there are none or too many.
+function Plot.pick(placed: { Piece }, uids: { number }): ({ Piece }?, { number }?)
+	if #uids == 0 or #uids > Plot.MANY_MAX then
+		return nil, nil
+	end
+	local want: { [number]: boolean } = {}
+	for _, u in uids do
+		want[u] = true
+	end
+	local out: { Piece } = {}
+	local at: { number } = {}
+	for i, q in placed do
+		if want[q.uid] then
+			table.insert(out, q)
+			table.insert(at, i)
+			want[q.uid] = nil
+		end
+	end
+	if next(want) ~= nil then
+		return nil, nil
+	end
+	return out, at
+end
+
+-- Where each of a group goes when moved by (dx, dz) and turned by `rot` (0, 90, 180 or 270: quarter turns, each the
+-- same turn a piece's rot gives its model, offset (rx, rz) going to (rz, -rx)). A quarter turn keeps the group's box
+-- where it was as near as it can: turned about the box's middle, half a stud (or, for a group holding tiles or fences,
+-- which keep to the even studs, a stud) toward the box's longer side when the middle falls between studs, so four
+-- turns come back where they started. A tile keeps rot 0 (it is square); a fence runs east or south. Returns
+-- { { q, x, z, rot } } in the group's order, or nil and "bad_payload" for an odd offset under tiles or fences or a rot
+-- that isn't a quarter turn.
+export type Move = { q: Piece, x: number, z: number, rot: number }
+type Spot = { id: string, x: number, z: number, rot: number }
+local function turnOnce(cur: { Spot }, g: number): { Spot }
+	local x0, z0, x1, z1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, c in cur do
+		local r = spanOf(c :: any)
+		x0, z0, x1, z1 = math.min(x0, r.x0), math.min(z0, r.z0), math.max(x1, r.x1), math.max(z1, r.z1)
+	end
+	x0, z0 = g * math.floor(x0 / g), g * math.floor(z0 / g)
+	x1, z1 = g * math.ceil(x1 / g), g * math.ceil(z1 / g)
+	local w, d = x1 - x0, z1 - z0
+	local h = (w - d) / 2
+	if h % g ~= 0 then
+		h = if w > d then g * math.floor(h / g) else g * math.ceil(h / g)
+	end
+	local nx0, nz0 = x0 + h, z0 - h
+	local function P(x: number, z: number): (number, number)
+		return nx0 + (z - z0), nz0 + w - (x - x0)
+	end
+	local out: { Spot } = table.create(#cur)
+	for _, c in cur do
+		if kindOf(c.id) == "fence" then
+			local ax, az = P(c.x, c.z)
+			local bx, bz
+			if c.rot % 180 == 0 then
+				bx, bz = P(c.x + 2, c.z)
+			else
+				bx, bz = P(c.x, c.z + 2)
+			end
+			if az == bz then
+				table.insert(out, { id = c.id, x = math.min(ax, bx), z = az, rot = 0 })
+			else
+				table.insert(out, { id = c.id, x = ax, z = math.min(az, bz), rot = 90 })
+			end
+		else
+			local r = Plot.rect(c.id, c.x, c.z, c.rot)
+			local nx, nz = P(r.x1, r.z0)
+			table.insert(out, { id = c.id, x = nx, z = nz, rot = if Plot.isTile(c.id) then 0 else (c.rot + 90) % 360 })
+		end
+	end
+	return out
+end
+function Plot.groupMoves(group: { Piece }, dx: number, dz: number, rot: number): ({ Move }?, ErrCode?)
+	if rot ~= 0 and rot ~= 90 and rot ~= 180 and rot ~= 270 then
+		return nil, "bad_payload"
+	end
+	local g = 1
+	for _, q in group do
+		if Plot.isDrawn(q.id) then
+			g = 2
+		end
+	end
+	if dx % g ~= 0 or dz % g ~= 0 then
+		return nil, "bad_payload"
+	end
+	local cur: { Spot } = table.create(#group)
+	for _, q in group do
+		table.insert(cur, { id = q.id, x = q.x, z = q.z, rot = q.rot })
+	end
+	for _ = 1, rot // 90 do
+		cur = turnOnce(cur, g)
+	end
+	local out: { Move } = table.create(#group)
+	for i, q in group do
+		local c = cur[i]
+		table.insert(out, { q = q, x = c.x + dx, z = c.z + dz, rot = c.rot })
+	end
+	return out, nil
+end
+
+-- The order a group is tried in (a layout's too: the tree, then water, so what floats finds it; then the other tiles,
+-- the fences, the pieces, and what floats last).
+function Plot.groupRank(id: string): number
+	local d = Buildings.byId[id]
+	if d == nil then
+		return 9
+	end
+	if d.kind == "tree" then
+		return 0
+	elseif d.kind == "water" then
+		return 1
+	elseif d.kind == "path" then
+		return 2
+	elseif d.kind == "fence" then
+		return 3
+	elseif d.water == "on" then
+		return 5
+	end
+	return 4
+end
+
+-- Whether every move fits on an island of `tier` with `rest` standing (the group itself not in it), each against the
+-- others of the group already tried: true, or false and the moves that don't.
+function Plot.movesFit(tier: number, rest: { Piece }, moves: { Move }): (boolean, { Move })
+	local idx = Plot.index(rest)
+	local order = table.clone(moves)
+	table.sort(order, function(a: Move, b: Move): boolean
+		return Plot.groupRank(a.q.id) < Plot.groupRank(b.q.id)
+	end)
+	local bad: { Move } = {}
+	for _, m in order do
+		if Plot.fitsNear(tier, idx, m.q.id, m.x, m.z, m.rot) then
+			idx.add({ uid = m.q.uid, id = m.q.id, x = m.x, z = m.z, rot = m.rot, lvl = m.q.lvl })
+		else
+			table.insert(bad, m)
+		end
+	end
+	return #bad == 0, bad
+end
+
+-- The island's pieces but those of a group.
+function Plot.without(placed: { Piece }, group: { Piece }): { Piece }
+	local inGroup: { [Piece]: boolean } = {}
+	for _, q in group do
+		inGroup[q] = true
+	end
+	local rest: { Piece } = {}
+	for _, q in placed do
+		if not inGroup[q] then
+			table.insert(rest, q)
+		end
+	end
+	return rest
+end
+
+-- Move the pieces `uids` by (dx, dz), turned by `rot` (Plot.groupMoves), all or nothing: bad_payload (a piece not on
+-- the island, too many, an odd offset under tiles), blocked (one doesn't fit where it would go). Their uids, workers
+-- and driftlings stay. Data { moved }.
+function Plot.moveMany(p: Profile, uids: { number }, dx: number, dz: number, rot: number): (boolean, any)
+	local group = Plot.pick(p.plot.placed, uids)
+	if group == nil then
+		return false, "bad_payload" :: ErrCode
+	end
+	local moves, err = Plot.groupMoves(group, dx, dz, rot)
+	if moves == nil then
+		return false, err
+	end
+	if not Plot.movesFit(p.tier, Plot.without(p.plot.placed, group), moves) then
+		return false, "blocked" :: ErrCode
+	end
+	for _, m in moves do
+		m.q.x, m.q.z, m.q.rot = m.x, m.z, m.rot
+	end
+	return true, { moved = #moves }
+end
+
+-- Put the pieces `uids` away into the inventory: never the tree, nor a Hatchery warming an egg (those stay, counted in
+-- `kept`); what floats on water taken up goes too. bad_payload (a piece not on the island, too many), fixed (nothing
+-- but the tree and warming Hatcheries). Data { removed, kept }.
+function Plot.storeMany(p: Profile, uids: { number }): (boolean, any)
+	local group, at = Plot.pick(p.plot.placed, uids)
+	if group == nil or at == nil then
+		return false, "bad_payload" :: ErrCode
+	end
+	local warming: { [number]: boolean } = {}
+	local eggs: { Types.Egg } = p.eggs or {}
+	for _, egg in eggs do
+		warming[egg.uid] = true
+	end
+	local hit: { [number]: boolean } = {}
+	local removed, kept, wet = 0, 0, false
+	for k, q in group do
+		if Plot.isFixed(q.id) or warming[q.uid] then
+			kept += 1
+		else
+			hit[at[k]] = true
+			removed += 1
+			wet = wet or Plot.isWater(q.id)
+		end
+	end
+	if removed == 0 then
+		return false, "fixed" :: ErrCode
+	end
+	if wet then
+		local after: { Piece } = {}
+		for i, q in p.plot.placed do
+			if not hit[i] then
+				table.insert(after, q)
+			end
+		end
+		for i, q in p.plot.placed do
+			local d = Buildings.byId[q.id]
+			if not hit[i] and d and d.water == "on" and not onWater(Plot.rect(q.id, q.x, q.z, q.rot), after) then
+				hit[i] = true
+				removed += 1
+			end
+		end
+	end
+	clearOut(p, hit)
+	return true, { removed = removed, kept = kept }
+end
+
+-- What copying the pieces `uids` costs `p` (a profile, or the client's view of it: `pieces` in place of plot.placed):
+-- the inventory's first for nothing, the rest at their price. Returns { shells, held, bought }, or nil when a piece
+-- isn't on the island.
+function Plot.copyCost(p: any, uids: { number }): { shells: number, held: number, bought: number }?
+	-- (the view's `plot` is the plot's number on the sea)
+	local list = if type(p.plot) == "table" then p.plot.placed else p.pieces
+	local group = Plot.pick(list, uids)
+	if group == nil then
+		return nil
+	end
+	local use: { [string]: number } = {}
+	local shells, held, bought = 0, 0, 0
+	local inv = p.inv or {}
+	local priceOf = Plot.pricer(p)
+	for _, q in group do
+		local have = (inv[q.id] or 0) - (use[q.id] or 0)
+		if have > 0 then
+			use[q.id] = (use[q.id] or 0) + 1
+			held += 1
+		else
+			shells += priceOf(q.id)
+			bought += 1
+		end
+	end
+	return { shells = shells, held = held, bought = bought }
+end
+
+-- Copy the pieces `uids` to (dx, dz) from where they stand, turned by `rot` (Plot.groupMoves), all or nothing: the
+-- inventory's first for nothing, the rest bought. bad_payload (a piece not on the island, too many, an odd offset
+-- under tiles), fixed (the tree is in it), locked / full / huts / work / hatcheries / boosts (Plot.roomFor), money,
+-- blocked (one doesn't fit). Data { placed, shells }.
+function Plot.copyMany(p: Profile, uids: { number }, dx: number, dz: number, rot: number): (boolean, any)
+	local group = Plot.pick(p.plot.placed, uids)
+	if group == nil then
+		return false, "bad_payload" :: ErrCode
+	end
+	local ids: { string } = {}
+	for _, q in group do
+		if Plot.isFixed(q.id) then
+			return false, "fixed" :: ErrCode
+		end
+		table.insert(ids, q.id)
+	end
+	local okRoom, why = Plot.roomFor(p.tier, p.plot.placed, ids)
+	if not okRoom then
+		return false, why
+	end
+	local moves, err = Plot.groupMoves(group, dx, dz, rot)
+	if moves == nil then
+		return false, err
+	end
+	local cost = Plot.copyCost(p, uids) :: { shells: number, held: number, bought: number }
+	if p.shells < cost.shells then
+		return false, "money" :: ErrCode
+	end
+	if not Plot.movesFit(p.tier, p.plot.placed, moves) then
+		return false, "blocked" :: ErrCode
+	end
+	table.sort(moves, function(a: Move, b: Move): boolean
+		return Plot.groupRank(a.q.id) < Plot.groupRank(b.q.id)
+	end)
+	local paid = 0
+	local priceOf = Plot.pricer(p)
+	for _, m in moves do
+		if not takeHeld(p, m.q.id) then
+			local c = priceOf(m.q.id)
+			p.shells -= c
+			paid += c
+		end
+		local uid = p.nextId
+		p.nextId += 1
+		table.insert(p.plot.placed, { uid = uid, id = m.q.id, x = m.x, z = m.z, rot = m.rot, lvl = 1 })
+		p.stats.built += 1
+	end
+	return true, { placed = #moves, shells = paid }
+end
+
+-- Whether an island's pieces keep its limits no worse than `before` did: each count, the housing, the work, the
+-- Hatcheries and each boost building at most its limit (or what `before` already had, an older save over it). For
+-- Logic/Undo's check of the state it would go back to.
+function Plot.limitsOk(tier: number, placed: { Piece }, before: { Piece }): (boolean, ErrCode?)
+	for _, g in { "piece", "tile", "fence", "fixed" } do
+		if count(placed, g) > math.max(Plot.groupLimit(g, tier), count(before, g)) then
+			return false, "full"
+		end
+	end
+	if Plot.housing(placed) > math.max(Plot.housingLimit(tier), Plot.housing(before)) then
+		return false, "huts"
+	end
+	if Plot.work(placed) > math.max(Plot.workLimit(tier), Plot.work(before)) then
+		return false, "work"
+	end
+	if Plot.hatcheries(placed) > math.max(Plot.hatcheryLimit(tier), Plot.hatcheries(before)) then
+		return false, "hatcheries"
+	end
+	local seen: { [string]: boolean } = {}
+	for _, q in placed do
+		if Plot.isBoost(q.id) and not seen[q.id] then
+			seen[q.id] = true
+			if Plot.boosts(placed, q.id) > math.max(Plot.boostLimit(), Plot.boosts(before, q.id)) then
+				return false, "boosts"
+			end
+		end
+	end
+	return true, nil
 end
 
 return Plot

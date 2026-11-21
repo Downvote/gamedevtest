@@ -298,6 +298,12 @@ local Tuning = {
 	-- path and water tiles together, apart from the pieces; fence lengths, apart again
 	PathPieces = { 80, 150, 240, 340, 460, 600, 750, 900, 1050, 1200, 1320, 1440, 1560, 1680, 1800, 1920, 2040, 2160, 2280, 2400 },
 	FencePieces = { 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200 },
+	-- Build mode's Undo and saved layouts (GAME_DESIGN 4.7; the request of 2026-11-21: "add an undo button, selection
+	-- tool and saving/loading of plots"): the build actions a session can take back, the most pieces and driftlings
+	-- those steps hold together (the newest step is always kept), and the layouts a profile keeps
+	UndoSteps = 30,
+	UndoRecords = 12000,
+	LayoutSlots = 3,
 	HomeCooldown = 3, -- s between two "go home" requests
 	WalkSpeed = 16,
 	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode)
