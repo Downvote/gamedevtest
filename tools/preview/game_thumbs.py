@@ -72,31 +72,35 @@ class Art:
         return img.resize((self.w * scale, self.h * scale), Image.NEAREST)
 
 
-def load_scene(path):
-    """A frame the preview drew at K screen px an art px, read back onto the art grid (its phase found by where the
-    K x K blocks are whole)."""
+def load_scene(path, k=K):
+    """A frame the preview drew at k screen px an art px, read back onto the art grid pixel for pixel (its phase found
+    by where the k x k blocks are whole). A frame drawn at another pixel size is refused: reading it at the wrong one
+    resamples it unevenly, the mixels the thumbnails had while the game drew at 3 and this read at 4."""
     from PIL import Image
 
     img = Image.open(path).convert("RGB")
     W, H = img.size
     data = img.load()
-    best, phase = -1, (0, 0)
-    for oy in range(K):
-        for ox in range(K):
-            good = 0
-            for by in range(40, H - K, 37):
-                for bx in range(40, W - K, 53):
-                    x0, y0 = bx - (bx - ox) % K, by - (by - oy) % K
+    best, phase, total = -1, (0, 0), 0
+    for oy in range(k):
+        for ox in range(k):
+            good, total = 0, 0
+            for by in range(40, H - k, 37):
+                for bx in range(40, W - k, 53):
+                    x0, y0 = bx - (bx - ox) % k, by - (by - oy) % k
                     c = data[x0, y0]
-                    if all(data[x0 + i, y0 + j] == c for i in range(K) for j in range(K)):
+                    total += 1
+                    if all(data[x0 + i, y0 + j] == c for i in range(k) for j in range(k)):
                         good += 1
             if good > best:
                 best, phase = good, (ox, oy)
+    if best < 0.97 * total:
+        sys.exit("%s: not drawn at %d screen px an art px (%d of %d blocks whole)" % (path, k, best, total))
     ox, oy = phase
-    art = Art(TW, TH)
-    for y in range(TH):
-        for x in range(TW):
-            sx, sy = min(W - 1, ox + x * K + 1), min(H - 1, oy + y * K + 1)
+    art = Art(W // k, H // k)
+    for y in range(art.h):
+        for x in range(art.w):
+            sx, sy = min(W - 1, ox + x * k), min(H - 1, oy + y * k)
             art.px[y][x] = data[sx, sy]
     return art
 
@@ -297,20 +301,104 @@ def thumb_collect(sc, pics, kinds):
 # the full island on the right, bigger, bleeding off the frame under a big yellow "DAY 100", and a red arrow curving
 # from the one to the other. Here both halves are frames of the game (gthumbs=day1, gthumbs=day100) under the same
 # sky, so it runs on across the bar.
-DIV_X, DIV_STEP, DIV_W = 192, 8, 7  # the bar's left edge at the top, a pixel left every DIV_STEP rows, its width
+DW, DH = 960, 540  # its art grid: twice the pixels of the others (2 screen px an art px), the islands' and the words'
+DIV_X, DIV_STEP, DIV_W = 396, 8, 14  # the bar's left edge at the top, a pixel left every DIV_STEP rows, its width
+TITLE_FONT = os.path.join(HERE, "fonts", "body-heavy.woff")  # Montserrat ExtraBold (fonts/LICENSE-Montserrat)
 
 
 def div_x(y):
     return DIV_X - y // DIV_STEP
 
 
-def arrow(cv, pts, color, r=3.4, head=18, half=8):
+def title(cv, s, size, fill, cx=None, x0=None, top=0, depth=5):
+    """Words drawn on the art grid itself, one art pixel at a time (the request of 2026-11-21: "make the text respect
+    the pixel grid instead of using mixels"): the font traced at `size` art px into a clean mask (half covered or
+    more), an anti-aliasing pixel in each inside corner of a stair (between the face and its outline, where the font
+    covers it a little), the face in a ramp lit from the top (a lit row on every top edge), `depth` px of depth under
+    it a darker step, and a 1 px outline round all of it, a darker step of the face (selective outlining, the game's
+    words). Returns the box drawn."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    ft = ImageFont.truetype(TITLE_FONT, size)
+    l, t, r, b = ft.getbbox(s)
+    w, h = r - l + 4, b - t + 4
+    img = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(img).text((2 - l, 2 - t), s, font=ft, fill=255)
+    cov = img.load()
+    face = {(x, y) for y in range(h) for x in range(w) if cov[x, y] >= 128}
+    aa = set()
+    for y in range(h):
+        for x in range(w):
+            if (x, y) in face or cov[x, y] < 24:
+                continue
+            up, dn, lf, rt = (x, y - 1) in face, (x, y + 1) in face, (x - 1, y) in face, (x + 1, y) in face
+            if (up or dn) and (lf or rt):
+                aa.add((x, y))
+    ys = [y for _, y in face]
+    y0f, y1f = min(ys), max(ys)
+    xs = [x for x, _ in face]
+    bw = max(xs) - min(xs) + 1
+    ox = (x0 if x0 is not None else cx - bw // 2) - min(xs)
+    oy = top - y0f
+    body = face | aa
+    deep = set()
+    for (x, y) in body:
+        for d in range(1, depth + 1):
+            if (x, y + d) not in body:
+                deep.add((x, y + d))
+    edge_c = ink_of(fill, TEXT_KEEP, TEXT_ADD)
+    deep_c = dark(fill, 0.62)
+    hi, lo, top_c = light(fill, 0.42), dark(fill, 0.8), light(fill, 0.72)
+    hh = y1f - y0f + 1
+    allp = body | deep
+    for (x, y) in allp:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                q = (x + dx, y + dy)
+                if q not in allp:
+                    cv.put(q[0] + ox, q[1] + oy, edge_c)
+    for (x, y) in deep:
+        cv.put(x + ox, y + oy, deep_c)
+
+    def face_c(x, y):
+        ry = (y - y0f) / hh
+        c = hi if ry < 0.3 else (lo if ry > 0.62 else fill)
+        if (x, y - 1) not in face:
+            c = top_c
+        return c
+
+    for (x, y) in face:
+        cv.put(x + ox, y + oy, face_c(x, y))
+    for (x, y) in aa:
+        near = [face_c(qx, qy) for (qx, qy) in ((x, y - 1), (x, y + 1), (x - 1, y), (x + 1, y)) if (qx, qy) in face]
+        cv.put(x + ox, y + oy, mix(near[0], edge_c, 0.5))
+    return (min(xs) + ox - 1, oy - 1, max(xs) + ox + 1, y1f + oy + depth + 1)
+
+
+def sparkle_big(cv, x, y, arm, c):
+    """A four-pointed twinkle `arm` px long each way, its arms tapering in two widths, a 1 px outline a darker step of
+    its colour."""
+    pts = {(x, y)}
+    for d in range(1, arm + 1):
+        pts |= {(x + d, y), (x - d, y), (x, y + d), (x, y - d)}
+    for d in range(1, max(1, arm // 3) + 1):
+        pts |= {(x + d, y + 1), (x + d, y - 1), (x - d, y + 1), (x - d, y - 1), (x + 1, y + d), (x - 1, y + d), (x + 1, y - d), (x - 1, y - d)}
+    for px, py in pts:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (px + dx, py + dy) not in pts:
+                cv.put(px + dx, py + dy, ink_of(c))
+    for px, py in pts:
+        cv.put(px, py, c)
+    cv.put(x, y, WHITE)
+
+
+def arrow(cv, pts, color, r=6.6, head=34, half=15):
     """A thick curved arrow through the quadratic curve `pts` (three points), its head at the end: the colour in a
     ramp (the upper side lit, the lower in the shade), a 1 px outline a darker step of it (selective outlining)."""
     (x0, y0), (x1, y1), (x2, y2) = pts
     line = []
-    for i in range(121):
-        t = i / 120
+    for i in range(241):
+        t = i / 240
         a, b, c = (1 - t) ** 2, 2 * t * (1 - t), t * t
         line.append((a * x0 + b * x1 + c * x2, a * y0 + b * y1 + c * y2))
     tx, ty = x2 - x1, y2 - y1
@@ -331,11 +419,11 @@ def arrow(cv, pts, color, r=3.4, head=18, half=8):
     shape = {}
     xs = [p[0] for p in line] + [tip[0], c1[0], c2[0]]
     ys = [p[1] for p in line] + [tip[1], c1[1], c2[1]]
-    for y in range(int(min(ys)) - 5, int(max(ys)) + 6):
-        for x in range(int(min(xs)) - 5, int(max(xs)) + 6):
+    for y in range(int(min(ys)) - 8, int(max(ys)) + 9):
+        for x in range(int(min(xs)) - 8, int(max(xs)) + 9):
             cx, cy = x + 0.5, y + 0.5
             best, off = 1e9, 0.0
-            for (lx, ly) in line[:-6]:
+            for (lx, ly) in line[:-8]:
                 d = (cx - lx) ** 2 + (cy - ly) ** 2
                 if d < best:
                     best, off = d, cy - ly
@@ -350,7 +438,7 @@ def arrow(cv, pts, color, r=3.4, head=18, half=8):
                 if (x + dx, y + dy) not in shape:
                     cv.put(x + dx, y + dy, ink_of(color))
     for (x, y), off in shape.items():
-        c = hi if off < -1.4 else (lo if off > 1.4 else color)
+        c = hi if off < -2.4 else (lo if off > 2.4 else color)
         if (x, y - 1) not in shape:
             c = light(color, 0.6)
         cv.put(x, y, c)
@@ -358,28 +446,28 @@ def arrow(cv, pts, color, r=3.4, head=18, half=8):
 
 def thumb_days(sc):
     small, full = sc["day1"], sc["day100"]
-    cv = Art(TW, TH)
-    for y in range(TH):
+    cv = Art(DW, DH)
+    for y in range(DH):
         d = div_x(y)
-        for x in range(TW):
+        for x in range(DW):
             cv.px[y][x] = small.px[y][x] if x < d else full.px[y][x]
     # the bar, white, its edges a darker step of it, a clean stair of DIV_STEP rows
     edge = ink_of(WHITE)
-    for y in range(TH):
+    for y in range(DH):
         d = div_x(y)
         cv.put(d - 1, y, edge)
         for x in range(d, d + DIV_W):
             cv.put(x, y, WHITE)
         cv.put(d + DIV_W, y, edge)
     # the arrow from the first island round to the full one
-    arrow(cv, ((114, 240), (158, 268), (206, 259)), PAL["berry_red"])
-    # the words: DAY 1 smaller over the first island, DAY 100 big and gold over the full one
-    words(cv, "DAY 1", 0, 40, WHITE, "huge", 3, x0=14)
-    right = (div_x(0) + DIV_W + 1 + TW) // 2
-    box = words(cv, "DAY 100", right, 62, PAL["accent"], "giant", 4)
-    for (x, y, big) in ((box[0] - 8, 14, True), (box[2] + 6, 50, False), (box[2] + 2, 10, False)):
-        if 0 < x < TW:
-            sparkle(cv, x, y, big, light(PAL["accent"], 0.5))
+    arrow(cv, ((232, 476), (318, 536), (404, 516)), PAL["berry_red"])
+    # the words, on this grid: DAY 1 smaller over the first island, DAY 100 big and gold over the full one
+    title(cv, "DAY 1", 66, WHITE, x0=30, top=26, depth=4)
+    right = (div_x(0) + DIV_W + 1 + DW) // 2
+    box = title(cv, "DAY 100", 112, PAL["accent"], cx=right + 4, top=22, depth=6)
+    for (x, y, arm) in ((box[0] - 14, 30, 7), (box[2] + 8, 104, 4), (box[2] + 4, 18, 5)):
+        if 0 < x < DW:
+            sparkle_big(cv, x, y, arm, light(PAL["accent"], 0.5))
     return cv
 
 
@@ -477,7 +565,7 @@ def main():
         p = os.path.join(a.scenes, "gth_%s_desktop.png" % name)
         if not os.path.exists(p):
             sys.exit("no scene " + p)
-        return load_scene(p)
+        return load_scene(p, 2 if name in ("day1", "day100") else K)
 
     sc = {n: scene(n) for n in ("tree", "tree_near", "town", "lawn", "hatch_blaze", "sky", "day1", "day100")}
     os.makedirs(a.out, exist_ok=True)
@@ -492,7 +580,7 @@ def main():
     ]
     imgs = []
     for name, cv in made:
-        img = cv.image(K)
+        img = cv.image(1920 // cv.w)
         img.save(os.path.join(a.out, name + ".png"))
         imgs.append(img)
     ic = icon(pics)

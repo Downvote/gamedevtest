@@ -3131,10 +3131,31 @@ as the hero too, bleeding off the frame.
 `thumb_0_days.png`, the lead thumbnail, takes that frame with this game's own pictures: on the left a new island (the
 Tree of Life and its first eggs, nothing built yet) floating whole in a clear morning sky beside the sun, under
 "DAY 1" in white; on the right a decorated level 8 town, its rim at the bar and the rest running off the right and
-the bottom, under "DAY 100" in gold in the biggest pixel face; the bar white, a pixel further left every eight rows;
-the arrow red with a lit top edge. Both halves are frames of the game under the same sky, so the sky runs on behind
-the bar. Upload it first on the Creator Dashboard; the other six follow (the title, the hatch, the driftlings to
-find, building, the tree's eggs, the island in the sky).
+the bottom, under "DAY 100" in gold; the bar white, a pixel further left every eight rows; the arrow red with a lit top
+edge. Both halves are frames of the game under the same sky, so the sky runs on behind the bar. Upload it first on the
+Creator Dashboard; the other six follow (the title, the hatch, the driftlings to find, building, the tree's eggs, the
+island in the sky).
+
+> The request (2026-11-21, on `thumb_0_days.png`): "could you increase the pixel resolution of the islands? also,
+> make the text respect the pixel grid instead of using mixels"
+
+This one is drawn on a grid twice as fine as the others (960 x 540 art pixels, each 2 x 2 on the 1920 x 1080 image):
+the game draws both islands at 2 screen pixels an art pixel and View notch 3, so they show four times the pixels they
+had. Every frame is read back pixel for pixel at the size it was drawn (a frame drawn at another size is refused; the
+first thumbnails had been drawn at 3 and read at 4, which stretched every third pixel). "DAY 1" and "DAY 100" are
+lettered on that same grid one pixel at a time, never scaled up: a heavy sans face traced at its size into a clean
+shape, a pixel of anti-aliasing in each inside corner of a stair, the face in a ramp lit from the top with a lit row
+on every top edge, a few pixels of depth under it and a 1 px outline a darker step of the face.
+
+> The request (2026-11-21): "could you make a better decorated island? with different sections dedicated to different
+> decor types and areas, ponds, etc, and better looking paths"
+
+The decorated town in these thumbnails (and the `showcase` preview) is laid out in areas, each its own kind: a flower
+garden hedged round a fountain with a bed for each flower, a market lane of shops and carts, a lake with a bridge, a
+dock and a gazebo, a village of huts facing the paths with gardens between, a zen garden of raked sand behind a bamboo
+fence, farms fenced in, and on bigger islands a fairy grove, a playground and woods. The paths: a paved ring round the
+Tree of Life, an avenue up the middle two light slabs wide between cobble edges with hedges along it, and narrow
+flagstone walks between the areas.
 
 ## 12. Out of scope for this version
 

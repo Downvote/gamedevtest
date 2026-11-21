@@ -20,6 +20,29 @@ return function(env)
 	local Vector2, Vector3, CFrame = E.types.Vector2, E.types.Vector3, E.types.CFrame
 	local mode = env.mode or "scene"
 
+	-- Every frame at one pixel size the layout knows (tools/preview/game_thumbs.py reads them back pixel for pixel):
+	-- 4 screen px an art px for the scenes laid out on the 480 x 270 grid, 2 for the before-and-after pair on its
+	-- 960 x 540 one (the request of 2026-11-21: "could you increase the pixel resolution of the islands?"). The game
+	-- picks 3 at 1080p (Tuning.PixelScaleSides), which the layout once read as 4, resampling every frame unevenly.
+	local artK = if mode == "day1" or string.sub(mode, 1, 6) == "day100" then 2 else 4
+	local join0 = env.join
+	env.join = function(uid: number, name: string)
+		local p = join0(uid, name)
+		-- (Tuning is frozen: the camera's fit, Render/Raster.pixelScale, answers artK for this run's client instead)
+		local R = env.cshared(p, "Render.Raster")
+		local CCk = env.modOr(p, "Controllers.CameraController")
+		if R and CCk then
+			H.inClient(p, function()
+				R.pixelScale = function()
+					return artK
+				end
+				CCk.refit()
+			end)
+		end
+		E.run(0.5)
+		return p
+	end
+
 	-- the cast: { name, species (or "egg<r>": an egg of rarity r, "egg": the rarest), size, yaw, cheer's time }
 	local CAST = {
 		-- the icon: its hero and the rarest egg beside it
@@ -352,7 +375,7 @@ return function(env)
 			env.seedProfile(uid, 1, { pals = {}, shells = 600 })
 		end
 		local p = env.join(uid, if big then "Later" else "Sooner")
-		env.settle(p, if big then 90 else 40, 2)
+		env.settle(p, if big then 120 else 60, 2)
 		E.run(2)
 		local ox = Street.origin(H.session(p).plot)
 		-- the middle of what is on the island (the land's own middle for an empty one)
@@ -380,7 +403,8 @@ return function(env)
 		H.openPanel(p, "settings")
 		E.run(0.4)
 		if SU then
-			H.inClient(p, SU.setZoom, 1)
+			-- (about the widest notch's span of sky at twice the pixels: 7 art px a stud, notch 3, on the 960 x 540 grid)
+			H.inClient(p, SU.setZoom, 3)
 		end
 		E.run(0.8)
 		H.closePanel(p)
@@ -398,7 +422,7 @@ return function(env)
 		-- (each island moved inside its half of the frame by the camera, so the sky behind stays whole: the first one
 		-- left of the divide, the full one right of it and lower, under the words; studs along the ground's
 		-- screen-right and away-from-the-viewer directions)
-		local shift = if big then { -30, 18 } else { 28, 0 }
+		local shift = if big then { -30, 18 } else { 30, 0 }
 		local rx, rz = math.sqrt(0.5), -math.sqrt(0.5)
 		local ax, az = -math.sqrt(0.5), -math.sqrt(0.5)
 		local fx = ox + cx + rx * shift[1] + ax * shift[2]
@@ -409,6 +433,20 @@ return function(env)
 		end
 		E.run(1)
 		env.settle(p, 60, 1)
+		-- (four times the pixels take longer to bake: wait until the bake has ended, which the cast check needs)
+		local PRd = env.modOr(p, "Pixel.PixelRenderer")
+		if PRd then
+			local t, cc = 0, nil
+			while t < 900 do
+				cc = H.inClient(p, PRd.debugCastCheck, false)
+				if cc and cc.off ~= -1 then
+					break
+				end
+				E.run(2)
+				t += 2
+			end
+			log("gthumbs: %s baked after %d s more, K %s, cast check off %s of %s", mode, t, tostring(H.inClient(p, PRd.pixelScale)), tostring(cc and cc.off), tostring(cc and cc.checked))
+		end
 		E.run(1.5)
 		capture(p, if big then "gth_day100" else "gth_day1")
 		return p
