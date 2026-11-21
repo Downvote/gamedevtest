@@ -36,7 +36,7 @@ local Tuning = {
 	-- (Data/Buildings.shellsFor, Logic/Island.expandCost)
 	WoodShells = 5,
 	WoodTierUp = 1.8,
-	-- ... up to this tier (Moonlit Bay): past it the price rises only as the listed prices and TierCost rise (the
+	-- ... up to this tier (Moonlit Heights): past it the price rises only as the listed prices and TierCost rise (the
 	-- islands past Driftling Haven were priced for that: GAME_DESIGN 4.4), or the last ones would cost thousands of
 	-- times more. (3, 1.5 and 10 until the driftlings arranged themselves at their best work, 2026-11-14, and 4 and
 	-- 1.75 until eggs cost a quarter the same day: the island
@@ -84,7 +84,7 @@ local Tuning = {
 	-- were taken out on 2026-11-11 are kept; no new ones are bought)
 	-- growing the island, in shells (wood until 2026-11-14; cheaper early on: "expanding island costs too much, make them cheaper early on"),
 	-- ten tiers since "make more island progression and allow the player to expand their land even more"
-	-- (GAME_DESIGN 4): the old wall before Harbor Town lower, four bigger islands past Sunspire Capital; twenty since
+	-- (GAME_DESIGN 4): the old wall before Kite Town lower, four bigger islands past Sunspire Capital; twenty since
 	-- the request of 2026-11-14 ("allow expansion up to level 20, you can make the previous levels of expansion a bit
 	-- cheaper too"): levels 2 to 10 a fifth off, levels 11 to 20 rising on from there. Then the request of
 	-- 2026-11-17, "also, make expansion cheaper at lower levels": level 2 half off again, 3 to 7 less off the higher

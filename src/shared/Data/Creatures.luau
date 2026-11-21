@@ -64,7 +64,7 @@ end
 
 -- stylua: ignore start
 local LIST: { CreatureDef } = {
-	-- Beaches (islet 1)
+	-- Dunes (islet 1)
 	C({ id = "pebblit", name = "Pebblit", islet = 1, rarity = 1, hp = 16, atk = 5, def = 6, spd = 3, shape = "armadillo", body = "steel", accent = "steel_dark", blurb = "A pebble that never stopped rolling.", pn = "Rolling Stone", fx = { work = 0.15, charm = 1 } }),
 	C({ id = "clawdle", name = "Clawdle", islet = 1, rarity = 1, hp = 13, atk = 7, def = 4, spd = 5, shape = "crab", body = "berry_red", accent = "orange", blurb = "Pinches people. It means well.", pn = "Snappy Pincers", fx = { work = 0.15, sell = 0.3 } }),
 	C({ id = "gullfin", name = "Gullfin", islet = 1, rarity = 2, hp = 12, atk = 5, def = 3, spd = 8, shape = "bird", body = "white", accent = "blue", blurb = "Eats anything that floats.", pn = "Diving Beak", fx = { work = 0.25, luck = 0.04 } }),
@@ -92,7 +92,7 @@ local LIST: { CreatureDef } = {
 	C({ id = "bumblet", name = "Bumblet", islet = 2, rarity = 2, hp = 14, atk = 6, def = 4, spd = 8, shape = "moth", body = "yellow", accent = "black", blurb = "Knows one tune. Buzzes it all day.", pn = "Busy Buzz", fx = { boost = 0.08 } }),
 	C({ id = "thistlemane", name = "Thistlemane", islet = 2, rarity = 3, hp = 18, atk = 8, def = 5, spd = 8, shape = "cat", body = "gold", accent = "white", blurb = "Its mane blows off and grows back.", pn = "Puff Mane", fx = { boost = 0.12, luck = 0.05 } }),
 	C({ id = "mossbuck", name = "Mossbuck", islet = 2, rarity = 4, hp = 24, atk = 9, def = 8, spd = 6, shape = "deer", body = "wood_dark", accent = "leaf", blurb = "Birds nest in its mossy antlers.", pn = "Green Crown", fx = { work = 0.35, charm = 1, cost = -0.15 } }),
-	-- Mangroves (islet 6)
+	-- Rootwoods (islet 6)
 	C({ id = "murkle", name = "Murkle", islet = 6, rarity = 1, hp = 18, atk = 6, def = 5, spd = 6, shape = "frog", body = "leaf_dark", accent = "sand", blurb = "Sings to the mud at dusk.", pn = "Mud Bath", fx = { work = 0.1, cost = -0.2 } }),
 	C({ id = "reedle", name = "Reedle", islet = 6, rarity = 1, hp = 17, atk = 7, def = 5, spd = 7, shape = "lizard", body = "shallow", accent = "wood_dark", blurb = "Gone before you spot it.", pn = "Reed Runner", fx = { work = 0.12, luck = 0.04 } }),
 	C({ id = "bogsnail", name = "Bogsnail", islet = 6, rarity = 2, hp = 19, atk = 5, def = 8, spd = 3, shape = "snail", body = "rock_dark", accent = "green", blurb = "Plants sprout along its trail.", pn = "Fertile Trail", fx = { work = 0.15, hatch = 0.06, charm = 1 } }),
@@ -162,7 +162,7 @@ local LIST: { CreatureDef } = {
 	C({ id = "sweepwing", name = "Sweepwing", islet = 8, rarity = 3, hp = 23, atk = 11, def = 6, spd = 11, shape = "bird", body = "wood", accent = "cream", blurb = "Lands about once a year.", pn = "Sky Nap", fx = { work = 0.25, sell = 0.25 } }),
 	C({ id = "galeram", name = "Galeram", islet = 8, rarity = 4, hp = 32, atk = 13, def = 10, spd = 7, shape = "ram", body = "white", accent = "rock", blurb = "Its horns curl like the wind.", pn = "Gale Horns", fx = { work = 0.35, cost = -0.2 } }),
 	C({ id = "stormgriff", name = "Stormgriff", islet = 8, rarity = 5, hp = 34, atk = 16, def = 10, spd = 12, shape = "griffin", body = "gold", accent = "white", blurb = "Rides in on storms, then brags.", pn = "Storm Rider", fx = { boost = 0.22, luck = 0.1, sell = 0.3 } }),
-	-- Reefs (islet 5)
+	-- Sky Reefs (islet 5)
 	C({ id = "coralcrab", name = "Coralcrab", islet = 5, rarity = 1, hp = 24, atk = 10, def = 8, spd = 6, shape = "crab", body = "pink", accent = "orange", blurb = "Grew its own coral crown.", pn = "Coral Crown", fx = { work = 0.18, charmPct = 0.03 } }),
 	C({ id = "lumajelly", name = "Lumajelly", islet = 5, rarity = 1, hp = 22, atk = 9, def = 6, spd = 7, shape = "jelly", body = "pink", accent = "purple", blurb = "Drifts by like a pink lantern.", pn = "Soft Glow", fx = { work = 0.2, cost = -0.1 } }),
 	C({ id = "pearlback", name = "Pearlback", islet = 5, rarity = 2, hp = 30, atk = 9, def = 11, spd = 4, shape = "turtle", body = "white", accent = "pink", blurb = "Grows a new pearl each year.", pn = "Pearl Grower", fx = { work = 0.3, charmPct = 0.05 } }),

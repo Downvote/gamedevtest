@@ -3652,7 +3652,7 @@ mirror(q, "second")
 
 ------------------------------------------------------------------ 10. to the last island
 -- ("allow the player to expand their land even more"; the request of 2026-11-14: "allow expansion up to level 20")
--- The first island pushed to tier 19 (Farshore) as if expanded that far, then Expand from the tray to tier 20:
+-- The first island pushed to tier 19 (Farsky) as if expanded that far, then Expand from the tray to tier 20:
 -- Everdrift, the last (the button says Island max after), its land reaching on north past where Driftling Haven
 -- (tier 10) ended, the pieces of tiers 7 to 20 open and built up there
 E.phase = "everdrift"
@@ -3662,7 +3662,7 @@ do
 	Plot.refit(prof)
 	PS.build(s)
 	H.push(p, 0.5)
-	H.expect(static:GetAttribute("Built") == 19 and Office.plan(19).name == "Farshore", "everdrift", "(the island at tier 19, Farshore)", tostring(static:GetAttribute("Built")))
+	H.expect(static:GetAttribute("Built") == 19 and Office.plan(19).name == "Farsky", "everdrift", "(the island at tier 19, Farsky)", tostring(static:GetAttribute("Built")))
 	local guard = 0
 	while not select(2, PS.debugNext(1)) and guard < 80 do
 		guard += 1

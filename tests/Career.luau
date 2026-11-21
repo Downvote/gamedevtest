@@ -539,7 +539,7 @@ function Career.play(seed: number, seconds: number, opts: Opts?)
 			turnClock -= Tuning.TurnSeconds
 			Breed.turn(p)
 		end
-		-- (every five seconds; every twenty from Moonlit Bay on, where a turn's choices are big ones and the Economy
+		-- (every five seconds; every twenty from Moonlit Heights on, where a turn's choices are big ones and the Economy
 		-- spec's three hours never reach)
 		if t % (if p.tier >= 7 then 20 else 5) == 0 then
 			tryExpand(p, rng)

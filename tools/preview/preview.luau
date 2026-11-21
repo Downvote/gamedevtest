@@ -734,7 +734,7 @@ local function incTally(p, PR, every)
 end
 
 -- "crowd": a busy town's driftlings on the move (the request of 2026-11-18: "make it such that overworld creatures
--- move smoother"). A Harbor Town (tier 4) filled to its limits with driftlings, walking to work and back; the world at
+-- move smoother"). A Kite Town (tier 4) filled to its limits with driftlings, walking to work and back; the world at
 -- 60 frames a second of its own time (the renderer's and WorldView's budgets on the real clock, as in stress). For
 -- three seconds every frame notes where each walking driftling's picture went down (PixelRenderer.debugShown): the
 -- log says how many times a second a walker's picture moved (the median and the slowest tenth) and how far it jumped
