@@ -7,12 +7,12 @@
 local Monetization = {
 	-- the game passes (Logic/Store.owns reads Profile.passes, set from these at every join and on a purchase)
 	GamePasses = {
-		VIP = 0, -- +25% shells, a welcome gift (shells, four eggs, six cosmetics, the VIP title) and a gift every day
-		DoubleIncome = 0, -- every shell x2
-		QuickTree = 0, -- the Tree of Life lays every 3 minutes in place of 6 (Tuning.EggSecsPass, EggSecs)
-		FreeDecor = 0, -- decor, paths, water and fences cost nothing
-		PremiumTrack = 0, -- the pass track's premium side, this season and every one after
-		OfflinePass = 0, -- the island earns for up to 24 hours while the player is away, at its full pace (not 3 at 30%)
+		VIP = 2092889006, -- +25% shells, a welcome gift (shells, four eggs, six cosmetics, the VIP title) and a gift every day
+		DoubleIncome = 2094155115, -- every shell x2
+		QuickTree = 2096880957, -- the Tree of Life lays every 3 minutes in place of 6 (Tuning.EggSecsPass, EggSecs)
+		FreeDecor = 2093795165, -- decor, paths, water and fences cost nothing
+		PremiumTrack = 2097202898, -- the pass track's premium side, this season and every one after
+		OfflinePass = 2095793183, -- the island earns for up to 24 hours while the player is away, at its full pace (not 3 at 30%)
 	} :: { [string]: number },
 	-- the Roblox group (Community) whose members get the group gift once (a rare egg and shells) and 10% more shells
 	-- while they stay in it (Logic/Store.setGroup; MonetizationService checks at every join and on the Store's Claim).
@@ -20,35 +20,35 @@ local Monetization = {
 	Group = { Id = 0 } :: { Id: number },
 	-- the developer products (MonetizationService: ProcessReceipt, Logic/Store.product)
 	DevProducts = {
-		EggUncommon = 0, -- an egg of that rarity into the bag, to hatch for nothing (any kind of that rarity)
-		EggRare = 0,
-		EggEpic = 0,
-		EggLegendary = 0,
-		EggMythic = 0,
-		EggCelestial = 0,
-		RefreshShop = 0, -- a new set of pieces in the rotating shop
-		StarterPack = 0, -- once: shells, an epic and a legendary egg, the Explorer set and the Early Bird title
-		HatcheryNow = 0, -- every egg warming in the Hatcheries ready now
-		RefreshEggs = 0, -- the Tree of Life lays a fresh lot of eggs now (the request of 2026-11-14: "make a developer product to refresh eggs in the tree of life")
+		EggUncommon = 3734112045, -- an egg of that rarity into the bag, to hatch for nothing (any kind of that rarity)
+		EggRare = 3734112072,
+		EggEpic = 3734112096,
+		EggLegendary = 3734112122,
+		EggMythic = 3734112177,
+		EggCelestial = 3734112209,
+		RefreshShop = 3734111924, -- a new set of pieces in the rotating shop
+		StarterPack = 3734111893, -- once: shells, an epic and a legendary egg, the Explorer set and the Early Bird title
+		HatcheryNow = 3734111996, -- every egg warming in the Hatcheries ready now
+		RefreshEggs = 3734111951, -- the Tree of Life lays a fresh lot of eggs now (the request of 2026-11-14: "make a developer product to refresh eggs in the tree of life")
 	} :: { [string]: number },
-	-- what each should cost (set the real price on the Creator Dashboard; the Store shows the live price once it has it)
+	-- what each costs on the Creator Dashboard (2026-11-21); the Store shows the live price once Roblox gives it, these meanwhile
 	SuggestedRobux = {
-		VIP = 399,
-		DoubleIncome = 299,
-		QuickTree = 199,
+		VIP = 199,
+		DoubleIncome = 199,
+		QuickTree = 99,
 		FreeDecor = 249,
-		PremiumTrack = 349,
+		PremiumTrack = 249,
 		OfflinePass = 199,
-		EggUncommon = 15,
-		EggRare = 35,
-		EggEpic = 75,
-		EggLegendary = 159,
-		EggMythic = 399,
-		EggCelestial = 999,
+		EggUncommon = 19,
+		EggRare = 29,
+		EggEpic = 49,
+		EggLegendary = 99,
+		EggMythic = 159,
+		EggCelestial = 199,
 		RefreshShop = 19,
 		StarterPack = 49,
-		HatcheryNow = 29,
-		RefreshEggs = 25,
+		HatcheryNow = 19,
+		RefreshEggs = 19,
 	} :: { [string]: number },
 	Badges = {
 		FirstGame = 0,
