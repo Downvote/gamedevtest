@@ -58,6 +58,6 @@
 #                   once, never from yourself, never to an old save), friends here (the pace, the HUD's line, counted
 #                   again at leaving), ten minutes of play paying the inviter live, a friend finishing while the
 #                   inviter is away (queued, paid at the next join; past today's cap kept queued), the boards (lb.get,
-#                   the Top sheet's rows), junk boards
+#                   the Top sheet's rows, the Driftlings board), junk boards
 SIM=$(cd "$(dirname "$0")" && pwd)
 sh "$SIM/one.sh" --gen "sim.luau:out_main.log" "sim_save.luau:out_save.log" "sim_clock.luau:out_clock.log" "sim_world.luau:out_world.log" "sim_tree.luau:out_tree.log" "sim_social.luau:out_social.log"

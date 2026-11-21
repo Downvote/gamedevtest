@@ -21,6 +21,9 @@ E.run(1)
 local Tuning = H.sharedServer("Config.Tuning")
 local Schema = H.sharedServer("Logic.Schema")
 local Island = H.sharedServer("Logic.Island")
+local Social = H.sharedServer("Logic.Social")
+local Creatures = H.sharedServer("Data.Creatures")
+local Traits = H.sharedServer("Data.Traits")
 local REF = Tuning.ReferralStoreName .. "/global"
 local STORE = Tuning.DataStoreName .. "/global"
 
@@ -103,6 +106,27 @@ local fxd = H.watchFx(d)
 E.run(2.5)
 local pd = H.profile(d)
 H.expect(pd.social.referredBy == 0 and fxFrom(fxd, "invited") == 0, "social", "an invite from yourself is no invite")
+-- (an epic driftling with a tier 2 and a tier 3 mutation, waiting for a hut, for the Driftlings board)
+local epic, m2, m3
+for _, cr in Creatures.list do
+	if cr.rarity == 4 and epic == nil then
+		epic = cr.id
+	end
+end
+for id, m in Traits.byId do
+	if m.tier == 2 and (m2 == nil or id < m2) then
+		m2 = id
+	end
+end
+for id, m in Traits.byId do
+	if m.tier == 3 and m.family ~= Traits.byId[m2].family and (m3 == nil or id < m3) then
+		m3 = id
+	end
+end
+table.insert(pd.pals, { id = pd.nextId, sp = epic, home = 0, work = 0, muts = { m2, m3 } })
+pd.nextId += 1
+pd.seen[epic] = 2
+H.push(d, 0.3)
 -- an old save joining from an invite: welcome, no gift
 E.cloud.stores[STORE] = E.cloud.stores[STORE] or {}
 local old = Schema.default(1000, 7)
@@ -155,10 +179,28 @@ end
 H.expect(sorted, "boards", "best first, ranked 1, 2, 3...")
 H.expect(mineAt ~= nil and res.data.you.rank == mineAt, "boards", "the asker's place", tostring(mineAt))
 H.expect(res.data.you.value == math.floor(pa.stats.earned), "boards", "and their score now")
-for _, bd in { "charm", "hatched" } do
+for _, bd in { "charm", "hatched", "driftlings" } do
 	local r2 = H.req(a, "lb.get", { board = bd })
 	H.expect(r2.ok and #r2.data.rows >= 4, "boards", "lb.get " .. bd, tostring(r2.ok and #r2.data.rows))
 end
+-- the Driftlings board: the epic driftling's points (its rarity's and five stars) and its kind read back
+local rd = H.req(a, "lb.get", { board = "driftlings" })
+local dRow = nil
+for _, r in (rd.ok and rd.data.rows or {}) do
+	if r.userId == 9404 then
+		dRow = r
+	end
+end
+local dPts, dSp = Social.decode(dRow and dRow.value or 0)
+H.expect(dRow ~= nil and dRow.rank == 1, "boards", "Driftlings: the only island with a driftling on top", tostring(dRow and dRow.rank))
+H.expect(dPts == Tuning.BoardRarityPoints[4] + 5 * Tuning.BoardStarPoints and dSp == epic, "boards", "its points (rarity and five stars) and its kind read back", string.format("%d %s", dPts, tostring(dSp)))
+H.openPanel(a, "top", "driftlings")
+E.run(0.8)
+local dPanel = a.PlayerGui:FindFirstChild("Panel_top", true)
+local palLabel = dPanel and dPanel:FindFirstChild("Row_1", true)
+palLabel = palLabel and palLabel:FindFirstChild("Pal")
+H.expect(palLabel ~= nil and palLabel:IsA("TextLabel") and palLabel.Text == Creatures.byId[epic].name, "boards", "the Top sheet's Driftlings tab names the driftling", palLabel and palLabel.Text)
+H.closePanel(a)
 E.phase = "malicious"
 H.expect(H.req(a, "lb.get", { board = "everything" }).err == "bad_payload", "boards", "a board that isn't one: bad_payload")
 H.expect(H.req(a, "lb.get", { board = 12 }).err == "bad_payload", "boards", "a number for a board: bad_payload")

@@ -8,6 +8,8 @@ local Schema = require("../../build/luautest/shared/Logic/Schema")
 local Social = require("../../build/luautest/shared/Logic/Social")
 local Island = require("../../build/luautest/shared/Logic/Island")
 local Validate = require("../../build/luautest/shared/Logic/Validate")
+local Creatures = require("../../build/luautest/shared/Data/Creatures")
+local Traits = require("../../build/luautest/shared/Data/Traits")
 
 local DAY = 86400
 local T0 = 20000 * DAY + 3600 -- a UTC day's first hour
@@ -31,7 +33,51 @@ return function()
 		T.eq(Social.score(p, "nope"), 0)
 		T.truthy(Social.isBoard("coins") and Social.isBoard("charm") and Social.isBoard("hatched"))
 		T.truthy(not Social.isBoard("best") and not Social.isBoard(3))
-		T.eq(#Social.BOARDS, 3)
+		T.eq(#Social.BOARDS, 4)
+		T.truthy(Social.isBoard("driftlings"))
+	end)
+
+	T.it("the Driftlings board: rarity and mutation stars, each island's best, the kind read back", function()
+		local p = fresh()
+		p.pals = {}
+		T.eq(Social.score(p, "driftlings"), 0, "no driftlings, no score")
+		local byRarity: { [number]: string } = {}
+		for _, c in Creatures.list do
+			byRarity[c.rarity] = byRarity[c.rarity] or c.id
+		end
+		local byTier: { [number]: string } = {}
+		for id, m in Traits.byId do
+			if byTier[m.tier] == nil or id < byTier[m.tier] then
+				byTier[m.tier] = id
+			end
+		end
+		local a = { id = 1, sp = byRarity[1], home = 0, work = 0, muts = { byTier[2], byTier[4], byTier[0] } }
+		T.eq(Social.stars(a), 6, "tier 2 and tier 4 stars; a flaw none")
+		T.eq(Social.palPoints(a), Tuning.BoardRarityPoints[1] + 6 * Tuning.BoardStarPoints)
+		local b = { id = 2, sp = byRarity[5], home = 0, work = 0 }
+		T.eq(Social.stars(b), 0)
+		T.eq(Social.palPoints(b), Tuning.BoardRarityPoints[5])
+		local c2 = { id = 3, sp = byRarity[2], home = 0, work = 0, muts = { byTier[2], byTier[4] } }
+		T.truthy(Social.palPoints(c2) > Social.palPoints(a), "the same stars on a rarer kind: more")
+		p.pals = { a, b, c2 }
+		local pts, best = Social.bestPal(p)
+		local want = math.max(Social.palPoints(a), Social.palPoints(b), Social.palPoints(c2))
+		T.eq(pts, want, "the island's best counts")
+		local dp, dsp = Social.decode(Social.score(p, "driftlings"))
+		T.eq(dp, want, "the points read back")
+		T.eq(dsp, best and best.sp, "and the kind")
+		T.eq(select(2, Social.decode(0)), nil)
+		-- every kind its own code, so the board never names the wrong one
+		local seen: { [number]: string } = {}
+		for _, c in Creatures.list do
+			local k = Social.kindCode(c.id)
+			T.truthy(seen[k] == nil, c.id .. " and " .. tostring(seen[k]) .. " share a code")
+			seen[k] = c.id
+		end
+		T.eq(#Tuning.BoardRarityPoints, Traits.RMAX, "points for every rarity")
+		for r = 2, #Tuning.BoardRarityPoints do
+			T.truthy(Tuning.BoardRarityPoints[r] > Tuning.BoardRarityPoints[r - 1], "rarer is worth more")
+		end
 	end)
 
 	T.it("an invite is taken once, by a new save, never from the player themself", function()
@@ -136,6 +182,7 @@ return function()
 	T.it("lb.get takes a board's name only", function()
 		T.truthy((Validate.request("lb.get", { board = "coins" })))
 		T.truthy((Validate.request("lb.get", { board = "hatched" })))
+		T.truthy((Validate.request("lb.get", { board = "driftlings" })))
 		T.truthy(not Validate.request("lb.get", { board = "everything" }))
 		T.truthy(not Validate.request("lb.get", {}))
 	end)

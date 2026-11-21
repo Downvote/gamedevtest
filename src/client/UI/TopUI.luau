@@ -2,9 +2,11 @@
 -- The Top sheet: the leaderboards and the friends (GAME_DESIGN 16; Logic/Social, Services/SocialService). The request
 -- (2026-11-21): "Make a leaderboard system, along with friend invite bonuses".
 --   The panel ("top"; its argument a tab: "coins", "charm", "hatched", "friends"):
---     Coins, Charm, Hatched: a board each (action "lb.get" { board }, asked again at most every REFRESH seconds): the
---       player's own place and score pinned on top, then the top Tuning.BoardRows, the first three in gold, silver and
---       bronze, players on this server in teal.
+--     Coins, Charm, Hatched, Driftlings: a board each (action "lb.get" { board }, asked again at most every REFRESH
+--       seconds): the player's own place and score pinned on top, then the top Tuning.BoardRows, the first three in
+--       gold, silver and bronze, players on this server in teal; on Driftlings each island's best driftling after the
+--       name (the request of 2026-11-21: "make another tab on the leaderboard for driftlings. judge based on rarity
+--       and mutation stars").
 --     Friends: what an invite brings both sides (Data/Rewards.REFERRAL), the Invite button (Roblox's invite prompt,
 --       its LaunchData {"r": <the player's id>} for when ReferredByPlayerId is missing), friends invited, today's
 --       rewards left; the friends on the server and the coins they add.
@@ -19,6 +21,9 @@ local SocialService = game:GetService("SocialService")
 local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local RewardsData = require(ReplicatedStorage.Shared.Data.Rewards)
+local Creatures = require(ReplicatedStorage.Shared.Data.Creatures)
+local Traits = require(ReplicatedStorage.Shared.Data.Traits)
+local Social = require(ReplicatedStorage.Shared.Logic.Social)
 local Lang = require(ReplicatedStorage.Shared.Locale.Lang)
 local Numbers = require(ReplicatedStorage.Shared.Logic.Numbers)
 local StateClient = require(script.Parent.Parent.Controllers.StateClient)
@@ -37,12 +42,14 @@ TopUI.TABS = {
 	{ id = "coins", text = "Coins", icon = "coin" },
 	{ id = "charm", text = "Charm", icon = "charm" },
 	{ id = "hatched", text = "Hatched", icon = "egg" },
+	{ id = "driftlings", text = "Driftlings", icon = "pal" },
 	{ id = "friends", text = "Friends", icon = "friends" },
 }
 local HINT: { [string]: string } = {
 	coins = "Coins earned in all",
 	charm = "The island's charm",
 	hatched = "Eggs hatched",
+	driftlings = "Best driftling: rarity and mutation stars",
 }
 local REFRESH = 60 -- seconds a board on this client is kept before it's asked for again
 local tab = "coins"
@@ -100,8 +107,10 @@ local function fetch(name: string)
 	end)
 end
 
--- One line of a board: the place, the name, the score.
-local function boardRow(list: Instance, y: number, W: number, rank: number?, name: string, score: number, opts: { mine: boolean?, here: boolean? }): Frame
+-- One line of a board: the place, the name, the score. On the Driftlings board the score is read back
+-- (Social.decode) into the points and the driftling, shown after the name: its kind's name in its rarity's colour, a
+-- star and its mutation stars.
+local function boardRow(list: Instance, y: number, W: number, rank: number?, name: string, score: number, opts: { mine: boolean?, here: boolean?, board: string? }): Frame
 	local tint = if opts.mine then UIKit.color("accent") elseif rank and rank <= 3 then rankColor(rank) else nil
 	local f = UIKit.row(list, UDim2.fromOffset(W, ROW_H), UDim2.fromOffset(0, y), tint, if opts.mine then 0.72 elseif tint then 0.86 else nil)
 	f.Name = if opts.mine then "You" else "Row_" .. tostring(rank)
@@ -114,10 +123,33 @@ local function boardRow(list: Instance, y: number, W: number, rank: number?, nam
 		z = 4,
 		name = "Rank",
 	})
+	local sp: string? = nil
+	if opts.board == "driftlings" then
+		score, sp = Social.decode(score)
+	end
 	local vs = value(score)
 	local vw = UIKit.textWidth(vs) + 4
 	local nx = PAD + rw + 12
-	UIKit.text(f, name, UDim2.fromOffset(W - nx - vw - PAD - 4, 10), UDim2.fromOffset(nx, 2), {
+	local nw = W - nx - vw - PAD - 4
+	if opts.board == "driftlings" then
+		local c = if sp then Creatures.byId[sp] else nil
+		local pw = math.floor(nw * 0.55)
+		nw -= pw
+		local px = nx + nw + 4
+		if c then
+			local rar = Traits.RARITY[math.clamp(c.rarity, 1, Traits.RMAX)]
+			local stars = math.max(0, (score - Tuning.BoardRarityPoints[math.clamp(c.rarity, 1, #Tuning.BoardRarityPoints)]) // Tuning.BoardStarPoints)
+			local cw = math.min(UIKit.textWidth(c.name) + 2, pw - 24)
+			UIKit.text(f, c.name, UDim2.fromOffset(cw, 10), UDim2.fromOffset(px, 2), { color = UIKit.color(rar.color), z = 4, name = "Pal" })
+			if stars > 0 then
+				PixelSprites.image(f, "star_t4", UDim2.fromOffset(px + cw + 3, 4), 4)
+				UIKit.text(f, tostring(stars), UDim2.fromOffset(16, 10), UDim2.fromOffset(px + cw + 12, 2), { color = UIKit.color("accent"), z = 4, name = "Stars" })
+			end
+		else
+			UIKit.text(f, "-", UDim2.fromOffset(10, 10), UDim2.fromOffset(px, 2), { color = UIKit.color("text_dim"), z = 4, name = "Pal" })
+		end
+	end
+	UIKit.text(f, name, UDim2.fromOffset(nw, 10), UDim2.fromOffset(nx, 2), {
 		color = if opts.mine then UIKit.color("accent") elseif opts.here then UIKit.color("sheet_head") else UIKit.color("text"),
 		z = 4,
 		name = "Name",
@@ -138,7 +170,7 @@ local function buildBoard(body: Frame, top: number, W: number, H: number, name: 
 	local y = top + 12
 	-- the player's own line, pinned
 	local you = b and b.you
-	boardRow(body, y, W, you and you.rank, "You", if you then you.value else 0, { mine = true })
+	boardRow(body, y, W, you and you.rank, "You", if you then you.value else 0, { mine = true, board = name })
 	y += ROW_H + 3
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - y), UDim2.fromOffset(0, y))
 	list.AutomaticCanvasSize = Enum.AutomaticSize.None
@@ -160,7 +192,7 @@ local function buildBoard(body: Frame, top: number, W: number, H: number, name: 
 		local here = Players:GetPlayerByUserId(r.userId) ~= nil
 		-- (a name Roblox couldn't give: "Player <id>", in the language on show)
 		local shown = if mine then "You" elseif r.name == "" then Lang.f("Player {1}", tostring(r.userId)) else r.name
-		boardRow(list, ry, cw, r.rank, shown, r.value, { here = here and not mine, mine = mine })
+		boardRow(list, ry, cw, r.rank, shown, r.value, { here = here and not mine, mine = mine, board = name })
 		ry += ROW_H + 2
 	end
 	list.CanvasSize = UDim2.fromOffset(0, ry + 2)

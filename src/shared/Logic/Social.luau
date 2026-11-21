@@ -3,7 +3,11 @@
 -- system, along with friend invite bonuses". Pure: SocialService calls these with the session's profile and the real
 -- clock (`now`: os.time, seconds; a day is a UTC day, floor(now / 86400), and a save's age is now - createdAt).
 --   The boards (`BOARDS`, `score`, `scores`): coins earned in all, the island's charm, eggs hatched (the tree's and the
---   Hatcheries'). Whole numbers, as OrderedDataStores keep them.
+--   Hatcheries'), and the island's best driftling (`palPoints`: its rarity's Tuning.BoardRarityPoints plus
+--   Tuning.BoardStarPoints a mutation star; the request of 2026-11-21: "make another tab on the leaderboard for
+--   driftlings. judge based on rarity and mutation stars"). Whole numbers, as OrderedDataStores keep them: the
+--   Driftlings board's is points x KIND_CODES + the kind's code (`kindCode`), so the board can say which driftling it
+--   was (`decode`).
 --   A friend invited (`canJoin`, `join`, `play`, `due`, `reward`): a save younger than Tuning.ReferralMaxAgeSec takes
 --   the inviter from the join (never itself, once) and gets Data/Rewards.REFERRAL.invitee at once; its seconds of play
 --   count from then, and at Tuning.ReferralMinPlaySec the inviter's reward is due (REFERRAL.inviter: given by
@@ -13,6 +17,9 @@
 local Types = require(script.Parent.Parent.Types)
 local Tuning = require(script.Parent.Parent.Config.Tuning)
 local RewardsData = require(script.Parent.Parent.Data.Rewards)
+local Creatures = require(script.Parent.Parent.Data.Creatures)
+local Traits = require(script.Parent.Parent.Data.Traits)
+local Util = require(script.Parent.Util)
 local Rewards = require(script.Parent.Rewards)
 local Island = require(script.Parent.Island)
 
@@ -22,13 +29,69 @@ type Given = any
 local Social = {}
 
 -- The boards, in the Top sheet's order.
-Social.BOARDS = { "coins", "charm", "hatched" } :: { string }
+Social.BOARDS = { "coins", "charm", "hatched", "driftlings" } :: { string }
+-- The Driftlings board's value: points x KIND_CODES + the kind's code.
+Social.KIND_CODES = 1000000
 
 function Social.fresh(): Types.Social
 	return { referredBy = 0, refPaid = false, refPlay = 0, invited = 0, refDay = -1, refToday = 0, here = 0 }
 end
 
 ------------------------------------------------------------------ the boards
+-- A driftling's mutation stars: its mutations' tiers added up (a flaw is tier 0).
+function Social.stars(pal: Types.Pal): number
+	local n = 0
+	local muts: { string } = pal.muts or {}
+	for _, id in muts do
+		local m = Traits.byId[id]
+		if m then
+			n += math.max(0, m.tier)
+		end
+	end
+	return n
+end
+
+-- A driftling's points on the Driftlings board: its rarity's and its stars'.
+function Social.palPoints(pal: Types.Pal): number
+	local c = Creatures.byId[pal.sp]
+	if c == nil then
+		return 0
+	end
+	local r = math.clamp(c.rarity, 1, #Tuning.BoardRarityPoints)
+	return Tuning.BoardRarityPoints[r] + Tuning.BoardStarPoints * Social.stars(pal)
+end
+
+-- The island's best driftling and its points (0, nil with none). Equal points: the more stars, then the first.
+function Social.bestPal(p: Profile): (number, Types.Pal?)
+	local best, top = 0, nil
+	for _, pal in p.pals do
+		local pts = Social.palPoints(pal)
+		if top == nil or pts > best or (pts == best and Social.stars(pal) > Social.stars(top)) then
+			best, top = pts, pal
+		end
+	end
+	return best, top
+end
+
+-- A kind's code in the Driftlings board's value (its id hashed; Social.spec checks no two kinds share one).
+function Social.kindCode(sp: string): number
+	return Util.hash32(sp) % Social.KIND_CODES
+end
+
+local byCode: { [number]: string }? = nil
+-- The Driftlings board's value read back: (points, kind id or nil).
+function Social.decode(value: number): (number, string?)
+	if byCode == nil then
+		local t: { [number]: string } = {}
+		for _, c in Creatures.list do
+			t[Social.kindCode(c.id)] = c.id
+		end
+		byCode = t
+	end
+	local v = math.max(0, math.floor(value))
+	return v // Social.KIND_CODES, (byCode :: { [number]: string })[v % Social.KIND_CODES]
+end
+
 -- A player's score on a board (0 for an unknown board).
 function Social.score(p: Profile, board: string): number
 	if board == "coins" then
@@ -37,6 +100,9 @@ function Social.score(p: Profile, board: string): number
 		return math.max(0, math.floor(Island.charm(p, Island.isle(p))))
 	elseif board == "hatched" then
 		return math.max(0, math.floor(p.stats.taken + p.stats.hatched))
+	elseif board == "driftlings" then
+		local pts, pal = Social.bestPal(p)
+		return if pal then pts * Social.KIND_CODES + Social.kindCode(pal.sp) else 0
 	end
 	return 0
 end

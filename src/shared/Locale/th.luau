@@ -206,6 +206,7 @@ return {
 	["Bench"] = "ม้านั่ง",
 	["Beret"] = "เบเร่ต์",
 	["Berry Bush"] = "พุ่มเบอร์รี่",
+	["Best driftling: rarity and mutation stars"] = "ดริฟต์ลิงที่ดีที่สุด: ความหายากและดาวมิวเทชัน",
 	["Best {1}"] = "สถิติ {1} วัน",
 	["Big Bow"] = "โบว์ใหญ่",
 	["Big Ears"] = "หูกาง",

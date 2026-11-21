@@ -206,6 +206,7 @@ return {
 	["Bench"] = "长椅",
 	["Beret"] = "贝雷帽",
 	["Berry Bush"] = "浆果丛",
+	["Best driftling: rarity and mutation stars"] = "最强漂漂：稀有度和变异星级",
 	["Best {1}"] = "最高 {1} 天",
 	["Big Bow"] = "大蝴蝶结",
 	["Big Ears"] = "大耳朵",

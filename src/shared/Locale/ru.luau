@@ -206,6 +206,7 @@ return {
 	["Bench"] = "Скамейка",
 	["Beret"] = "Берет",
 	["Berry Bush"] = "Ягодный куст",
+	["Best driftling: rarity and mutation stars"] = "Лучший дрифтлинг: редкость и звёзды мутаций",
 	["Best {1}"] = "Рекорд {1}",
 	["Big Bow"] = "Большой бант",
 	["Big Ears"] = "Большие уши",

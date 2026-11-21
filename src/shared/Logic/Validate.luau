@@ -147,7 +147,7 @@ local function check(kind: string, v: any): boolean
 	elseif kind == "collect" then
 		return v == "free" or v == "double"
 	elseif kind == "board" then
-		return v == "coins" or v == "charm" or v == "hatched" -- (Logic/Social.BOARDS)
+		return v == "coins" or v == "charm" or v == "hatched" or v == "driftlings" -- (Logic/Social.BOARDS)
 	elseif kind == "any" then
 		local t = type(v)
 		return t == "string" and #v <= 32 or t == "number" or t == "boolean"

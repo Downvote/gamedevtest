@@ -252,7 +252,12 @@ local Tuning = {
 	-- leaderboard system, along with friend invite bonuses"). The boards are all-time OrderedDataStores (never rename
 	-- them: the scores are there); a player's scores go up every BoardWriteSec while they play and when they leave, and
 	-- a server reads each board's top BoardRows at most every BoardCacheSec.
-	BoardStores = { coins = "PI_Board_Coins_v1", charm = "PI_Board_Charm_v1", hatched = "PI_Board_Hatched_v1" },
+	BoardStores = { coins = "PI_Board_Coins_v1", charm = "PI_Board_Charm_v1", hatched = "PI_Board_Hatched_v1", driftlings = "PI_Board_Driftlings_v1" },
+	-- the Driftlings board (2026-11-21: "make another tab on the leaderboard for driftlings. judge based on rarity and
+	-- mutation stars"): a driftling's points are its rarity's (common to eternal, rarer worth more and more) plus
+	-- BoardStarPoints for each mutation star (a mutation's tier; a flaw none). Each island's best driftling counts.
+	BoardRarityPoints = { 10, 20, 35, 55, 80, 110, 150, 200, 260 },
+	BoardStarPoints = 10,
 	BoardRows = 50,
 	BoardCacheSec = 120,
 	BoardWriteSec = 300,

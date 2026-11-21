@@ -206,6 +206,7 @@ return {
 	["Bench"] = "مقعد",
 	["Beret"] = "بيريه",
 	["Berry Bush"] = "شجيرة توت",
+	["Best driftling: rarity and mutation stars"] = "أفضل دريفتلنغ: الندرة ونجوم الطفرات",
 	["Best {1}"] = "الأفضل {1}",
 	["Big Bow"] = "فيونكة كبيرة",
 	["Big Ears"] = "أذنان كبيرتان",

@@ -1834,11 +1834,28 @@ local function panelScenario(name)
 		prof.stats.earned = 400000
 		prof.stats.taken, prof.stats.hatched = 3, 2
 		-- (the writes yield on the store, as in the game: in the server's context)
+		-- (the Driftlings board: each island's best driftling, a kind of a rarity with some mutation stars, written as
+		-- Logic/Social writes it)
+		local SocialL = H.sharedServer("Logic.Social")
+		local CreaturesD = H.sharedServer("Data.Creatures")
+		local TuningD = H.sharedServer("Config.Tuning")
+		local kinds: { [number]: { string } } = {}
+		for _, c in CreaturesD.list do
+			kinds[c.rarity] = kinds[c.rarity] or {}
+			table.insert(kinds[c.rarity], c.id)
+		end
+		local best = { { 9, 3 }, { 7, 8 }, { 8, 0 }, { 6, 5 }, { 5, 9 }, { 5, 4 }, { 4, 7 }, { 4, 2 }, { 3, 6 }, { 3, 1 }, { 2, 4 }, { 2, 0 }, { 1, 3 }, { 1, 0 } }
+		local function palValue(i: number): number
+			local r, stars = best[i][1], best[i][2]
+			local list = kinds[r] or kinds[1]
+			local sp = list[(i - 1) % #list + 1]
+			return (TuningD.BoardRarityPoints[r] + stars * TuningD.BoardStarPoints) * SocialL.KIND_CODES + SocialL.kindCode(sp)
+		end
 		E.call(E.serverCtx, 15, function()
-			for _, o in others do
-				DataS.writeBoards(o[1], { coins = o[3], charm = o[4], hatched = o[5] }, {})
+			for i, o in others do
+				DataS.writeBoards(o[1], { coins = o[3], charm = o[4], hatched = o[5], driftlings = palValue(i) }, {})
 			end
-			DataS.writeBoards(p.UserId, { coins = 400000, charm = 455, hatched = 5 }, {})
+			DataS.writeBoards(p.UserId, { coins = 400000, charm = 455, hatched = 5, driftlings = SocialL.score(prof, "driftlings") }, {})
 		end)
 		-- (today by the game's clock: the fake engine's, not this script's)
 		prof.social.invited, prof.social.refDay, prof.social.refToday = 3, math.floor(E.now() / 86400), 1

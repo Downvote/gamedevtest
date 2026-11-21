@@ -206,6 +206,7 @@ return {
 	["Bench"] = "Banco",
 	["Beret"] = "Boina",
 	["Berry Bush"] = "Arbusto de bayas",
+	["Best driftling: rarity and mutation stars"] = "Mejor driftling: rareza y estrellas de mutación",
 	["Best {1}"] = "Récord {1}",
 	["Big Bow"] = "Lazo grande",
 	["Big Ears"] = "Orejotas",

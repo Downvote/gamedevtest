@@ -3512,7 +3512,7 @@ status line ("Daily reward: an uncommon egg and 657 shells."). The save keeps it
 
 > The request (2026-11-21): "Make a leaderboard system, along with friend invite bonuses"
 
-The menu bar's **Top** (a gold cup, between Gifts and Store) opens the Top sheet. It has four tabs.
+The menu bar's **Top** (a gold cup, between Gifts and Store) opens the Top sheet. It has five tabs.
 
 - **Coins, Charm, Hatched: the boards.** Every island in the game, best first: coins earned in all (`stats.earned`),
   the island's charm now, and eggs hatched (the tree's and the Hatcheries'). Each shows the top 50
@@ -3521,8 +3521,19 @@ The menu bar's **Top** (a gold cup, between Gifts and Store) opens the Top sheet
   "- You" outside the 50) and again in the list. A player's scores are written every 5 minutes while they play
   (`BoardWriteSec`) and when they leave, an unchanged one skipped; a server reads a board at most every 2 minutes
   (`BoardCacheSec`) and a client asks at most once a minute, so the sheet says "Updates every few minutes". The boards
-  are OrderedDataStores (`Tuning.BoardStores`: `PI_Board_Coins_v1`, `PI_Board_Charm_v1`, `PI_Board_Hatched_v1`, never
-  renamed).
+  are OrderedDataStores (`Tuning.BoardStores`: `PI_Board_Coins_v1`, `PI_Board_Charm_v1`, `PI_Board_Hatched_v1`,
+  `PI_Board_Driftlings_v1`, never renamed).
+- **Driftlings: each island's best driftling.**
+
+  > The request (2026-11-21): "also, make another tab on the leaderboard for driftlings. judge based on rarity and
+  > mutation stars"
+
+  A driftling's points are its rarity's (common 10, uncommon 20, rare 35, epic 55, legendary 80, mythic 110,
+  celestial 150, ancient 200, eternal 260: `BoardRarityPoints`, rarer worth more and more) plus 10 for each mutation
+  star (`BoardStarPoints`; a mutation's stars are its tier, a fabled one six, a flaw none). Each island counts its best
+  one (equal points: the one with more stars). The row shows the player's name, the driftling's kind in its rarity's
+  colour, a gold star with its stars, and the points ("Everwyrm ★3 290"). The stored score carries the kind too
+  (points x 1,000,000 + the kind's code, `Social.decode`).
 - **Friends: invites.** "Invite friends" opens Roblox's invite prompt ("Come build an island with me."). A friend who
   joins from it on a new save (under a day old, `ReferralMaxAgeSec`) gets a **welcome gift** at once: a rare egg and 10
   minutes of coins (`Data/Rewards.REFERRAL.invitee`). Once that friend has played 10 minutes (`ReferralMinPlaySec`)
