@@ -378,8 +378,12 @@ local Tuning = {
 	-- another window of the image, and the picture scrolls (re-centred under the view) only once the view comes within
 	-- PixelPanEdge px of its edge (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it
 	-- smooth and lerp to the player?")
-	PixelPanMargin = 12,
-	PixelPanEdge = 2,
+	PixelPanMargin = 14,
+	PixelPanEdge = 4,
+	-- true: a scroll's strips get their shadow edges, ink and grade on the next frame, while they lie in the margin past
+	-- the screen's edge, and the margin the view leaves goes into the pan cache before the scroll (the request of
+	-- 2026-11-21, "reduce the frame speed close to the frame speed while standing without scrolling")
+	PixelPanLate = true,
 	PixelPanCacheTiles = 768, -- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 20 bytes a pixel, about 15.7 MB); 0: off
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	-- and at most this long a frame (a slow device or a slow stretch of rays spreads the re-cast over more frames: the
@@ -388,12 +392,31 @@ local Tuning = {
 	-- ms a frame of spare time spent casting the next tier's picture ahead of an expansion (PixelRenderer's pre-cast:
 	-- the request of 2026-11-20, "make island expansion seamless, with no lag"); 0: off
 	PixelPreCastMs = 2,
+	-- ms a frame, while the view moves, spent casting the pan cache's tiles just past the layer's leading edge
+	-- (PixelRenderer's look-ahead), so a scroll copies its strip in instead of casting it all in one frame (the user's
+	-- question of 2026-11-21, "what is the most performance intensive thing the camera needs when scrolling?": that
+	-- cast, 29 ms in one frame of every four on new ground in the simulator); the pre-cast waits meanwhile. 0: off
+	PixelAheadMs = 3,
+	PixelAheadPx = 64, -- art px past the layer's edge the look-ahead covers
+	-- and up to this long a frame while the tile it casts lies within PixelAheadNearPx of the layer's edge (the next scroll
+	-- or two takes it in: on ground not seen yet a walk needs more cast a frame than PixelAheadMs gives)
+	PixelAheadNearMs = 8,
+	PixelAheadNearPx = 24,
+	-- ms a frame, standing with nothing else to cast (the next tier's picture done), spent casting the pan cache's tiles
+	-- all round the layer, PixelRingPx deep (the request of 2026-11-21, "reduce the frame speed close to the frame speed
+	-- while standing without scrolling": a walk then starts on ground already cast); 0: off
+	PixelRingMs = 2,
+	PixelRingPx = 96,
 	-- ms a frame the filter may spend on a bake or on re-casts while the screen is hidden (Build mode's expansion behind
 	-- the loading card: PixelRenderer.setHidden; nobody sees the game's frame rate then, so the new land is ready sooner)
 	PixelHiddenMs = 40,
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 80, -- dynamic models drawn afresh a tick at most (an island's driftlings and founders; the rest show their kept pictures)
 	PixelDynMs = 8, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short)
+	-- true: a frame composed between two of the tier's ticks only because the view moved draws the founder it follows
+	-- where it stands now and leaves the rest as it was (PixelRenderer's lite compose; the request of 2026-11-21,
+	-- "reduce the frame speed close to the frame speed while standing without scrolling")
+	PixelLiteFollow = true,
 	PixelIncCompose = 1, -- 1: a compose redoes only the tiles where something changed and a pan shifts the finished frame (PixelRenderer's incremental compose); 0: every pan composes whole
 	PixelInvalidateRays = 3000, -- rays a tick for re-casting changed rects
 }

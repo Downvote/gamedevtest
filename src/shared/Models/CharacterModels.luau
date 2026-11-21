@@ -677,10 +677,10 @@ CharacterModels.blinking = blinking
 
 -- The walk or the stand at `speed` studs a second, as a Pose. Standing: breathing, the weight shifting from foot to
 -- foot, the head wandering a little and glancing round now and then; blinking either way.
-local function walkPose(rig: Rig, t: number, speed: number): Pose
+local function walkPose(rig: Rig, t: number, speed: number, cyc: number?): Pose
 	local ph = rig.seed * 1.3
 	local walk = math.clamp(speed / 16, 0, 1)
-	local cycle = (t + ph) * (if walk > 0.7 then 13 else 11)
+	local cycle = cyc or (t + ph) * (if walk > 0.7 then 13 else 11)
 	local swing = math.sin(cycle) * math.rad(34) * walk
 	local still = walk <= 0.05
 	local br = math.sin((t + ph) * 2 * math.pi * 0.45)
@@ -710,6 +710,40 @@ local function walkPose(rig: Rig, t: number, speed: number): Pose
 		mood = if blinking(rig.seed, t) then "blink" else "calm",
 		t = t,
 	}
+end
+
+-- A founder walking steps through WALK_STEPS poses a stride, the walk's strength in WALK_GRADES grades: posed on the
+-- step nearest clock t (poseWalkStep), the same key always places the parts the same way round `base`, so the pixel
+-- filter keeps a picture of each step and slides it along with the founder (PixelRenderer.pose). The request of
+-- 2026-11-21, "reduce the frame speed close to the frame speed while standing without scrolling": a founder walking
+-- was drawn afresh every frame, its pose a little different each time.
+local WALK_STEPS, WALK_GRADES = 16, 8
+CharacterModels.WALK_STEPS = WALK_STEPS
+
+-- Pose a founder walking at `speed` studs a second (more than WALK_MIN) on the step of its stride nearest clock t;
+-- returns that pose's key (its yaw and height at `base` not in it: the caller's).
+CharacterModels.WALK_MIN = 0.8
+function CharacterModels.poseWalkStep(rig: Rig, base: CFrame, t: number, speed: number): string
+	local g = math.max(1, math.floor(math.clamp(speed / 16, 0, 1) * WALK_GRADES + 0.5))
+	local walk = g / WALK_GRADES
+	local rate = if walk > 0.7 then 13 else 11
+	local step = math.floor((t + rig.seed * 1.3) * rate / (2 * math.pi) * WALK_STEPS + 0.5) % WALK_STEPS
+	local P = walkPose(rig, t, walk * 16, step * 2 * math.pi / WALK_STEPS)
+	CharacterModels.posePose(rig, base, P)
+	-- (a worn piece that moves steps through its own loop on the clock: where each one is goes in the key)
+	local loops = 1
+	local moves = if rig.extra then rig.moves else nil
+	if moves then
+		for _, loop in moves do
+			local a, b = loops, #loop
+			while b > 0 do
+				a, b = b, a % b
+			end
+			loops = loops * #loop // a
+		end
+	end
+	local worn = if loops > 1 then math.floor(t * MOVE_FPS) % loops else 0
+	return string.format("w%d.%d.%d%s", step, g, worn, if P.mood == "blink" then "b" else "")
 end
 
 -- Pose a founder at `base` walking at `speed` studs a second (0: standing, breathing, looking round now and then).

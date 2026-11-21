@@ -7,7 +7,8 @@
 -- The view is orthographic and pans by whole art px, so a static pixel at a global art px (gx, gy) is the same
 -- wherever the view stands: PixelRenderer's scroll only shifts its buffers. This keeps what scrolls off the layer in
 -- tiles of TILE x TILE global art px, each channel the cast writes (the shade without ink, albedo, depth, normal, sun,
--- part id, the share flag, the water's class and phase) in its own plane, a byte a pixel saying it is good. The ink
+-- part id, the share flag, the water's class and phase) in its own plane, a byte a pixel saying it is good (1: saved
+-- from the layer's edge, 2: from inside it; `save`). The ink
 -- and the contact shade are drawn again over a strip, so they are not kept.
 --
 -- PixelRenderer drops the tiles under every rect it queues for a re-cast (on screen or off it), and clears the lot
@@ -45,13 +46,15 @@ for i, b in BYTES do
 end
 PanCache.BYTES_A_PIXEL = STRIDE + 1
 
-export type Tile = { px: buffer, ok: buffer, used: number }
+-- (n: how many of its pixels are kept, so a whole tile is told at once: `okRect`, `full`)
+export type Tile = { px: buffer, ok: buffer, used: number, n: number }
 
 local function newStore()
 	local S = {}
 
 	local tiles: { [number]: Tile } = {}
 	local count = 0
+	local epoch = 0 -- (counts the drops and clears: a tile cast over several frames is not saved if it moved meanwhile)
 	local stamp = 0
 	local maxTiles = 768
 	-- (what a preview reads: strips' pixels copied back and cast, tiles saved and dropped)
@@ -66,6 +69,7 @@ local function newStore()
 	end
 
 	function S.clear()
+		epoch += 1
 		if count > 0 then
 			stats.dropped += count
 		end
@@ -104,7 +108,7 @@ local function newStore()
 			if count >= maxTiles then
 				evictOne()
 			end
-			t = { px = buffer.create(N * STRIDE), ok = buffer.create(N), used = 0 }
+			t = { px = buffer.create(N * STRIDE), ok = buffer.create(N), used = 0, n = 0 }
 			tiles[k] = t
 			count += 1
 		end
@@ -116,17 +120,29 @@ local function newStore()
 	end
 
 	-- Keep the layer rect (x0, y0)..(x1, y1) (inclusive, layer px) of a layer whose pixel (0, 0) is the global art px
-	-- (gx0, gy0).
+	-- (gx0, gy0). A pixel on the layer's own edge is kept weakly (its `ok` byte 1): its shadow's edge was refined
+	-- without the neighbours past the layer (PixelRenderer's refineShadows), so a later save from inside a layer
+	-- (2) takes its place, and a weak one never takes the place of a pixel kept already. A row the tile holds as well
+	-- already is left alone (whatever changed under it dropped it, `drop`; a walk back and forth saved the same strips
+	-- over and over).
 	function S.save(b: Bufs, gx0: number, gy0: number, x0: number, y0: number, x1: number, y1: number)
 		x0, y0 = math.max(0, x0), math.max(0, y0)
 		x1, y1 = math.min(b.W - 1, x1), math.min(b.H - 1, y1)
 		if x0 > x1 or y0 > y1 then
 			return
 		end
-		local W = b.W
+		local W, H = b.W, b.H
 		local bufs: { buffer } = {}
 		for i, name in NAMES do
 			bufs[i] = (b :: any)[name]
+		end
+		local nb = #BYTES
+		-- (one pixel into the tile, every plane)
+		local function one(t: Tile, ti: number, li: number)
+			for c = 1, nb do
+				local e = BYTES[c]
+				buffer.copy(t.px, PLANE[c] + ti * e, bufs[c], li * e, e)
+			end
 		end
 		local tx0, tx1 = (gx0 + x0) // TILE, (gx0 + x1) // TILE
 		local ty0, ty1 = (gy0 + y0) // TILE, (gy0 + y1) // TILE
@@ -137,19 +153,54 @@ local function newStore()
 				local rx0 = math.max(x0, tx * TILE - gx0)
 				local rx1 = math.min(x1, tx * TILE + TILE - 1 - gx0)
 				local t = tileAt(tx, ty, true) :: Tile
-				local len = rx1 - rx0 + 1
+				local ok = t.ok
 				local lx = rx0 + gx0 - tx * TILE
 				for y = ry0, ry1 do
 					local ly = y + gy0 - ty * TILE
 					local ti = ly * TILE + lx
 					local li = y * W + rx0
-					for c = 1, #BYTES do
-						local e = BYTES[c]
-						buffer.copy(t.px, PLANE[c] + ti * e, bufs[c], li * e, len * e)
+					-- (the strong span: the row less the layer's edge pixels; none on the layer's top or bottom row)
+					local edgeRow = y == 0 or y == H - 1
+					local sa = if edgeRow then rx1 + 1 else (if rx0 == 0 then 1 else rx0)
+					local sb = if edgeRow then rx0 - 1 else (if rx1 == W - 1 then W - 2 else rx1)
+					if sa <= sb then
+						local o0, o1 = ti + (sa - rx0), ti + (sb - rx0)
+						local need, fresh = false, 0
+						for i = o0, o1 do
+							local k = buffer.readu8(ok, i)
+							if k < 2 then
+								need = true
+								if k == 0 then
+									fresh += 1
+								end
+							end
+						end
+						if need then
+							local len = sb - sa + 1
+							local lj = li + (sa - rx0)
+							for c = 1, nb do
+								local e = BYTES[c]
+								buffer.copy(t.px, PLANE[c] + o0 * e, bufs[c], lj * e, len * e)
+							end
+							buffer.fill(ok, o0, 2, len)
+							t.n += fresh
+							stats.saved += len
+						end
 					end
-					buffer.fill(t.ok, ti, 1, len)
+					-- (the weak pixels: only where nothing is kept)
+					for x = rx0, rx1 do
+						if x >= sa and x <= sb then
+							continue
+						end
+						local i = ti + (x - rx0)
+						if buffer.readu8(ok, i) == 0 then
+							one(t, i, li + (x - rx0))
+							buffer.writeu8(ok, i, 1)
+							t.n += 1
+							stats.saved += 1
+						end
+					end
 				end
-				stats.saved += len * (ry1 - ry0 + 1)
 			end
 		end
 	end
@@ -165,12 +216,14 @@ local function newStore()
 			return false
 		end
 		local lx = x0 + gx0 - tx * TILE
-		for y = y0, y1 do
-			local ti = (y + gy0 - ty * TILE) * TILE + lx
-			for i = ti, ti + len - 1 do
-				if buffer.readu8(t.ok, i) == 0 then
-					stats.missed += len * (y1 - y0 + 1)
-					return false
+		if t.n < N then
+			for y = y0, y1 do
+				local ti = (y + gy0 - ty * TILE) * TILE + lx
+				for i = ti, ti + len - 1 do
+					if buffer.readu8(t.ok, i) == 0 then
+						stats.missed += len * (y1 - y0 + 1)
+						return false
+					end
 				end
 			end
 		end
@@ -207,6 +260,7 @@ local function newStore()
 
 	-- Forget the tiles under a global art px rect (inclusive): what it covers is cast again.
 	function S.drop(gx0: number, gy0: number, gx1: number, gy1: number)
+		epoch += 1
 		if count == 0 or gx0 > gx1 or gy0 > gy1 then
 			return
 		end
@@ -246,18 +300,37 @@ local function newStore()
 		t.used = stamp
 		tiles[k] = t
 	end
-	-- Whether every pixel of tile (tx, ty) is kept.
-	function S.full(tx: number, ty: number): boolean
-		local t = tiles[keyOf(tx, ty)]
-		if t == nil then
-			return false
-		end
-		for i = 0, N - 1 do
-			if buffer.readu8(t.ok, i) == 0 then
-				return false
+	-- How many drops and clears there have been (a cast of a tile that spans frames compares it before saving).
+	function S.epoch(): number
+		return epoch
+	end
+	-- Whether every pixel of a global art px rect (inclusive) is kept.
+	function S.okRect(gx0: number, gy0: number, gx1: number, gy1: number): boolean
+		for ty = gy0 // TILE, gy1 // TILE do
+			for tx = gx0 // TILE, gx1 // TILE do
+				local t = tiles[keyOf(tx, ty)]
+				if t == nil then
+					return false
+				end
+				if t.n >= N then
+					continue
+				end
+				local x0, x1 = math.max(gx0, tx * TILE) - tx * TILE, math.min(gx1, tx * TILE + TILE - 1) - tx * TILE
+				for y = math.max(gy0, ty * TILE) - ty * TILE, math.min(gy1, ty * TILE + TILE - 1) - ty * TILE do
+					for x = x0, x1 do
+						if buffer.readu8(t.ok, y * TILE + x) == 0 then
+							return false
+						end
+					end
+				end
 			end
 		end
 		return true
+	end
+	-- Whether every pixel of tile (tx, ty) is kept.
+	function S.full(tx: number, ty: number): boolean
+		local t = tiles[keyOf(tx, ty)]
+		return t ~= nil and t.n >= N
 	end
 	-- Every tile's coordinates (a copy).
 	function S.keys(): { { number } }
@@ -287,4 +360,6 @@ return {
 	put = default.put,
 	full = default.full,
 	keys = default.keys,
+	epoch = default.epoch,
+	okRect = default.okRect,
 }

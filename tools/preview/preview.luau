@@ -1174,6 +1174,133 @@ function SCEN.stop()
 	return p
 end
 
+-- "scrollcost": what the pixel filter spends while the view scrolls (the user's question of 2026-11-21, "what is the
+-- most performance intensive thing the camera needs when scrolling?"): a straight walk east over ground not seen yet,
+-- then back west over it, on the real clock at 60 frames a second; every frame's renderer split (debugPerf, read and
+-- cleared each frame), averaged over the frames whose picture scrolled and over the rest, the biggest first
+local scrollRimCheck = false
+function SCEN.scrollcost()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR == nil then
+		return p
+	end
+	local realClock = os.clock
+	local off = E.SIM.lastClock - realClock() + 1
+	local sim0 = E.simClock
+	E.simClock = function()
+		local v = realClock() + off
+		E.SIM.lastClock = v
+		return v
+	end
+	local dt = 1 / 60
+	H.inClient(p, PR.debugPerf)
+	if PR.debugRimCheck then
+		H.inClient(p, PR.debugRimCheck, scrollRimCheck)
+	end
+	local start = p.Character:GetPivot().Position
+	for leg = 0, 2 do
+		local label = if leg == 0 then "standing" elseif leg == 1 then "new ground" else "ground seen before"
+		local sums = { pan = {}, still = {} }
+		local counts = { pan = 0, still = 0 }
+		local walls = { pan = 0, still = 0 }
+		local steps: { number } = {}
+		for i = 1, 150 do
+			local x = if leg == 0 then 0 elseif leg == 1 then i * dt * 16 else (150 - i) * dt * 16
+			p.Character:PivotTo(E.cf.new(start.X + x, start.Y, start.Z))
+			local t0 = realClock()
+			E.step(dt)
+			local wall = (realClock() - t0) * 1000
+			local st = H.inClient(p, PR.debugPerf)
+			table.insert(steps, st.stepMs or 0)
+			local kind = if (st.panFrames or 0) > 0 then "pan" else "still"
+			if st.cache then
+				sums.pan.loaded = (sums.pan.loaded or 0) + st.cache.loaded
+				sums.pan.missed = (sums.pan.missed or 0) + st.cache.missed
+			end
+			counts[kind] += 1
+			walls[kind] += wall
+			for k, v in st do
+				if type(v) == "number" and (string.sub(k, -2) == "Ms" or string.sub(k, -6) == "Frames" or string.sub(k, -5) == "Draws" or k == "draws" or k == "hits") then
+					sums[kind][k] = (sums[kind][k] or 0) + v
+				end
+			end
+		end
+		for _, kind in { "pan", "still" } do
+			local n = math.max(1, counts[kind])
+			local list = {}
+			for k, v in sums[kind] do
+				if (v / n >= 0.05 or string.sub(k, -6) == "Frames" or string.sub(k, -5) == "Draws" or k == "draws") and k ~= "maxMs" then
+					table.insert(list, { k, v / n })
+				end
+			end
+			table.sort(list, function(a, b)
+				return a[2] > b[2]
+			end)
+			local words = {}
+			for _, e in list do
+				table.insert(words, string.format("%s %.2f", e[1], e[2]))
+			end
+			log("scrollcost %s, %s frames: %d of 150, %.1f ms a frame in all; the renderer (ms a frame): %s", label, if kind == "pan" then "scrolling" else "other", counts[kind], walls[kind] / n, table.concat(words, ", "))
+		end
+		do
+			-- (every frame of the leg: the renderer's step, its mean, the 90th percentile and the worst)
+			local total = 0
+			for _, v in steps do
+				total += v
+			end
+			table.sort(steps)
+			log("scrollcost %s, all frames: the renderer's step %.1f ms on average, %.1f ms at the 90th percentile, %.1f ms at worst", label, total / math.max(1, #steps), steps[math.max(1, math.floor(#steps * 0.9))] or 0, steps[#steps] or 0)
+		end
+		local c = H.inClient(p, PR.debugPerf).cache
+		local a = if PR.debugAhead then H.inClient(p, PR.debugAhead) else nil
+		log("scrollcost %s: the strips' pixels copied from the cache %d, cast %d; tiles cast ahead %d (%d dropped)", label, sums.pan.loaded or 0, sums.pan.missed or 0, a and a.tiles or 0, a and a.dropped or 0)
+	end
+	E.simClock = sim0
+	if PR.debugRimCheck then
+		local rc = H.inClient(p, PR.debugRimCheck, false)
+		log("scrollcost: founders' rims from their pictures against their parts: %d px, %d in one and not the other, %d at another depth", rc.px, rc.off, rc.depth)
+	end
+	return p
+end
+
+-- "walkpose": the founder walking (its steps' pictures kept and slid on: CharacterModels.poseWalkStep), east, then
+-- turning north-west and back, on the real clock at 60 frames a second; walkpose_000 .. walkpose_023 every other
+-- frame, for a look at the walk's steps and the white rim round each
+function SCEN.walkpose()
+	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle" } })
+	local p = join(2, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local start = p.Character:GetPivot().Position
+	local dt = 1 / 60
+	local x, z = 0, 0
+	local k = 0
+	for i = 1, 96 do
+		local dir = if i <= 48 then E.v3(1, 0, 0) elseif i <= 72 then E.v3(-0.7, 0, -0.7) else E.v3(0, 0, 1)
+		x += dir.X * 16 * dt
+		z += dir.Z * 16 * dt
+		local at = E.v3(start.X + x, start.Y, start.Z + z)
+		p.Character:PivotTo(E.cf.lookAt(at, at + dir))
+		E.step(dt)
+		if i % 4 == 0 then
+			capture(p, string.format("walkpose_%03d", k))
+			k += 1
+		end
+	end
+	return p
+end
+
+-- "rimcheck": scrollcost's walks with every founder's rim drawn both ways, from its kept picture and from its parts,
+-- and the two silhouettes compared (PixelRenderer.debugRimCheck; the timings are not the game's then)
+function SCEN.rimcheck()
+	scrollRimCheck = true
+	return SCEN.scrollcost()
+end
+
 function SCEN.pan()
 	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" } })
 	local p = join(2, "Wren")
@@ -1289,8 +1416,8 @@ function SCEN.pan()
 			log("pan %s water check: %d of %d water pixels show a tone not the frame's; the wind's paint on %d pixels", label, w.off, w.checked, w.wind or 0)
 		end
 		if PR.debugCastCheck then
-			local c = H.inClient(p, PR.debugCastCheck)
-			log("pan %s cast check: %d of %d static pixels differ from one whole cast (part %d, light %d, shade %d)", label, c.off, c.checked, c.ids, c.lits, c.shades)
+			local c = H.inClient(p, PR.debugCastCheck, true)
+			log("pan %s cast check: %d of %d static pixels differ from one whole cast (part %d, light %d, shade %d)%s", label, c.off, c.checked, c.ids, c.lits, c.shades, if c.box then string.format(", within layer px %d,%d - %d,%d; ink only %d", c.box[1], c.box[2], c.box[3], c.box[4], c.inkOff or 0) else "")
 		end
 	end
 	castCheck("walking")

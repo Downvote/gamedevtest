@@ -45,6 +45,7 @@ local AmbientView = {}
 ------------------------------------------------------------------ constants
 local TIER_SCALE: { [string]: number } = { low = 0.5, medium = 0.75, high = 1 }
 local BIG_PPU = 7 -- art px a stud (along the screen) from which the big sprites are drawn, else the small ones
+local NO_WAIT: { { x0: number, y0: number, x1: number, y1: number } } = {}
 local ISLE_EVERY = 0.5 -- s between looks at which islands the screen shows
 local ISLE_KEEP = 10 -- s an island keeps its lives after it left the screen
 local SCAN_DEBOUNCE = 0.6 -- s after a change to an island's pieces before they are looked at again
@@ -966,6 +967,7 @@ local function drawDecos(ctx: Fx.Ctx, I: Isle, now: number, quiet: boolean)
 	local sId, sNormal, sDepth = ctx.sId, ctx.sNormal, ctx.sDepth
 	local up = Fx.UP_NORMAL
 	local ver = ctx.ver
+	local wait = ctx.wait
 	local thin = tierScale() * 6.2832 -- (a lower tier draws a share of the tufts)
 	local t1, t3 = now * 1.1, now * 3.1
 	for _, ch in I.chunks do
@@ -974,13 +976,24 @@ local function drawDecos(ctx: Fx.Ctx, I: Isle, now: number, quiet: boolean)
 		end
 		for _, dc in ch.list do
 			if dc.ver ~= ver then
+				local x, z = dc.x, dc.z
+				local i, j = math.floor(x0 + x * xx + z * xz), math.floor(y0 + x * yx + z * yz)
+				-- (its foot in a strip a scroll brought in whose colours are not finished: it waits a tick, Fx.Ctx.wait)
+				local waiting = false
+				for _, r in wait or NO_WAIT do
+					if i >= r.x0 - 1 and i <= r.x1 + 1 and j >= r.y0 - 1 and j <= r.y1 + 1 then
+						waiting = true
+						break
+					end
+				end
+				if waiting then
+					continue
+				end
 				-- the static picture changed (its sticky pixels went with it): is the lawn itself still what shows at
 				-- its foot (not a path, a piece or something in front), and in which green
 				dc.ver = ver
 				dc.pf = 0
 				table.clear(dc.px)
-				local x, z = dc.x, dc.z
-				local i, j = math.floor(x0 + x * xx + z * xz), math.floor(y0 + x * yx + z * yz)
 				local d = d0 + x * dxx + z * dzz
 				dc.i, dc.j, dc.d, dc.ok = i, j, d, false
 				if i >= 0 and j >= 0 and i < W and j < H then

@@ -16,7 +16,7 @@ its 1, `sim_save.luau` its 2 deliberate store failures; checks today: `sim.luau`
 `sim_clock.luau` about 1837, `sim_world.luau` about 2628, `sim_tree.luau` about 1973, `sim_social.luau` about 328,
 `sim_build.luau` about 248).
 Previews: `sh tools/preview/render.sh <scenario> <outdir outside the repo> "desktop phone"` with a scenario of `island
-village island2 island3 city everdrift gallery tree treeink day dusk night dawn hatchery sky skies visit tabout stop build buildui buildtools drop dropdrag inventory expand zoo paths water work motion idle pan stress ambient late
+village island2 island3 city everdrift gallery tree treeink day dusk night dawn hatchery sky skies visit tabout stop scrollcost rimcheck walkpose build buildui buildtools drop dropdrag inventory expand zoo paths water work motion idle pan stress ambient late
 loading themes hatches weathers crowd alerts`, `showcase=<1..20>` (a well decorated town on an island of that expansion level), `panel=<pals|work|tree|hatch|index|looks|pal|settings|welcome|rewards|top>` (and `panel=store:<passes|eggs|shop|track>`, `panel=looks:<skin|style|bangs|hair|eyes|shirt|top|apron|hat|face|neck|back|hand|outfits|titles>` (the My founder screen), `panel=rewards:<today|tasks|spin|index|codes>`, `panel=top:<coins|charm|hatched|driftlings|friends>` (the leaderboards and friends)), `hatch=<r><hr>` (the hatch scene: an egg laid as rarity r
 that hatches as hr), `hatchperf=<r><hr>[f][:<id>]` (what each moment of a hatch costs, `:<id>` that driftling hatching),
 `hatchcost[=<id>,<id>][:pix]` (every driftling's baked hatch picture timed, slowest first), `pals=<n>` or `pals=<id>,<id>` (eight driftlings up close), `looks=<n>` or `looks=<id>,<id>` (eight founders up close wearing

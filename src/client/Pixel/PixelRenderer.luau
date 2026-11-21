@@ -248,7 +248,7 @@ local stats = {
 	scrolls = 0,
 	scrollRays = 0,
 	recasts = 0,
-	perf = { frames = 0, panFrames = 0, invMs = 0, invFinMs = 0, pokeMs = 0, pokes = 0, preMs = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
+	perf = { frames = 0, panFrames = 0, invMs = 0, invFinMs = 0, pokeMs = 0, pokes = 0, preMs = 0, aheadMs = 0, scrollMs = 0, composeMs = 0, uploadMs = 0, gradeMs = 0, stepMs = 0, uploads = 0, regrades = 0, castMs = 0, inkMs = 0, dynMs = 0, outlineMs = 0, rimMs = 0, fxMs = 0, waterMs = 0, windMs = 0, copyMs = 0, maxMs = 0, slow = 0, incFrames = 0, incPx = 0, fullFrames = 0 },
 }
 local staticVer = 0 -- bumped whenever the static picture changes (a bake, a scroll, a re-cast): Fx.Ctx.ver
 -- Sticky effect pixels (Fx.stickSprite): small things that stay put on the picture (the lawn's tufts) are kept here and
@@ -354,6 +354,13 @@ local SG = {
 	exclVer = 0, -- (refreshExclude's count: the pre-cast's filter follows it)
 	panAt = -1, -- SG.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
 	need = {} :: { Dyn }, -- (a compose's models to draw afresh, in their order)
+	unfin = nil :: { Rect }?, -- (the last scroll's strips, their shadow edges, ink and grade still to do: SG.finishStrips)
+	unfinAt = 0, -- (the frame they came in on)
+	frameNo = 0, -- (frames stepped)
+	tickNow = false, -- (this frame composes a tick: frameStep)
+	tickRun = false, -- (and so did the frame before it)
+	preSaved = -1, -- (the scroll count when the margin the view leaves was last kept: SG.preSave)
+	ringTurn = false, -- (standing, the ring's frame or the pre-cast's: frameStep)
 	-- (the water's tone tables, and whether its next frame shades every water pixel: SG.waterSlice)
 	waterWas = table.create(7 * 256, 0) :: { number },
 	waterNow = table.create(7 * 256, 0) :: { number },
@@ -1500,6 +1507,7 @@ local function bakeSome(deadline: number): boolean
 end
 
 local function startBake()
+	SG.unfin = nil -- (a bake casts every pixel again)
 	local s = surf
 	if s == nil then
 		return
@@ -1669,6 +1677,7 @@ end
 
 -- A layer for the camera's view: buffers, image and a fresh bake (or the kept street picture when its view comes back).
 local function buildSurf(v: CameraController.View)
+	SG.unfin = nil
 	preReset() -- (another view: another grid)
 	refreshExclude()
 	lightStale = true
@@ -2516,6 +2525,7 @@ local function runFx(s: Surf, now: number): { Rect }
 	c.sColor, c.sId, c.sNormal, c.sAlbedo, c.sDepth, c.sWClass = s.sColor, s.sId, s.sNormal, s.sAlbedo, s.sDepth, s.sWClass
 	c.ppu = cam.s / cam.K
 	c.ver = staticVer
+	c.wait = SG.unfin
 	c.now = now
 	c.px, c.cap = fxCur, buffer.len(fxCur) // 4
 	Fx.reset(c)
@@ -2649,6 +2659,9 @@ local Rims = {
 	far = buffer.create(0),
 	list = {} :: { Dyn }, -- this tick's founders drawn, and each one's parts' rect (clipped to the layer)
 	rects = {} :: { Rect },
+	-- and the picture each one was put down from, with its top left on the layer and its depth offset (false: none)
+	pics = {} :: { any },
+	check = false, -- (debugRimCheck)
 	stats = { drawn = 0, px = 0, ms = 0 },
 }
 function Rims.flat(_rgb: number, _nx: number, _ny: number, _nz: number, _x: number, _y: number): number
@@ -2656,11 +2669,17 @@ function Rims.flat(_rgb: number, _nx: number, _ny: number, _nz: number, _x: numb
 end
 Raster.markUniform(Rims.flat)
 
--- The white rim of founder e, whose parts (drawn this tick) cover layer rect r. Returns the rim pixels laid.
-function Rims.draw(s: Surf, e: Dyn, r: Rect): number
+-- The white rim of founder e, whose parts (drawn this tick) cover layer rect r. Returns the rim pixels laid. Put down
+-- from a kept picture (`pic`: { c, x0, y0, dz }), its silhouette is that picture's pixels: the parts are not drawn
+-- again (a founder walking showed one of its steps' pictures every frame and drew every part again for its rim).
+function Rims.draw(s: Surf, e: Dyn, r: Rect, pic: any): number
 	local w, h = r.x1 - r.x0 + 1, r.y1 - r.y0 + 1
 	if w <= 0 or h <= 0 then
 		return 0
+	end
+	if pic and not Rims.check then
+		local m = Rims.fromPic(w, h, r, pic)
+		return Shading.rim(s.frame, m, r.x0, r.y0, Rims.rgb, Rims.rgb, nil, true, s.cam.gx, s.cam.gy)
 	end
 	local n = w * h
 	local m = Rims.mask
@@ -2687,7 +2706,65 @@ function Rims.draw(s: Surf, e: Dyn, r: Rect): number
 			Raster.drawPart(m, wcam, p.shape, { part.CFrame:GetComponents() }, sz.X, sz.Y, sz.Z, 0, p.id, Rims.flat, nil, p.prm)
 		end
 	end
+	if pic and Rims.check then
+		-- (debugRimCheck: the silhouette a kept picture gives against the parts drawn)
+		local ids, dep = buffer.create(n * 2), buffer.create(n * 4)
+		buffer.copy(ids, 0, m.id, 0, n * 2)
+		buffer.copy(dep, 0, m.depth, 0, n * 4)
+		local q = Rims.fromPic(w, h, r, pic)
+		local st = Rims.checked
+		for i = 0, n - 1 do
+			local a, b = buffer.readu16(ids, i * 2) ~= 0, buffer.readu16(q.id, i * 2) ~= 0
+			st.px += if a then 1 else 0
+			if a ~= b then
+				st.off += 1
+			elseif a and math.abs(buffer.readf32(dep, i * 4) - buffer.readf32(q.depth, i * 4)) > 1e-3 then
+				st.depth += 1
+			end
+		end
+		buffer.copy(m.id, 0, ids, 0, n * 2)
+		buffer.copy(m.depth, 0, dep, 0, n * 4)
+	end
 	return Shading.rim(s.frame, m, r.x0, r.y0, Rims.rgb, Rims.rgb, nil, true, s.cam.gx, s.cam.gy)
+end
+Rims.checked = { px = 0, off = 0, depth = 0 }
+
+-- A founder's silhouette for its rim over layer rect r (w x h), from the picture it was put down from: the mask's ids and
+-- depths where the picture's pixels fall (depth as the picture was put down, its depth offset added).
+function Rims.fromPic(w: number, h: number, r: Rect, pic: any): Raster.Frame
+	local n = w * h
+	local m = Rims.mask
+	if n > Rims.cap then
+		local cap = math.max(n, Rims.cap * 2)
+		Rims.cap = cap
+		m.color = buffer.create(cap * 4)
+		m.depth = buffer.create(cap * 4)
+		m.id = buffer.create(cap * 2)
+		local far = buffer.create(cap * 4)
+		for i = 0, cap - 1 do
+			buffer.writef32(far, i * 4, FAR)
+		end
+		Rims.far = far
+	end
+	if Rims.check then
+		m = { W = w, H = h, color = buffer.create(n * 4), depth = buffer.create(n * 4), id = buffer.create(n * 2) }
+	end
+	m.W, m.H = w, h
+	local mid, mdepth = m.id, m.depth
+	buffer.fill(mid, 0, 0, n * 2)
+	local c = pic.c :: DynCache
+	local px = c.px
+	local ox, oy, z = pic.x0 - r.x0, pic.y0 - r.y0, pic.dz
+	for k = 0, c.n - 1 do
+		local o = k * 14 -- (PX_BYTES)
+		local x, y = ox + buffer.readu16(px, o), oy + buffer.readu16(px, o + 2)
+		if x >= 0 and y >= 0 and x < w and y < h then
+			local i = y * w + x
+			buffer.writeu16(mid, i * 2, buffer.readu16(px, o + 12))
+			buffer.writef32(mdepth, i * 4, buffer.readf32(px, o + 8) + z)
+		end
+	end
+	return m
 end
 
 -- Every founder drawn this tick gets its rim (at most Rims.max: the own one first, then the nearest to (cx, cy)).
@@ -2695,29 +2772,31 @@ function Rims.drawAll(s: Surf, cx: number, cy: number)
 	local t0 = SG.clock()
 	local list, rects = Rims.list, Rims.rects
 	local nr = #list
+	local pics = Rims.pics
 	if nr > Rims.max then
 		local order = {}
 		for i = 1, nr do
 			local r = rects[i]
 			local mx, my = (r.x0 + r.x1) * 0.5 - cx, (r.y0 + r.y1) * 0.5 - cy
-			order[i] = { e = list[i], r = r, k = if list[i].own then -1 else mx * mx + my * my }
+			order[i] = { e = list[i], r = r, p = pics[i], k = if list[i].own then -1 else mx * mx + my * my }
 		end
 		table.sort(order, function(x, y)
 			return x.k < y.k
 		end)
 		for i = 1, nr do
-			list[i], rects[i] = order[i].e, order[i].r
+			list[i], rects[i], pics[i] = order[i].e, order[i].r, order[i].p
 		end
 		nr = Rims.max
 	end
 	local px = 0
 	for i = 1, nr do
-		px += Rims.draw(s, list[i], rects[i])
+		px += Rims.draw(s, list[i], rects[i], pics[i] or nil)
 	end
 	local st = Rims.stats
 	st.drawn, st.px, st.ms = nr, px, (SG.clock() - t0) * 1000
 	table.clear(list)
 	table.clear(rects)
+	table.clear(pics)
 end
 
 ------------------------------------------------------------------ the moving models' kept pictures (DynCache)
@@ -2734,7 +2813,7 @@ local PX_BYTES = 14 -- a kept pixel: dx u16, dy u16, colour u32, depth f32, id u
 -- through the same few poses) keeps a picture for each of up to POSE_KEEP poses: posed again in one it had, that
 -- picture is put down (slid to where the model stands, SG.glideOf) in place of a draw. The user's report of 2026-11-21:
 -- "it still is pretty laggy while hatching, even when the egg is dropping down".
-local POSE_KEEP = 32
+local POSE_KEEP = 48
 
 -- Parts as they stand now against a snapshot (cfs, szs, gone); nil snapshot: never the same.
 function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?): boolean
@@ -2871,13 +2950,14 @@ function SG.glideOf(s: Surf, d: Dyn, c: DynCache): (number, number, number)
 	return math.floor(a * k + 0.5), math.floor(-b * k + 0.5), qx * cam.lx + qy * cam.ly + qz * cam.lz
 end
 
-function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEntry }
+function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boolean?): { PlanEntry }
 	local cam = s.cam
 	local W, H = s.W, s.H
 	local out: { PlanEntry } = {}
 	local need = SG.need
 	table.clear(need)
 	local at: { [Dyn]: PlanEntry } = {}
+	local held: { [Dyn]: boolean } = {}
 	-- (picture c over layer rect x0..y1 for entry e, slid on with its model: nothing when that takes it off the layer)
 	local function put(e: PlanEntry, d: Dyn, c: DynCache, x0: number, y0: number, x1: number, y1: number)
 		local gx, gy, gz = SG.glideOf(s, d, c)
@@ -2899,6 +2979,26 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		-- far away got a new entry every compose: the other islands' moving pieces, the boats and gulls out at sea, every
 		-- other founder)
 		if culled and d.shR == nil and d.sR == nil then
+			continue
+		end
+		if lite and not d.rim then
+			-- (a frame between two ticks, composed for the founder the view follows: every other model shows just
+			-- what it showed, where it showed it, and its blob shadow too)
+			local r, c = d.shR, d.shC
+			if (r == nil or c == nil) and d.sR == nil then
+				continue
+			end
+			local gx, gy = cam.gx, cam.gy
+			local e: PlanEntry = { d = d, pic = nil, x0 = 0, y0 = 0, x1 = -1, y1 = -1, dz = 0, gx = 0, gy = 0, sx = nil, sy = 0, srx = 0, sry = 0 }
+			if r and c then
+				e.pic, e.x0, e.y0, e.x1, e.y1, e.dz = c, r.x0 + 1 - gx, r.y0 + 1 - gy, r.x1 - 1 - gx, r.y1 - 1 - gy, d.shDz or 0
+			end
+			local sx, sy = d.sx, d.sy
+			if sx and sy and d.sR then
+				e.sx, e.sy, e.srx, e.sry = sx - gx, sy - gy, d.srx or 0, d.sry or 0
+			end
+			held[d] = true
+			table.insert(out, e)
 			continue
 		end
 		local e: PlanEntry = { d = d, pic = nil, x0 = 0, y0 = 0, x1 = -1, y1 = -1, dz = 0, gx = 0, gy = 0, sx = nil, sy = 0, srx = 0, sry = 0 }
@@ -2951,8 +3051,13 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 			continue
 		end
 		drawn += 1
+		local kd = SG.clock()
 		local pic, x0, y0, x1, y1 = SG.drawPic(s, d, ppu, texOn)
 		d.drawnAt = SG.clock()
+		local pfp = stats.perf
+		local who = if d.own then "own" elseif d.rim then "rim" else "other"
+		pfp[who .. "Draws"] = (pfp[who .. "Draws"] or 0) + 1
+		pfp[who .. "DrawMs"] = (pfp[who .. "DrawMs"] or 0) + ((d.drawnAt :: number) - kd) * 1000
 		SG.draws += 1
 		if pic then
 			put(e, d, pic, x0, y0, x1, y1)
@@ -2962,7 +3067,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean): { PlanEn
 		local d = e.d
 		local model = d.model
 		local first = d.parts[1]
-		if model.Parent ~= nil and first ~= nil and model:GetAttribute("PixelShadow") ~= nil then
+		if not held[d] and model.Parent ~= nil and first ~= nil and model:GetAttribute("PixelShadow") ~= nil then
 			local cx, cy, rx, ry = SG.shadowGeo(s, model, first.part, e.pic)
 			if cx then
 				-- (it slides with its picture, by the same whole px)
@@ -3054,8 +3159,9 @@ function SG.mergeRects(rects: { Rect }): { Rect }
 	return out
 end
 
--- A drawn model's rect, a pixel round it, for the ink and the upload; a founder's for its white rim too.
-function SG.addRect(rects: { Rect }, d: Dyn, x0: number, y0: number, x1: number, y1: number)
+-- A drawn model's rect, a pixel round it, for the ink and the upload; a founder's for its white rim too (drawn from
+-- `pic`, the picture it was put down from, when given: Rims.draw).
+function SG.addRect(rects: { Rect }, d: Dyn, x0: number, y0: number, x1: number, y1: number, pic: any?)
 	if x0 > x1 then
 		return
 	end
@@ -3064,6 +3170,7 @@ function SG.addRect(rects: { Rect }, d: Dyn, x0: number, y0: number, x1: number,
 		local s = surf :: Surf
 		table.insert(Rims.list, d)
 		table.insert(Rims.rects, { x0 = math.max(0, x0), y0 = math.max(0, y0), x1 = math.min(s.W - 1, x1), y1 = math.min(s.H - 1, y1) })
+		table.insert(Rims.pics, pic or false)
 	end
 end
 
@@ -3073,31 +3180,48 @@ end
 function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, number, number, number, number)
 	-- (posed in a pose it has a picture of: that picture stands for its parts as they are now)
 	local key, poses = d.poseKey, d.poses
+	local posed = false
 	if key and poses then
 		local pc = poses[key]
-		local cur = d.cache
-		if pc and pc.ver == SG.ver and pc.ppu == ppu and cur ~= pc and (cur == nil or cur.from ~= pc) then
-			local cfs, szs, gone = {}, {}, {}
-			for i, p in d.parts do
-				local part = p.part
-				cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
+		if pc and pc.ver == SG.ver and pc.ppu == ppu then
+			-- (its picture stands for the parts wherever the model has gone since: the founder walking keeps stepping
+			-- through the same few poses, slid on, SG.glideOf)
+			posed = true
+			local cur = d.cache
+			if cur ~= pc and (cur == nil or cur.from ~= pc) then
+				local cfs, szs, gone = {}, {}, {}
+				for i, p in d.parts do
+					local part = p.part
+					cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
+				end
+				local cc = table.clone(pc)
+				cc.cfs, cc.szs, cc.gone, cc.from = cfs, szs, gone, pc
+				d.cache = cc
+				-- (the poses used last are the ones kept: POSE_KEEP)
+				local order = d.poseOrder
+				if order and order[#order] ~= key then
+					local at = table.find(order, key)
+					if at then
+						table.remove(order, at)
+						table.insert(order, key)
+					end
+				end
 			end
-			local cc = table.clone(pc)
-			cc.cfs, cc.szs, cc.gone, cc.from = cfs, szs, gone, pc
-			d.cache = cc
 		end
 	end
 	local c = d.cache
 	if c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu or SG.off then
 		return nil, 0, 0, 0, 0
 	end
-	if (fresh or d.rim) and not SG.same(d, c.cfs, c.szs, c.gone) then
+	if not posed and (fresh or d.rim) and not SG.same(d, c.cfs, c.szs, c.gone) then
 		return nil, 0, 0, 0, 0
 	end
 	local x0, y0 = c.gx - s.cam.gx, c.gy - s.cam.gy
 	local x1, y1 = x0 + c.w - 1, y0 + c.h - 1
-	-- (a picture reaching off the layer is put down clipped: it was drawn whole, past the layer's edge)
-	if x1 < 0 or y1 < 0 or x0 > s.W - 1 or y0 > s.H - 1 then
+	-- (a picture reaching off the layer is put down clipped: it was drawn whole, past the layer's edge. Where it goes is
+	-- where it slides to: a founder's step drawn far back along the walk)
+	local gx, gy = SG.glideOf(s, d, c)
+	if x1 + gx < 0 or y1 + gy < 0 or x0 + gx > s.W - 1 or y0 + gy > s.H - 1 then
 		return nil, 0, 0, 0, 0
 	end
 	return c, x0, y0, x1, y1
@@ -3534,6 +3658,7 @@ function SG.shown(s: Surf, d: Dyn, c: DynCache?, x0: number, y0: number, x1: num
 	if rim and d.rim then
 		table.insert(Rims.list, d)
 		table.insert(Rims.rects, { x0 = math.max(0, x0), y0 = math.max(0, y0), x1 = math.min(s.W - 1, x1), y1 = math.min(s.H - 1, y1) })
+		table.insert(Rims.pics, if c then { c = c, x0 = x0, y0 = y0, dz = dz or 0 } else false)
 	end
 end
 
@@ -3635,14 +3760,35 @@ function SG.incCompose(s: Surf, due: boolean?)
 	local base = SG.base :: { color: buffer, id: buffer }
 	local pf = stats.perf
 	local k0 = SG.clock()
-	-- last tick's effects come off (the frame as it stood before them); their book is kept to grade those pixels
+	-- A frame between two of the tier's ticks, composed only because the view moved (`lite`: the founder the view follows
+	-- is drawn where it stands now, the rest as it was). The request of 2026-11-21, "optimize it, find ways until you
+	-- manage to reduce the frame speed close to the frame speed while standing without scrolling": every frame of a
+	-- walk was a whole tick (every model planned, the effects run, a band swept), twice the work of a frame standing.
+	local lite = due == false and Tuning.PixelLiteFollow
+	-- last tick's effects come off (the frame as it stood before them); their book is kept to grade those pixels. A lite
+	-- frame keeps them: their pixels are noted and put back over whatever it draws again
 	local oldBook, oldN = fxPrev, fxPrevN
 	local color, ids = f.color, f.id
-	for k = 0, oldN - 1 do
-		local i = buffer.readu32(oldBook, k * 4)
-		if i < n then
-			buffer.writeu32(color, i * 4, buffer.readu32(base.color, i * 4))
-			buffer.writeu16(ids, i * 2, buffer.readu16(base.id, i * 2))
+	local fxKeep: buffer? = nil
+	if lite then
+		if oldN > 0 then
+			local kb = buffer.create(oldN * 6)
+			for k = 0, oldN - 1 do
+				local i = buffer.readu32(oldBook, k * 4)
+				if i < n then
+					buffer.writeu32(kb, k * 6, buffer.readu32(color, i * 4))
+					buffer.writeu16(kb, k * 6 + 4, buffer.readu16(ids, i * 2))
+				end
+			end
+			fxKeep = kb
+		end
+	else
+		for k = 0, oldN - 1 do
+			local i = buffer.readu32(oldBook, k * 4)
+			if i < n then
+				buffer.writeu32(color, i * 4, buffer.readu32(base.color, i * 4))
+				buffer.writeu16(ids, i * 2, buffer.readu16(base.id, i * 2))
+			end
 		end
 	end
 	SG.tilesClear(s)
@@ -3662,10 +3808,12 @@ function SG.incCompose(s: Surf, due: boolean?)
 	-- (a band of the layer drawn again every compose, round and round: whatever a compose of a few tiles might leave
 	-- behind lasts a second or two at most)
 	local T = SG.TILE
-	SG.sweep += 1
-	if SG.sweep % 3 == 0 then
-		local row = (SG.sweep // 3) % math.max(1, SG.trows)
-		mark(0, row * T, W - 1, row * T + T - 1)
+	if not lite then
+		SG.sweep += 1
+		if SG.sweep % 3 == 0 then
+			local row = (SG.sweep // 3) % math.max(1, SG.trows)
+			mark(0, row * T, W - 1, row * T + T - 1)
+		end
 	end
 	local strips = SG.strips
 	local ppu = cam.s / cam.K
@@ -3677,7 +3825,9 @@ function SG.incCompose(s: Surf, due: boolean?)
 	table.clear(still)
 	table.clear(shad)
 	-- what every model shows now (SG.plan: the ones drawn afresh are drawn into their own scratch, the frame untouched)
-	local plan = SG.plan(s, fresh, ppu, texOn)
+	local kp = SG.clock()
+	local plan = SG.plan(s, fresh, ppu, texOn, lite)
+	pf.planMs = (pf.planMs or 0) + (SG.clock() - kp) * 1000
 	local chg: { PlanEntry } = {}
 	for _, e in plan do
 		local d = e.d
@@ -3752,6 +3902,7 @@ function SG.incCompose(s: Surf, due: boolean?)
 			d.sIn = true
 		end
 	end
+	local kr = SG.clock()
 	for _, r in strips do
 		restoreRect(s, r)
 	end
@@ -3760,6 +3911,7 @@ function SG.incCompose(s: Surf, due: boolean?)
 		restoreRect(s, r)
 	end
 	local k1 = SG.clock()
+	pf.restoreMs = (pf.restoreMs or 0) + (k1 - kr) * 1000
 	pf.copyMs += (k1 - k0) * 1000
 	for _, d in shad do
 		if d.sChg or d.sIn then
@@ -3808,8 +3960,20 @@ function SG.incCompose(s: Surf, due: boolean?)
 			end
 		end
 	end
-	-- the effects over everything
-	local fxRects: { Rect } = if SG.quiet then {} else runFx(s, os.clock())
+	-- the effects over everything (a lite frame: last tick's, where they were)
+	local fxRects: { Rect } = {}
+	if fxKeep then
+		local kb = fxKeep :: buffer
+		for k = 0, oldN - 1 do
+			local i = buffer.readu32(oldBook, k * 4)
+			if i < n then
+				buffer.writeu32(color, i * 4, buffer.readu32(kb, k * 6))
+				buffer.writeu16(ids, i * 2, buffer.readu16(kb, k * 6 + 4))
+			end
+		end
+	elseif not lite and not SG.quiet then
+		fxRects = runFx(s, os.clock())
+	end
 	local k5 = SG.clock()
 	pf.dynMs += (k2 - k1) * 1000
 	pf.outlineMs += (k3 - k2) * 1000
@@ -3827,10 +3991,12 @@ function SG.incCompose(s: Surf, due: boolean?)
 				gradeSpan(color, ids, i, 1, o, i)
 			end
 		end
-		for k = 0, fxPrevN - 1 do
-			local i = buffer.readu32(fxPrev, k * 4)
-			if i < n then
-				gradeSpan(color, ids, i, 1, o, i)
+		if not lite then
+			for k = 0, fxPrevN - 1 do
+				local i = buffer.readu32(fxPrev, k * 4)
+				if i < n then
+					gradeSpan(color, ids, i, 1, o, i)
+				end
 			end
 		end
 		SG.fullAt = SG.seq
@@ -3845,7 +4011,12 @@ function SG.incCompose(s: Surf, due: boolean?)
 	end
 	pf.incPx += area
 	pf.incFrames += 1
-	if SG.panned or SG.upWhole or #runs + #fxRects > 3 * MAX_RECTS or area * 3 > n then
+	-- (strips finished a frame after their scroll go up as rects: SG.finishStrips)
+	local lateUp: { Rect } = if SG.panned then {} else strips
+	for _, r in lateUp do
+		area += (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1)
+	end
+	if SG.panned or SG.upWhole or #runs + #fxRects + #lateUp > 3 * MAX_RECTS or area * 3 > n then
 		local im = img
 		if im then
 			pcall(function()
@@ -3860,10 +4031,13 @@ function SG.incCompose(s: Surf, due: boolean?)
 		for _, r in fxRects do
 			SG.upRect(s, r, src)
 		end
+		for _, r in lateUp do
+			SG.upRect(s, r, src)
+		end
 	end
+	pf.uploadMs += (SG.clock() - k6) * 1000
 	SG.panned, SG.upWhole, SG.touch = false, false, false
 	table.clear(strips)
-	pf.uploadMs += (SG.clock() - k6) * 1000
 	return area
 end
 
@@ -3877,6 +4051,9 @@ local function compose(due: boolean?)
 	panX, panY = cam.gx, cam.gy
 	SG.seq += 1
 	fxBooks(s)
+	if SG.unfin and (needFull or not SG.live(s)) then
+		SG.finishStrips(s)
+	end
 	-- (the incremental compose when the layer has one going: SG.incCompose)
 	local live = SG.live(s)
 	if not needFull and SG.incOn == s and not live then
@@ -3885,11 +4062,18 @@ local function compose(due: boolean?)
 	if not needFull and live then
 		local arm = SG.incArm
 		SG.noBudget = arm
-		local area = SG.incCompose(s, due)
+		-- (debugIncCheck's compose is a whole tick: a lite frame leaves the other models where they were, which a whole
+		-- compose at the same moment does not)
+		local area = SG.incCompose(s, if arm then nil else due)
 		prevRects = {}
 		stats.ticks += 1
 		stats.composeMs = (SG.clock() - t0) * 1000
 		stats.perf.composeMs += stats.composeMs
+		-- (the frames between ticks apart: SG.incCompose's lite compose)
+		local lk = if due == false then "lite" else "tick"
+		local pfx = stats.perf :: any
+		pfx[lk .. "Ms"] = (pfx[lk .. "Ms"] or 0) + stats.composeMs
+		pfx[lk .. "Frames"] = (pfx[lk .. "Frames"] or 0) + 1
 		if arm then
 			-- (debugIncCheck: the frame before the effects against a whole compose's at the same moment)
 			SG.incArm = false
@@ -3899,7 +4083,9 @@ local function compose(due: boolean?)
 			buffer.copy(a, 0, b.color, 0, n * 4)
 			buffer.copy(ai, 0, b.id, 0, n * 2)
 			buffer.copy(ad, 0, s.frame.depth, 0, n * 4)
-			-- (the whole compose's base is taken before its effects run: a lawn tuft they stick anew would differ)
+			-- (the whole compose's base is taken before its effects run: a lawn tuft they stick anew would differ; strips a
+			-- scroll brought in that are not finished yet lie past the screen's edge and are left out, SG.finishStrips)
+			local waiting = SG.unfin
 			SG.snap = true
 			needFull = true
 			compose(false)
@@ -3907,9 +4093,21 @@ local function compose(due: boolean?)
 			local off, ties = 0, 0
 			local bias = s.cam.bias
 			local seen: { string } = {}
+			local function waits(i: number): boolean
+				if waiting == nil then
+					return false
+				end
+				local x, y = i % s.W, i // s.W
+				for _, r in waiting do
+					if x >= r.x0 - 3 and x <= r.x1 + 3 and y >= r.y0 - 3 and y <= r.y1 + 3 then
+						return true
+					end
+				end
+				return false
+			end
 			for i = 0, n - 1 do
 				local ia, ib = buffer.readu16(ai, i * 2), buffer.readu16(snap.id, i * 2)
-				if buffer.readu32(a, i * 4) ~= buffer.readu32(snap.color, i * 4) or ia ~= ib then
+				if (buffer.readu32(a, i * 4) ~= buffer.readu32(snap.color, i * 4) or ia ~= ib) and not waits(i) then
 					local da, db = buffer.readf32(ad, i * 4), buffer.readf32(snap.depth, i * 4)
 					if ia >= DYN_ID0 and ib >= DYN_ID0 and ia ~= ib and math.abs(da - db) <= 2 * bias then
 						-- (two models within the depth bias of each other: the one put down first keeps the pixel)
@@ -3999,7 +4197,7 @@ local function compose(due: boolean?)
 		if pic then
 			SG.blitAt(s, pic, e.x0, e.y0, e.dz)
 			SG.hits += 1
-			SG.addRect(rects, e.d, e.x0, e.y0, e.x1, e.y1)
+			SG.addRect(rects, e.d, e.x0, e.y0, e.x1, e.y1, { c = pic, x0 = e.x0, y0 = e.y0, dz = e.dz })
 			SG.shown(s, e.d, pic, e.x0, e.y0, e.x1, e.y1, false, e.dz)
 		end
 	end
@@ -4078,15 +4276,15 @@ local function shift(b: buffer, W: number, H: number, e: number, dx: number, dy:
 	if w <= 0 or math.abs(dy) >= H then
 		return
 	end
-	local sx, tx = math.max(0, dx), math.max(0, -dx)
-	if dy >= 0 then
-		for y = 0, H - 1 - dy do
-			buffer.copy(b, (y * W + tx) * e, b, ((y + dy) * W + sx) * e, w * e)
-		end
+	-- (one copy of the whole buffer by the pixel offset, not a copy a row: a pixel whose source lay past the side of its
+	-- row gets the next row's, but those are the strips coming in, which are always written afresh; a scroll moved
+	-- some twenty buffers a row at a time, about a third of its fixed cost)
+	local k = (dy * W + dx) * e
+	local len = W * H * e
+	if k >= 0 then
+		buffer.copy(b, 0, b, k, len - k)
 	else
-		for y = H - 1, -dy, -1 do
-			buffer.copy(b, (y * W + tx) * e, b, ((y + dy) * W + sx) * e, w * e)
-		end
+		buffer.copy(b, -k, b, 0, len + k)
 	end
 end
 
@@ -4133,6 +4331,15 @@ function SG.panShift(s: Surf, sx: number, sy: number, strips: { Rect })
 			buffer.fill(sh, 0, 0, -sy * W * 4)
 		end
 	end
+	-- (strips queued before it, finished this frame, move with the picture)
+	local kept: { Rect } = {}
+	for _, r in SG.strips do
+		local q = { x0 = math.max(0, r.x0 - sx), y0 = math.max(0, r.y0 - sy), x1 = math.min(W - 1, r.x1 - sx), y1 = math.min(H - 1, r.y1 - sy) }
+		if q.x0 <= q.x1 and q.y0 <= q.y1 then
+			table.insert(kept, q)
+		end
+	end
+	SG.strips = kept
 	-- (the strips go in as the static picture alone: no model or blob shadow is drawn again for them unless one meets
 	-- them; the sticky pixels are all dropped by a pan, so there are none to put back either)
 	for _, r in strips do
@@ -4196,12 +4403,122 @@ local function reoutline(s: Surf, x0: number, y0: number, x1: number, y1: number
 	contactPass(s, x0 - 1, y0 - 1, x1 + 1, y1 + 1)
 end
 
+-- The last scroll's strips (SG.unfin, layer rects) finished: their shadow edges on the pixel grid, the ink and contact
+-- shade over them and the old picture's pixels beside them, the water's frames and the grade; then queued for the
+-- next compose, which draws them and sends them up (`now`: the scroll's own frame, which queues them itself).
+function SG.finishStrips(s: Surf, now: boolean?)
+	local list = SG.unfin
+	SG.unfin = nil
+	if list == nil then
+		return
+	end
+	local t0 = SG.clock()
+	local pf = stats.perf :: any
+	if tierSpec(tier).shadows then
+		for _, r in list do
+			refineShadows(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
+		end
+	end
+	local t1 = SG.clock()
+	for _, r in list do
+		reoutline(s, r.x0, r.y0, r.x1, r.y1)
+		SG.waterFix(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
+	end
+	local t2 = SG.clock()
+	for _, r in list do
+		SG.rect(s, r.x0 - 3, r.y0 - 3, r.x1 + 3, r.y1 + 3)
+	end
+	local t3 = SG.clock()
+	pf.refineMs = (pf.refineMs or 0) + (t1 - t0) * 1000
+	pf.inkMs += (t2 - t1) * 1000
+	pf.rectMs = (pf.rectMs or 0) + (t3 - t2) * 1000
+	if not now then
+		pf.lateMs = (pf.lateMs or 0) + (t3 - t0) * 1000
+		local W, H = s.W, s.H
+		for _, r in list do
+			table.insert(SG.strips, { x0 = math.max(0, r.x0 - 3), y0 = math.max(0, r.y0 - 3), x1 = math.min(W - 1, r.x1 + 3), y1 = math.min(H - 1, r.y1 + 3) })
+		end
+		-- (the static picture's version is the scroll's: what the effects read from it then is still good, but for
+		-- sColor in the strips, which they left alone till now: Fx.Ctx.wait)
+	end
+end
+
+-- Whether a strip of the last scroll (SG.unfin) or the old pixels beside it fall in the screen's window of layer s.
+function SG.unfinSeen(s: Surf): boolean
+	local list = SG.unfin
+	if list == nil then
+		return false
+	end
+	local x0, y0, x1, y1 = s.ox, s.oy, s.ox + s.vw - 1, s.oy + s.vh - 1
+	for _, r in list do
+		if r.x0 - 1 <= x1 and r.x1 + 1 >= x0 and r.y0 - 1 <= y1 and r.y1 + 1 >= y0 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Keep the margin of layer s on the side the view moves away from (SG.ahead's way) in the pan cache, once a scroll.
+function SG.preSave(s: Surf)
+	if SG.preSaved == stats.scrolls or not SG.tilesOk(s) then
+		return
+	end
+	local A = SG.ahead
+	if A.dx == 0 and A.dy == 0 then
+		return
+	end
+	SG.preSaved = stats.scrolls
+	local t0 = SG.clock()
+	local W, H, m = s.W, s.H, s.m
+	local gx, gy = s.cam.gx, s.cam.gy
+	local bands: { { number } } = {}
+	if A.dx > 0 then
+		table.insert(bands, { 0, 0, m - 1, H - 1 })
+	elseif A.dx < 0 then
+		table.insert(bands, { W - m, 0, W - 1, H - 1 })
+	end
+	if A.dy > 0 then
+		table.insert(bands, { 0, 0, W - 1, m - 1 })
+	elseif A.dy < 0 then
+		table.insert(bands, { 0, H - m, W - 1, H - 1 })
+	end
+	for _, b in bands do
+		if not SG.pendingOver(gx + b[1], gy + b[2], gx + b[3], gy + b[4]) then
+			SG.Tiles.save(s, gx, gy, b[1], b[2], b[3], b[4])
+		end
+	end
+	local pf = stats.perf :: any
+	pf.preSaveMs = (pf.preSaveMs or 0) + (SG.clock() - t0) * 1000
+end
+
+-- Whether the pan cache holds every pixel of the strips a scroll of layer s by (dx, dy) would bring in.
+function SG.stripsHeld(s: Surf, dx: number, dy: number): boolean
+	local gx, gy, W, H = s.cam.gx, s.cam.gy, s.W, s.H
+	local nx, ny = gx + dx, gy + dy
+	local T = SG.Tiles
+	if dx > 0 and not T.okRect(gx + W, ny, gx + W + dx - 1, ny + H - 1) then
+		return false
+	elseif dx < 0 and not T.okRect(nx, ny, gx - 1, ny + H - 1) then
+		return false
+	end
+	if dy > 0 and not T.okRect(nx, gy + H, nx + W - 1, gy + H + dy - 1) then
+		return false
+	elseif dy < 0 and not T.okRect(nx, ny, nx + W - 1, gy - 1) then
+		return false
+	end
+	return true
+end
+
 -- Scroll the layer toward the pan (tx, ty): by whole art px, the uncovered strips cast, within the frame's ray budget.
 local function scrollToward(s: Surf, tx: number, ty: number)
 	local cam = s.cam
 	local dx, dy = tx - cam.gx, ty - cam.gy
 	if dx == 0 and dy == 0 then
 		return
+	end
+	-- (the last scroll's strips are finished before the picture moves again: SG.finishStrips)
+	if SG.unfin then
+		SG.finishStrips(s)
 	end
 	windRestore(s)
 	SG.windVoid = true -- (the wind's frame being worked out is of the old pan: it waits for the view to stand)
@@ -4220,6 +4537,11 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local mx = math.max(1, math.floor(budget / (H * 1.5)))
 	local my = math.max(1, math.floor(budget / (W * 1.5)))
 	local sx, sy = math.clamp(dx, -mx, mx), math.clamp(dy, -my, my)
+	if (sx ~= dx or sy ~= dy) and SG.tilesOk(s) and SG.stripsHeld(s, dx, dy) then
+		-- (strips the pan cache holds whole are copied in, not cast: the whole step at once, the view put back in the
+		-- middle of its margin, so the next scroll comes no sooner than it must)
+		sx, sy = dx, dy
+	end
 	-- (composing incrementally: the sticky pixels come off the frame before it shifts, as they are dropped below)
 	local inc = not needFull and SG.live(s)
 	if inc then
@@ -4228,6 +4550,8 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	-- the strips about to scroll off are kept in the pan cache (a pan back over them copies them in again), all but
 	-- what a re-cast still has to redo
 	local cacheOn = SG.tilesOk(s)
+	local pf = stats.perf
+	local q0 = SG.clock()
 	if cacheOn then
 		local gx0, gy0 = cam.gx, cam.gy
 		local leave: { Rect } = {}
@@ -4247,6 +4571,8 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 			end
 		end
 	end
+	local q1 = SG.clock()
+	pf.saveMs = (pf.saveMs or 0) + (q1 - q0) * 1000
 	for _, b in { s.sColor, s.sShade, s.sAlbedo, s.sDepth } do
 		shift(b, W, H, 4, sx, sy)
 	end
@@ -4283,6 +4609,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		end
 	end
 	s.cam = layerCam(v, cam.gx + sx, cam.gy + sy, s.K)
+	pf.shiftMs = (pf.shiftMs or 0) + (SG.clock() - q1) * 1000
 	local rays = 0
 	local strips: { Rect } = {}
 	if sx > 0 then
@@ -4297,7 +4624,6 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		table.insert(strips, { x0 = cx0, y0 = 0, x1 = cx1, y1 = -sy - 1 })
 	end
 	local c0 = SG.clock()
-	local shadows = tierSpec(tier).shadows
 	for _, r in strips do
 		if cacheOn then
 			-- (a piece of the strip the cache holds whole is copied in; the rest is cast)
@@ -4311,28 +4637,24 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 			rays += castRect(s, r.x0, r.y0, r.x1, r.y1, true)
 		end
 	end
-	-- the strips' shadow edges once they are all in (a strip's border meets the other strip and the old picture)
-	if shadows then
-		for _, r in strips do
-			rays += refineShadows(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
-		end
-	end
 	local c1 = SG.clock()
-	for _, r in strips do
-		reoutline(s, r.x0, r.y0, r.x1, r.y1)
-		SG.waterFix(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
-	end
 	stats.perf.castMs += (c1 - c0) * 1000
-	stats.perf.inkMs += (SG.clock() - c1) * 1000
-	-- (what a strip's cast, ink and contact shade touched: the strip and a few pixels round it)
-	for _, r in strips do
-		SG.rect(s, r.x0 - 3, r.y0 - 3, r.x1 + 3, r.y1 + 3)
+	-- the strips' shadow edges, ink, contact shade and grade: on the next frame while the strips lie in the margin past
+	-- the screen's edge (SG.finishStrips; a scroll frame did all of a strip's work at once, three times a frame's
+	-- spare time), else now
+	local late = inc and not needFull and SG.live(s) and Tuning.PixelPanLate
+	SG.unfin = strips
+	SG.unfinAt = SG.frameNo
+	if not late then
+		SG.finishStrips(s, true)
 	end
+	local q2 = SG.clock()
 	if inc and not needFull and SG.live(s) then
-		SG.panShift(s, sx, sy, strips)
+		SG.panShift(s, sx, sy, if late then {} else strips)
 	else
 		needFull = true
 	end
+	pf.panShiftMs = (pf.panShiftMs or 0) + (SG.clock() - q2) * 1000
 	stats.scrolls += 1
 	staticChanged()
 	stats.scrollRays += rays
@@ -4739,7 +5061,7 @@ function PC.queue(job: PreJob, s: Surf)
 end
 
 -- Cast pre-cast tiles until `deadline`.
-function PC.step(s: Surf, deadline: number)
+function PC.step(s: Surf, deadline: number): boolean
 	-- (a swap that has landed lets go once its parts have come and gone: the next island's job can start. Kept, it
 	-- cast nothing ahead for the next expansion and went on calling the swapped models' later changes its own: the
 	-- report of 2026-11-20, "there are artifacts that appear around after expanding")
@@ -4748,16 +5070,16 @@ function PC.step(s: Surf, deadline: number)
 	end
 	if PC.job == nil then
 		if not PC.dirty and os.clock() - PC.tried < 1 then
-			return
+			return false
 		end
 		PC.tried = os.clock()
 		if not PC.start(s) then
-			return
+			return false
 		end
 	end
 	local job = PC.job
 	if job == nil or job.switched then
-		return
+		return false
 	end
 	if job.exclVer ~= SG.exclVer then
 		job.exclVer = SG.exclVer
@@ -4778,7 +5100,7 @@ function PC.step(s: Surf, deadline: number)
 	if job.cur == nil and #job.queue == 0 then
 		PC.queue(job, s)
 		if #job.queue == 0 then
-			return
+			return false
 		end
 	end
 	local shadows = tierSpec(tier).shadows
@@ -4854,6 +5176,7 @@ function PC.step(s: Surf, deadline: number)
 	end
 	params = saved
 	PC.stats.rays += bakeRays - r0
+	return true
 end
 
 -- A part came or went over the pre-cast: the tiles under it are cast again (before the swap).
@@ -5105,6 +5428,229 @@ local function applyTier(want: string)
 	end
 end
 
+------------------------------------------------------------------ look-ahead
+-- While the view moves, the pan cache's tiles just past the layer's leading edge (Tuning.PixelAheadPx), nearest first,
+-- are cast a few ms a frame on a small layer of their own (as the pre-cast casts the next tier's) and kept, so the
+-- strip a scroll uncovers is copied in from the cache instead of all cast in the one frame (the user's question of
+-- 2026-11-21, "what is the most performance intensive thing the camera needs when scrolling?": that cast, 29 ms in
+-- one frame of every four walking over new ground in the simulator, the frames the view stuttered on). A tile whose
+-- ground changes while it is cast (the cache's epoch moved) is not kept.
+SG.ahead = {
+	ps = nil :: any,
+	view = nil :: any,
+	-- (the piece being cast: its tile, phase and pixel, the cache's epoch when it began, the rect cast on the small
+	-- layer (the piece and PAD px round it, for the shadows' edges) and the rect kept)
+	cur = nil :: { tx: number, ty: number, phase: number, x: number, y: number, epoch: number, cx0: number, cy0: number, cx1: number, cy1: number, kx0: number, ky0: number, kx1: number, ky1: number, g1: number, g2: number, g3: number, g4: number, ring: boolean }?,
+	lx = nil :: number?,
+	ly = nil :: number?,
+	dx = 0,
+	dy = 0,
+	at = -math.huge,
+	stats = { tiles = 0, dropped = 0, rays = 0 },
+}
+
+-- The next piece to cast ahead: its tile (tx, ty) and the global art px rect of it outside the layer that the cache does
+-- not hold yet, nearest the layer's edge and the middle of its side first; nil: none. Moving (dx, dy not both 0): on the
+-- sides the view moves toward, Tuning.PixelAheadPx deep. Standing: all round the layer, corners too,
+-- Tuning.PixelRingPx deep (the walk that comes next starts on ground cast while the founder stood).
+function SG.aheadNext(s: Surf, dx: number, dy: number): (number?, number?, { number }?)
+	local T = SG.Tiles.TILE
+	local gx, gy, W, H = s.cam.gx, s.cam.gy, s.W, s.H
+	local ring = dx == 0 and dy == 0
+	local far = if ring then Tuning.PixelRingPx else Tuning.PixelAheadPx
+	local midX, midY = (gx + W / 2) / T, (gy + H / 2) / T
+	local best, bx, by, br = math.huge, nil, nil, nil
+	-- (the tiles of a band outside the layer, each clipped to it)
+	local function band(x0: number, y0: number, x1: number, y1: number)
+		for tx = x0 // T, x1 // T do
+			for ty = y0 // T, y1 // T do
+				local r = { math.max(tx * T, x0), math.max(ty * T, y0), math.min(tx * T + T - 1, x1), math.min(ty * T + T - 1, y1) }
+				if r[1] > r[3] or r[2] > r[4] then
+					continue
+				end
+				-- (how far its nearest pixel lies past the layer's edge, then how far from the middle of its side)
+				local ox = if r[3] < gx then gx - r[3] elseif r[1] > gx + W - 1 then r[1] - (gx + W - 1) else 0
+				local oy = if r[4] < gy then gy - r[4] elseif r[2] > gy + H - 1 then r[2] - (gy + H - 1) else 0
+				local side = if ox >= oy then math.abs(ty + 0.5 - midY) else math.abs(tx + 0.5 - midX)
+				local d = math.max(ox, oy) * 4 + side
+				if d < best and not SG.Tiles.okRect(r[1], r[2], r[3], r[4]) then
+					best, bx, by, br = d, tx, ty, r
+				end
+			end
+		end
+	end
+	local cy0, cy1 = if ring then gy - far else gy, if ring then gy + H + far - 1 else gy + H - 1
+	if ring or dx > 0 then
+		band(gx + W, cy0, gx + W + far - 1, cy1)
+	end
+	if ring or dx < 0 then
+		band(gx - far, cy0, gx - 1, cy1)
+	end
+	if ring or dy > 0 then
+		band(gx, gy + H, gx + W - 1, gy + H + far - 1)
+	end
+	if ring or dy < 0 then
+		band(gx, gy - far, gx + W - 1, gy - 1)
+	end
+	return bx, by, br
+end
+
+-- Cast ahead until `deadline`; true when there was something to do (the pre-cast then waits). `ring`: standing too, the
+-- tiles all round the layer (SG.aheadNext).
+function SG.aheadStep(s: Surf, deadline: number, ring: boolean?): boolean
+	local A = SG.ahead
+	local t0 = SG.clock()
+	if not SG.tilesOk(s) then
+		return false
+	end
+	-- the way the view is going: the drawn pan's last move, held half a second
+	local tx, ty = CameraController.drawnPan()
+	local now = os.clock()
+	if A.lx ~= nil and A.ly ~= nil then
+		local mx, my = tx - A.lx, ty - A.ly
+		if mx ~= 0 or my ~= 0 then
+			A.dx, A.dy, A.at = math.sign(mx), math.sign(my), now
+		end
+	end
+	A.lx, A.ly = tx, ty
+	if now - A.at > 0.5 then
+		A.dx, A.dy = 0, 0
+	end
+	if A.view ~= s.view or A.ps == nil then
+		local n = PC.SIDE * PC.SIDE
+		A.ps = {
+			W = PC.SIDE,
+			H = PC.SIDE,
+			K = s.K,
+			view = s.view,
+			look = s.look,
+			skyRef = s.skyRef,
+			cam = s.cam,
+			sShade = buffer.create(n * 4),
+			sAlbedo = buffer.create(n * 4),
+			sDepth = buffer.create(n * 4),
+			sNormal = buffer.create(n),
+			sLit = buffer.create(n),
+			sId = buffer.create(n * 2),
+			sShare = buffer.create(n),
+			sWClass = buffer.create(n),
+			sWave = buffer.create(n),
+			m = 0,
+			vw = PC.SIDE,
+			vh = PC.SIDE,
+			ox = 0,
+			oy = 0,
+		}
+		A.view, A.cur = s.view, nil
+	end
+	-- (a tile the next scroll or two will want, Tuning.PixelAheadNearPx from the layer's edge, gets the frame's larger
+	-- budget: on ground not seen yet a walk needs more cast a frame than the plain budget gives)
+	local slow = deadline
+	local fast = math.max(deadline, t0 + Tuning.PixelAheadNearMs / 1000)
+	local did = false
+	-- (a ring's tile half cast is the ring's to finish on its own turn; once the view moves, a tile ahead comes first)
+	local held = A.cur
+	if not ring and held and held.ring then
+		if A.dx == 0 and A.dy == 0 then
+			return false
+		end
+		A.cur = nil
+	end
+	while true do
+		if A.cur == nil and not SG.aheadPick(s, ring) then
+			break
+		end
+		local cc = A.cur :: any
+		local gx, gy = s.cam.gx, s.cam.gy
+		local ox = if cc.g3 < gx then gx - cc.g3 elseif cc.g1 > gx + s.W - 1 then cc.g1 - (gx + s.W - 1) else 0
+		local oy = if cc.g4 < gy then gy - cc.g4 elseif cc.g2 > gy + s.H - 1 then cc.g2 - (gy + s.H - 1) else 0
+		local dl = if not ring and math.max(ox, oy) < Tuning.PixelAheadNearPx then fast else slow
+		if SG.clock() >= dl then
+			break
+		end
+		SG.aheadPiece(s, dl)
+		did = true
+	end
+	return did
+end
+
+-- Pick the look-ahead's next tile (SG.aheadNext); false when there is none to cast.
+function SG.aheadPick(s: Surf, ring: boolean?): boolean
+	local A = SG.ahead
+	if not ring and A.dx == 0 and A.dy == 0 then
+		return false
+	end
+	local ntx, nty, nr = SG.aheadNext(s, if ring then 0 else A.dx, if ring then 0 else A.dy)
+	if ntx == nil or nty == nil or nr == nil then
+		return false
+	end
+	local ox, oy = ntx * PC.TILE - PC.PAD, nty * PC.TILE - PC.PAD
+	A.ps.cam = Raster.gridCam(s.view.rot12, CameraController.gridAt(ox, oy), PC.SIDE, PC.SIDE, s.K, Tuning.CamRayBack)
+	local kx0, ky0, kx1, ky1 = nr[1] - ox, nr[2] - oy, nr[3] - ox, nr[4] - oy
+	local cx0, cy0 = math.max(0, kx0 - PC.PAD), math.max(0, ky0 - PC.PAD)
+	A.cur = { tx = ntx, ty = nty, phase = 1, x = cx0, y = cy0, epoch = SG.Tiles.epoch(), cx0 = cx0, cy0 = cy0, cx1 = math.min(PC.SIDE - 1, kx1 + PC.PAD), cy1 = math.min(PC.SIDE - 1, ky1 + PC.PAD), kx0 = kx0, ky0 = ky0, kx1 = kx1, ky1 = ky1, g1 = nr[1], g2 = nr[2], g3 = nr[3], g4 = nr[4], ring = ring == true }
+	return true
+end
+
+-- The look-ahead's tile going (SG.aheadPick) cast until `deadline` or done.
+function SG.aheadPiece(s: Surf, deadline: number): boolean
+	local A = SG.ahead
+	local ps = A.ps
+	local cc = A.cur :: { tx: number, ty: number, phase: number, x: number, y: number, epoch: number, cx0: number, cy0: number, cx1: number, cy1: number, kx0: number, ky0: number, kx1: number, ky1: number, g1: number, g2: number, g3: number, g4: number, ring: boolean }
+	local shadows = tierSpec(tier).shadows
+	local gx0, gy0 = ps.cam.gx, ps.cam.gy
+	local r0 = bakeRays
+	local n = 0
+	while cc.phase <= 2 do
+		n += 1
+		if n % 24 == 0 and SG.clock() >= deadline then
+			break
+		end
+		local gx, gy = cc.x + gx0, cc.y + gy0
+		if (gx % 2 == 0 and gy % 2 == 0) == (cc.phase == 1) then
+			castSample(ps, gx, gy, gx, gy, false, shadows)
+		end
+		cc.x += 1
+		if cc.x > cc.cx1 then
+			cc.x = cc.cx0
+			cc.y += 1
+			if cc.y > cc.cy1 then
+				cc.y = cc.cy0
+				cc.phase += 1
+			end
+		end
+	end
+	A.stats.rays += bakeRays - r0
+	if cc.phase == 3 then
+		A.cur = nil
+		if SG.Tiles.epoch() ~= cc.epoch then
+			-- (the ground under it changed while it was cast: it is cast again later if it is still wanted)
+			A.stats.dropped += 1
+			return true
+		end
+		if shadows then
+			refineShadows(ps, cc.cx0, cc.cy0, cc.cx1, cc.cy1)
+		end
+		-- (a sky drawn by the layer's height, not see-through, is not kept: as the pre-cast)
+		local keep = true
+		if not s.view.clear then
+			for y = cc.ky0, cc.ky1 do
+				for x = cc.kx0, cc.kx1 do
+					if buffer.readu16(ps.sId, (y * PC.SIDE + x) * 2) == 0 then
+						keep = false
+						break
+					end
+				end
+			end
+		end
+		if keep then
+			SG.Tiles.save(ps, gx0, gy0, cc.kx0, cc.ky0, cc.kx1, cc.ky1)
+			A.stats.tiles += 1
+		end
+	end
+	return true
+end
+
 ------------------------------------------------------------------ lifecycle
 local function frameStep(dt: number)
 	if not started or paused or tier == "off" then
@@ -5124,6 +5670,17 @@ local function frameStep(dt: number)
 	end
 	local s = surf
 	if s and not baking then
+		-- (whether this frame composes a whole tick of the moving models: the heavier frame, on which the work that can
+		-- wait a frame waits; frames between two ticks, which compose only for the view, take it)
+		local wasTick = SG.tickNow
+		SG.tickNow = needFull or SG.dynAcc + dt >= 1 / tierSpec(tier).hz
+		-- (every frame a tick, two running: a frame rate at or under the tier's hz, with no lighter frames to wait for)
+		SG.tickRun = SG.tickNow and wasTick
+		SG.frameNo += 1
+		-- (the last scroll's strips finished, on a frame between two ticks, or two frames on whatever: SG.finishStrips)
+		if SG.unfin and (not SG.tickNow or SG.frameNo > SG.unfinAt + 1) then
+			SG.finishStrips(s)
+		end
 		-- (the picture scrolls only when the view nears its edge, re-centred under it; the view's window moves every
 		-- frame: showWindow)
 		local tx, ty = CameraController.drawnPan()
@@ -5136,6 +5693,10 @@ local function frameStep(dt: number)
 			scrollToward(s, tx - m, ty - m)
 		end
 		showWindow(s)
+		-- (a strip the screen would show this frame is finished now, and one a frame old: the window may reach it next)
+		if SG.unfin and SG.unfinSeen(s) then
+			SG.finishStrips(s)
+		end
 		if stats.scrolls ~= before then
 			SG.panAt = os.clock()
 			stats.perf.panFrames += 1
@@ -5147,11 +5708,35 @@ local function frameStep(dt: number)
 		local i0 = SG.clock()
 		processInvalidation()
 		stats.perf.invMs += (SG.clock() - i0) * 1000
-		-- the frame's spare time: the next tier's picture, cast ahead (nothing else is waiting to be cast)
-		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and Tuning.PixelPreCastMs > 0 then
+		-- the frame's spare time (nothing else is waiting to be cast): while the view moves, the tiles past the edge it
+		-- moves toward (on a frame it did not scroll), else the next tier's picture, cast ahead
+		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and stats.scrolls == before then
 			local p0 = SG.clock()
-			PC.step(s, p0 + Tuning.PixelPreCastMs / 1000)
-			stats.perf.preMs += (SG.clock() - p0) * 1000
+			-- (moving: the margin on the side the view leaves goes into the pan cache now, so the scroll that takes it off
+			-- finds it kept and has nothing to save)
+			if Tuning.PixelPanLate and SG.unfin == nil then
+				SG.preSave(s)
+			end
+			-- (standing, the ring round the layer and the next tier's picture take turns, a frame each, while both have
+			-- something to cast)
+			-- (all of it on the frames between two ticks, with twice the time, but for the look-ahead's tiles the next
+			-- scroll or two wants: a tick's frame is the heavy one, so the work that can wait leaves it alone. With
+			-- every frame a tick, a slow frame rate, each gets the plain time)
+			local k = if not SG.tickNow then 2 elseif SG.tickRun then 1 else 0
+			if k > 0 then
+				SG.ringTurn = not SG.ringTurn
+			end
+			if Tuning.PixelAheadMs > 0 and SG.aheadStep(s, p0 + k * Tuning.PixelAheadMs / 1000) then
+				stats.perf.aheadMs += (SG.clock() - p0) * 1000
+			elseif k == 0 then
+				-- (a tick's frame: nothing more)
+			elseif SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, p0 + k * Tuning.PixelRingMs / 1000, true) then
+				stats.perf.aheadMs += (SG.clock() - p0) * 1000
+			elseif Tuning.PixelPreCastMs > 0 and PC.step(s, p0 + k * Tuning.PixelPreCastMs / 1000) then
+				stats.perf.preMs += (SG.clock() - p0) * 1000
+			elseif not SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, p0 + k * Tuning.PixelRingMs / 1000, true) then
+				stats.perf.aheadMs += (SG.clock() - p0) * 1000
+			end
 		end
 	elseif s then
 		-- (a re-bake behind the picture on screen: the view still moves within its margin)
@@ -5365,6 +5950,15 @@ function PixelRenderer.pixelScale(): number
 	return CameraController.pixelK()
 end
 
+-- The pan look-ahead's counts since the last call (previews): tiles cast and kept, cast and dropped (their ground
+-- changed meanwhile), rays.
+function PixelRenderer.debugAhead(): { tiles: number, dropped: number, rays: number }
+	local st = SG.ahead.stats
+	local out = table.clone(st)
+	st.tiles, st.dropped, st.rays = 0, 0, 0
+	return out
+end
+
 -- Whether the first picture is on screen (or the classic style shows the world), and the bake's progress 0..1.
 function PixelRenderer.firstPicture(): (boolean, number)
 	if tier == "off" then
@@ -5558,11 +6152,12 @@ end
 -- Moving model `model` is posed as `key` from now on (nil: it says no more): each pose's picture is kept, and posed in
 -- one it had again (its parts placed the same way round the point it glides from, PixelRenderer.glide) that picture is
 -- put down, slid to where it stands, in place of a draw. Say the key whenever the parts are posed.
-function PixelRenderer.pose(model: Model, key: string?)
+function PixelRenderer.pose(model: Model, key: string?, hold: boolean?)
 	local d = dyns[model]
 	if d then
 		d.poseKey = key
-		if key == nil then
+		-- (hold: posed in none of them now, but its pictures kept for when it is again: a founder between two walks)
+		if key == nil and not hold then
 			d.poses, d.poseOrder = nil, nil
 		end
 	end
@@ -6183,6 +6778,15 @@ end
 -- incremental compose (drawn without the tick's budget, then composed whole at once, the frames before the effects
 -- compared) and returns the last one's result: off, the pixels (colour or id) that differ (-1: none ran yet); ties,
 -- those where two models meet within the depth bias (the one put down first keeps them); px, the art px it redid.
+-- Previews: while on, every founder's rim put down from a kept picture is drawn from its parts as before, and the two
+-- silhouettes are compared (px: the parts' pixels, off: pixels in one and not the other, depth: in both, depth apart).
+function PixelRenderer.debugRimCheck(on: boolean?): { px: number, off: number, depth: number }
+	if on ~= nil then
+		Rims.check = on
+	end
+	return table.clone(Rims.checked)
+end
+
 function PixelRenderer.debugIncCheck(): { off: number, checked: number, px: number }
 	SG.incArm = true
 	return SG.incResult

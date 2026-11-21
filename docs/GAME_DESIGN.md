@@ -2813,7 +2813,20 @@ text (the requests and how each was met) is in the history of this file, up to c
   The view trailed a walking founder by 34 art px and took over half a second to come to rest once they stopped, its
   last few pixels coming 2, 4, then 8 frames apart, the island creeping in jerks. Now it trails by about 20 px, comes
   to rest in a fifth of a second, and never moves slower than a pixel a frame until it is there, so it stops cleanly
-  (`Tuning.CamFollowSecs` 0.12, `CamFollowMinPx` 60; the preview `stop` measures it). On
+  (`Tuning.CamFollowSecs` 0.12, `CamFollowMinPx` 60; the preview `stop` measures it). Then (2026-11-21): "its still
+  laggy and stutters. what is the most performance intensive thing the camera needs when scrolling?" and "optimize
+  it, find ways until you manage to reduce the frame speed close to the frame speed while standing without
+  scrolling". The heaviest part was casting the ground coming into view in the frame the picture moved, and every
+  frame of a walk was a whole frame of the island's life, twice the work of a frame standing. Now: the frames between
+  two of the island's ticks redraw only your founder; your founder's walk steps through 16 poses a stride, each drawn
+  once and slid along after, its white outline taken from that picture; the ground just ahead is cast a few ms a frame
+  before you reach it, and standing still casts the ground all round you, so a walk starts on ground already done;
+  the picture moves in one block copy, takes a whole step when the ground coming in is kept, and the new ground is
+  finished on the next frame, while it is still past the edge of the screen; the background casting waits for the
+  lighter frames. In the preview's emulator (`scrollcost`), the pixel filter's work in a frame while walking over ground
+  seen before went from 15.5 ms on average (26.1 at the 90th percentile, 43.7 at worst) to about 11 to 12 (18 to 21,
+  27 to 39), against about 8 (15) standing; on new ground from 24.6 (50.0, 96.8) to about 18 (27 to 29, 39 to 45). The picture is now kept 14 art px past
+  each edge of the screen (from 12) and moves once the view comes within 4 px of its edge (from 2). On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

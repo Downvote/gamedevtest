@@ -225,6 +225,7 @@ local function hide(char: Model)
 end
 
 local still = false -- (previews: debugStill)
+local YAW_STEPS = 32 -- the ways a founder can face
 
 local function drop(pl: Player)
 	if pl == Players.LocalPlayer then
@@ -342,6 +343,8 @@ local function step(dt: number)
 		if pl == me and override then
 			-- (a cutscene poses the own founder: its tag steps aside)
 			(override :: (CharacterModels.Rig, number, number) -> ())(rec.rig, t, dt)
+			PixelRenderer.pose(rec.rig.model, nil, true)
+			PixelRenderer.glide(rec.rig.model, nil, nil)
 			CameraController.setDrawn(nil)
 			rec.tag.frame.Visible = false
 			rec.last = nil
@@ -358,16 +361,21 @@ local function step(dt: number)
 		local fwd = root.CFrame.LookVector
 		local flat = Vector3.new(fwd.X, 0, fwd.Z)
 		local yaw = if flat.Magnitude > 1e-3 then math.atan2(flat.X, flat.Z) else 0
+		-- (faced one of YAW_STEPS ways: a founder walking on in one direction steps through the same few poses, whose
+		-- pictures the pixel filter keeps, PixelRenderer.pose)
+		local yawStep = math.floor(yaw / (2 * math.pi) * YAW_STEPS + 0.5)
+		yaw = yawStep * 2 * math.pi / YAW_STEPS
 		local fy, airborne = feetY(rec, char, root)
 		local mine = pl == me
-		local at = Vector3.new(pos.X, fy, pos.Z)
+		-- (every founder on a whole art px of the view's grid, so a kept picture slides on by whole px; the own one's
+		-- point told to the camera: the layer's window is put from it, so the founder keeps still on the screen as they
+		-- walk; the report of 2026-11-21, "the camera now stutters the player as they walk")
+		local at = CameraController.snapGround(Vector3.new(pos.X, fy, pos.Z))
 		if mine then
-			-- (the own founder on a whole art px of the view's grid, and the camera told where: the layer's window is put
-			-- from it, so the founder keeps still on the screen as they walk; the report of 2026-11-21, "the camera now
-			-- stutters the player as they walk")
-			at = CameraController.snapGround(at)
 			CameraController.setDrawn(at)
 		end
+		PixelRenderer.glide(rec.rig.model, at, at)
+		local walkKey: string? = nil
 		local base = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 		-- (the own founder's feet are heard: library sounds in place of Roblox's own, which RbxCharacterSounds turns off)
 		if airborne then
@@ -406,6 +414,10 @@ local function step(dt: number)
 			elseif still then
 				-- (previews: standing, so a probe follows where the picture goes and nothing else)
 				CharacterModels.poseFounder(rec.rig, base, 0, 0, 0, false, true, 0)
+				walkKey = "still"
+			elseif squash == 0 and not asleep and rec.speed > CharacterModels.WALK_MIN then
+				-- (walking: on one of the stride's steps, which says the pose)
+				walkKey = CharacterModels.poseWalkStep(rec.rig, base, t, rec.speed)
 			else
 				CharacterModels.poseFounder(rec.rig, base, t, rec.speed, rec.idle, asleep, quietMotion(), squash)
 			end
@@ -416,6 +428,9 @@ local function step(dt: number)
 				rec.zAt = t + 1
 			end
 		end
+		-- the pose told to the pixel filter: a walking step with the way it faces and its height, or none (the steps'
+		-- pictures kept for the next walk)
+		PixelRenderer.pose(rec.rig.model, if walkKey then string.format("%s.%d.%d", walkKey, yawStep % YAW_STEPS, math.floor(at.Y * 32 + 0.5)) else nil, true)
 		-- a walk kicks up a puff of dust now and then, a run more often (in water: splashes)
 		if not airborne and rec.speed > 6 and t >= rec.dustAt and rec.floor == "water" then
 			rec.dustAt = t + (if rec.speed > 14 then 0.14 else 0.24)

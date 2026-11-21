@@ -310,11 +310,12 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
-  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (12: art px of picture kept past each screen edge) and
-  `PixelPanEdge` (2: the window's distance from the layer's edge that scrolls it), `PixelPanCacheTiles` (768: the pan
-  cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
-  drawing models afresh), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
+  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (14: art px of picture kept past each screen edge; 12 until 2026-11-21) and
+  `PixelPanEdge` (4: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21), `PixelPanLate`
+  (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
+  Pans), `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
+  drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
   `SeasonSecs` (9000: a season, a whole number of spells), `WeatherSecs` (600: a spell), `WeatherTouch` (the chance an
@@ -405,7 +406,9 @@ Models (`src/shared/Models`, Roblox modules):
   scratch, hum, rock, stretch, look) for `FIDGET_LEN` 2.4 s at the start of each `FIDGET_SEC` 6.5 s slot, picked by
   the slot and the seed, none begun before the rig stood still; or the doze: the head nodding down over 85% of
   `NOD_SEC` 3.05 s and back up, the body sagging, the arms hanging, "sleep" and at the bottom "snore"; a landing's
-  crouch by `squash`),
+  crouch by `squash`), `poseWalkStep(rig, base, t, speed) -> key` (the walk on the step of its stride nearest `t`,
+  `WALK_STEPS` 16 a stride, its strength in 8 grades, the worn pieces' loop step in the key: the same key always
+  places the parts the same way round `base`, for the renderer's kept pictures),
   `poseAction(rig, base, t, speed, action, k?)` (`cheer hurt swing reach pet cast jump sneak dance`, `swim` (nobody swims since the sea went on
   2026-11-20; kept: a crawl when `speed` > 1, the arms turning over in turn and the legs kicking, leaning 30°; else treading
   water, the arms sweeping out and back with a slow bob), the
@@ -1365,9 +1368,10 @@ founder pixel for pixel and they keep still on the screen; it moves at most what
 is where the screen is: the renderer shows it as a window of a picture kept past the screen's edges and scrolls that
 picture only when the window nears its edge (9.3, the window). **The founder held still** (the report of 2026-11-21,
 "the camera now stutters the player as they walk"): the follow notes the founder's ground point (`fGX, fGY`) and where
-it lands on the screen (`lockX, lockY` = its point less the follow's place, rounded, each frame); AvatarView puts the own
+it lands on the screen (`lockX, lockY` = its point less the follow's place, rounded, each frame); AvatarView puts every
 founder's rig on a whole art px of the grid (`snapGround(p)`: p moved across the ground, x and z, so its ground point
-at the follow's height rounds exactly; solved from the grid's slopes) and says where (`setDrawn(p)`, nil when it has
+at the follow's height rounds exactly; solved from the grid's slopes; the own one's only until 2026-11-21, when the
+others' followed so their walking steps' pictures slide by whole px) and, for the own one, says where (`setDrawn(p)`, nil when it has
 none or a cutscene poses it); `drawnPan()` is that point's grid px less the lock, so the founder as drawn this frame
 lands exactly where the follow wants it whichever of RenderStepped, AvatarView's Heartbeat and the renderer's runs
 first (the rig between pixels, and drawn a frame after the follow had moved, fell a pixel off now and then and back
@@ -1469,14 +1473,14 @@ layer px), `debugShadowCheck() -> { high, darkened, ground, shadows }` (the blob
 those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **The window** (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it smooth and lerp
-  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (12) all round (`marginOf`, on a
+  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (14; 12 until 2026-11-21) all round (`marginOf`, on a
   stage too, so the island's kept picture and a stage's are one size and the stash comes back; `layerCam(v, gx, gy,
   K)`: the grid camera of a layer whose top-left is global art px (gx, gy), the full size given half a pixel short of
   the whole count so `Raster.cam`'s ceil adds none). `Surf.m` is the margin, `vw`, `vh` the screen's size and `ox`,
   `oy` where the screen stands in the layer (`showWindow(s)`, every step: `CameraController.pan()` less the layer's
   top-left, clamped to the picture), shown through the image's `ImageRectOffset` / `ImageRectSize` (the label stays the
   screen's size at 0, 0; an Offset is whole units, a pixel 2.4 at 125%). The layer scrolls only once the window comes
-  within `Tuning.PixelPanEdge` (2) of its edge, re-centred under it (`scrollToward(s, pan - m)`, at most
+  within `Tuning.PixelPanEdge` (4; 2 until 2026-11-21: the step leaves a gap between the screen and the strips coming in, which can then wait a frame, Pans) of its edge, re-centred under it (`scrollToward(s, pan - m)`, at most
   `PixelPanRays` a frame as before), so a walk shifts, composes and uploads the whole picture once every 3 to 4 frames,
   not every frame; between, nothing but the window moves (and the moving models, composed incrementally). `project`
   gives screen px (`(layer px - ox) * K`), so `projectPixel` and the World canvas are unchanged; `screenRay` adds the
@@ -1488,14 +1492,25 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   less where the follow wants the founder on the screen. The `pan` probe (walking at 60 frames a second): 61 frames scrolled of 240 (all before), a frame 17 ms
   (23) on new ground and 13 (20) over the pan cache, frames over 25 ms 51 and 28 (78 and 41).
 - **Pans** (when the window nears the layer's edge): when the re-centred pan differs from the layer's, every static
-  buffer shifts by whole art px (`buffer.copy`, overlapping rows) and the uncovered strips are cast by the bake's last pass (each 2x2 block's
-  even-even anchor first with its sun ray, then the pixels sharing it), their shadow edges refined once all of them are
-  in (`castRect(..., noRefine)`, then `refineShadows` over each strip and a pixel round it), re-outlined with a pixel
-  round them and their water set to the frame now (`SG.waterFix`); at most `Tuning.PixelPanRays` rays a frame (a
-  longer pan catches up over frames); a pan of half the layer or more re-bakes at the new pan behind the old picture.
-  Composing incrementally, the finished frame, its base, the image's graded copy and last tick's effect pixels shift
-  with the layer (`SG.panShift`; the sticky pixels come off first, `SG.unstickFrame`, as the pan drops them) and the
-  strips, with 3 px round them, go in as the static picture alone (`SG.strips`); otherwise the next compose copies the
+  buffer shifts by whole art px (`shift`: one `buffer.copy` of the whole buffer by the pixel offset; a pixel whose
+  source lay past the side of its row gets the next row's, and those are the strips coming in, always written afresh;
+  it was a copy a row until 2026-11-21) and the uncovered strips are copied from the pan cache or cast by the bake's last pass (each 2x2 block's
+  even-even anchor first with its sun ray, then the pixels sharing it, `castRect(..., noRefine)`); at most `Tuning.PixelPanRays` rays a frame (a
+  longer pan catches up over frames), but a step whose strips the pan cache holds whole (`SG.stripsHeld(s, dx, dy)`)
+  is taken whole, the view back in the middle of its margin; a pan of half the layer or more re-bakes at the new pan behind the old picture.
+  The strips are then finished (`SG.finishStrips(s, now?)`): their shadow edges refined (`refineShadows` over each
+  strip and a pixel round it), re-outlined with a pixel round them, their water set to the frame now (`SG.waterFix`)
+  and graded (`SG.rect`). Composing incrementally with `Tuning.PixelPanLate` on (the request of 2026-11-21, "reduce
+  the frame speed close to the frame speed while standing without scrolling"), that waits: the strips lie in the
+  margin past the screen's edge, so they are kept in `SG.unfin` (with the frame they came on, `SG.unfinAt`) and
+  finished at the start of the next frame that is not a tick's (`SG.tickNow`), at the latest two frames on, at once
+  if the window would show one or the old pixel beside it (`SG.unfinSeen(s)`, after `showWindow`), before the next
+  scroll, and before a whole compose; the next compose then draws them (`SG.strips`) and sends them up as rects
+  (`lateUp`). Meanwhile `Fx.Ctx.wait` lists them, and a lawn tuft whose foot stands in one waits a tick before reading
+  its green (AmbientView). Before a scroll, on a quiet frame once a scroll, the margin on the side the view leaves goes
+  into the pan cache (`SG.preSave`), so the scroll finds it kept. Composing incrementally, the finished frame, its base, the image's graded copy and last tick's effect pixels shift
+  with the layer (`SG.panShift`; the sticky pixels come off first, `SG.unstickFrame`, as the pan drops them; strips
+  already queued move with it) and the strips, with 3 px round them, go in as the static picture alone (`SG.strips`); otherwise the next compose copies the
   whole static layer and uploads the whole image.
 - **The see-through sky round the islands** (the request of 2026-11-20: "Never mind, make it a floating island instead,
   with a 2d skybox. Expanding makes the island bigger."): the islands' view is `clear` (CameraController), so a pixel
@@ -1511,7 +1526,13 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   pixel at a global art px is the same wherever the view stands. The strips a pan is about to scroll off are kept in
   tiles of `PanCache.TILE` (32) x 32 global art px (`save(bufs, gx0, gy0, x0, y0, x1, y1)`: each channel the cast
   writes, `sShade sAlbedo sDepth sNormal sLit sId sShare sWClass sWave`, in its own plane, a byte a pixel saying it is
-  good; 20 bytes a pixel), all but what a queued or running re-cast still covers (`SG.pendingOver`). A strip coming on
+  good; 20 bytes a pixel), all but what a queued or running re-cast still covers (`SG.pendingOver`). The byte is 1 for
+  a pixel saved from the layer's own edge, whose shadow edge was refined without the neighbours past it, and 2 for one
+  saved from inside: a later save from inside takes a weak pixel's place, a weak one never takes a kept pixel's, and a
+  row the tile holds already as well is left alone (whatever changed under it dropped it), so a walk back and forth
+  no longer saves the same strips over and over. `Tile.n` counts a tile's kept pixels, so `okRect(gx0, gy0, gx1, gy1)`
+  (whether every pixel of a global rect is kept), `full` and `load` tell a whole tile at once; `epoch()` counts the
+  drops and clears (a tile cast over several frames is kept only if it has not moved meanwhile). A strip coming on
   is cut along the tiles (`split`) and each piece the cache holds whole is copied in (`load -> boolean`), the rest
   cast; the ink, the contact shade and the water are drawn again over both. `queueRect` drops the tiles under its rect
   (`drop(gx0, gy0, gx1, gy1)`, on the layer or off it); a bake of the island's own view (not a stage's: the hatch scene
@@ -1521,6 +1542,25 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   pan preview's square a second time, the strips' cast went from about 21 ms a frame to under 2. `PanCache.new()` makes another
   store with the same functions (the next tier cast ahead), `take(tx, ty)` / `put(tx, ty, tile)` move a whole tile
   between stores, `full(tx, ty)` and `keys()`.
+- **The look-ahead and the ring** (`SG.ahead`, `SG.aheadStep(s, deadline, ring?)`, `SG.aheadPick`, `SG.aheadPiece`,
+  `SG.aheadNext(s, dx, dy)`; the user's question of 2026-11-21, "what is the most performance intensive thing the
+  camera needs when scrolling?", and the request after it, "optimize it, find ways until you manage to reduce the
+  frame speed close to the frame speed while standing without scrolling"). In the frame's spare time (no bake, no
+  re-cast waiting, no scroll this frame) the pan cache's tiles past the layer are cast on a small layer of their own
+  (`PC.SIDE`, as the pre-cast does; a tile's piece and `PC.PAD` px round it, its shadow edges refined, the piece kept
+  unless the cache's epoch moved or it shows open sky on a view that is not see-through). Moving (the drawn pan's way,
+  held half a second): the bands `Tuning.PixelAheadPx` deep on the sides the view moves toward, nearest the edge and
+  the middle of the side first, `PixelAheadMs` a frame, but `PixelAheadNearMs` for a tile within `PixelAheadNearPx`
+  of the edge (the next scroll or two wants it). Standing, once the move has stopped: the ring all round the layer,
+  corners too, `PixelRingPx` deep, `PixelRingMs` a frame, taking turns with the next tier's pre-cast while both have
+  something to cast (`SG.ringTurn`; `PC.step` says whether it had any). A tick's frame (`SG.tickNow`) gives none of
+  this work time but the near tiles; the frames between ticks get twice the time; with every frame a tick (a frame
+  rate at or under the tier's hz, `SG.tickRun`), each gets the plain time. `PixelRenderer.debugAhead() ->
+  { tiles, dropped, rays }`. The `scrollcost` preview (with the lite compose, the founders' kept steps, the late
+  strips and the rest of 9.3): walking east over ground not seen yet and back over it, the renderer's step went from
+  24.6 ms a frame on average (50.0 at the 90th percentile, 96.8 at worst) to about 18 (27 to 29, 39 to 45) on new
+  ground and from 15.5 (26.1, 43.7) to about 11 to 12 (18 to 21, 27 to 39) over ground seen before, standing from 8.8
+  (19.3) to about 8 (15); the simulator's rays are much slower than Roblox's own.
 - **The next tier, cast ahead** (`PC`, the request of 2026-11-20: "Is there a way to make island expansion seamless,
   with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?").
   The player's next island stands staged in the world (PlotService: `workspace.Staged.Plot_<i>`, collision groups
@@ -1577,11 +1617,17 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   last (`SG.offPic`; one that has not moved since needs none); past the budget a model shows its kept picture a tick
   longer where it last stood. A kept picture slides with its model (`PixelRenderer.glide`: `Dyn.gNow`, where the model
   stands now, and `DynCache.anchor`, where its parts stood when it was drawn). A model that says its pose
-  (`PixelRenderer.pose(model, key)`: `Dyn.poseKey`) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
-  most `POSE_KEEP` 32, the oldest first out: `poseOrder`), and posed in one it had, `SG.blitOk` takes that picture for
+  (`PixelRenderer.pose(model, key, hold?)`: `Dyn.poseKey`; nil with `hold` keeps the pictures for the next time) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
+  most `POSE_KEEP` 48, the one used longest ago first out: `poseOrder`), and posed in one it had, `SG.blitOk` takes that picture for
   its parts as they are now (a copy with their CFrames, `DynCache.from` the original) and slides it to where it stands
-  in place of a draw: the hatch scene's egg, rocking and wobbling through the same few poses (the user's report of
-  2026-11-21, "it still is pretty laggy while hatching, even when the egg is dropping down"). `SG.glideOf` gives the whole art px
+  in place of a draw, however far it has gone since (its rect is tested on the layer where it slides to): the hatch scene's egg, rocking and wobbling through the same few poses (the user's report of
+  2026-11-21, "it still is pretty laggy while hatching, even when the egg is dropping down"), and every founder
+  walking, stepping through its stride's steps (AvatarView, `CharacterModels.poseWalkStep`; the request of
+  2026-11-21, "reduce the frame speed close to the frame speed while standing without scrolling": a founder walking
+  was drawn afresh every frame). A founder's white rim drawn over a picture put down is that picture's silhouette
+  (`Rims.fromPic`: its pixels' ids and depths, the slide's depth added), not its parts drawn again (`Rims.pics` beside
+  `Rims.list`, `SG.addRect(..., pic)`); `debugRimCheck(on?) -> { px, off, depth }` draws it both ways and counts the
+  pixels the silhouettes differ by (the `rimcheck` preview: none in 373,628). `SG.glideOf` gives the whole art px
   across and down and the depth to add, the picture goes down there (`SG.blitAt(..., dz)`), its blob shadow moves by
   the same px, and an incremental compose takes a picture shown at another place or depth as changed (`Dyn.shDz`).
   (The request of 2026-11-18, "make it such that overworld creatures move smoother": on a busy island a walker was
@@ -1619,6 +1665,16 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `debugWaterCheck() -> { off, checked, wind }` (the water pixels showing a tone not the frame's, and the pixels the
   wind has painted). The `pan` preview walks the founder round a square twice (the second time over ground the pan
   cache has kept), then stands, and reports them.
+- **The lite compose** (`SG.incCompose(s, false)` with `Tuning.PixelLiteFollow`; the request of 2026-11-21, "reduce
+  the frame speed close to the frame speed while standing without scrolling"): a frame between two of the tier's
+  ticks composed only because the view's window moved (to keep the founder still on the screen) draws the founders
+  where they stand now and leaves the rest as they were: `SG.plan(..., lite)` gives every other model its picture and
+  blob shadow where they showed (nothing marked), no band is swept, the effects do not run (last tick's pixels are
+  noted and put back over whatever is drawn again) and only the founders' tiles and any strips are redone. A walk's
+  frame was a whole tick every frame, twice the work of a frame standing. `debugIncCheck`'s compose is always a whole
+  tick. `debugPerf` adds `liteMs`/`liteFrames` and `tickMs`/`tickFrames`, `planMs`, `restoreMs`, the models drawn by
+  kind (`ownDraws`, `rimDraws`, `otherDraws` and their `...DrawMs`), and the scroll's `saveMs`, `shiftMs`, `loadMs`,
+  `refineMs`, `rectMs`, `panShiftMs`, `lateMs` (strips finished a frame later) and `preSaveMs`, besides `aheadMs`.
 - **The incremental compose** (`SG.incCompose`; the stress test of 2026-11-17, "do a stress test with the maximum
   amount of decor and buildings at the highest expansion level. Try walking around to move the camera. It should be
   smooth. If not, find ways to optimize it"): a whole compose puts every moving model back over the static picture and
@@ -1811,7 +1867,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   frame: the frame (colour, depth, ids), its camera, the static buffers (`sColor`, `sId`, `sNormal`, `sAlbedo`,
   `sDepth`, `sWClass`), art px per stud (`ppu`), `ver` (`staticVer`, bumped by `staticChanged()` at every bake's end,
   scroll step, finished re-cast, stash return and new layer: what a layer works out from the static picture may be
-  kept until it changes), `now`, `dt` (clamped to 0.25), `idOf(part)` and its book of written pixels. Effects write
+  kept until it changes), `wait` (the strips a scroll brought in whose `sColor` is not finished yet, 9.3 Pans: what
+  reads it there waits a tick), `now`, `dt` (clamped to 0.25), `idOf(part)` and its book of written pixels. Effects write
   colour only (`Fx.put`; a light's pixel also writes `Fx.GLOW_ID`, 65535, which `isGlow` treats as Neon, so the
   night's grade keeps its colour). A see-through effect (`Fx.mix`, a faded sprite) goes on with `Fx.blendOver(over,
   under, a)`: over an opaque pixel the usual mix (`Fx.blend`); over the clear sky (alpha 0, where the painted sky
@@ -2389,6 +2446,12 @@ hatch scene; hidden too while a cutscene poses the own rig), placed over `Charac
 hat, worked out once a rig) every frame. `founderPos()`, `count()`, `lookOf(player)`, `debugTag(player) -> (name?,
 title?, shown)`, `debugRig(player) -> (rig?, outlined)` (CLI checks), `setOverride(fn?)` (a cutscene poses the own rig
 instead: `fn(rig, t, dt)` every frame; nil gives it back).
+Walking (the request of 2026-11-21, "reduce the frame speed close to the frame speed while standing without
+scrolling"): a founder faces one of `YAW_STEPS` (32) ways and, on the ground faster than `CharacterModels.WALK_MIN`
+(0.8 studs a second) with no landing's crouch, is posed by `CharacterModels.poseWalkStep(rig, base, t, speed) -> key`
+on one of its stride's steps; AvatarView tells the renderer that key with the way it faces and its height
+(`PixelRenderer.pose(model, key, true)`; nil, the pictures kept, for anything else) and where it stands
+(`PixelRenderer.glide(model, at, at)`), so each step is drawn once and its picture slid along after (9.3).
 Standing about (GAME_DESIGN 9, the request of 2026-11-15): each record counts `idle` (seconds on the ground slower than
 1.5 studs a second; 0 walking, jumping or in a cutscene) and poses the rig with
 `CharacterModels.poseFounder(rig, base, t, speed, idle, dozing, quiet, squash)`: `dozing` once `idle` passes

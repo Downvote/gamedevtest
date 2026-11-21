@@ -39,6 +39,9 @@ export type Ctx = {
 	ppu: number, -- art px per stud along the screen axes
 	ver: number, -- changes whenever the static picture does (a bake, a scroll, a re-cast): what is worked out from
 	-- it may be kept until then
+	-- layer rects a scroll brought in whose colours (sColor) are not finished yet (the ink and the water a frame or two
+	-- later: PixelRenderer's SG.finishStrips); what reads sColor there waits for a later tick (nil: none)
+	wait: { { x0: number, y0: number, x1: number, y1: number } }?,
 	now: number, -- os.clock() of this tick
 	dt: number, -- seconds since this layer's previous tick (clamped to 0.25)
 	idOf: (inst: any) -> number, -- static id of a part in the bake (0 when it is not drawn)
