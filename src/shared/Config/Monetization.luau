@@ -113,14 +113,16 @@ local Monetization = {
 		Thunder = 9120017047, -- Thunder Distant Boom Thud Rapid Hits 5
 	} :: { [string]: number },
 	-- Background music (Audio.music): APM Music's library on the Creator Store (free), chosen by measuring each track
-	-- (downloaded and analysed: notes a second, the percussive share, the beat's strength, the loudness section by
-	-- section) for calm, drumless, even music that sits in the background: soft acoustic island guitar by day, soft
-	-- piano at night. `gain` evens their loudness out (to about -26 dB).
+	-- (downloaded and analysed: notes a second, the percussive share, the beat's strength, the low end, the loudness
+	-- section by section) for calm, drumless, even music that sits in the background. By day, since the request of
+	-- 2026-11-21 ("find a more fitting, calm track for the music in the roblox library"), slow airy music written for
+	-- aerial scenery and a soft solo piano, for islands floating in the sky (the acoustic guitar of an island in the
+	-- sea went); soft piano at night. `gain` evens their loudness out (to about -27 dB with Audio's own volume).
 	Music = {
 		day = {
-			{ id = 1842924737, gain = 0.66 }, -- Campfire Stories (slide guitar, ambient, tender)
-			{ id = 1842181663, gain = 0.9 }, -- Tender Reflection (acoustic guitar, harp)
-			{ id = 9038622919, gain = 0.55 }, -- Home Camp (Acoustic Guitar Version)
+			{ id = 1837580927, gain = 0.85 }, -- Pastoral Meditation (Scenic Flight / Above and About)
+			{ id = 1837580622, gain = 0.85 }, -- Northern Lights (Scenic Flight / Above and About)
+			{ id = 86521961943604, gain = 1.05 }, -- Blooming Moments (Solo Piano Version, Drifting Spaces)
 		},
 		night = {
 			{ id = 9045766377, gain = 1.4 }, -- Gymnopedie No. 1 (solo piano)

@@ -3282,14 +3282,27 @@ reason.
   The islands and the sea: a hammer on wood when a wooden piece goes up, gulls squawking as a flock passes over, the
   surf on the sand always and birds now and then (the crickets went with the night, 2026-11-14).
 - **Music** (`Audio.music`): APM Music's library on the Creator Store, shuffled, one track after another, crossfaded,
-  quiet: calm, drumless music that sits in the background. Soft acoustic island guitar by day (Campfire Stories,
-  Tender Reflection, Home Camp), soft solo piano from the twilight (Gymnopedie No. 1, two Live Piano Stories), each
-  evened out to the same loudness. Chosen by measuring the tracks (notes a second, the drums' share, the beat's strength, the
-  loudness section by section), not by their names. The Settings panel's Music switches it off and on. It plays at
-  twice the volume it first had ("make the music louder", 2026-11-14).
+  quiet: calm, drumless music that sits in the background. The day list, which is what plays: slow airy music for
+  islands floating in the sky, Pastoral Meditation and Northern Lights (from Scenic Flight / Above and About, an album
+  written for aerial scenery) and Blooming Moments (Solo Piano Version). A night list of soft solo piano (Gymnopedie
+  No. 1, two Live Piano Stories) is kept but unused since the day and night cycle went. Each track is evened out to
+  the same loudness. Chosen by measuring the tracks (notes a second, the drums' share, the beat's strength, the low
+  end, the loudness section by section), not by their names. The Settings panel's Music switches it off and on. It
+  plays at twice the volume it first had ("make the music louder", 2026-11-14).
 
   > The requests (2026-11-10): "also, find cozy background music"; "the background track is too upbeat and noisy.
   > find one that would fit well as background noise and is cozy"
+
+  > The request (2026-11-21): "find a more fitting, calm track for the music in the roblox library"
+
+  The day's acoustic guitar (Campfire Stories, Tender Reflection, Home Camp) suited an island in the sea, and two of
+  the three had a steady strum and a heavy low end. The Creator Store was searched for harp, music box, soft piano,
+  ambient, dreamy, floating, clouds, sky and soft strings (about 900 of APM's free tracks came up), and 73 likely ones
+  were downloaded and measured. The three now playing are the calmest that still move: about 1.9 to 2.4 notes a
+  second, a weak pulse (a beat strength of 0.17 to 0.26, against 0.36 and 0.47 for Home Camp and Campfire Stories),
+  little percussion (5 to 10 percent of the energy), a light low end (under 0.18 of the energy, against 0.33 and
+  0.43), loudness within about 3 dB from one 20 second section to the next, and long (151 to 217 seconds) so a loop
+  comes round less often.
 
 ### 11.1 The game's thumbnails (`art/thumbnails/`, `tools/preview/game_thumbs.sh`)
 

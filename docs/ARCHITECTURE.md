@@ -1241,7 +1241,7 @@ wind). `music(mood?)`: the background music, a mood's playlist of
 `Monetization.Music` ("day", "night"; nil: quiet) shuffled once and played round, track after track
 (`Music_<mood>` Sounds at `MUSIC_VOL` (0.4, twice the 0.2 it was since "make the music louder", 2026-11-14) times the track's `gain`); a change of mood and each track's last `MUSIC_FADE` seconds crossfade (a track
 that ends early hands on at `Ended`); a mood still fading out fades back in when asked again. `setMusicOn(on)` fades
-it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mood every frame (night from 0.74 of the day to the dawn, else day) and `on` from
+it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mood every frame (always "day" since the day and night cycle went; "night" is kept for a later use) and `on` from
 `settings.music`.
 
 ## 9. The pixel filter and the camera
