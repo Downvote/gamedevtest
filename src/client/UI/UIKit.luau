@@ -1378,6 +1378,11 @@ function UIKit.currentPanel(): string?
 	return openName
 end
 
+-- The open panel's frame (nil when none is open): what a tip's arrow looks for in it (UI/Hud, UI/TutArrow).
+function UIKit.currentPanelFrame(): Frame?
+	return openFrame
+end
+
 -- How many times a panel has been opened: a panel takes its argument's tab once an opening (UIKit.refreshPanel builds
 -- it again with the same argument, after the player may have picked another tab).
 function UIKit.openCount(): number

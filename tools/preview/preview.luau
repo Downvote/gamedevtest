@@ -378,6 +378,77 @@ function SCEN.island()
 	return p
 end
 
+-- "tips": the tips walked through with their arrow (UI/TutArrow; the request of 2026-11-22: "for the tutorial, make an
+-- arrow pointing to whatever is required, like an arrow pointing to the build button"), a frame and a log line a step:
+-- the hut's tip (tips_hut: at Build; tips_hut_build: Build mode open, at the hut's card), the egg's (tips_tree: over
+-- the Tree of Life; tips_tree_panel: its panel open, at the first egg's button), the workplace's (tips_work,
+-- tips_work_build: the tray turned to the best workplace's row, at its card), the last tip's OK (tips_last), then the
+-- first quest done (tips_claim: at Claim).
+function SCEN.tips()
+	local Plot = H.sharedServer("Logic.Plot")
+	seedProfile(3, 1, { pals = {}, tut = Plot.TIP_HUT, shells = 900 })
+	local p = join(3, "Wren")
+	settle(p, 30, 1)
+	E.run(1)
+	local TA = modOr(p, "UI.TutArrow")
+	local UIK = modOr(p, "UI.UIKit")
+	local prof = H.profile(p)
+	local function shot(label)
+		E.run(0.4)
+		local d = if TA then H.inClient(p, TA.debug) else {}
+		log("tips %s: the arrow %s, pointing %s at %s (%d, %d)", label, if d.shown then "shown" else "hidden", d.dir or "", d.target or "", d.x or 0, d.y or 0)
+		capture(p, "tips_" .. label)
+	end
+	local function step(tut)
+		prof.tut = tut
+		H.push(p, 0.4)
+		settle(p, 10, 0.5)
+	end
+	shot("hut")
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 10, 0.5)
+	shot("hut_build")
+	H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
+	step(Plot.TIP_HATCH)
+	shot("tree")
+	if UIK then
+		H.inClient(p, function()
+			UIK.openPanel("tree")
+		end)
+	end
+	shot("tree_panel")
+	if UIK then
+		H.inClient(p, UIK.closePanel)
+	end
+	step(Plot.TIP_WORK)
+	shot("work")
+	H.clickNamed(p, "Menu_build", { optional = true, wait = 0.5 })
+	settle(p, 10, 0.5)
+	shot("work_build")
+	H.clickNamed(p, "BuildDone", { optional = true, wait = 0.3 })
+	step(Plot.TIP_LAST)
+	shot("last")
+	-- the tips over and the first quest (four huts) done: its Claim
+	for _, at in { { -11, 5 }, { -5, -3 }, { -8, 1 }, { -7, 11 } } do
+		local done = false
+		for r = 0, 8 do
+			for dz = -r, r do
+				for dx = -r, r do
+					if not done and Plot.fits(1, prof.plot.placed, "nest", at[1] + dx, at[2] + dz, 0) then
+						table.insert(prof.plot.placed, { uid = prof.nextId, id = "nest", x = at[1] + dx, z = at[2] + dz, rot = 0, lvl = 1 })
+						prof.nextId += 1
+						done = true
+					end
+				end
+			end
+		end
+	end
+	prof.quest = 1
+	step(0)
+	shot("claim")
+	return p
+end
+
 -- A tier-1 village a dozen days in: driftlings at work and hopping about, the island card.
 function SCEN.village()
 	seedProfile(2, 1, { pieces = VILLAGE, pals = { "clawdle", "mossbun", "pebblit" }})

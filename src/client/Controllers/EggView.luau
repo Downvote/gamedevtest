@@ -38,6 +38,7 @@ local UIKit = require(script.Parent.Parent.UI.UIKit)
 local PixelSprites = require(script.Parent.Parent.UI.PixelSprites)
 local Words = require(script.Parent.Parent.UI.Words)
 local HatchScene = require(script.Parent.Parent.UI.HatchScene)
+local TutArrow = require(script.Parent.Parent.UI.TutArrow)
 
 local EggView = {}
 -- (what a hatch refused for shells does: UI/Menus sets it to StoreUI.eggInstead, the egg for Robux instead)
@@ -687,8 +688,8 @@ end
 -- The tips' hatching step (Plot.TIP_HATCH): an arrow bobbing over the own Tree of Life (a tap on it opens its panel,
 -- where the eggs are bought); with the tree off the screen, an arrow at the screen's edge pointing the way to it. The
 -- request of 2026-11-14: "auto close the build tab when going to the hatching step and point towards the tree of life
--- for the player to click" (the full-size arrow, 13 px: the small one was easy to miss; Build mode closes itself:
--- BuildUI).
+-- for the player to click" (the full-size arrow: the small one was easy to miss; Build mode closes itself: BuildUI).
+-- Since 2026-11-22 it is the tips' own arrow (UI/TutArrow), as on the buttons the other tips point at.
 local tutArrow: ImageLabel? = nil
 local tutArrowName = ""
 local function updateArrow(t: number)
@@ -701,26 +702,36 @@ local function updateArrow(t: number)
 		end
 		return
 	end
-	local px, py, on = PixelRenderer.projectPixel((c :: Vector3) + Vector3.new(0, 4.5, 0))
 	local size = UIKit.size("World")
 	local W, H = size.X, size.Y
-	local M = 14 -- (how far in from the edges the edge arrow keeps)
-	local bob = if math.floor(t * 3) % 2 == 0 then 0 else 2
+	local M = 16 -- (how far in from the edges the edge arrow keeps)
+	-- (the tips' arrow, the same one as on the interface's buttons: UI/TutArrow, the request of 2026-11-22; it bobs
+	-- toward the tree, or toward the edge it points past)
+	local AW, AH = TutArrow.SIZE.X, TutArrow.SIZE.Y
+	-- (at the trunk 4.5 studs up, or lower down it where a close view puts that above the screen: a phone's)
+	local px, py, on = 0, 0, false
+	for _, up in { 4.5, 3, 1.5 } do
+		px, py, on = PixelRenderer.projectPixel((c :: Vector3) + Vector3.new(0, up, 0))
+		if on and py >= M + AH then
+			break
+		end
+	end
+	local bob = TutArrow.bob(t)
 	local name, x, y
-	if on and px >= M and px <= W - M and py >= M + 13 and py <= H - M then
+	if on and px >= M and px <= W - M and py >= M + AH and py <= H - M then
 		-- over the tree, pointing down at it
-		name, x, y = "arrow_down", px - 6, py - 15 + bob
+		name, x, y = "tut_down", px - math.floor(AW / 2), py - AH - 2 + bob
 	else
 		-- at the edge, pointing the way from the middle of the screen
 		local dx, dy = px - W / 2, py - H / 2
 		local k = math.min((W / 2 - M) / math.max(1, math.abs(dx)), (H / 2 - M) / math.max(1, math.abs(dy)))
 		local ex, ey = W / 2 + dx * math.min(1, k), H / 2 + dy * math.min(1, k)
 		if math.abs(dx) * H >= math.abs(dy) * W then
-			name = if dx > 0 then "arrow_right" else "arrow_left"
-			x, y = ex - 6 + (if dx > 0 then bob else -bob), ey - 6
+			name = if dx > 0 then "tut_right" else "tut_left"
+			x, y = ex - math.floor(AH / 2) + (if dx > 0 then bob else -bob), ey - math.floor(AW / 2)
 		else
-			name = if dy > 0 then "arrow_down" else "arrow_up"
-			x, y = ex - 6, ey - 6 + (if dy > 0 then bob else -bob)
+			name = if dy > 0 then "tut_down" else "tut_up"
+			x, y = ex - math.floor(AW / 2), ey - math.floor(AH / 2) + (if dy > 0 then bob else -bob)
 		end
 	end
 	if tutArrow == nil or tutArrowName ~= name then

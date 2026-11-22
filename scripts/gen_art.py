@@ -1251,6 +1251,33 @@ for nm, rows in (("arrow", ARROW), ("arrow_t", ARROW_T)):
     for d in ("up", "right", "down", "left"):
         S(nm.replace("arrow", "arrow_" + d), r)
         r = rot90(r)
+# The tutorial's arrow (the request of 2026-11-22: "for the tutorial, make an arrow pointing to whatever is required,
+# like an arrow pointing to the build button"): yellow like the tips' pulsing buttons, a broad head with even 45 degree
+# steps, a shaft three quarters as wide as the head is tall, its tail end rounded off. One mask turned four ways, each
+# shaded after the turn so every one is lit from the top left (UI/TutArrow).
+TUT_ARROW = [
+    "...............",
+    ".......Y.......",
+    "......YYY......",
+    ".....YYYYY.....",
+    "....YYYYYYY....",
+    "...YYYYYYYYY...",
+    "..YYYYYYYYYYY..",
+    ".YYYYYYYYYYYYY.",
+    ".YYYYYYYYYYYYY.",
+    ".....YYYYY.....",
+    ".....YYYYY.....",
+    ".....YYYYY.....",
+    ".....YYYYY.....",
+    ".....YYYYY.....",
+    ".....YYYYY.....",
+    "......YYY......",
+    "...............",
+]
+_r = TUT_ARROW
+for _d in ("up", "right", "down", "left"):
+    S("tut_" + _d, _r)
+    _r = rot90(_r)
 
 
 # ---------------------------------------------------------------- the passes

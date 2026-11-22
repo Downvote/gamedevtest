@@ -2587,7 +2587,9 @@ rebuild = function()
 			end
 		else
 			local hint = if query ~= "" then string.format("Everything called \"%s\":", query) elseif tab == "path" then "Pick a path, then drag across the grass." elseif tab == "fence" then "Pick a fence, then drag along the grid lines." else "Pick a hut, then tap the grass."
-			UIKit.text(f, hint, UDim2.new(1, rowW, 0, 12), UDim2.fromOffset(6, 17), { color = UIKit.color("text_dim"), name = "TabHint" })
+			local hl = UIKit.text(f, hint, UDim2.new(1, rowW, 0, 12), UDim2.fromOffset(6, 17), { color = UIKit.color("text_dim"), name = "TabHint" })
+			-- (how far its words run: the tips' arrow keeps off them, BuildUI.tipTarget)
+			hl:SetAttribute("TextW", UIKit.textWidth(hint))
 		end
 	end
 	UIKit.button(f, "Done", UDim2.fromOffset(40, 13), UDim2.new(1, -44, 0, 2), function()
@@ -2861,6 +2863,39 @@ end
 
 function BuildUI.isOpen(): boolean
 	return open
+end
+
+-- What the tips' arrow points at in Build mode (UI/TutArrow, UI/Hud): the tab of the building a tip asks for while
+-- another tab is shown, else that building's card; nothing while a piece is picked (its place on the island is what
+-- the player looks for then) or once it stands on the island.
+function BuildUI.tipTarget(): (GuiObject?, string?)
+	if not open or pick ~= nil then
+		return nil, nil
+	end
+	local tb = goalTab
+	if tb and tb.Parent then
+		return tb, "above"
+	end
+	local c = goalCard
+	if c and c.Parent then
+		local b: GuiObject = c:FindFirstChildWhichIsA("GuiButton") or c
+		-- (from above, pointing down at the card, unless the tab's hint runs over it there: then from its right)
+		local tray = UIKit.canvas("Hud"):FindFirstChild("BuildTray")
+		local hint = if tray then tray:FindFirstChild("TabHint", true) else nil
+		if hint and hint:IsA("GuiObject") and hint.Visible then
+			local hx = onHud(hint).X
+			local hw = (hint:GetAttribute("TextW") :: number?) or 0
+			local cx0 = onHud(b).X
+			local s = UIKit.size("Hud")
+			local k = if s.X > 0 then UIKit.canvas("Hud").AbsoluteSize.X / s.X else 1
+			local cx1 = cx0 + b.AbsoluteSize.X / k
+			if cx0 < hx + hw + 2 and cx1 > hx - 2 then
+				return b, "right"
+			end
+		end
+		return b, "above"
+	end
+	return nil, nil
 end
 
 local function setTab(onTab: string)

@@ -47,6 +47,12 @@ local Tuning = {
 	-- request of 2026-11-14, "the snack store part in the tutorial takes too long. give the player more shells so
 	-- every task is completable at the start without needing to wait" (440 before: one common egg and the stall)
 	StartShells = 600,
+	-- the tips' arrow (UI/TutArrow; the request of 2026-11-22: "for the tutorial, make an arrow pointing to whatever is
+	-- required, like an arrow pointing to the build button"): how far it bobs toward what it points at and back (UI px,
+	-- in whole steps), how many times a second, and the gap between its point and the thing at the nearest
+	TutArrowBobPx = 3,
+	TutArrowHz = 1.4,
+	TutArrowGap = 1,
 	TurnSeconds = 40,
 	DaySeconds = 4 * 3600, -- the request: "it should take a few hours at least for a day to pass"
 	-- the sky's own day round the floating islands (UI/SkyBackdrop; the request of 2026-11-20: "polish the skybox more.

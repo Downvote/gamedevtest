@@ -1250,6 +1250,50 @@ local function buildIndex(body: Frame, _arg: any?)
 	end
 end
 
+-- What the tips' arrow points at in the Tree of Life's panel while the tips ask for an egg hatched (UI/Hud,
+-- UI/TutArrow): one of the player's own eggs (free to hatch) if there is one, else the cheapest egg under the tree
+-- the coins cover (a new player's first egg, not the rare one that would take the coins the island needs), the
+-- highest in the list of those; worked out again when the panel is built again.
+local tipBtn: GuiObject? = nil
+local tipFrame: Frame? = nil
+function Menus.tipTarget(): GuiObject?
+	local f = if UIKit.currentPanel() == "tree" then UIKit.currentPanelFrame() else nil
+	local v = StateClient.view()
+	if f == nil or v == nil then
+		tipBtn, tipFrame = nil, nil
+		return nil
+	end
+	local b = tipBtn
+	if f == tipFrame and b and b.Parent then
+		return b
+	end
+	local cost: { [string]: number } = {}
+	for _, e in v.clutch do
+		cost[tostring(e.id)] = e.cost or 0
+	end
+	local best: GuiObject? = nil
+	local bestCost, bestOrder = math.huge, math.huge
+	for _, d in f:GetDescendants() do
+		if d:IsA("GuiButton") then
+			local c: number? = nil
+			if string.sub(d.Name, 1, 9) == "BagHatch_" then
+				c = 0
+			elseif string.sub(d.Name, 1, 11) == "PanelHatch_" then
+				c = cost[string.sub(d.Name, 12)]
+			end
+			if c and c <= v.shells then
+				local rowF = d.Parent
+				local order = if rowF and rowF:IsA("GuiObject") then rowF.LayoutOrder else 0
+				if c < bestCost or (c == bestCost and order < bestOrder) then
+					best, bestCost, bestOrder = d, c, order
+				end
+			end
+		end
+	end
+	tipBtn, tipFrame = best, f
+	return best
+end
+
 function Menus.init()
 	-- (a hatch the server refuses for shells, the swap picker's among them: the egg for Robux instead)
 	EggView.onShort = StoreUI.eggInstead

@@ -47,6 +47,8 @@ local VisitUI = require(script.Parent.VisitUI)
 local WelcomeUI = require(script.Parent.WelcomeUI)
 local BuildUI = require(script.Parent.BuildUI)
 local HatchScene = require(script.Parent.HatchScene)
+local TutArrow = require(script.Parent.TutArrow)
+local LoadingCard = require(game:GetService("ReplicatedFirst").Loading.LoadingCard)
 
 local Hud = {}
 
@@ -1463,6 +1465,54 @@ local function updateTips(v: Types.ClientView)
 	UIKit.tween(f, 0.18, { Position = UDim2.new(0, left, 1, -tipsLift()) })
 end
 
+-- What the tips' arrow points at this frame, and from which side (UI/TutArrow).
+local function tipTarget(): (GuiObject?, string?)
+	local v = StateClient.view()
+	if v == nil or HatchScene.isOpen() then
+		return nil, nil
+	end
+	local lc = LoadingCard.state()
+	if lc.up or lc.cover ~= nil then
+		return nil, nil
+	end
+	local panel = UIKit.currentPanel()
+	local tut = v.tut
+	if tut == Plot.TIP_HUT or tut == Plot.TIP_WORK then
+		if BuildUI.isOpen() then
+			return BuildUI.tipTarget()
+		elseif panel == nil then
+			return buildBtn, "above"
+		end
+	elseif tut == Plot.TIP_HATCH then
+		if panel == "tree" then
+			return Menus.tipTarget(), "left"
+		end
+	elseif tut == Plot.TIP_LAST then
+		local tp = tips
+		if panel == nil and tp then
+			local ok = tp:FindFirstChild("TipsOk")
+			if ok and ok:IsA("GuiObject") then
+				return ok, "right"
+			end
+		end
+	elseif tut == 0 and panel == nil and not BuildUI.isOpen() then
+		local qf = quest
+		local claim = if qf then qf:FindFirstChild("QuestClaim", true) else nil
+		if claim and claim:IsA("GuiObject") then
+			return claim, "right"
+		end
+	end
+	return nil, nil
+end
+
+function Hud.tipArrow()
+	local target, side = tipTarget()
+	-- (never over the tip's own words: but for its OK, which the arrow points at from beside it)
+	local tp = tips
+	local avoid: { GuiObject }? = if tp and side ~= "right" then { tp :: GuiObject } else nil
+	TutArrow.point(target, side, avoid)
+end
+
 ------------------------------------------------------------------ a new day
 -- A banner drops in at the top: the day, or a Hatchery egg ready. Under a panel or in Build mode: a notice.
 -- A new calendar day ("Day 12": every few hours) or a turn's news (a Hatchery's egg ready to hatch).
@@ -1821,6 +1871,13 @@ function Hud.start()
 				end
 			end
 		end
+		-- the tips' arrow (UI/TutArrow; the request of 2026-11-22: "for the tutorial, make an arrow pointing to
+		-- whatever is required, like an arrow pointing to the build button"): at what the tip asks the player to press
+		-- now. The hut's tip and the workplace's: Build, then in Build mode the tab and the card of the building; the
+		-- egg's: the first egg's button in the tree's panel (over the world, the tree itself: Controllers/EggView); the
+		-- last tip's OK; once the tips are over, a quest's Claim when it is done. Nothing while the hatch scene, the
+		-- loading card or a panel other than the one it points into covers the screen.
+		Hud.tipArrow()
 		-- the tree's card: the time to its next eggs runs down
 		local tb, tt = treeBar, treeTime
 		if tb and tb.Parent and tt then

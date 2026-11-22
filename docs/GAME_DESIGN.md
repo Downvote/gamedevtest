@@ -1974,7 +1974,7 @@ When the island grows into a new stage, the tree is built again at it.
   little. No price tags float over them and no names: the egg's colour tells the rarity, and a tap on one opens the
   Tree panel. A hatched egg is gone from under the tree when the hatch scene ends; the driftling steps out where it lay
   and walks off to its work. A neighbour's tree lays its eggs too; only the islands near the view have theirs drawn.
-  While the tips ask for a hatch (step 2) an arrow bobs over your tree. A tap on your own tree opens the Tree panel; on
+  While the tips ask for a hatch (step 2) the tips' arrow bobs over your tree (§9). A tap on your own tree opens the Tree panel; on
   a neighbour's, "Not your tree. Yours is at home."
 - **The HUD's Tree card** (under the island card; on a phone at the top left): the tree's icon, "Tree of Life"
   ("Eggs" on a phone) and Open, "New eggs in 2:41" over a bar running down to the next lot, then the best three eggs
@@ -3027,6 +3027,24 @@ The tips since then, in the user's own words (`Plot.TIP_HUT` .. `TIP_LAST`):
    up, its card saying Free (the request of 2026-11-14, "make the first snack stall in the tutorial free", the tips'
    workplace since). Any workplace moves the tip on; the driftling resting in the hut goes to work there.
 4. "Great! You can hatch more driftlings from the tree, which refreshes with eggs every few minutes." OK ends the tips.
+
+> The request (2026-11-22): "also, for the tutorial, make an arrow pointing to whatever is required, like an arrow
+> pointing to the build button"
+
+**The tips' arrow** (`UI/TutArrow`): one yellow arrow, a sprite of its own lit from the top left with the usual 1 px
+outline, bobbing a few pixels toward what the tip wants pressed now:
+
+- the hut's tip and the workplace's: the Build button (the menu bar's, or a touch screen's Build square), then in
+  Build mode the tab with the building on it while another tab is shown, else the building's card (from above, or from
+  its right where the tab's hint line runs over it); nothing while a piece is picked, since the grass is where it goes;
+- the egg's tip: the tree itself over the world, at its trunk (or at the screen's edge pointing the way, with the tree
+  off the screen), and with the Tree panel open, the Hatch button of one of your own eggs, else of the cheapest egg
+  your coins cover;
+- the last tip: its OK;
+- after the tips, a quest's Claim once it is done.
+
+It never sits on the tip's own words (it tries the other sides of the thing first), and it goes away under a panel
+that covers what it points at, during the hatch scene and behind the loading card.
 
 Each moves on once what it asks is done (an island that has it already moves on at once, at the join too). A new
 island starts with `StartShells` (600): the hut (55) and the first egg leave plenty, so no tip waits on coins ("give the
