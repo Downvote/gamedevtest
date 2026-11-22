@@ -454,6 +454,13 @@ local Tuning = {
 	-- the founders always, then those that waited longest; the rest move on a later tick (the request of 2026-11-22, "ms
 	-- at all times should not go above 20ms even at the highest stress tests")
 	PixelComposeMs = 4,
+	-- ms more a tick for the models that moved, came into sight or left it (they go first: a picture held where it was
+	-- reads as a jump, the report of 2026-11-22, "the overworld driftlings still teleport around")
+	PixelMoveMs = 8,
+	-- models on the screen that moved, came or went, moved every tick past both budgets, at most (the nearest the
+	-- screen's middle first after those that waited longest), within PixelMoveCapMs more again
+	PixelMoveMin = 24,
+	PixelMoveCapMs = 6,
 	-- ms a frame a model too costly for a tick's draw time is drawn on (its body over a few frames; PixelRenderer's
 	-- SG.jobStart), at least, as long as the frame has the time
 	PixelJobMs = 3,

@@ -853,8 +853,18 @@ function SCEN.crowd()
 	local seen = {} -- model -> { last x, y, moves, jumps = { ... }, frames }
 	local frames = 0
 	local wall0 = os.clock()
+	local missing, onFrames = 0, 0
+	local LAWN = H.sharedServer("Data.Street").LAWN_Y
 	local function note()
 		for _, m in H.inClient(p, WV.debugMoving) do
+			-- (a dressed driftling the screen shows with no picture of it down: popped out)
+			local _, on = H.inClient(p, PR.project, E.v3(m.x, LAWN, m.z))
+			if on then
+				onFrames += 1
+				if H.inClient(p, PR.debugShown, m.model) == nil then
+					missing += 1
+				end
+			end
 			if m.walking then
 				local x, y = H.inClient(p, PR.debugShown, m.model)
 				if x then
@@ -907,6 +917,44 @@ function SCEN.crowd()
 	log("crowd: %d driftlings, %d dressed; %d walkers followed a second or more: their pictures moved %.1f times a second (median), %.1f for the slowest tenth; jumps of %d art px (median), %d (the largest tenth), %d at most", #H.profile(p).pals, wc.dressed or 0, #rates, at(rates, 0.5), at(rates, 0.1), at(jumps, 0.5), at(jumps, 0.9), at(jumps, 1))
 	log("crowd: the pixel filter %.2f ms a frame (the slowest %.1f), models %.2f; %d kept pictures, %d drawn; WorldView poses %.2f ms a frame; %d frames in %.1f s", st.stepMs / fr, st.maxMs or 0, st.dynMs / fr, st.hits, st.draws, (wc.pose or 0) * 1000 / math.max(1, wc.frames or 1), frames, wall)
 	log("crowd: %s", tally.line())
+	log("crowd: driftlings on the screen with no picture down: %d of %d (a driftling a frame)", missing, onFrames)
+	log("crowd: the compose's budget: %.2f us a px; %.0f px a tick spent on founders and the like first; %.1f models a tick wanting to move, %.0f px each", st.budUs or 0, (st.budForced or 0) / math.max(1, st.budTicks or 0), (st.budCands or 0) / math.max(1, st.budTicks or 0), (st.budCost or 0) / math.max(1, st.budCands or 0))
+	log("crowd: %d ticks and %d lighter frames composed; %d models held where they were (%.1f a tick), %d planned (%.1f a tick), %d drawn afresh", st.tickFrames or 0, st.liteFrames or 0, st.heldModels or 0, (st.heldModels or 0) / math.max(1, st.tickFrames or 0), st.planModels or 0, (st.planModels or 0) / math.max(1, (st.tickFrames or 0) + (st.liteFrames or 0)), st.draws or 0)
+	do
+		-- the founder walking across the town for three seconds at the game's walk speed: driftlings coming into view,
+		-- leaving it, the picture scrolling under them
+		missing, onFrames = 0, 0
+		local root = p.Character:FindFirstChild("HumanoidRootPart") :: any
+		local x0, z0 = root.Position.X, root.Position.Z
+		local walkMoves, walkFollowed = 0, 0
+		local last = {}
+		for f = 1, 180 do
+			local u = f / 180
+			p.Character:PivotTo(E.cf.new(x0 + 48 * u, root.Position.Y, z0 - 24 * u))
+			E.step(1 / 60)
+			note()
+			-- (how often a walker's picture moved against the ground: its layer place less the layer's pan)
+			local st = H.inClient(p, PR.debugStatic)
+			for _, m in H.inClient(p, WV.debugMoving) do
+				if m.walking then
+					local x, y = H.inClient(p, PR.debugShown, m.model)
+					if x then
+						local gxw, gyw = x + st.px - st.ox, y + st.py - st.oy
+						local r = last[m.model]
+						if r then
+							walkFollowed += 1
+							if r[1] ~= gxw or r[2] ~= gyw then
+								walkMoves += 1
+							end
+						end
+						last[m.model] = { gxw, gyw }
+					end
+				end
+			end
+		end
+		local st2 = H.inClient(p, PR.debugPerf)
+		log("crowd walking: driftlings on the screen with no picture down: %d of %d; a walker's picture moved on %.0f%% of %d frames followed; %d ticks, %d lighter frames, %d models held in all", missing, onFrames, walkMoves * 100 / math.max(1, walkFollowed), walkFollowed, (st2.tickFrames or 0) - (st.tickFrames or 0), (st2.liteFrames or 0) - (st.liteFrames or 0), (st2.heldModels or 0) - (st.heldModels or 0))
+	end
 	-- a driftling held just behind a shop (the report of 2026-11-18, "also, shadows clip through buildings": its blob
 	-- shadow darkened the shop's awning in front of it): crowd_shadow, the log saying where
 	local Street = H.sharedServer("Data.Street")

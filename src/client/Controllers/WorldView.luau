@@ -105,7 +105,7 @@ local LITE_YAWS = 8
 -- forward and tip to the side, radians)
 type LitePose = { n: number, rate: number, lift: { number }, lean: { number }, tip: { number } }
 local LITE: { [string]: LitePose } = {
-	walk = { n = 4, rate = 8, lift = { 0, 0.07, 0.11, 0.07 }, lean = { 0.08, 0.08, 0.08, 0.08 }, tip = { 0, 0, 0, 0 } },
+	walk = { n = 4, rate = 8, lift = { 0, 0.08, 0, 0.08 }, lean = { 0.08, 0.08, 0.08, 0.08 }, tip = { -0.14, 0, 0.14, 0 } },
 	cheer = { n = 4, rate = 7, lift = { 0, 0.14, 0.22, 0.14 }, lean = { 0, 0, 0, 0 }, tip = { 0, 0, 0, 0 } },
 	idle = { n = 2, rate = 0.8, lift = { 0, 0.03 }, lean = { 0, 0 }, tip = { 0, 0 } },
 	peck = { n = 2, rate = 2.5, lift = { 0, 0 }, lean = { 0, 0.32 }, tip = { 0, 0 } },
@@ -341,6 +341,10 @@ local function litePose(w: Walker, th: MicroModels.Thing, t: number, y: number)
 	MicroModels.place(th, CFrame.new(w.x, y + L.lift[f + 1] * h, w.z) * CFrame.Angles(0, yq * step, 0) * CFrame.Angles(L.lean[f + 1], 0, L.tip[f + 1]))
 	w.px, w.pz = w.x, w.z
 	PixelRenderer.pose(th.model, string.format("%s%d.%d", if LITE[mood] then mood else "idle", f, yq), nil, w.sig)
+	-- (where it stands, told with the pose: a picture drawn of it knows where it was drawn, so it slides with it and
+	-- can stand for another of its kind; posePals tells it again every frame)
+	local at = Vector3.new(w.x, y, w.z)
+	PixelRenderer.glide(th.model, at, at)
 end
 
 -- Its model for a driftling come near the view: one of its kind from the pool, or a new one.

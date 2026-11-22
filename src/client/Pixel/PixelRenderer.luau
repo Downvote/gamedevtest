@@ -3691,7 +3691,7 @@ local PX_BYTES = 14 -- a kept pixel: dx u16, dy u16, colour u32, depth f32, id u
 -- picture is put down (slid to where the model stands, SG.glideOf) in place of a draw. The user's report of 2026-11-21:
 -- "it still is pretty laggy while hatching, even when the egg is dropping down".
 local POSE_KEEP = 48
-local GROUP_KEEP = 96 -- (pictures kept by pose for a group of models posed alike: PixelRenderer.pose)
+local GROUP_KEEP = 128 -- (pictures kept by pose for a group of models posed alike: PixelRenderer.pose)
 
 -- Parts as they stand now against a snapshot (cfs, szs, gone); nil snapshot: never the same.
 function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?): boolean
@@ -3798,8 +3798,9 @@ function SG.takePic(s: Surf, d: Dyn, iso: Raster.Frame, ix0: number, iy0: number
 			end
 			poses[key] = pic
 			local grp = d.poseGroup
-			if grp then
-				-- (its group's too, for the others of its kind)
+			if grp and anchor then
+				-- (its group's too, for the others of its kind: only a picture that knows where its model stood, so it
+				-- can slide to wherever another one stands)
 				local g = SG.groupPoses[grp]
 				if g == nil then
 					g = { pics = {}, order = {} }
@@ -4069,7 +4070,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 		local est = estMs / 1000
 		local t = SG.clock()
 		-- (one with no picture at all shows nothing till it is drawn: it may take the frame's time, not just the tick's)
-		local cap = if d.cache == nil then math.max(budgetEnd, SG.frameEnd - Tuning.PixelComposeMs / 1000) else budgetEnd
+		local cap = if d.cache == nil then math.max(budgetEnd, SG.frameEnd - Tuning.PixelComposeMs / 1000, now0 + Tuning.PixelDynMs / 1000) else budgetEnd
 		local fits = t + est <= cap and not (SG.job and SG.job.d == d)
 		if not d.wantAt then
 			d.wantAt = t
@@ -4283,6 +4284,9 @@ function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, nu
 			-- (one of its group's: a driftling of the same kind drew it, posed the same way)
 			local g = SG.groupPoses[grp]
 			pc = if g then g.pics[key] else nil
+			if pc and (pc.anchor == nil or d.gNow == nil) then
+				pc = nil
+			end
 			if pc then
 				local pfg = stats.perf :: any
 				pfg.groupHits = (pfg.groupHits or 0) + 1
@@ -4890,13 +4894,8 @@ function SG.budgetPlan(s: Surf, plan: { PlanEntry })
 	local cx, cy = s.ox + s.vw / 2, s.oy + s.vh / 2
 	SG.updSeq += 1
 	local seq = SG.updSeq
-	local function area(r: Rect?): number
-		if r == nil then
-			return 0
-		end
-		return math.max(0, r.x1 - r.x0 + 1) * math.max(0, r.y1 - r.y0 + 1)
-	end
-	local cands: { { e: PlanEntry, cost: number, age: number, dist: number } } = {}
+	local cands: { { e: PlanEntry, cost: number, age: number, dist: number, pri: number, vis: boolean } } = {}
+	local wx0, wy0, wx1, wy1 = s.ox, s.oy, s.ox + s.vw - 1, s.oy + s.vh - 1
 	local spent = 0
 	for _, e in plan do
 		local d = e.d
@@ -4908,19 +4907,36 @@ function SG.budgetPlan(s: Surf, plan: { PlanEntry })
 		if (picSame or picNone) and shSame then
 			continue
 		end
-		local cost = 0
+		-- (what it redoes: where it was and where it goes, its picture and its blob shadow, in layer px; a step of a
+		-- pixel or two redoes much the same pixels twice, so where the two overlap their box is the cost, else both)
+		local ox0, oy0, ox1, oy1 = math.huge, math.huge, -math.huge, -math.huge
+		local nx0, ny0, nx1, ny1 = math.huge, math.huge, -math.huge, -math.huge
 		if not (picSame or picNone) then
-			cost += area(was)
+			if was then
+				ox0, oy0, ox1, oy1 = was.x0 - gx, was.y0 - gy, was.x1 - gx, was.y1 - gy
+			end
 			if pic then
-				cost += (e.x1 - e.x0 + 3) * (e.y1 - e.y0 + 3)
+				nx0, ny0, nx1, ny1 = e.x0 - 1, e.y0 - 1, e.x1 + 1, e.y1 + 1
 			end
 		end
 		if not shSame then
-			cost += area(d.sR)
+			local sr = d.sR
+			if sr then
+				ox0, oy0, ox1, oy1 = math.min(ox0, sr.x0 - gx), math.min(oy0, sr.y0 - gy), math.max(ox1, sr.x1 - gx), math.max(oy1, sr.y1 - gy)
+			end
 			if e.sx then
 				local sx0, sy0, sx1, sy1 = SG.shadowRect(e.sx, e.sy, e.srx, e.sry)
-				cost += math.max(0, sx1 - sx0 + 1) * math.max(0, sy1 - sy0 + 1)
+				nx0, ny0, nx1, ny1 = math.min(nx0, sx0), math.min(ny0, sy0), math.max(nx1, sx1), math.max(ny1, sy1)
 			end
+		end
+		local function box(x0: number, y0: number, x1: number, y1: number): number
+			return if x1 >= x0 and y1 >= y0 then (x1 - x0 + 1) * (y1 - y0 + 1) else 0
+		end
+		local cost
+		if ox1 >= nx0 and nx1 >= ox0 and oy1 >= ny0 and ny1 >= oy0 then
+			cost = box(math.min(ox0, nx0), math.min(oy0, ny0), math.max(ox1, nx1), math.max(oy1, ny1))
+		else
+			cost = box(ox0, oy0, ox1, oy1) + box(nx0, ny0, nx1, ny1)
 		end
 		-- (the founders always; and one shown from a picture not kept, which cannot be shown as it was)
 		if d.own or d.rim or d.focus or (was ~= nil and d.shC == nil) then
@@ -4929,23 +4945,62 @@ function SG.budgetPlan(s: Surf, plan: { PlanEntry })
 		else
 			local mx = if pic then (e.x0 + e.x1) / 2 elseif was then (was.x0 + was.x1) / 2 - gx else cx
 			local my = if pic then (e.y0 + e.y1) / 2 elseif was then (was.y0 + was.y1) / 2 - gy else cy
-			table.insert(cands, { e = e, cost = cost, age = seq - (d.updAt or -1e6), dist = math.abs(mx - cx) + math.abs(my - cy) })
+			-- (first one coming into sight or leaving it, then one that moved, then one only posed anew in place: a
+			-- picture held where it was reads as a jump, a pose held a tick longer does not)
+			local pri = if was == nil or pic == nil then 0 elseif was.x0 + 1 ~= e.x0 + gx or was.y0 + 1 ~= e.y0 + gy then 1 else 2
+			-- (whether the screen shows it, where it was or where it goes)
+			local vis = false
+			if pic then
+				vis = not (e.x1 < wx0 or e.x0 > wx1 or e.y1 < wy0 or e.y0 > wy1)
+			end
+			if not vis and was then
+				vis = not (was.x1 - gx < wx0 or was.x0 - gx > wx1 or was.y1 - gy < wy0 or was.y0 - gy > wy1)
+			end
+			table.insert(cands, { e = e, cost = cost, age = seq - (d.updAt or -1e6), dist = math.abs(mx - cx) + math.abs(my - cy), pri = pri, vis = vis })
 		end
 	end
 	if #cands == 0 then
 		return
 	end
 	table.sort(cands, function(a, b)
+		if a.pri ~= b.pri then
+			return a.pri < b.pri
+		end
+		if a.vis ~= b.vis then
+			return a.vis
+		end
 		if a.age ~= b.age then
 			return a.age > b.age
 		end
 		return a.dist < b.dist
 	end)
 	local budget = Tuning.PixelComposeMs * 1000 / math.max(0.05, SG.usPerPx)
+	-- (one moving, coming or going may take Tuning.PixelMoveMs more)
+	local moveBudget = budget + Tuning.PixelMoveMs * 1000 / math.max(0.05, SG.usPerPx)
 	local held = 0
+	local sure = 0
+	local sureBudget = moveBudget + Tuning.PixelMoveCapMs * 1000 / math.max(0.05, SG.usPerPx)
+	do
+		-- (previews: what the budget saw)
+		local pfb = stats.perf :: any
+		pfb.budUs = SG.usPerPx
+		pfb.budTicks = (pfb.budTicks or 0) + 1
+		pfb.budForced = (pfb.budForced or 0) + spent
+		for _, c in cands do
+			pfb.budCands = (pfb.budCands or 0) + 1
+			pfb.budCost = (pfb.budCost or 0) + c.cost
+		end
+	end
 	for _, c in cands do
 		local e, d = c.e, c.e.d
-		if spent + c.cost <= budget then
+		local ok = spent + c.cost <= (if c.pri < 2 then moveBudget else budget)
+		if not ok and c.pri < 2 and c.vis and sure < Tuning.PixelMoveMin and spent + c.cost <= sureBudget then
+			-- (on the screen and moving, coming or going: it moves this tick whatever the budget says, up to
+			-- Tuning.PixelMoveMin of them; one held where it was jumped the tick it moved again)
+			ok = true
+			sure += 1
+		end
+		if ok then
 			spent += c.cost
 			d.updAt = seq
 		else
@@ -5049,7 +5104,6 @@ function SG.incCompose(s: Surf, due: boolean?)
 	if fresh and not lite and not SG.noBudget then
 		SG.budgetPlan(s, plan)
 	end
-	local kBud = SG.clock()
 	local chg: { PlanEntry } = {}
 	for _, e in plan do
 		local d = e.d
@@ -5262,8 +5316,11 @@ function SG.incCompose(s: Surf, due: boolean?)
 	if fresh and not lite and runArea >= 2000 then
 		-- (what a pixel redone cost this tick, for the next ticks' budget: SG.budgetPlan; the tiles redone only, not the
 		-- strips sent up late)
-		local us = (SG.clock() - kBud) * 1e6 / runArea
-		SG.usPerPx += (math.clamp(us, 0.3, 20) - SG.usPerPx) * 0.3
+		-- (the stages that grow with the pixels redone: putting the static picture back, the models and shadows down,
+		-- the ink and the grade; the effects, the rims and the sending up cost about the same whatever moved, and counted
+		-- in made a moving driftling look several times dearer than it is)
+		local us = ((k3 - kr) + (k6 - k5)) * 1e6 / runArea
+		SG.usPerPx += (math.clamp(us, 0.1, 20) - SG.usPerPx) * 0.3
 	end
 	SG.panned, SG.upWhole, SG.touch = false, false, false
 	table.clear(strips)

@@ -2103,6 +2103,17 @@ yet went from about 3,000 over the first leg to 10, and none of them takes long 
 egg, its lights, the shards of its shell and what hatched are drawn every frame at once again: the frame budget of
 2026-11-22 had begun to leave them for a later frame, which showed as pieces lagging behind or missing.
 
+> The report (2026-11-22): "the overworld driftlings still teleport around and still pop in and out, can you animate
+> them".
+
+**They walk smoothly now.** The frame budget had been moving a crowd's driftlings a few at a time, so a walker's
+picture stood still for several frames and then jumped 5 px, about six times a second. Now a driftling that moved, or
+is coming into view or leaving it, goes first, and every one on the screen moves every tick (up to 24 of them):
+walkers' pictures move about 26 times a second, a pixel at a time (the budget also counted a step of a pixel as if
+it redid twice the pixels it does). A picture is only shared with others of its kind once it knows where its own
+driftling stood, so none can turn up in another's place. Walking, a driftling waddles, rocking side to side and
+bobbing as it goes. On the busiest top-tier island this costs about 4 ms a frame more in the preview.
+
 **More detail on every body** (the request of 2026-11-15: "can you also do the same with creature and egg models?",
 after the buildings, the tree and the palms). Each plan got the pieces that make its animal read, within the same
 skeleton so every animation still fits: the snail a round shell standing on edge with its spiral drawn on both sides

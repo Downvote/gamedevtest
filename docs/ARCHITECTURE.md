@@ -314,7 +314,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
   (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
   Pans), `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelCatchUpPx` (1) and `PixelCatchUpShare` (0.2: the window catching up after the strips held it), `PixelHoldMaxPx` (24: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelCatchUpPx` (1) and `PixelCatchUpShare` (0.2: the window catching up after the strips held it), `PixelHoldMaxPx` (24: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelMoveMs` (8: ms more for the models that moved, came or went), `PixelMoveMin` (24: of those on the screen, moved every tick past both) and `PixelMoveCapMs` (6: what those may take more again), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
   drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
@@ -1663,12 +1663,20 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `SG.finishStep(s, deadline)` finishes strips a band of `FIN_ROWS` at a time (`SG.finishStrips` all at once where it
   must). The look-ahead takes all of `castEnd`.
 - **The compose's budget** (the same request). `SG.budgetPlan` moves the models that changed on a tick within
-  `Tuning.PixelComposeMs` (in pixels redone, at `SG.usPerPx`, what a pixel cost lately): the founders always, then
-  those that waited longest (`Dyn.updAt`), the nearest the screen's middle first; the rest show what they showed where
-  they showed it. A model is drawn afresh only if what it took last time, or what one of its name took
+  `Tuning.PixelComposeMs` (in pixels redone, at `SG.usPerPx`, what a pixel cost lately): the founders and the focus
+  always, then by kind (the report of 2026-11-22, "the overworld driftlings still teleport around and still pop in and
+  out, can you animate them": a walker's picture moved 6 times a second, 5 px at a time): one coming into sight or
+  leaving it first, then one that moved, then one only posed anew where it stood; within each, one the screen shows
+  first, then those that waited longest (`Dyn.updAt`), the nearest the screen's middle first. One that moved, came or
+  went may take `PixelMoveMs` more, and up to `PixelMoveMin` of them on the screen move past that, within
+  `PixelMoveCapMs` more again. A model's cost is the box of where it was and where it goes, picture and blob shadow,
+  when the two overlap (a step of a pixel redoes much the same pixels), else both; `SG.usPerPx` is measured over the
+  stages that grow with the pixels redone (the static picture put back, the models and shadows down, the ink, the
+  grade), not the effects, rims and uploads, which cost about the same whatever moved. The
+  rest show what they showed where they showed it. A model is drawn afresh only if what it took last time, or what one of its name took
   (`SG.drawByName`; for a kind never drawn, its parts at `SG.firstPerPart`, which follows the first draws made from
   `PixelFirstPartMs` up), fits the tick's `PixelDynMs` (a model with no picture at all: the frame's time, short of
-  `PixelComposeMs`); a costlier one is drawn over a few frames (`SG.jobStart`: its parts
+  `PixelComposeMs`, and `PixelDynMs` however late the frame is); a costlier one is drawn over a few frames (`SG.jobStart`: its parts
   at once into a scratch frame of its own, `SG.jobIso`, its blended body through `Raster.blendJob`; `SG.jobStep` on at
   least `PixelJobMs` a frame, then `SG.takePic` takes its picture, and what it took in all goes into the estimates
   as a draw's would), one at a time. `SG.blitOk` does not look at the
@@ -1735,7 +1743,9 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   stands now, and `DynCache.anchor`, where its parts stood when it was drawn). A model that says its pose
   (`PixelRenderer.pose(model, key, hold?, group?)`: `Dyn.poseKey`; nil with `hold` keeps the pictures for the next time;
   `group`: models posed alike, their parts placed the same way round where they glide from for each key, share one
-  picture a key, `SG.groupPoses`, at most `GROUP_KEEP` 96 a group: an island's driftlings by species) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
+  picture a key, `SG.groupPoses`, at most `GROUP_KEEP` 128 a group: an island's driftlings by species; only a picture
+  drawn after the model's `glide` was told, so it knows where its model stood, goes into the group, and a model takes
+  one from it only once its own `glide` is told) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
   most `POSE_KEEP` 48, the one used longest ago first out: `poseOrder`), and posed in one it had, `SG.blitOk` takes that picture for
   its parts as they are now (a copy with their CFrames, `DynCache.from` the original) and slides it to where it stands
   in place of a draw, however far it has gone since (its rect is tested on the layer where it slides to): the hatch scene's egg, rocking and wobbling through the same few poses (the user's report of
@@ -2230,10 +2240,10 @@ y -400 in the pool while it holds fewer than `POOL_MAX` (200), else destroyed; p
 scene's ray structures stay as they are). Since 2026-11-22 (the request: "driftlings appear and disappear in and out
 ... you can make driftlings in the overworld smaller, low polygonal and very easy to render, omitting most of their
 details") an island's driftling is the lite one (`DriftModels.lite`, below), posed whole by `litePose(w, th, t, y)`:
-its mood's pose from `LITE` (`walk` and `cheer` four hops, `idle` a breath, `peck`, `dip` and `push` a lean, `wave` a
+its mood's pose from `LITE` (`walk` a four step waddle, rocking side to side and bobbing, `cheer` four hops, `idle` a breath, `peck`, `dip` and `push` a lean, `wave` a
 rock side to side, `nap` tipped over; each pose's lift, lean and tip, and how fast it steps through them), facing the
 nearest of `LITE_YAWS` (8) headings, the pose told to the pixel filter as `<mood><frame>.<heading>` in the group of
-its species (`PixelRenderer.pose(model, key, nil, sig)`), so every driftling of a kind in the same pose shares one
+its species (`PixelRenderer.pose(model, key, nil, sig)`) with where it stands (`PixelRenderer.glide`), so every driftling of a kind in the same pose shares one
 picture and most poses are no draw at all. The dressed ones are posed through a budget (`posePals`): one walking or
 cheering every `POSE_WALK` (1/16 s), one standing, working or napping every `POSE_STILL` (1/8 s), the longest waiting
 first, at most `POSE_BUDGET` (40) a frame. Between poses a walker's
