@@ -14,8 +14,8 @@ local Monetization = {
 		PremiumTrack = 2097202898, -- the pass track's premium side, this season and every one after
 		OfflinePass = 2095793183, -- the island earns for up to 24 hours while the player is away, at its full pace (not 3 at 30%)
 		-- each new lot's eggs at the player's chosen rarity or rarer hatch by themselves, coins and huts allowing
-		-- (Logic/Tree.autoIds; the request of 2026-11-22): 0 until it is created on the Creator Dashboard
-		AutoHatch = 0,
+		-- (Logic/Tree.autoIds; the request of 2026-11-22), made on the Creator Dashboard the same day
+		AutoHatch = 2092272160,
 	} :: { [string]: number },
 	-- the Roblox group (Community) whose members get the group gift once (a rare egg and shells) and 10% more shells
 	-- while they stay in it (Logic/Store.setGroup; MonetizationService checks at every join and on the Store's Claim).

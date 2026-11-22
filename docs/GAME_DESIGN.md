@@ -3851,8 +3851,7 @@ season's kinds in them.
 (Monetization, then Passes or Developer Products); all sixteen were made on 2026-11-21 (the dashboard calls Quick Tree
 "Faster Tree" and Finish Hatcheries "Speed Hatchery"). The Store shows each one's live price once Roblox gives it and
 `SuggestedRobux` (the dashboard's prices) meanwhile. An id of 0 is never sent to Roblox: an item without one shows its
-suggested price and says it isn't on sale yet. Auto Hatch (2026-11-22) is not made yet: its id is 0 until it is, so the Store and the Tree panel show its
-suggested price and say it is not on sale.
+suggested price and says it isn't on sale yet. Auto Hatch was added on 2026-11-22 (id 2092272160).
 
 **The passes** (`Profile.passes`, checked again at every join: `MonetizationService.join`; a pass bought in game works
 at once):
@@ -3862,7 +3861,7 @@ at once):
 | VIP | 199 | +25% shells (`VipIncome`), a welcome gift once (three hours of shells, two epic eggs, a legendary and a mythic egg, the six VIP pieces and the VIP title) and every UTC day a gift (20 minutes of shells and a rare egg) |
 | Double Income | 199 | every shell x2 (`DoubleIncome`; with VIP x2 x1.25) |
 | Quick Tree | 99 | the Tree of Life lays every 3 minutes, not 6 (`EggSecsPass`; 5 and 10 before 2026-11-17) |
-| Auto Hatch | 149 | each new egg at a rarity the player picks or rarer hatches by itself, coins and huts allowing (§6.3; 2026-11-22: "make an auto buy gamepass, which lets you auto buy eggs that appear above a rarity of your choosing"). Its id is 0 until it is made on the Creator Dashboard |
+| Auto Hatch | 149 | each new egg at a rarity the player picks or rarer hatches by itself, coins and huts allowing (§6.3; 2026-11-22: "make an auto buy gamepass, which lets you auto buy eggs that appear above a rarity of your choosing") |
 | Free Decor | 249 | decor, paths, water and fences cost nothing (`Plot.price`); while it is owned they sell back for nothing too, so no free piece turns into shells |
 | Premium Track | 249 | the pass track's premium side, this season and every one after |
 | Offline Pass | 199 | the island earns for up to 24 hours while its player is away, at its full pace (§14.3) |
