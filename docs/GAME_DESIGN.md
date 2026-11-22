@@ -2088,6 +2088,21 @@ would only be noise.
 On the islands, where a driftling is a small figure among dozens, it is the same shape with fewer, bigger pieces, and
 one far from the view is posed every fourth frame.
 
+> The request (2026-11-22): "driftlings appear and disappear in and out, and there are a few visual artifacts during
+> egg hatching. you can make driftlings in the overworld smaller, low polygonal and very easy to render, omitting most
+> of their details".
+
+**The islands' driftlings are simple now.** On the islands each driftling is its kind's few biggest pieces and two dark
+dots for eyes, about 0.7 of the size it was, with no fur, spots, smooth blending or moving face. The hatch scene, the
+portraits and the close looks keep the full model. An island driftling moves whole instead of on its skeleton: it
+hops along when it walks and higher when it cheers, breathes standing still, leans in to peck, dip and push at its
+work, rocks side to side when it waves and tips over for a nap, and faces one of eight ways. The pixel filter keeps
+one picture of each of those poses for every driftling of a kind, so a new one walking into view of a kind already
+seen is never drawn: it shows at once. Walking the whole top-tier island, the driftlings on screen with nothing drawn
+yet went from about 3,000 over the first leg to 10, and none of them takes long to draw any more. The hatch scene's
+egg, its lights, the shards of its shell and what hatched are drawn every frame at once again: the frame budget of
+2026-11-22 had begun to leave them for a later frame, which showed as pieces lagging behind or missing.
+
 **More detail on every body** (the request of 2026-11-15: "can you also do the same with creature and egg models?",
 after the buildings, the tree and the palms). Each plan got the pieces that make its animal read, within the same
 skeleton so every animation still fits: the snail a round shell standing on edge with its spiral drawn on both sides

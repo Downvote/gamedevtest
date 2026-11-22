@@ -54,7 +54,8 @@ is 3D: the islands, the buildings (the Tree of Life among them), the build catal
 driftlings are built from parts (`Models/DecorModels` with the catalog's `Models/GroundModels`, `FenceModels`,
 `NatureModels`, `ThemeModels`, `ThemeMoreModels` and `FunModels` on `Models/Parts`, `Models/MicroModels`,
 `Models/DriftModels`, the eggs in `Models/EggModels`; the driftlings' round pieces from
-`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail, moved on a rig
+`Models/DriftKit`, their plans in `Models/DriftPlansA..D`, a "full" and a lighter "world" level of detail and the
+islands' "lite" one (`DriftModels.lite`: a few pieces, dark dot eyes, posed whole by WorldView), moved on a rig
 (`Models/DriftRig`: bones, skin weights, squash and stretch, springs) by keyed poses (`Models/DriftMotion`); each kind's eye
 style and texture in `Data/Creatures`, the textures drawn by `Render/DynTex` in one-pixel marks), world-aligned on the iso
 grid and drawn by the pixel filter. The hatch scene is the egg alone, floating in front of a 2D sky painted pixel by pixel (`UI/HatchBackdrop`).

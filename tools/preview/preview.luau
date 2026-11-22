@@ -1006,7 +1006,7 @@ function SCEN.stress(legs: number?)
 		log("stress %s: %d frames in %.1f s (%.1f ms a frame of everything); the pixel filter %.2f ms a frame, the slowest %.1f ms, %d over 25 ms; scroll %.2f ms a pan (cast %.2f), composes %.2f (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f, grading %.2f, uploads %.2f; %d uploads), water %.2f, wind %.2f; %d kept pictures used, %d models drawn; %d incremental composes (%d px each), %d whole",
 			label, frames, wall, wall * 1000 / math.max(1, frames), st.stepMs / f, st.maxMs or 0, st.slow or 0, st.scrollMs / pf, st.castMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.gradeMs / f, st.uploadMs / f, st.uploads, st.waterMs / f, st.windMs / f, st.hits, st.draws, st.incFrames or 0, (st.incPx or 0) // math.max(1, st.incFrames or 0), st.fullFrames or 0)
 		log("stress %s: the look-ahead %.2f ms a frame, re-casts %.2f, the map %.2f; strips cast after their scroll %.2f ms a frame, the view held off them %d frames (at most %d px behind the camera; %d frames more than PixelHoldMaxPx behind, %d four times that), %d shown before they were whole (the rest cast after, %.2f ms a frame)", label, (st.aheadMs or 0) / f, (st.invMs or 0) / f, (st.mapMs or 0) / f, (st.pendMs or 0) / f, st.heldFrames or 0, st.heldPx or 0, st.lagFrames or 0, st.lagFar or 0, st.releases or 0, (st.refineCastMs or 0) / f)
-		log("stress %s: the coarse passes cast %d blocks (%d rays) in %.1f ms; %d pieces queued by scrolls, %d px; strips shown before they were whole on %d frames (at most %d px of them)", label, st.coarseN or 0, st.coarseRays or 0, st.coarseMs or 0, st.pendPieces or 0, st.pendPx or 0, st.refineFrames or 0, st.refinePxMax or 0)
+		log("stress %s: the coarse passes cast %d blocks (%d rays) in %.1f ms; %d pieces queued by scrolls, %d px; strips shown before they were whole on %d frames (at most %d px of them); %d pictures of a model's kind used in place of a draw", label, st.coarseN or 0, st.coarseRays or 0, st.coarseMs or 0, st.pendPieces or 0, st.pendPx or 0, st.refineFrames or 0, st.refinePxMax or 0, st.groupHits or 0)
 		do
 			-- (how far the camera went, and the strips' pixels the scrolls copied from the pan cache or had to cast)
 			local CCm = modOr(p, "Controllers.CameraController")
@@ -3944,9 +3944,10 @@ function SCEN.paths()
 	return p
 end
 
--- "zoo": every driftling (Data/Creatures, Models/DriftModels) on the home island's lawn in batches of 20 (five a row,
--- four rows, turned three-quarters toward the viewer), each batch idle (zoo_<n>_idle) and cheering (zoo_<n>_cheer: the
--- jaw open, the arms up); the log lists each batch's species in order (left to right, back to front).
+-- "zoo": every driftling (Data/Creatures, Models/DriftModels) on the home island's lawn as the islands show it (the
+-- lite one, DriftModels.lite) in batches of 20 (five a row, four rows, turned three-quarters toward the viewer), each
+-- batch standing (zoo_<n>_idle) and in a cheer's hop (zoo_<n>_cheer); the log lists each batch's species in order
+-- (left to right, back to front).
 function SCEN.zoo()
 	seedProfile(57, 1, {})
 	local p = join(57, "Keeper")
@@ -3991,8 +3992,8 @@ function SCEN.zoo()
 			end
 			table.insert(names, d.id)
 			local t = H.inClient(p, function()
-				local th = MM.species(d.id, "world")
-				th.model:SetAttribute("PixelShadow", 1)
+				local th = MM.species(d.id, "lite")
+				th.model:SetAttribute("PixelShadow", 0.6)
 				th.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
 				th.model.Parent = E.workspace
 				PR.registerDynamic(th.model)
@@ -4004,9 +4005,10 @@ function SCEN.zoo()
 		log("zoo %d: %s", batch, table.concat(names, ", "))
 		for _, mood in { "idle", "cheer" } do
 			H.inClient(p, function()
-				for j, x in things do
-					MM.animate(x.t, 0.6 + j * 0.37, mood, 0)
-					MM.place(x.t, E.cf.new(x.x, Street.LAWN_Y, x.z) * E.cf.Angles(0, faceViewer + math.rad(40), 0))
+				for _, x in things do
+					-- (the islands' lite driftlings are posed whole, as Controllers/WorldView poses them: a cheer is a hop)
+					local lift = if mood == "cheer" then 0.22 * x.t.h else 0
+					MM.place(x.t, E.cf.new(x.x, Street.LAWN_Y + lift, x.z) * E.cf.Angles(0, faceViewer + math.rad(40), 0))
 				end
 			end)
 			settle(p, 30, 0.5)

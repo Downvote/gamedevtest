@@ -56,7 +56,7 @@ export type Thing = {
 	h: number,
 	r: number,
 	kind: string,
-	lod: string, -- "full" | "world"
+	lod: string, -- "full" | "world" | "lite" (DriftModels.lite)
 	rig: Rig?,
 }
 

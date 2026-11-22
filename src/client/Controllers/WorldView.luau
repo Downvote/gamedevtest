@@ -93,9 +93,27 @@ local PARKED = CFrame.new(0, -400, 0)
 -- island every one of them changes a little less often rather than the frame taking longer (between two poses the
 -- pixel filter shows its kept picture); on a small one all of them keep their rates. (6 a frame: about what the pixel
 -- filter draws afresh in a frame on a full Everdrift, the stress test of 2026-11-17; more were posed and never drawn.)
-local POSE_WALK = 1 / 30
-local POSE_STILL = 1 / 15
-local POSE_BUDGET = 6
+-- Since 2026-11-22 the islands' driftlings are the lite ones (Models/DriftModels.lite: a few pieces, no skeleton),
+-- posed whole in a few poses a mood (litePose) that the pixel filter keeps one picture of for every driftling of the
+-- kind, so posing one is a few sums and most poses are no draw at all.
+local POSE_WALK = 1 / 16
+local POSE_STILL = 1 / 8
+local POSE_BUDGET = 40
+-- (8 headings: one set of pictures a kind covers every way it can face)
+local LITE_YAWS = 8
+-- (each mood's poses: how many, how fast it steps through them, and each one's lift (a share of its height), lean
+-- forward and tip to the side, radians)
+type LitePose = { n: number, rate: number, lift: { number }, lean: { number }, tip: { number } }
+local LITE: { [string]: LitePose } = {
+	walk = { n = 4, rate = 8, lift = { 0, 0.07, 0.11, 0.07 }, lean = { 0.08, 0.08, 0.08, 0.08 }, tip = { 0, 0, 0, 0 } },
+	cheer = { n = 4, rate = 7, lift = { 0, 0.14, 0.22, 0.14 }, lean = { 0, 0, 0, 0 }, tip = { 0, 0, 0, 0 } },
+	idle = { n = 2, rate = 0.8, lift = { 0, 0.03 }, lean = { 0, 0 }, tip = { 0, 0 } },
+	peck = { n = 2, rate = 2.5, lift = { 0, 0 }, lean = { 0, 0.32 }, tip = { 0, 0 } },
+	dip = { n = 2, rate = 1.6, lift = { 0, 0 }, lean = { 0, 0.4 }, tip = { 0, 0 } },
+	push = { n = 2, rate = 2, lift = { 0, 0.02 }, lean = { 0.1, 0.24 }, tip = { 0, 0 } },
+	wave = { n = 2, rate = 2.5, lift = { 0, 0.05 }, lean = { 0, 0 }, tip = { -0.12, 0.12 } },
+	nap = { n = 1, rate = 0, lift = { 0.08 }, lean = { 0 }, tip = { 0.45 } },
+}
 local pool: { [string]: { MicroModels.Thing } } = {}
 local pooled = 0
 
@@ -310,6 +328,21 @@ local function drop(key: string)
 	walkers[key] = nil
 end
 
+-- A lite driftling posed for the moment, whole (DriftModels.lite has no skeleton): its mood's pose at time t, facing
+-- the nearest of LITE_YAWS headings, lifted, leant and tipped as the pose says, its feet on the ground at y; the pixel
+-- filter told the pose, so every driftling of its kind posed so shares one picture (PixelRenderer.pose's group).
+local function litePose(w: Walker, th: MicroModels.Thing, t: number, y: number)
+	local mood = w.moodNow
+	local L = LITE[mood] or LITE.idle
+	local f = if L.n > 1 then math.floor((t + w.ph * 4) * L.rate) % L.n else 0
+	local step = 2 * math.pi / LITE_YAWS
+	local yq = math.floor(w.yaw / step + 0.5) % LITE_YAWS
+	local h = th.h
+	MicroModels.place(th, CFrame.new(w.x, y + L.lift[f + 1] * h, w.z) * CFrame.Angles(0, yq * step, 0) * CFrame.Angles(L.lean[f + 1], 0, L.tip[f + 1]))
+	w.px, w.pz = w.x, w.z
+	PixelRenderer.pose(th.model, string.format("%s%d.%d", if LITE[mood] then mood else "idle", f, yq), nil, w.sig)
+end
+
 -- Its model for a driftling come near the view: one of its kind from the pool, or a new one.
 local function dress(w: Walker)
 	if w.thing then
@@ -320,8 +353,8 @@ local function dress(w: Walker)
 	if t then
 		pooled -= 1
 	else
-		local nt = MicroModels.species(w.sig, "world")
-		nt.model:SetAttribute("PixelShadow", 1)
+		local nt = MicroModels.species(w.sig, "lite")
+		nt.model:SetAttribute("PixelShadow", 0.6)
 		nt.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
 		t = nt
 	end
@@ -329,12 +362,10 @@ local function dress(w: Walker)
 	if th.model.Parent == nil then
 		th.model.Parent = dyn()
 	end
-	-- (posed where it stands before the pixel filter first meets it, then at once by the budget)
-	MicroModels.animate(th, os.clock() + w.id, w.moodNow, 0)
-	MicroModels.place(th, CFrame.new(w.x, Street.LAWN_Y, w.z) * CFrame.Angles(0, w.yaw, 0))
-	w.px, w.pz = w.x, w.z
 	PixelRenderer.registerDynamic(th.model)
 	w.thing = th
+	-- (posed where it stands before the pixel filter first meets it)
+	litePose(w, th, os.clock(), Street.LAWN_Y)
 	w.poseAt = 0
 end
 
@@ -594,10 +625,8 @@ local function posePals(t: number)
 	for k = 1, math.min(#dueList, POSE_BUDGET) do
 		local w = dueList[k]
 		local th = w.thing :: MicroModels.Thing
-		MicroModels.animate(th, t + w.id, w.moodNow, 0)
-		MicroModels.place(th, CFrame.new(w.x, y, w.z) * CFrame.Angles(0, w.yaw, 0))
-		w.px, w.pz = w.x, w.z
-		w.poseAt = t + (if w.moodNow == "walk" then POSE_WALK else POSE_STILL)
+		litePose(w, th, t, y)
+		w.poseAt = t + (if w.moodNow == "walk" or w.moodNow == "cheer" then POSE_WALK else POSE_STILL)
 	end
 	-- Every model near the screen, posed this frame or not, tells the pixel filter where its driftling is now: its
 	-- picture slides there by whole art px while its pose waits for the budget (the request of 2026-11-18, "make it

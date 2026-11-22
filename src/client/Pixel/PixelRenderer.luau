@@ -185,6 +185,11 @@ type Dyn = {
 	poseKey: string?,
 	poses: { [string]: DynCache }?,
 	poseOrder: { string }?,
+	-- (PixelRenderer.pose's group: models posed alike share their pictures by pose, SG.groupPoses)
+	poseGroup: string?,
+	-- (its "PixelFocus" attribute: what the view is about, the hatch scene's egg and its lights: moved and drawn every
+	-- tick at once, as a founder is, never left for a later tick or drawn over a few frames)
+	focus: boolean?,
 }
 type Rect = { x0: number, y0: number, x1: number, y1: number }
 
@@ -405,7 +410,8 @@ local SG = {
 	updSeq = 0, -- (the ticks composed: a model's updAt is the one it last moved on)
 	drawAvg = 6, -- (ms a model's draw took lately: SG.plan's estimate for a model not drawn yet)
 	drawByName = {} :: { [string]: number }, -- (and a model of the same name's: a driftling of the same kind)
-	needMid = {} :: { [any]: number }, -- (SG.plan: how far from the screen's middle each model with no picture stands)
+	needMid = {} :: { [any]: number },
+	groupPoses = {} :: { [string]: { pics: { [string]: any }, order: { string } } }, -- (PixelRenderer.pose's groups) -- (SG.plan: how far from the screen's middle each model with no picture stands)
 	firstPerPart = Tuning.PixelFirstPartMs, -- (ms a part a model's first draw takes, of a kind never drawn: SG.plan)
 	sameEvery = 1, -- (ticks between two looks at whether a model not posed has changed: SG.blitOk, more in a crowd)
 	sameT = 0, -- (s this tick's looks took)
@@ -3685,6 +3691,7 @@ local PX_BYTES = 14 -- a kept pixel: dx u16, dy u16, colour u32, depth f32, id u
 -- picture is put down (slid to where the model stands, SG.glideOf) in place of a draw. The user's report of 2026-11-21:
 -- "it still is pretty laggy while hatching, even when the egg is dropping down".
 local POSE_KEEP = 48
+local GROUP_KEEP = 96 -- (pictures kept by pose for a group of models posed alike: PixelRenderer.pose)
 
 -- Parts as they stand now against a snapshot (cfs, szs, gone); nil snapshot: never the same.
 function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?): boolean
@@ -3790,6 +3797,22 @@ function SG.takePic(s: Surf, d: Dyn, iso: Raster.Frame, ix0: number, iy0: number
 				end
 			end
 			poses[key] = pic
+			local grp = d.poseGroup
+			if grp then
+				-- (its group's too, for the others of its kind)
+				local g = SG.groupPoses[grp]
+				if g == nil then
+					g = { pics = {}, order = {} }
+					SG.groupPoses[grp] = g
+				end
+				if g.pics[key] == nil then
+					table.insert(g.order, key)
+					if #g.order > GROUP_KEEP then
+						g.pics[table.remove(g.order, 1) :: string] = nil
+					end
+				end
+				g.pics[key] = pic
+			end
 		end
 	else
 		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
@@ -4008,7 +4031,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 			end
 		end
 		table.sort(need, function(a: Dyn, b: Dyn): boolean
-			local ao, bo = a.own == true or a.rim == true, b.own == true or b.rim == true
+			local ao, bo = a.own == true or a.rim == true or a.focus == true, b.own == true or b.rim == true or b.focus == true
 			if ao ~= bo then
 				return ao
 			end
@@ -4051,7 +4074,7 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 		if not d.wantAt then
 			d.wantAt = t
 		end
-		if not SG.noBudget and (drawn >= Tuning.PixelMaxDyn or not fits) and not d.own and not d.rim then
+		if not SG.noBudget and (drawn >= Tuning.PixelMaxDyn or not fits) and not d.own and not d.rim and not d.focus then
 			-- (too costly for the tick's time: drawn over a few frames, one model at a time; SG.jobStart)
 			if SG.job == nil and not SG.jobDone and estMs > Tuning.PixelDynMs * 0.5 then
 				SG.jobStart(s, d, ppu, texOn)
@@ -4253,8 +4276,18 @@ function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, nu
 	-- (posed in a pose it has a picture of: that picture stands for its parts as they are now)
 	local key, poses = d.poseKey, d.poses
 	local posed = false
-	if key and poses then
-		local pc = poses[key]
+	if key then
+		local pc = if poses then poses[key] else nil
+		local grp = d.poseGroup
+		if pc == nil and grp then
+			-- (one of its group's: a driftling of the same kind drew it, posed the same way)
+			local g = SG.groupPoses[grp]
+			pc = if g then g.pics[key] else nil
+			if pc then
+				local pfg = stats.perf :: any
+				pfg.groupHits = (pfg.groupHits or 0) + 1
+			end
+		end
 		if pc and pc.ver == SG.ver and pc.ppu == ppu then
 			-- (its picture stands for the parts wherever the model has gone since: the founder walking keeps stepping
 			-- through the same few poses, slid on, SG.glideOf)
@@ -4269,7 +4302,7 @@ function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, nu
 				d.cache = cc
 				-- (the poses used last are the ones kept: POSE_KEEP)
 				local order = d.poseOrder
-				if order and order[#order] ~= key then
+				if order and poses and poses[key] and order[#order] ~= key then
 					local at = table.find(order, key)
 					if at then
 						table.remove(order, at)
@@ -4291,7 +4324,7 @@ function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, nu
 	if not posed and (fresh or d.rim) then
 		-- (a crowd's models looked at a share a tick, the founders every tick: SG.sameEvery)
 		-- (and no more than Tuning.PixelSameMs of looks a tick: the rest keep their pictures till a later tick)
-		if d.rim or d.own or (SG.updSeq - (d.sameSeq or -1e9) >= SG.sameEvery and SG.sameT * 1000 < Tuning.PixelSameMs) then
+		if d.rim or d.own or d.focus or (SG.updSeq - (d.sameSeq or -1e9) >= SG.sameEvery and SG.sameT * 1000 < Tuning.PixelSameMs) then
 			d.sameSeq = SG.updSeq
 			local k0 = SG.clock()
 			local same = SG.same(d, c.cfs, c.szs, c.gone)
@@ -4890,7 +4923,7 @@ function SG.budgetPlan(s: Surf, plan: { PlanEntry })
 			end
 		end
 		-- (the founders always; and one shown from a picture not kept, which cannot be shown as it was)
-		if d.own or d.rim or (was ~= nil and d.shC == nil) then
+		if d.own or d.rim or d.focus or (was ~= nil and d.shC == nil) then
 			spent += cost
 			d.updAt = seq
 		else
@@ -7783,7 +7816,7 @@ function PixelRenderer.registerDynamic(model: Model, outline: string?)
 	-- (a model standing where a static one is being cast, Build mode's landed stand-in: "PixelLead" studs nearer, so it
 	-- wins the ties with the static pixels cast under it so far and they never show through it)
 	local lead = model:GetAttribute("PixelLead")
-	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", smooth = smoothModel, lo = lo, hi = hi, lead = if type(lead) == "number" then lead else nil }
+	dyns[model] = { model = model, parts = parts, rim = outline == "self" or outline == "player", own = outline == "self", focus = model:GetAttribute("PixelFocus") == true, smooth = smoothModel, lo = lo, hi = hi, lead = if type(lead) == "number" then lead else nil }
 end
 
 -- A static part leaves the picture (Controllers/Spinners: a turning copy of it is drawn as a moving model instead):
@@ -7863,10 +7896,13 @@ end
 -- Moving model `model` is posed as `key` from now on (nil: it says no more): each pose's picture is kept, and posed in
 -- one it had again (its parts placed the same way round the point it glides from, PixelRenderer.glide) that picture is
 -- put down, slid to where it stands, in place of a draw. Say the key whenever the parts are posed.
-function PixelRenderer.pose(model: Model, key: string?, hold: boolean?)
+function PixelRenderer.pose(model: Model, key: string?, hold: boolean?, group: string?)
 	local d = dyns[model]
 	if d then
 		d.poseKey = key
+		-- (group: every model posed alike under it, its parts placed the same way round where it glides from for each
+		-- key, shares one picture a key, SG.groupPoses: a driftling of a kind already seen in that pose is never drawn)
+		d.poseGroup = group
 		-- (hold: posed in none of them now, but its pictures kept for when it is again: a founder between two walks)
 		if key == nil and not hold then
 			d.poses, d.poseOrder = nil, nil

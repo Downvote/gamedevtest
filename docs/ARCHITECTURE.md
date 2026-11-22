@@ -616,7 +616,7 @@ Models (`src/shared/Models`, Roblox modules):
   `recolor(t, color?)`, `show(t, on)`, `has`. `place` moves a thing's parts with one `Workspace:BulkMoveTo` (its part
   list kept per thing; part by part while the model is outside Workspace). Parts keep their sizes to the eighth of a stud (about an art px), not
   Blocks' quarter. `species(id, lod?)` builds a species (Data/Creatures) with its look (and its id, for its plan's form; an unknown id
-  is a steel armadillo); `driftling(shape, body, accent, lod?, look?)` is `DriftModels.build` (below; WorldView builds "world",
+  is a steel armadillo); `driftling(shape, body, accent, lod?, look?)` is `DriftModels.build` (below; WorldView builds "lite",
   everything else the default "full"); `animate(t, time, mood, k?)` hands
   a driftling (`t.rig`) to `DriftModels.animate` with the squash of `scale` (its clock must run on smoothly: the
   springs and blends use it; WorldView places a driftling on the ground and the rig lifts it), and moves the other
@@ -724,10 +724,15 @@ Models (`src/shared/Models`, Roblox modules):
   (part -> joint), gait ("quad" | "biped" | "hop" | "scuttle" | "slither" | "fly"), world }`. Joint kinds: `body` (the
   root), `head`, `neck`, `jaw`, `ear`, `arm`, `leg`, `tail` (segments in a chain, `phase` their order), `wing` (an
   outer segment as a child), `fin`, `stalk` (eye stalks), `pincer`, `tendril` (two segments), `antenna`, `shell`.
-  `build(shape, body, accent, lod?, look?) -> Thing` (with `rig`; `lod` "full", the default, or "world"; `look` `{ id?, eye?,
+  `build(shape, body, accent, lod?, look?) -> Thing` (with `rig`; `lod` "full", the default, "world" or "lite"; `look` `{ id?, eye?,
   iris?, tex?, tex2?, form? }`: the eyes, and a "PixelTex" attribute on every non-face, non-Neon part of the body colour
   (`tex`) or the accent (`tex2`)), `has(shape)`, `animate(t, time, mood, k?, squash)`: hands it to `DriftRig.animate`
-  (below). The kit's `Rig` also carries `skel` and `anim` (DriftRig's skeleton and motion state, made when first
+  (below). `lite(t) -> Thing` cuts a built "world" thing down for the islands (the request of 2026-11-22, "make
+  driftlings in the overworld smaller, low polygonal and very easy to render"): its `LITE_PARTS` (7) pieces that show
+  most (by size to the two-thirds power, none under `LITE_MIN` 3% of them all past the first two; no face part, Neon,
+  painted mark or eye among them) and its two eyes (`EyeL`, `EyeR`) as plain dark ovals 0.06 studs further out, the
+  rest destroyed; no blend, texture, smooth light, face or skeleton (`rig` nil, `face` and `tuck` empty, `lod`
+  "lite"), `DriftModels.LITE_SCALE` (0.7) of its size (`h` and `r` too), named `Micro_lite_<shape>`. The kit's `Rig` also carries `skel` and `anim` (DriftRig's skeleton and motion state, made when first
   posed) and `placed` (the CFrame `MicroModels.place` last put it at: the springs feel it move).
 - `DriftRig` (GAME_DESIGN 6, the request of 2026-11-14: "please use bones and rigging to make more realistic and
   detailed movement. follow and use as many animation principles when animating as well"): the skeleton and skin.
@@ -1424,7 +1429,9 @@ before the first picture: only the boat arrival, unused now, asked for it).
 `init`, `start`, `setTier(t)`, `tier`, `isActive`, `unavailableReason`, `pixelScale` (K), `firstPicture() -> (shown,
 progress)`, `hideStatic(part)` (Controllers/Spinners: a static part leaves the picture, Transparency 1 so BakeCast
 looks through it, the rect it and its shadow cover cast again, or the stash marked dirty on a stage),
-`registerDynamic(model, outline?)` (outline "self" or "player": a founder, outlined in white, GAME_DESIGN
+`registerDynamic(model, outline?)` (a model with the "PixelFocus" attribute is what the view is about, the hatch
+scene's egg, its lights, its shards and what hatched: moved and drawn every tick at once, as a founder is, never left
+for a later tick by the compose's budget or drawn over a few frames; outline "self" or "player": a founder, outlined in white, GAME_DESIGN
 14.1: Random Bakery's rim. Once every model and its ink edge is drawn, each founder's whole silhouette, hidden parts too,
 is drawn again flat into a scratch window of its parts' rect (`Raster.window`, a buffer grown on demand and never
 shrunk) and `Shading.rim` lays white on its edge pixels, dotted on the global grid where something nearer hides that
@@ -1726,7 +1733,9 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   last (`SG.offPic`; one that has not moved since needs none); past the budget a model shows its kept picture a tick
   longer where it last stood. A kept picture slides with its model (`PixelRenderer.glide`: `Dyn.gNow`, where the model
   stands now, and `DynCache.anchor`, where its parts stood when it was drawn). A model that says its pose
-  (`PixelRenderer.pose(model, key, hold?)`: `Dyn.poseKey`; nil with `hold` keeps the pictures for the next time) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
+  (`PixelRenderer.pose(model, key, hold?, group?)`: `Dyn.poseKey`; nil with `hold` keeps the pictures for the next time;
+  `group`: models posed alike, their parts placed the same way round where they glide from for each key, share one
+  picture a key, `SG.groupPoses`, at most `GROUP_KEEP` 96 a group: an island's driftlings by species) keeps a picture for each pose it was drawn in (`Dyn.poses`, at
   most `POSE_KEEP` 48, the one used longest ago first out: `poseOrder`), and posed in one it had, `SG.blitOk` takes that picture for
   its parts as they are now (a copy with their CFrames, `DynCache.from` the original) and slides it to where it stands
   in place of a draw, however far it has gone since (its rect is tested on the layer where it slides to): the hatch scene's egg, rocking and wobbling through the same few poses (the user's report of
@@ -2215,12 +2224,19 @@ Hatchery's hatchling (Fx "turn" `hatched`) gets its name and pink bits over the 
 the own islanders cheer. Its Heartbeat runs `EggView.step` with the view's centre (world x).
 Only the walkers near the screen have a model (the stress test of 2026-11-17, a full Everdrift's 840 driftlings): one
 within `MODEL_NEAR` (24) art px of the layer (`PixelRenderer.nearScreen` of its foot) is dressed (`dress`: a model of
-its kind from `pool[sig]`, else `MicroModels.species(sig, "world")` with `PixelShadow` 1 and `PixelGroundY` the
+its kind from `pool[sig]`, else `MicroModels.species(sig, "lite")` with `PixelShadow` 0.6 and `PixelGroundY` the
 lawn's, registered as a moving model) and one past `MODEL_FAR` (80) undressed (`undress`: unregistered, then parked at
 y -400 in the pool while it holds fewer than `POOL_MAX` (200), else destroyed; parked rather than unparented, so the
-scene's ray structures stay as they are). The dressed ones are posed through a budget (`posePals`): one walking every
-`POSE_WALK` (1/30 s), one standing, working or napping every `POSE_STILL` (1/15 s), the longest waiting first, at
-most `POSE_BUDGET` (6) a frame, about what the pixel filter draws afresh in a frame there. Between poses a walker's
+scene's ray structures stay as they are). Since 2026-11-22 (the request: "driftlings appear and disappear in and out
+... you can make driftlings in the overworld smaller, low polygonal and very easy to render, omitting most of their
+details") an island's driftling is the lite one (`DriftModels.lite`, below), posed whole by `litePose(w, th, t, y)`:
+its mood's pose from `LITE` (`walk` and `cheer` four hops, `idle` a breath, `peck`, `dip` and `push` a lean, `wave` a
+rock side to side, `nap` tipped over; each pose's lift, lean and tip, and how fast it steps through them), facing the
+nearest of `LITE_YAWS` (8) headings, the pose told to the pixel filter as `<mood><frame>.<heading>` in the group of
+its species (`PixelRenderer.pose(model, key, nil, sig)`), so every driftling of a kind in the same pose shares one
+picture and most poses are no draw at all. The dressed ones are posed through a budget (`posePals`): one walking or
+cheering every `POSE_WALK` (1/16 s), one standing, working or napping every `POSE_STILL` (1/8 s), the longest waiting
+first, at most `POSE_BUDGET` (40) a frame. Between poses a walker's
 picture slides on: each frame every dressed walker hands the pixel filter where it is and where its model was last put
 (`Walker.px`, `pz`; `PixelRenderer.glide`). `debugMoving()` (previews: every dressed model, where it stands and whether
 it walks); `holdPal(plot, id, secs, x?, z?)` puts it at `x`, `z` first. Each island's `Pals`

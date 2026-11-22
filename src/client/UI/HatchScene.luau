@@ -467,6 +467,9 @@ local function newEgg(s: Scene, r: number)
 	for _, f in fx do
 		f.p.Parent = lights
 	end
+	-- (what the view is about: moved and drawn every tick, never left for a later one by the pixel filter's budgets)
+	m:SetAttribute("PixelFocus", true)
+	lights:SetAttribute("PixelFocus", true)
 	m.Parent = s.dyn
 	PixelRenderer.registerDynamic(m)
 	if #fx > 0 then
@@ -1530,6 +1533,7 @@ local function newPal(s: Scene, white: boolean)
 	if white then
 		MicroModels.recolor(thing, "white")
 	end
+	thing.model:SetAttribute("PixelFocus", true)
 	thing.model.Parent = s.dyn
 	PixelRenderer.registerDynamic(thing.model)
 	s.pal = thing
@@ -1639,6 +1643,7 @@ local function hatch(s: Scene)
 		local v = Vector3.new(math.cos(a) * (2 + math.random() * 2.5), 3 + math.random() * 3, math.sin(a) * (2 + math.random() * 2.5))
 		table.insert(s.shards, { p = p, v = v, w = (math.random() - 0.5) * 14, at = mid, born = c })
 	end
+	bits:SetAttribute("PixelFocus", true)
 	bits.Parent = s.dyn
 	PixelRenderer.registerDynamic(bits)
 	-- what hatched: a white silhouette at first, small in the shell (its baked pictures if they are ready, else the

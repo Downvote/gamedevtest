@@ -54,14 +54,17 @@ function DriftModels.has(shape: string): boolean
 	return PLANS[shape] ~= nil
 end
 
--- A driftling of a body plan in its colours: `lod` "full" (close looks: the hatch scene, the portraits) or "world"
--- (the islands: fewer, bigger pieces), full when not given. `look` (its species': Data/Creatures) picks its eyes'
+-- A driftling of a body plan in its colours: `lod` "full" (close looks: the hatch scene, the portraits), "world"
+-- (fewer, bigger pieces) or "lite" (the islands: DriftModels.lite), full when not given. `look` (its species': Data/Creatures) picks its eyes'
 -- style and iris colour (DriftKit.eye) and the textures its body and accent colours wear (each part of that colour,
 -- not the face, gets a "PixelTex" attribute: the pixel renderer patterns it, Render/DynTex).
 export type Look = { id: string?, eye: string?, iris: string?, tex: string?, tex2: string?, form: Form? }
 local BLEND = 0.07 -- the body's blend radius, a share of the driftling's height
 local BLEND_MIN = 0.07 -- studs: a solid thinner than this across (its middle size) is a detail, not blended
 function DriftModels.build(shape: string, body: string, accent: string, lod: string?, look: Look?): Thing
+	if lod == "lite" then
+		return DriftModels.lite(DriftModels.build(shape, body, accent, "world", look))
+	end
 	local fn = PLANS[shape] or PLANS.armadillo
 	Kit.setFull(lod ~= "world")
 	Kit.setLook({ eye = look and look.eye, iris = look and look.iris, body = body, accent = accent, tex = look and look.tex, tex2 = look and look.tex2 })
@@ -110,6 +113,82 @@ function DriftModels.build(shape: string, body: string, accent: string, lod: str
 			end
 		end
 	end
+	return t
+end
+
+------------------------------------------------------------------ the islands' driftlings
+-- The request (2026-11-22): "driftlings appear and disappear in and out ... you can make driftlings in the overworld
+-- smaller, low polygonal and very easy to render, omitting most of their details". The islands' driftling is its
+-- "world" one cut down: its LITE_PARTS biggest pieces (by how much of it they show), its two eyes as plain dark ovals,
+-- nothing else (no face to blink, no blended body, no textures, no smooth light, no skeleton), LITE_SCALE of the size.
+-- Controllers/WorldView poses it whole (a hop, a lean) in a few poses the pixel filter keeps pictures of, one set for
+-- every driftling of its kind.
+local LITE_PARTS = 7
+local LITE_MIN = 0.03 -- a piece showing less than this share of all of them is a detail
+DriftModels.LITE_SCALE = 0.7
+function DriftModels.lite(t: Thing): Thing
+	local cands: { { name: string, score: number } } = {}
+	local total = 0
+	for name, p in t.parts do
+		if t.face[name] == nil and p.Transparency < 0.95 and p.Material ~= Enum.Material.Neon and p:GetAttribute("PixelPaint") == nil and p:GetAttribute("PixelEye") == nil then
+			local sz = p.Size
+			local score = (sz.X * sz.Y * sz.Z) ^ (2 / 3)
+			total += score
+			table.insert(cands, { name = name, score = score })
+		end
+	end
+	table.sort(cands, function(a, b): boolean
+		if a.score ~= b.score then
+			return a.score > b.score
+		end
+		return a.name < b.name
+	end)
+	local keep: { [string]: boolean } = {}
+	for i, c in cands do
+		if i > LITE_PARTS or (i > 2 and c.score < total * LITE_MIN) then
+			break
+		end
+		keep[c.name] = true
+	end
+	local eyes: { [string]: boolean } = {}
+	for _, name in { "EyeL", "EyeR" } do
+		local p = t.parts[name]
+		if p and p.Transparency < 0.95 then
+			keep[name] = true
+			eyes[name] = true
+		end
+	end
+	for name, p in t.parts do
+		if not keep[name] then
+			p:Destroy()
+			t.parts[name], t.rest[name], t.sizes[name], t.baseRest[name], t.baseSize[name], t.colors[name] = nil, nil, nil, nil, nil, nil
+		end
+	end
+	local k = DriftModels.LITE_SCALE
+	local dark = Blocks.color("black")
+	for name, p in t.parts do
+		for _, a in { "PixelBlend", "PixelTex", "PixelOwn", "PixelEye", "PixelEyeIris", "PixelEyeDark", "PixelEyeLid", "PixelEyeSide", "Keep" } do
+			p:SetAttribute(a, nil)
+		end
+		local r = t.baseRest[name]
+		if eyes[name] then
+			-- (a plain dark oval, set a little further out of the head than the painted one: made smaller with the rest,
+			-- its bulge would fall under the pixel filter's depth bias and the head would hide it)
+			p.Color = dark
+			t.colors[name] = dark
+			r = r * CFrame.new(0, 0, 0.06)
+		end
+		local sz = t.baseSize[name] * k
+		sz = Vector3.new(math.max(0.05, sz.X), math.max(0.05, sz.Y), math.max(0.05, sz.Z))
+		r = CFrame.new(r.Position * k) * r.Rotation
+		p.Size = sz
+		t.baseSize[name], t.sizes[name], t.baseRest[name], t.rest[name] = sz, sz, r, r
+	end
+	t.model:SetAttribute("PixelSmooth", nil)
+	t.model.Name = "Micro_lite_" .. string.sub(t.kind, 7)
+	t.face, t.tuck, t.rig = {}, {}, nil
+	t.h, t.r = t.h * k, t.r * k
+	t.lod = "lite"
 	return t
 end
 
