@@ -35,6 +35,7 @@ local UIKit = require(script.Parent.Parent.UI.UIKit)
 local Traits = require(ReplicatedStorage.Shared.Data.Traits)
 local EggView = require(script.Parent.EggView)
 local BuildingTags = require(script.Parent.BuildingTags)
+local SettingsUI = require(script.Parent.Parent.UI.SettingsUI)
 
 local WorldView = {}
 
@@ -79,6 +80,10 @@ type Walker = {
 }
 
 local walkers: { [string]: Walker } = {} -- key: "<plot>:p<id>"
+-- Settings' Driftlings off (settings.pals; the request of 2026-11-22: "also, add an option to hide driftlings"): no
+-- driftling on any island has a model; they keep walking to work and strolling unseen, so turning it on again shows
+-- each where it is now. Read from the view every frame (`palsOff`).
+local hidden = false
 local signLabels: { [number]: TextLabel } = {}
 local myPlot = 0
 -- studs from the view's centre an island is peopled within: the next island either side (100 when they were 80 apart)
@@ -613,8 +618,8 @@ local function stepWalker(w: Walker, t: number, dt: number)
 		decide(w, t)
 	end
 	local y = groundY()
-	if w.inside then
-		-- (in its building: no model, so nothing to draw)
+	if w.inside or hidden then
+		-- (in its building, or every driftling hidden by Settings: no model, so nothing to draw)
 		if w.thing then
 			undress(w)
 		end
@@ -1018,8 +1023,8 @@ end
 function WorldView.cheer(words: { string }, color: Color3)
 	local k = 0
 	for _, w in walkers do
-		-- (the ones out and about: one inside its building is not seen)
-		if w.plot ~= myPlot or w.inside then
+		-- (the ones out and about: one inside its building is not seen, nor any with Settings' Driftlings off)
+		if w.plot ~= myPlot or w.inside or hidden then
 			continue
 		end
 		k += 1
@@ -1134,6 +1139,8 @@ function WorldView.start()
 				syncPlot(i, near)
 			end
 		end
+		-- (Settings' Driftlings, a tap not answered yet included)
+		hidden = SettingsUI.value("pals") == "off"
 		local k0 = WorldView.clock()
 		for _, w in walkers do
 			stepWalker(w, t, dt)

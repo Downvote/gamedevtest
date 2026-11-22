@@ -989,7 +989,7 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `look.set` | `look` (a `Looks.encode` string, at most 200 characters) | `Store.setLook` (`checkLook`: every index in range, every piece owned and of its slot; the whole look replaces the founder's; the `Founder` attribute follows) | bad_payload, locked |
 | `outfit.set` | `i` (1 .. #outfits + 1), `look` ("" deletes outfit i) | `Store.setOutfit` (saves the look's canonical code as outfit i; returns `{ outfits }`) | bad_payload, locked, dup, full |
-| `settings.set` | `k` ("pixel", "music", "sfx", "zoom", "lang" or "text"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10), the language ("auto" or a code of `Lang.LIST`), the text (pixel, smooth). ("screen" went on 2026-11-22 with the Screen choice: a save's `settings.screen` is dropped by `Schema.reconcile`) | bad_payload |
+| `settings.set` | `k` ("pixel", "music", "sfx", "pals", "zoom", "lang" or "text"), `v` | the pixel tier (high, medium, low, off), the music, the sounds or the islands' driftlings (on, off; "pals" since 2026-11-22), the View slider's notch (a whole number 1 to 10), the language ("auto" or a code of `Lang.LIST`), the text (pixel, smooth). ("screen" went on 2026-11-22 with the Screen choice: a save's `settings.screen` is dropped by `Schema.reconcile`) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
 | `char.home` | - | PlotService puts the founder in front of their own tree | cooldown (`Tuning.HomeCooldown`), not_ready |
@@ -2297,7 +2297,9 @@ there. One with nowhere to work naps in its hut and never strolls. A walker made
 hatched) starts inside its building part way through a spell, so arriving on an island shows no crowd walking in. Its
 mood (`palMoodOf`: `dip` at a pier or kelp farm, `peck` at the other farms, `push` at the wood and the boosts, `wave`
 at the shops, `nap` at a hut or the hatchery) is kept but not seen while it is inside. `cheer` passes the ones inside;
-`insideCount(plot) -> (inside, all)` (sims). The `crowd` preview (68 driftlings on a full tier 4 town): 19 to 26 dressed
+`insideCount(plot) -> (inside, all)` (sims). With Settings' Driftlings off (`SettingsUI.value("pals")`, read every
+frame into `hidden`; the request of 2026-11-22: "also, add an option to hide driftlings") no walker has a model and
+none cheers; they keep walking and working unseen, so On shows each where it is. The `crowd` preview (68 driftlings on a full tier 4 town): 19 to 26 dressed
 against 66, the pixel filter 24.2 ms a frame against 34.6 (the slowest 147 against 269), its models 2.9 ms against 4.7. One new in a hut on an island already peopled has just
 hatched: it steps out where its egg lay (`EggView.hatchPoint`) and walks off to its building (`born`). Only islands within 100 studs of
 the view's centre are drawn (synced every half second); no campfire's flame or smoke since 2026-11-20 (`fireOn` went
@@ -3197,7 +3199,9 @@ The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide
 (`settings.lang`, 2026-11-20: Auto and each `Lang.LIST` language by its own name, `raw` buttons, a `flow` row that
 wraps onto as many lines as the body needs, `own`: its buttons on lines of their own under the label), Text (`settings.text`: Pixel, Smooth, with the hint
 "Smooth is easier to read on a small screen."), Music (`settings.music`), Sounds
-(`settings.sfx`) and Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish; the Screen row
+(`settings.sfx`), Driftlings (`settings.pals`: on, off, with the hint "Off hides them on the islands so the game runs
+smoother."; the request of 2026-11-22, "also, add an option to hide driftlings"; WorldView reads it) and Pixel art
+(`settings.pixel`: high, medium, low; no off button, the user's wish; the Screen row
 went on 2026-11-22, the pixel scale always 100%), each a row of buttons
 `Set_<k>_<v>`, the chosen one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
 `Audio.setSoundsOn`, `PixelRenderer.setTier`, `SettingsUI.applyLanguage` for lang and text) and sends `settings.set`; a refusal drops the pending value with a notice.

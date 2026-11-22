@@ -9,6 +9,8 @@
 --                                       "an option to turn off pixel text")
 --   Music     On / Off                  settings.music: the background music
 --   Sounds    On / Off                  settings.sfx: every one-shot sound and the island's loops (waves, birds, rain)
+--   Driftlings On / Off                 settings.pals: the islands' driftlings drawn or not (Controllers/WorldView; the
+--                                       request of 2026-11-22: "also, add an option to hide driftlings")
 --   Pixel art High / Medium / Low       settings.pixel: the pixel filter's detail (no Off: the user asked for none, 2026-11-14)
 --   (Screen, Auto / 100% .. 200%, went on 2026-11-22: "make the pixel scale always 100%, no need for that option
 --   anymore"; the game's pixel size is used as it is)
@@ -52,6 +54,12 @@ local ROWS: { Row } = {
 	},
 	{ k = "music", label = "Music", opts = { { v = "on", text = "On" }, { v = "off", text = "Off" } } },
 	{ k = "sfx", label = "Sounds", opts = { { v = "on", text = "On" }, { v = "off", text = "Off" } } },
+	{
+		k = "pals",
+		label = "Driftlings",
+		opts = { { v = "on", text = "On" }, { v = "off", text = "Off" } },
+		hint = "Off hides them on the islands so the game runs smoother.",
+	},
 	{
 		k = "pixel",
 		label = "Pixel art",

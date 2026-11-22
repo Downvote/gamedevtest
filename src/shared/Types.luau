@@ -62,12 +62,14 @@ export type Laid = { id: number, r: number, cost: number?, ss: string?, wx: stri
 export type Clutch = { left: number, list: { Laid }, next: number }
 
 -- music, sfx (the sounds: the interface, the island, the weather): "on" (default) | "off" (the Settings panel, 2026-11-14)
+-- pals: the islands' driftlings drawn, "on" (default) | "off" (the request of 2026-11-22: "also, add an option to hide
+-- driftlings")
 -- zoom: the View slider's notch, 1 (far out) .. #Tuning.CamZoomNotches (close in); Tuning.CamZoomDefault (2026-11-18)
 -- lang: "auto" (the player's Roblox language when the game has it) or a language's code (Locale/Lang.LIST); text:
 -- "pixel" (the pixel font) or "smooth" (Roblox's own font for every word: the request of 2026-11-20, "an option to turn
 -- off pixel text")
 -- auto: Auto Hatch's floor (the AutoHatch pass; Logic/Tree.setAuto): the rarity a new egg needs to hatch by itself, 0 off
-export type Settings = { pixel: string, music: string?, sfx: string?, zoom: number?, lang: string?, text: string?, auto: number? }
+export type Settings = { pixel: string, music: string?, sfx: string?, pals: string?, zoom: number?, lang: string?, text: string?, auto: number? }
 
 -- days: island days lived; earned: shells made in all; taken: eggs hatched from the Tree of Life (and driftlings taken
 -- in before it laid eggs); sold: driftlings sold; best: the rarest driftling had (0 none yet, 1 .. 5); hatched: the

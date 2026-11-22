@@ -158,6 +158,26 @@ do
 	H.expect(H.req(p, "settings.set", { k = "screen", v = "125" }).err == "bad_payload", "settings", "a Screen value: bad_payload (the choice went)")
 end
 local _ = PRm
+-- Driftlings On / Off (the request of 2026-11-22: "also, add an option to hide driftlings"): Off leaves no driftling of
+-- any island with a model, kept with the profile; On brings the ones out and about back
+do
+	local WVs = H.cmod(p, "Controllers.WorldView")
+	H.expect(H.buttonNamed(p, "Set_pals_on") ~= nil and H.buttonNamed(p, "Set_pals_off") ~= nil, "settings", "the panel's Driftlings row (On, Off)")
+	-- (one driftling held out in the open, so there is one with a model to hide)
+	local held = prof.pals[1]
+	if held then
+		H.inClient(p, WVs.holdPal, prof.plot, held.id, 8)
+	end
+	E.run(0.3)
+	local before = #H.inClient(p, WVs.debugMoving)
+	H.expect(H.clickNamed(p, "Set_pals_off", { wait = 0.5 }) and prof.settings.pals == "off", "settings", "Driftlings Off, kept with the profile", tostring(prof.settings.pals))
+	local off = #H.inClient(p, WVs.debugMoving)
+	H.expect(off == 0, "settings", "Driftlings Off: no driftling has a model", string.format("%d before, %d after", before, off))
+	H.expect(H.clickNamed(p, "Set_pals_on", { wait = 0.5 }) and prof.settings.pals == "on", "settings", "and On again", tostring(prof.settings.pals))
+	local on = #H.inClient(p, WVs.debugMoving)
+	H.expect(before == 0 or on > 0, "settings", "Driftlings On: the ones out in the open have their models back", string.format("%d before, %d after", before, on))
+	H.expect(H.req(p, "settings.set", { k = "pals", v = "maybe" }).err == "bad_payload", "settings", "a Driftlings value that isn't on or off: bad_payload")
+end
 -- the View slider (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10
 -- notches"): ten notches under its track, the default's marked, - and + step a notch, the camera follows a moment after
 -- the last one at that notch's art px a stud, and the notch is kept with the profile

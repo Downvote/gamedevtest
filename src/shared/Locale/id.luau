@@ -1428,6 +1428,7 @@ return {
 	["Obsidusk"] = "Obsidusk",
 	["Odds now"] = "Peluang kini",
 	["Off"] = "Mati",
+	["Off hides them on the islands so the game runs smoother."] = "Mati menyembunyikan mereka di pulau, jadi game jalan lebih lancar.",
 	["Offline Pass"] = "Pass Offline",
 	["Offline Pass: {1} h {2}."] = "Pass Offline: {1} jam {2}.",
 	["Old Galleon"] = "Galiung Tua",

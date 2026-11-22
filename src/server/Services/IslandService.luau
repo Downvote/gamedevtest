@@ -381,8 +381,9 @@ function IslandService.init()
 		if a.k == "pixel" and type(a.v) == "string" and PIXEL_TIERS[a.v] then
 			s.profile.settings.pixel = a.v
 			return true, nil
-		elseif (a.k == "music" or a.k == "sfx") and (a.v == "on" or a.v == "off") then
-			-- the background music and the sounds (the Settings panel): on or off, kept with the profile
+		elseif (a.k == "music" or a.k == "sfx" or a.k == "pals") and (a.v == "on" or a.v == "off") then
+			-- the background music, the sounds and the islands' driftlings (the Settings panel; driftlings since
+			-- 2026-11-22: "also, add an option to hide driftlings"): on or off, kept with the profile
 			s.profile.settings[a.k] = a.v
 			return true, nil
 		elseif a.k == "zoom" and type(a.v) == "number" and a.v == math.floor(a.v) and a.v >= 1 and a.v <= #Tuning.CamZoomNotches then

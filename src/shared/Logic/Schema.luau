@@ -156,7 +156,7 @@ function Schema.default(now: number, seed: number): Profile
 		tut = 1,
 		quest = 1,
 		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
-		settings = { pixel = "high", music = "on", sfx = "on", zoom = Tuning.CamZoomDefault, lang = "auto", text = "pixel", auto = 0 },
+		settings = { pixel = "high", music = "on", sfx = "on", pals = "on", zoom = Tuning.CamZoomDefault, lang = "auto", text = "pixel", auto = 0 },
 		createdAt = now,
 		inv = {},
 		passes = {},
@@ -779,6 +779,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			pixel = if pixel == "high" or pixel == "medium" or pixel == "low" or pixel == "off" then pixel else "high",
 			music = if settings.music == "off" then "off" else "on",
 			sfx = if settings.sfx == "off" then "off" else "on",
+			-- the islands' driftlings shown or hidden (2026-11-22: "also, add an option to hide driftlings")
+			pals = if settings.pals == "off" then "off" else "on",
 			zoom = int(settings.zoom, Tuning.CamZoomDefault, 1, #Tuning.CamZoomNotches),
 			-- (settings.screen, the display's scale, went on 2026-11-22: a save's old value is dropped here)
 			-- the language (2026-11-20): "auto" or a code the game has; the text: the pixel font or Roblox's own

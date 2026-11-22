@@ -1428,6 +1428,7 @@ return {
 	["Obsidusk"] = "Obsidusk",
 	["Odds now"] = "当前概率",
 	["Off"] = "关",
+	["Off hides them on the islands so the game runs smoother."] = "关掉后岛上不显示它们，游戏运行更流畅。",
 	["Offline Pass"] = "离线卡",
 	["Offline Pass: {1} h {2}."] = "离线卡：{1} 小时，{2}。",
 	["Old Galleon"] = "古老帆船",

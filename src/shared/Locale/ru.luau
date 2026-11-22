@@ -1428,6 +1428,7 @@ return {
 	["Obsidusk"] = "Obsidusk",
 	["Odds now"] = "Шансы сейчас",
 	["Off"] = "Выкл.",
+	["Off hides them on the islands so the game runs smoother."] = "Выкл. прячет их на островах, и игра идёт плавнее.",
 	["Offline Pass"] = "Офлайн-пропуск",
 	["Offline Pass: {1} h {2}."] = "Офлайн-пропуск: {1} ч {2}.",
 	["Old Galleon"] = "Старый галеон",

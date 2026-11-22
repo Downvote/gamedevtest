@@ -3086,7 +3086,10 @@ Screen row is gone from Settings, and a save's old choice is dropped. The layers
 
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
-rain; `settings.sfx`), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
+rain; `settings.sfx`), Driftlings On / Off ("Off hides them on the islands so the game runs smoother."; `settings.pals`,
+the request of 2026-11-22: "also, add an option to hide driftlings": with it Off no driftling on any island is drawn,
+not even the ones out for a stroll or just hatched; they keep going about their day unseen, so turning it back On
+shows each where it is; the hatch scene still shows every new one), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
 for an option to turn off the pixel filter"), and View, a slider with ten notches that zooms the camera out and in
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
