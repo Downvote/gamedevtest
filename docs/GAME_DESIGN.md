@@ -2980,6 +2980,22 @@ text (the requests and how each was met) is in the history of this file, up to c
   across the sky between the islands, about 1,500 art px over a second, after the loading card had opened. Now a jump
   that far is shown at once: the picture is drawn again where your founder is, under the loading card, and opens on
   them (the `visit` preview counts the frames the camera and the picture move after the card opens: none).
+
+  > The request (2026-11-22): "could the whole player island be prerendered during the loading scene, such that
+  > walking around unrendered areas wont need to lag so much?"
+
+  Yes. Ground you had seen before already came back from a cache without being drawn again; ground you hadn't was
+  drawn as it came into view, and on a big, busy island that cost the frames. Now while the loading card is up (when
+  you join, visit, go home or grow your island) the pixel filter draws the whole island into that cache, starting
+  next to your founder and working outward, using every bit of time it can since nobody sees the frame rate behind
+  the card. The card waits for it 8 seconds at most; whatever is left is drawn in the quiet moments after it opens,
+  still nearest you first. Open sky costs nothing: only the ground the island's own pieces cover is drawn. A building
+  you place or remove redraws its own patch the same way. The cache now holds up to 2,400 patches of 32 by 32 pixels
+  (about 52 MB; 1,400 on a phone or tablet, where the view starts further out), enough for the biggest island at the
+  default View. In the preview (`prerender=20`) a fully built Everdrift took 25 seconds of the emulator to draw whole,
+  and a walk round its town afterwards drew nothing new: the filter's work a frame went from 23.4 ms on average to
+  15.2, its worst frame from 215 ms to 48, and the frames over 25 ms from 254 to 117. The game's rays are Roblox's own
+  native code, much quicker than the emulator's, so it should get through the island sooner than that.
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are

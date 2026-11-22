@@ -1362,6 +1362,116 @@ end
 -- then back west over it, on the real clock at 60 frames a second; every frame's renderer split (debugPerf, read and
 -- cleared each frame), averaged over the frames whose picture scrolled and over the rest, the biggest first
 local scrollRimCheck = false
+-- prerender=<tier>[:off]: the showcase's town on an island of that tier (as scrollcost=<tier>), its whole island cast
+-- into the pan cache behind a hidden screen as the loading cards do (the request of 2026-11-22: "could the whole player
+-- island be prerendered during the loading scene, such that walking around unrendered areas wont need to lag so
+-- much?"), on the real clock: how long, how many tiles and MB, then a square walked round the town at the walking pace
+-- (each side 3 s) with the strips' pixels copied from the cache against cast and the frames' times. `:off`: the same
+-- walk with no prerender (the look-ahead and the ring as before), to compare.
+function SCEN.prerender(tier: number, off: boolean)
+	local Plot = H.sharedServer("Logic.Plot")
+	local Creatures = H.sharedServer("Data.Creatures")
+	local Tuning = H.sharedServer("Config.Tuning")
+	local plan = require("./showcase")({ Plot = Plot, Buildings = H.sharedServer("Data.Buildings"), Street = H.sharedServer("Data.Street"), log = log })
+	local pals = {}
+	for k = 1, math.min(Plot.housingLimit(tier), 40) do
+		table.insert(pals, Creatures.list[(k * 7 - 1) % #Creatures.list + 1].id)
+	end
+	seedProfile(60 + tier, tier, { fill = plan, pals = pals, shells = 9e9 })
+	local p = join(60 + tier, "Wren")
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR == nil or PR.debugIsle == nil then
+		return p
+	end
+	-- (held off while the island settles, so the timing below is the whole cast)
+	H.inClient(p, PR.debugIsleOff, true)
+	settle(p, 90, 2)
+	E.run(3)
+	local ox = H.sharedServer("Data.Street").origin(H.session(p).plot)
+	p.Character:PivotTo(E.cf.new(ox - 20, 3, 24))
+	E.run(2)
+	settle(p, 60, 1)
+	E.run(1)
+	local realClock = os.clock
+	local off0 = E.SIM.lastClock - realClock() + 1
+	local sim0 = E.simClock
+	E.simClock = function()
+		local v = realClock() + off0
+		E.SIM.lastClock = v
+		return v
+	end
+	local dt = 1 / 60
+	if not off then
+		log("prerender %d: the cache before, %d tiles", tier, H.inClient(p, PR.debugIsle).cacheTiles)
+		H.inClient(p, PR.debugIsleOff, false)
+		H.inClient(p, PR.setHidden, true)
+		local t0, frames = realClock(), 0
+		local done, share = false, 0
+		while realClock() - t0 < 240 do
+			E.step(dt)
+			frames += 1
+			done, share = H.inClient(p, PR.prerender)
+			if done then
+				break
+			end
+		end
+		H.inClient(p, PR.setHidden, false)
+		local d = H.inClient(p, PR.debugIsle)
+		local bytes = d.cacheTiles * 32 * 32 * 21
+		log("prerender %d: %s in %.1f s (%d frames), %.0f%% held; %d tiles listed, %d cast, the list made in %.0f ms, casting %.0f ms; the cache %d tiles, %.1f MB%s", tier, if done then "done" else "not done", realClock() - t0, frames, share * 100, d.listed, d.cast, d.buildMs, d.castMs, d.cacheTiles, bytes / 1048576, if d.full then " (full)" else "")
+	else
+		log("prerender %d: off", tier)
+	end
+	-- the walk: a square round the town, each side 3 s at the walking pace
+	H.inClient(p, PR.debugPerf)
+	local root = p.Character:FindFirstChild("HumanoidRootPart")
+	local at = p.Character:GetPivot().Position
+	local speed = Tuning.WalkSpeed
+	local dirs = { E.v3(1, 0, 0), E.v3(0, 0, -1), E.v3(-1, 0, 0), E.v3(0, 0, 1) }
+	local loaded, missed, slow, worst, total, n = 0, 0, 0, 0, 0, 0
+	local steps: { number } = {}
+	for _, dir in dirs do
+		if root then
+			root.AssemblyLinearVelocity = dir * speed
+		end
+		for _ = 1, 180 do
+			at += dir * speed * dt
+			p.Character:PivotTo(E.cf.new(at.X, at.Y, at.Z))
+			local t1 = realClock()
+			E.step(dt)
+			local wall = (realClock() - t1) * 1000
+			local st = H.inClient(p, PR.debugPerf)
+			if st.cache then
+				loaded += st.cache.loaded
+				missed += st.cache.missed
+			end
+			table.insert(steps, st.stepMs or 0)
+			total += wall
+			n += 1
+			worst = math.max(worst, wall)
+			slow += if wall > 25 then 1 else 0
+		end
+	end
+	if root then
+		root.AssemblyLinearVelocity = E.v3(0, 0, 0)
+	end
+	table.sort(steps)
+	local sum = 0
+	for _, v in steps do
+		sum += v
+	end
+	log("prerender %d%s walk: the strips' pixels copied from the cache %d, cast %d; the renderer's step %.1f ms on average, %.1f at the 90th percentile, %.1f at worst; frames %.1f ms on average, %d over 25 ms, the slowest %.0f ms", tier, if off then " (off)" else "", loaded, missed, sum / math.max(1, #steps), steps[math.max(1, math.floor(#steps * 0.9))] or 0, steps[#steps] or 0, total / math.max(1, n), slow, worst)
+	if PR.debugCastCheck then
+		-- (the layer, its strips copied from the tiles cast ahead, against every pixel's own ray)
+		E.run(0.5)
+		local cc = H.inClient(p, PR.debugCastCheck)
+		log("prerender %d: the layer against a fresh cast: %d px off of %d (ids %d, sun %d, shade %d, ties %d)", tier, cc.off, cc.checked, cc.ids, cc.lits, cc.shades, cc.ties or 0)
+	end
+	E.simClock = sim0
+	capture(p, string.format("prerender%d", tier))
+	return p
+end
+
 -- castbench=<tier>: the showcase's town on an island of that tier (as scrollcost=<tier> stands in it), the whole layer
 -- cast again with and without the maps, the per-pixel steps timed apart, the hits worked out without a ray checked
 -- against the rays' own, and the layer against a fresh cast (PixelRenderer.debugCastBench, debugCastCheck).
@@ -6991,6 +7101,13 @@ for _, name in list do
 	if cbArg then
 		fn = function()
 			return SCEN.castbench(tonumber(cbArg) :: number)
+		end
+	end
+	-- (prerender=<tier>[:off]: the whole island cast behind a hidden screen, then a walk round it)
+	local prArg, prOff = string.match(name, "^prerender=(%d+)(:?o?f?f?)$")
+	if prArg then
+		fn = function()
+			return SCEN.prerender(tonumber(prArg) :: number, prOff == ":off")
 		end
 	end
 	-- (scrollcost=<tier>: the scroll timings walking across a decorated island of that tier)

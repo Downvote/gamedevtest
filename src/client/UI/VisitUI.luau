@@ -131,9 +131,13 @@ function VisitUI.travel(plot: number?)
 			task.wait(0.2)
 			local t1 = os.clock()
 			while PixelRenderer.busy() and os.clock() - t1 < 8 do
-				LoadingCard.progress(0.5 + 0.45 * math.min(1, (os.clock() - t1) / 3))
+				LoadingCard.progress(0.5 + 0.2 * math.min(1, (os.clock() - t1) / 3))
 				task.wait(0.05)
 			end
+			-- then the rest of the island, so a walk anywhere on it finds its picture cast (PixelRenderer.waitPrerender)
+			PixelRenderer.waitPrerender(function(share: number)
+				LoadingCard.progress(0.7 + 0.28 * share)
+			end)
 			PixelRenderer.setHidden(false)
 			LoadingCard.finish()
 		end,

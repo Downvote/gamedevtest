@@ -1540,9 +1540,13 @@ local function expandIsland(from: number)
 			task.wait(0.2)
 			local t1 = os.clock()
 			while PixelRenderer.busy() and os.clock() - t1 < 8 do
-				LoadingCard.progress(0.6 + 0.35 * math.min(1, (os.clock() - t1) / 3))
+				LoadingCard.progress(0.6 + 0.15 * math.min(1, (os.clock() - t1) / 3))
 				task.wait(0.05)
 			end
+			-- then the rest of the bigger island (PixelRenderer.waitPrerender)
+			PixelRenderer.waitPrerender(function(share: number)
+				LoadingCard.progress(0.75 + 0.23 * share)
+			end)
 			PixelRenderer.setHidden(false)
 			LoadingCard.finish()
 		end,

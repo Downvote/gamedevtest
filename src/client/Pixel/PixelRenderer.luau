@@ -430,6 +430,7 @@ local SG = {
 	vpRawY = nil :: number?,
 	vpView = nil :: CameraController.View?,
 	vpJump = false, -- (this frame's window jumped: SG.viewPan; the scroll re-bakes at it even with strips pending)
+	isleOff = false, -- (previews: the whole island's cast held off, PixelRenderer.debugIsleOff)
 	frameNo = 0, -- (frames stepped)
 	tickNow = false, -- (this frame composes a tick: frameStep)
 	tickRun = false, -- (and so did the frame before it)
@@ -2356,6 +2357,13 @@ local function bakeSome(deadline: number): boolean
 	return done
 end
 
+-- The pan cache's tiles at most on this device: enough for the whole island (SG.isle), fewer on a touch screen with no
+-- keyboard (its View starts further out, so an island takes fewer tiles, and a phone has less memory).
+function SG.cacheCap(): number
+	local uis = game:GetService("UserInputService")
+	return if uis.TouchEnabled and not uis.KeyboardEnabled then Tuning.PixelPanCacheTilesTouch else Tuning.PixelPanCacheTiles
+end
+
 local function startBake()
 	SG.unfin = nil -- (a bake casts every pixel again)
 	SG.fin, SG.finCoarse = nil, false
@@ -2370,7 +2378,7 @@ local function startBake()
 	-- (a new picture of the island: the pan cache starts again, and the next tier's pre-cast, its part ids renumbered; a
 	-- stage's bake leaves the island's be)
 	if not s.view.stage then
-		SG.Tiles.setMax(Tuning.PixelPanCacheTiles)
+		SG.Tiles.setMax(SG.cacheCap())
 		SG.Tiles.clear()
 		preReset()
 	end
@@ -7214,27 +7222,9 @@ function SG.aheadNext(s: Surf, dx: number, dy: number): (number?, number?, { num
 	return bx, by, br
 end
 
--- Cast ahead until `deadline`; true when there was something to do (the pre-cast then waits). `ring`: standing too, the
--- tiles all round the layer (SG.aheadNext).
-function SG.aheadStep(s: Surf, deadline: number, ring: boolean?): boolean
+-- The look-ahead's small layer (a tile and PC.PAD px round it), made again for a new view.
+function SG.aheadLayer(s: Surf)
 	local A = SG.ahead
-	local t0 = SG.clock()
-	if not SG.tilesOk(s) then
-		return false
-	end
-	-- the way the view is going: the drawn pan's last move, held half a second
-	local tx, ty = CameraController.drawnPan()
-	local now = os.clock()
-	if A.lx ~= nil and A.ly ~= nil then
-		local mx, my = tx - A.lx, ty - A.ly
-		if mx ~= 0 or my ~= 0 then
-			A.dx, A.dy, A.at = math.sign(mx), math.sign(my), now
-		end
-	end
-	A.lx, A.ly = tx, ty
-	if now - A.at > 0.5 then
-		A.dx, A.dy = 0, 0
-	end
 	if A.view ~= s.view or A.ps == nil then
 		local n = PC.SIDE * PC.SIDE
 		A.ps = {
@@ -7262,6 +7252,30 @@ function SG.aheadStep(s: Surf, deadline: number, ring: boolean?): boolean
 		}
 		A.view, A.cur = s.view, nil
 	end
+end
+
+-- Cast ahead until `deadline`; true when there was something to do (the pre-cast then waits). `ring`: standing too, the
+-- tiles all round the layer (SG.aheadNext).
+function SG.aheadStep(s: Surf, deadline: number, ring: boolean?): boolean
+	local A = SG.ahead
+	local t0 = SG.clock()
+	if not SG.tilesOk(s) then
+		return false
+	end
+	-- the way the view is going: the drawn pan's last move, held half a second
+	local tx, ty = CameraController.drawnPan()
+	local now = os.clock()
+	if A.lx ~= nil and A.ly ~= nil then
+		local mx, my = tx - A.lx, ty - A.ly
+		if mx ~= 0 or my ~= 0 then
+			A.dx, A.dy, A.at = math.sign(mx), math.sign(my), now
+		end
+	end
+	A.lx, A.ly = tx, ty
+	if now - A.at > 0.5 then
+		A.dx, A.dy = 0, 0
+	end
+	SG.aheadLayer(s)
 	-- (a tile the next scroll or two will want, Tuning.PixelAheadNearPx from the layer's edge, gets the frame's larger
 	-- budget: on ground not seen yet a walk needs more cast a frame than the plain budget gives)
 	local slow = deadline
@@ -7303,12 +7317,19 @@ function SG.aheadPick(s: Surf, ring: boolean?): boolean
 	if ntx == nil or nty == nil or nr == nil then
 		return false
 	end
+	SG.aheadSet(s, ntx, nty, nr, ring == true)
+	return true
+end
+
+-- The look-ahead's tile (tx, ty) to cast next: `nr` the global art px rect of it to keep (the island's whole cast,
+-- SG.isleStep, sets one too). `ring`: let go once the view moves.
+function SG.aheadSet(s: Surf, ntx: number, nty: number, nr: { number }, ring: boolean)
+	local A = SG.ahead
 	local ox, oy = ntx * PC.TILE - PC.PAD, nty * PC.TILE - PC.PAD
 	A.ps.cam = Raster.gridCam(s.view.rot12, CameraController.gridAt(ox, oy), PC.SIDE, PC.SIDE, s.K, Tuning.CamRayBack)
 	local kx0, ky0, kx1, ky1 = nr[1] - ox, nr[2] - oy, nr[3] - ox, nr[4] - oy
 	local cx0, cy0 = math.max(0, kx0 - PC.PAD), math.max(0, ky0 - PC.PAD)
-	A.cur = { tx = ntx, ty = nty, phase = 1, x = cx0, y = cy0, epoch = SG.Tiles.epoch(), cx0 = cx0, cy0 = cy0, cx1 = math.min(PC.SIDE - 1, kx1 + PC.PAD), cy1 = math.min(PC.SIDE - 1, ky1 + PC.PAD), kx0 = kx0, ky0 = ky0, kx1 = kx1, ky1 = ky1, g1 = nr[1], g2 = nr[2], g3 = nr[3], g4 = nr[4], ring = ring == true }
-	return true
+	A.cur = { tx = ntx, ty = nty, phase = 1, x = cx0, y = cy0, epoch = SG.Tiles.epoch(), cx0 = cx0, cy0 = cy0, cx1 = math.min(PC.SIDE - 1, kx1 + PC.PAD), cy1 = math.min(PC.SIDE - 1, ky1 + PC.PAD), kx0 = kx0, ky0 = ky0, kx1 = kx1, ky1 = ky1, g1 = nr[1], g2 = nr[2], g3 = nr[3], g4 = nr[4], ring = ring }
 end
 
 -- The look-ahead's tile going (SG.aheadPick) cast until `deadline` or done.
@@ -7368,6 +7389,205 @@ function SG.aheadPiece(s: Surf, deadline: number): boolean
 		end
 	end
 	return true
+end
+
+------------------------------------------------------------------ the whole island, cast ahead
+-- The request of 2026-11-22: "could the whole player island be prerendered during the loading scene, such that walking
+-- around unrendered areas wont need to lag so much?". Every pan cache tile the island under the founder covers (its
+-- parts' boxes on the grid: open sky is no tile) is cast on the look-ahead's small layer and kept, nearest the view
+-- first: behind the loading card with the hidden budget (PixelRenderer.prerender says how far it has come; the cards
+-- wait on it, Tuning.PixelIsleWaitSecs at most), then in the frame's spare time once nothing else has work
+-- (Tuning.PixelIsleMs). A walk anywhere on the island then copies its strips from the cache instead of casting them.
+SG.isle = {
+	key = "", -- (the island and the view its list is for)
+	plot = 0,
+	tx = {} :: { number },
+	ty = {} :: { number },
+	set = {} :: { [number]: boolean }, -- (the tiles listed, by SG.isleKey)
+	n = 0,
+	idx = 1, -- (the first tile in the list the cache may not hold yet)
+	epoch = -1, -- (the cache's epoch when the list was last read from its start)
+	ready = false,
+	parts = nil :: { Instance }?, -- (the island's instances still to look at while the list is made)
+	pi = 1,
+	lin = nil :: { number }?, -- (the grid's slopes: art px a stud along x, y and z, across then down)
+	full = false, -- (the cache held all it may)
+	stats = { tiles = 0, listed = 0, buildMs = 0, castMs = 0 },
+}
+
+function SG.isleKey(tx: number, ty: number): number
+	return (tx + 32768) * 65536 + (ty + 32768)
+end
+
+-- The island the founder stands on (the view's own when they stand on none).
+function SG.islePlot(): number
+	local at = CameraController.founderAt()
+	local p = if at then Street.plotAt(at.X, at.Z) else 0
+	return if p ~= 0 then p else CameraController.view().plot
+end
+
+-- A tile (tx, ty) onto the list, once.
+function SG.isleTile(tx: number, ty: number)
+	local I = SG.isle
+	local k = SG.isleKey(tx, ty)
+	if not I.set[k] then
+		I.set[k] = true
+		I.n += 1
+		I.tx[I.n], I.ty[I.n] = tx, ty
+	end
+end
+
+-- A part that came onto the island: the tiles of its rect (and its shadow's) that the list lacks go on it, last.
+function SG.isleAdd(r: Rect)
+	local I = SG.isle
+	if not I.ready then
+		return
+	end
+	local T = SG.Tiles.TILE
+	for tx = r.x0 // T, r.x1 // T do
+		for ty = r.y0 // T, r.y1 // T do
+			SG.isleTile(tx, ty)
+		end
+	end
+end
+
+-- Make the list a little at a time until `deadline`: every part of the island's model, its box on the grid, the tiles
+-- it touches; then nearest the view first. True once it is made.
+function SG.isleBuild(s: Surf, deadline: number): boolean
+	local I = SG.isle
+	local b0 = SG.clock()
+	if I.parts == nil then
+		local plots = workspace:FindFirstChild("Plots")
+		local m = if plots then plots:FindFirstChild("Plot_" .. I.plot) else nil
+		I.parts = if m then m:GetDescendants() else {}
+		I.pi = 1
+		local v = s.view
+		local x0, y0 = Raster.gridPoint(v.rot12, v.grid, 0, 0, 0)
+		local xa, ya = Raster.gridPoint(v.rot12, v.grid, 1, 0, 0)
+		local xb, yb = Raster.gridPoint(v.rot12, v.grid, 0, 1, 0)
+		local xc, yc = Raster.gridPoint(v.rot12, v.grid, 0, 0, 1)
+		I.lin = { xa - x0, xb - x0, xc - x0, ya - y0, yb - y0, yc - y0, x0, y0 }
+	end
+	local list = I.parts :: { Instance }
+	local L = I.lin :: { number }
+	local ax, bx, cx, ay, by, cy, ox, oy = L[1], L[2], L[3], L[4], L[5], L[6], L[7], L[8]
+	local T = SG.Tiles.TILE
+	local n = 0
+	while I.pi <= #list do
+		local d = list[I.pi]
+		I.pi += 1
+		n += 1
+		if n % 64 == 0 and SG.clock() >= deadline then
+			I.stats.buildMs += (SG.clock() - b0) * 1000
+			return false
+		end
+		if d:IsA("BasePart") and d.Transparency < 1 then
+			local g = d.CollisionGroup
+			if g ~= "Bounds" and g ~= "StagedBounds" then
+				-- (its box on the grid: the middle's point, then each of its three half sides across and down)
+				local cf, sz = d.CFrame, d.Size
+				local p = cf.Position
+				local u, w, f = cf.XVector * (sz.X / 2), cf.YVector * (sz.Y / 2), cf.ZVector * (sz.Z / 2)
+				local mx = ox + ax * p.X + bx * p.Y + cx * p.Z
+				local my = oy + ay * p.X + by * p.Y + cy * p.Z
+				local hx = math.abs(ax * u.X + bx * u.Y + cx * u.Z) + math.abs(ax * w.X + bx * w.Y + cx * w.Z) + math.abs(ax * f.X + bx * f.Y + cx * f.Z)
+				local hy = math.abs(ay * u.X + by * u.Y + cy * u.Z) + math.abs(ay * w.X + by * w.Y + cy * w.Z) + math.abs(ay * f.X + by * f.Y + cy * f.Z)
+				for tx = math.floor(mx - hx - 2) // T, math.ceil(mx + hx + 2) // T do
+					for ty = math.floor(my - hy - 2) // T, math.ceil(my + hy + 2) // T do
+						SG.isleTile(tx, ty)
+					end
+				end
+			end
+		end
+	end
+	-- (nearest the middle of the layer first)
+	local midX, midY = (s.cam.gx + s.W / 2) / T - 0.5, (s.cam.gy + s.H / 2) / T - 0.5
+	local order = table.create(I.n)
+	for i = 1, I.n do
+		order[i] = i
+	end
+	local txs, tys = I.tx, I.ty
+	local function dist(i: number): number
+		return math.max(math.abs(txs[i] - midX), math.abs(tys[i] - midY) * 1.6)
+	end
+	table.sort(order, function(a: number, b: number): boolean
+		return dist(a) < dist(b)
+	end)
+	local ntx, nty = table.create(I.n), table.create(I.n)
+	for i, k in order do
+		ntx[i], nty[i] = txs[k], tys[k]
+	end
+	I.tx, I.ty = ntx, nty
+	I.parts, I.ready, I.idx, I.epoch, I.full = nil, true, 1, -1, false
+	I.stats.listed = I.n
+	I.stats.buildMs += (SG.clock() - b0) * 1000
+	return true
+end
+
+-- The island's next tile the cache lacks, from `idx` on (tiles wholly on the layer are there already); nil: none.
+function SG.isleNext(s: Surf): (number?, number?, { number }?)
+	local I = SG.isle
+	local T = SG.Tiles.TILE
+	local gx, gy, W, H = s.cam.gx, s.cam.gy, s.W, s.H
+	while I.idx <= I.n do
+		local tx, ty = I.tx[I.idx], I.ty[I.idx]
+		local x0, y0 = tx * T, ty * T
+		local x1, y1 = x0 + T - 1, y0 + T - 1
+		local inside = x0 >= gx and y0 >= gy and x1 <= gx + W - 1 and y1 <= gy + H - 1
+		if not inside and not SG.Tiles.full(tx, ty) then
+			return tx, ty, { x0, y0, x1, y1 }
+		end
+		I.idx += 1
+	end
+	return nil, nil, nil
+end
+
+-- Cast the island's tiles until `deadline`; true when there was something to do.
+function SG.isleStep(s: Surf, deadline: number): boolean
+	if not SG.tilesOk(s) or SG.isleOff then
+		return false
+	end
+	local I = SG.isle
+	local c0 = SG.clock()
+	local plot = SG.islePlot()
+	local key = plot .. "|" .. tostring(s.view)
+	if key ~= I.key then
+		I.key, I.plot, I.parts, I.ready, I.n, I.idx, I.full = key, plot, nil, false, 0, 1, false
+		table.clear(I.set)
+		I.tx, I.ty = {}, {}
+	end
+	if not I.ready then
+		SG.isleBuild(s, deadline)
+		return true
+	end
+	-- (anything dropped since the list was read: from its start again)
+	if SG.Tiles.epoch() ~= I.epoch then
+		I.epoch, I.idx, I.full = SG.Tiles.epoch(), 1, false
+	end
+	local A = SG.ahead
+	SG.aheadLayer(s)
+	local did = false
+	while SG.clock() < deadline do
+		if A.cur == nil then
+			-- (never past the cache's size, less some room for the layer's own strips: a tile it let go of for this one
+			-- would only be cast again)
+			if SG.Tiles.size() >= SG.cacheCap() - Tuning.PixelIsleSpare then
+				I.full = true
+				break
+			end
+			local tx, ty, r = SG.isleNext(s)
+			if tx == nil or ty == nil or r == nil then
+				break
+			end
+			SG.aheadSet(s, tx, ty, r, true)
+		end
+		local t0 = A.stats.tiles
+		SG.aheadPiece(s, deadline)
+		I.stats.tiles += A.stats.tiles - t0
+		did = true
+	end
+	I.stats.castMs += (SG.clock() - c0) * 1000
+	return did
 end
 
 ------------------------------------------------------------------ lifecycle
@@ -7470,7 +7690,7 @@ local function frameStep(dt: number)
 		stats.perf.invMs += (SG.clock() - i0) * 1000
 		-- the frame's spare time (nothing else is waiting to be cast): while the view moves, the tiles past the edge it
 		-- moves toward (on a frame it did not scroll), else the next tier's picture, cast ahead
-		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and stats.scrolls == before and SG.pend == nil and #SG.refine == 0 and SG.clock() < SG.castEnd then
+		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and stats.scrolls == before and SG.pend == nil and #SG.refine == 0 and (SG.clock() < SG.castEnd or (PixelRenderer :: any)._hidden) then
 			local p0 = SG.clock()
 			-- (moving: the margin on the side the view leaves goes into the pan cache now, so the scroll that takes it off
 			-- finds it kept and has nothing to save)
@@ -7489,7 +7709,12 @@ local function frameStep(dt: number)
 			-- (moving, the look-ahead has all the frame's spare time: what it does not cast in time the view waits for)
 			local ce = SG.castEnd
 			local pa = SG.clock()
-			if Tuning.PixelAheadMs > 0 and SG.aheadStep(s, ce) then
+			if (PixelRenderer :: any)._hidden then
+				-- (behind the loading card: the whole island, with the hidden budget; nobody sees the frame rate)
+				if SG.isleStep(s, p0 + Tuning.PixelHiddenMs / 1000) then
+					stats.perf.isleMs = ((stats.perf :: any).isleMs or 0) + (SG.clock() - p0) * 1000
+				end
+			elseif Tuning.PixelAheadMs > 0 and SG.aheadStep(s, ce) then
 				stats.perf.aheadMs += (SG.clock() - p0) * 1000
 			elseif k == 0 then
 				-- (a tick's frame: nothing more)
@@ -7499,6 +7724,9 @@ local function frameStep(dt: number)
 				stats.perf.preMs += (SG.clock() - p0) * 1000
 			elseif not SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, math.min(ce, p0 + k * Tuning.PixelRingMs / 1000), true) then
 				stats.perf.aheadMs += (SG.clock() - p0) * 1000
+			elseif Tuning.PixelIsleMs > 0 and SG.isleStep(s, math.min(ce, p0 + k * Tuning.PixelIsleMs / 1000)) then
+				-- (the rest of the island, once nothing nearer has work)
+				stats.perf.isleMs = ((stats.perf :: any).isleMs or 0) + (SG.clock() - p0) * 1000
 			end
 			SG.castSpent += (SG.clock() - pa) * 1000
 		end
@@ -7611,6 +7839,10 @@ local function watchStatic()
 		if r then
 			queueRect(r)
 			PC.drop(r)
+			-- (a part on the island being cast whole: its tiles on that list)
+			if Street.plotAt(d.Position.X, d.Position.Z) == SG.isle.plot then
+				SG.isleAdd(r)
+			end
 		end
 		if sm then
 			smoothRecast(sm)
@@ -7992,6 +8224,61 @@ end
 -- Tuning.PixelHiddenMs of each frame (kept on the module table: the main chunk is at Luau's 200 registers).
 function PixelRenderer.setHidden(on: boolean)
 	(PixelRenderer :: any)._hidden = on
+end
+
+-- How far the whole island's cast has come (SG.isle; the loading cards wait on it): done (every tile of the island
+-- under the founder held, or the cache as full as it may be, or nothing to cast in this view) and the share held.
+function PixelRenderer.prerender(): (boolean, number)
+	local s = surf
+	if tier == "off" or s == nil or not SG.tilesOk(s) or SG.isleOff then
+		return true, 1
+	end
+	local I = SG.isle
+	if not I.ready or I.key ~= SG.islePlot() .. "|" .. tostring(s.view) then
+		return false, 0
+	end
+	if I.full then
+		return true, 1
+	end
+	local T = SG.Tiles.TILE
+	local gx, gy, W, H = s.cam.gx, s.cam.gy, s.W, s.H
+	local held = 0
+	for i = 1, I.n do
+		local tx, ty = I.tx[i], I.ty[i]
+		local x0, y0 = tx * T, ty * T
+		if (x0 >= gx and y0 >= gy and x0 + T - 1 <= gx + W - 1 and y0 + T - 1 <= gy + H - 1) or SG.Tiles.full(tx, ty) then
+			held += 1
+		end
+	end
+	return held >= I.n, if I.n > 0 then held / I.n else 1
+end
+
+-- Behind a loading card: the whole island's cast (PixelRenderer.prerender) waited on for Tuning.PixelIsleWaitSecs at most,
+-- `report(share)` told how far it has come every 20th of a second (the request of 2026-11-22: "could the whole player
+-- island be prerendered during the loading scene, such that walking around unrendered areas wont need to lag so
+-- much?"). What it has not cast by then is cast after the card opens, nearest the founder first. Yields.
+function PixelRenderer.waitPrerender(report: (number) -> ())
+	local t0 = os.clock()
+	while os.clock() - t0 < Tuning.PixelIsleWaitSecs do
+		local done, share = PixelRenderer.prerender()
+		report(share)
+		if done then
+			return
+		end
+		task.wait(0.05)
+	end
+end
+
+-- Previews: the whole island's cast held off (true) or let go again.
+function PixelRenderer.debugIsleOff(on: boolean)
+	SG.isleOff = on
+end
+
+-- Previews: the whole island's cast (SG.isle): tiles listed and cast, ms making the list and casting, whether the
+-- cache filled, and the cache's size.
+function PixelRenderer.debugIsle(): { listed: number, cast: number, buildMs: number, castMs: number, full: boolean, cacheTiles: number, ready: boolean }
+	local I = SG.isle
+	return { listed = I.stats.listed, cast = I.stats.tiles, buildMs = I.stats.buildMs, castMs = I.stats.castMs, full = I.full, cacheTiles = SG.Tiles.size(), ready = I.ready }
 end
 
 -- Whether the picture has work still to come: a bake under way or due, rects waiting to be cast again (Build mode's

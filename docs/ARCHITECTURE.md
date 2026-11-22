@@ -326,7 +326,10 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   frame the founder walks), `PixelPanRays`, `PixelPanMargin` (24: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22) and
   `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
   (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
-  Pans), `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
+  Pans), `PixelPanCacheTiles` (2400: the pan cache's tiles at most, 0 off; 768 until 2026-11-22) and
+  `PixelPanCacheTilesTouch` (1400: on a touch screen with no keyboard), `PixelIsleSpare` (48: tiles the whole island's
+  cast leaves free), `PixelIsleMs` (4: its time a frame once nothing nearer has work), `PixelIsleWaitSecs` (8: how long
+  a loading card waits on it at most),
 `PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelCatchUpPx` (1) and `PixelCatchUpShare` (0.2: the window catching up after the strips held it), `PixelHoldMaxPx` (24: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelMoveMs` (8: ms more for the models that moved, came or went), `PixelMoveMin` (24: of those on the screen, moved every tick past both) and `PixelMoveCapMs` (6: what those may take more again), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
   drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
@@ -1158,7 +1161,9 @@ others' friends here counted again. Every web call is pcall'd.
 (remotes), `PixelRenderer.init` (lighting), `CameraController.init`, the card's phase "island", wait for the first
 view, `CameraController.start`, `PixelRenderer.start`, `DayLight.start`, `UIKit.init`, `WorldView.start`,
 `AvatarView.start`, `StreetLife.start`, `AmbientView.start`, `Hud.start` (which starts `Menus`), then the card's phase
-"picture": `PixelRenderer.firstPicture()`'s progress every 0.05 s until it is on screen (or 30 s), then `finish()`.
+"picture": `PixelRenderer.firstPicture()`'s progress every 0.05 s until it is on screen (or 30 s; the bar to 0.7),
+then, with `setHidden(true)`, `PixelRenderer.waitPrerender` (the whole island cast into the pan cache, 9.3; the bar
+from 0.7 to 1), then `finish()`.
 
 ### 8.0 The loading card (`src/first`, ReplicatedFirst.Loading)
 `Boot.client`: ReplicatedFirst's one script, run before the rest of the game has arrived: `LoadingCard.show()`, then
@@ -1495,7 +1500,8 @@ window's strip was one (`Pixel/ScreenSize` ignores those now). The preview `tabo
 already queued joins it while their box is no bigger than the two apart, so an endless islet's area landing in view,
 hundreds of boxes, re-casts its union once instead of re-baking the whole picture over their overlaps),
 `afterBake(fn)` (fn runs once the picture shows the world as it is now: after the pending or running bake, at once
-when none is coming or the filter is off), `busy()` (a bake under way or due, or rects queued to cast again; false in
+when none is coming or the filter is off), `prerender() -> (done, share)` and `waitPrerender(report)` (the whole
+island cast into the pan cache: 9.3), `busy()` (a bake under way or due, or rects queued to cast again; false in
 the classic style: Build mode's expansion holds the loading card up until it is false), `setHidden(on)` (while the
 loading card hides the game a bake may take `Tuning.PixelHiddenMs` (40) of each frame, and a re-cast as long with 8
 times the rays; kept on the module table),
@@ -1589,8 +1595,9 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   cast; the ink, the contact shade and the water are drawn again over both. `queueRect` drops the tiles under its rect
   (`drop(gx0, gy0, gx1, gy1)`, on the layer or off it); a bake of the island's own view (not a stage's: the hatch scene
   leaves it be), the growth's end and a new tier clear it (`clear`); `SG.tilesOk(s)`: only for the island's own view, no
-  growth going, `Tuning.PixelPanCacheTiles` above 0. At most that many tiles (768, about 15.7 MB); past it the one used
-  longest ago goes. `stats() -> { loaded, missed, saved, dropped, evicted, tiles }` (since the last read). Walking the
+  growth going, `Tuning.PixelPanCacheTiles` above 0. At most `SG.cacheCap()` tiles (`PixelPanCacheTiles`, 2400, about
+  52 MB at 21 bytes a pixel; `PixelPanCacheTilesTouch`, 1400, on a touch screen with no keyboard; 768 until the whole
+  island was cast into it, below); past it the one used longest ago goes. `stats() -> { loaded, missed, saved, dropped, evicted, tiles }` (since the last read). Walking the
   pan preview's square a second time, the strips' cast went from about 21 ms a frame to under 2. `PanCache.new()` makes another
   store with the same functions (the next tier cast ahead), `take(tx, ty)` / `put(tx, ty, tile)` move a whole tile
   between stores, `full(tx, ty)` and `keys()`.
@@ -1724,6 +1731,32 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `PixelSameMs` in one tick (they keep their pictures a tick longer). A pose's picture
   standing for a model no longer reads every part (its `cfs`, `szs`, `gone` are nil).
   `PixelRenderer.debugFrameLog(over)` writes down every frame slower than `over` ms with the perf counters it moved.
+- **The whole island, cast ahead** (`SG.isle`, `SG.isleStep(s, deadline)`, `SG.isleBuild`, `SG.isleNext`,
+  `SG.isleAdd(r)`; the request of 2026-11-22: "could the whole player island be prerendered during the loading scene,
+  such that walking around unrendered areas wont need to lag so much?"). The island under the founder (`SG.islePlot`:
+  `Street.plotAt` of `CameraController.founderAt()`, the view's own plot when they stand on none) is listed as the pan
+  cache tiles its parts touch: each visible part of `workspace.Plots.Plot_<i>` (no `Bounds` walls), its box on the
+  grid from the grid's slopes (`lin`), a few hundred parts a frame; open sky is no tile, and a shadow falls only on
+  parts already listed. The list runs nearest the layer's middle first. Each tile the cache does not hold whole and the
+  layer does not show whole is cast on the look-ahead's small layer (`SG.aheadLayer`, `SG.aheadSet(s, tx, ty, nr,
+  ring)`, `SG.aheadPiece`: its shadow edges refined, kept unless the cache's epoch moved), never past
+  `SG.cacheCap() - PixelIsleSpare` tiles. A drop anywhere (`epoch`) reads the list from its start again, so a tile a
+  building changed is cast again; a part that comes onto the island adds the tiles of its rect the list lacks
+  (`SG.isleAdd`, from `poke`); another island or a new view (the zoom, a tier) makes the list again. With the screen
+  hidden (`setHidden`) it takes `PixelHiddenMs` of each frame, the spare-time gate open past the frame's own budget;
+  otherwise it is the last of the spare-time work (after the look-ahead, the ring and the next tier's pre-cast),
+  `PixelIsleMs` a frame (twice that between ticks). `PixelRenderer.prerender() -> (done, share)`: every listed tile held
+  (or the cache as full as it may be); `waitPrerender(report)` yields until then or `PixelIsleWaitSecs`, telling
+  `report` the share every 0.05 s (the join's card, Visit and Home, Build mode's expansion). `debugIsle() -> { listed,
+  cast, buildMs, castMs, full, cacheTiles, ready }`, `debugIsleOff(on)` (previews). The `prerender=<tier>` preview: a
+  tier 20 town at the default View lists 1,983 tiles (the list made in about 210 ms), cast behind a hidden screen in
+  25 s of the emulator (about 14 ms a tile), 38 MB; a square walked round it then copied all 1.16 million of its
+  strips' pixels and cast none, the renderer's step 15.2 ms on average (21.4 at the 90th percentile, 48 at worst)
+  against 23.4 (30.2, 215) with no prerender (`prerender=20:off`, which copied 813,000 and cast 341,000), frames over
+  25 ms 117 against 254, the slowest 64 ms against 236. A tier 12 town lists 1,325 tiles (12 s, 26 MB) and after the
+  walk its layer differs from a fresh cast in 11 of 280,704 pixels, all on a shadow's edge; a tier 5 town lists 637. Roblox's rays are native, so
+  the game should cast it faster than the emulator; behind the card it waits 8 s at most, nearest the founder first,
+  and casts the rest after.
 - **The next tier, cast ahead** (`PC`, the request of 2026-11-20: "Is there a way to make island expansion seamless,
   with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?").
   The player's next island stands staged in the world (PlotService: `workspace.Staged.Plot_<i>`, collision groups
@@ -2705,8 +2738,9 @@ fence lengths on Fences, the huts' room (`housing`) against `housingLimit` on Hu
 top tier; `expandIsland(tier)`: since 2026-11-20 behind the loading card, `LoadingCard.cover` with the next island's
 name and "Growing your island"; once it covers the screen `island.expand` is asked, the bar goes to 0.35, then to 0.6
 when the island's `Static` folder's `Built` attribute reaches the answer's `tier` (8 s at most), the words to "Drawing
-your island", and `finish()` once `PixelRenderer.busy()` is false (8 s at most; `PixelRenderer.setHidden(true)` from
-the moment it covers the screen until then); without the card it asks at once.
+your island", and once `PixelRenderer.busy()` is false (8 s at most; the bar to 0.75) `PixelRenderer.waitPrerender`
+(the bigger island cast into the pan cache, the bar to 0.98), then `finish()` (`PixelRenderer.setHidden(true)` from the
+moment it covers the screen until then); without the card it asks at once.
 Its price under it in `ExpandCost`; the fanfare and "Your island grew into Moonlit Heights. There's more to build now." (or
 how many buildings had to move), named from the answer's `tier`, come once the card has gone, or a refusal's notice) and `BuildDone`; the search box `BuildSearch` (a TextBox `Box` under a
 pixel-font copy of its words, `Query`, "Search" while empty, and `ClearSearch`), with the search button `SearchButton`
@@ -3393,8 +3427,9 @@ button (10.3) opens it. `travel(plot?)` (the request of 2026-11-21, "make a load
 islands"): over to `plot`, or home with nil, behind the loading card (`LoadingCard.cover` with the island's name for a
 title and "Flying over" or "Flying home"): once covered `PixelRenderer.setHidden(true)`, `char.visit` or `char.home`,
 then it waits (4 s at most) until the founder stands on that plot (`standsOn`: within the plot's footprint), says
-"Drawing the island" or "Drawing your island" and waits (8 s at most) while `PixelRenderer.busy()`, then
-`setHidden(false)` and `LoadingCard.finish()`. A refusal finishes the card where you were and says why (`failed`:
+"Drawing the island" or "Drawing your island" and waits (8 s at most) while `PixelRenderer.busy()` (the bar to 0.7),
+then `PixelRenderer.waitPrerender` (that island cast into the pan cache, the bar to 0.98), then `setHidden(false)` and
+`LoadingCard.finish()`. A refusal finishes the card where you were and says why (`failed`:
 "Wait a moment, then try again." for the cooldown, "Can't go home right now.", "That island isn't there any more.").
 With the card already up (`cover` returns false) the founder simply goes. `busy() -> boolean`: a trip under way (a
 second one is ignored). A row's Visit and the HUD's Home both call it.

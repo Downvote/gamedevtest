@@ -432,7 +432,19 @@ local Tuning = {
 	-- the screen's edge, and the margin the view leaves goes into the pan cache before the scroll (the request of
 	-- 2026-11-21, "reduce the frame speed close to the frame speed while standing without scrolling")
 	PixelPanLate = true,
-	PixelPanCacheTiles = 768, -- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 20 bytes a pixel, about 15.7 MB); 0: off
+	-- the pan cache's tiles at most (Pixel/PanCache: 32 x 32 art px, 21 bytes a pixel, 21.5 KB a tile; 0: off), and on a
+	-- touch screen with no keyboard. 768 (about 16 MB) until the whole island was cast into it (below): a tier 20
+	-- town at the default View takes about 1,980 tiles, 43 MB; a phone, its View further out, about 1,100
+	PixelPanCacheTiles = 2400,
+	PixelPanCacheTilesTouch = 1400,
+	-- the whole island cast ahead into the pan cache (PixelRenderer's SG.isle; the request of 2026-11-22: "could the
+	-- whole player island be prerendered during the loading scene, such that walking around unrendered areas wont
+	-- need to lag so much?"): it leaves this many tiles of the cache free for the layer's own strips, takes this many
+	-- ms a frame of the spare time once nothing nearer has work (the frames between ticks twice that), and the loading
+	-- cards wait on it for this many seconds at most (the rest is cast after they open, nearest the founder first)
+	PixelIsleSpare = 48,
+	PixelIsleMs = 4,
+	PixelIsleWaitSecs = 8,
 	PixelInvalidateRaysFrame = 4000, -- rays a frame for re-casting the rects of parts that came or went
 	-- and at most this long a frame (a slow device or a slow stretch of rays spreads the re-cast over more frames: the
 	-- land's chunks an expansion swaps in used to cost one frame 200 ms in the simulator)

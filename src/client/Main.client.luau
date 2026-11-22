@@ -72,17 +72,29 @@ SkyBackdrop.start()
 Spinners.start()
 WeatherChip.start()
 
--- the card follows the first picture's bake and fades into it once it is on screen (or after a while regardless)
+-- the card follows the first picture's bake, then the rest of the island cast ahead (PixelRenderer.waitPrerender: the
+-- request of 2026-11-22, "could the whole player island be prerendered during the loading scene, such that walking
+-- around unrendered areas wont need to lag so much?"), and fades into the picture (or after a while regardless)
 LoadingCard.phase("picture")
 task.spawn(function()
 	local t0 = os.clock()
+	local shown = false
 	while true do
 		local done, progress = PixelRenderer.firstPicture()
-		LoadingCard.progress(progress)
+		LoadingCard.progress(0.7 * progress)
 		if done or os.clock() - t0 > 30 then
+			shown = done
 			break
 		end
 		task.wait(0.05)
+	end
+	if shown then
+		-- (nobody sees the game behind the card: the filter may take more of each frame)
+		PixelRenderer.setHidden(true)
+		PixelRenderer.waitPrerender(function(share: number)
+			LoadingCard.progress(0.7 + 0.3 * share)
+		end)
+		PixelRenderer.setHidden(false)
 	end
 	LoadingCard.finish()
 end)
