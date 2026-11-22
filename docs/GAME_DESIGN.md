@@ -2114,6 +2114,16 @@ it redid twice the pixels it does). A picture is only shared with others of its 
 driftling stood, so none can turn up in another's place. Walking, a driftling waddles, rocking side to side and
 bobbing as it goes. On the busiest top-tier island this costs about 4 ms a frame more in the preview.
 
+> The request (2026-11-22): "they are low poly, but still make them recognizable. for example, the dragon creatures
+> have lost their wings and other recognizable details", then "the bats as well".
+
+**Each kind still looks like itself.** The island driftling had kept only its seven biggest pieces, so a dragon was a
+body and a head with no wings, and a bat was a dark blob. Now it keeps, in this order: its body and head, the top of
+each leg and arm, what makes its kind (wings, ears, tails, fins, pincers, horns, antlers, a beak, a mane, a crest, a
+sail, a shell), then any other big pieces, up to 28 in all. Dragons keep their wings, horns, legs and tail; bats keep
+both wings and their ears. On a dark head the dot eyes are cream instead of dark, so a bat or a black dragon still
+has a face. It is still a few big pieces with no fur, spots or moving face, posed whole as before.
+
 **More detail on every body** (the request of 2026-11-15: "can you also do the same with creature and egg models?",
 after the buildings, the tree and the palms). Each plan got the pieces that make its animal read, within the same
 skeleton so every animation still fits: the snail a round shell standing on edge with its spiral drawn on both sides

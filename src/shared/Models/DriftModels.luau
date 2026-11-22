@@ -118,34 +118,108 @@ end
 
 ------------------------------------------------------------------ the islands' driftlings
 -- The request (2026-11-22): "driftlings appear and disappear in and out ... you can make driftlings in the overworld
--- smaller, low polygonal and very easy to render, omitting most of their details". The islands' driftling is its
--- "world" one cut down: its LITE_PARTS biggest pieces (by how much of it they show), its two eyes as plain dark ovals,
--- nothing else (no face to blink, no blended body, no textures, no smooth light, no skeleton), LITE_SCALE of the size.
--- Controllers/WorldView poses it whole (a hop, a lean) in a few poses the pixel filter keeps pictures of, one set for
--- every driftling of its kind.
-local LITE_PARTS = 7
-local LITE_MIN = 0.03 -- a piece showing less than this share of all of them is a detail
+-- smaller, low polygonal and very easy to render, omitting most of their details"; then "they are low poly, but still
+-- make them recognizable. for example, the dragon creatures have lost their wings and other recognizable details".
+-- The islands' driftling is its "world" one cut down to what makes it its kind: the body's bulk (the pieces showing
+-- at least LITE_CORE of it all: the body, the head), the biggest piece of each leg and arm, every main piece of a
+-- feature joint (a wing, an ear, a tail, a fin, a pincer, an antenna, an eye stalk, a tendril, a shell, the neck:
+-- LITE_FEATURE) and the signature pieces by name (horns, antlers, a beak, a mane, a crest, a sail, a shell's cap:
+-- LITE_SIGN), then its other big pieces, in that order, at most LITE_MAX, each by how much of it shows (its two
+-- biggest sizes multiplied, so a flat wing counts as much as it shows); its two eyes as plain dark ovals (light ones on
+-- a dark head: the user's "the bats as well" came with a dark bat whose face was gone); nothing else
+-- (no face to blink, no blended body, no textures, no smooth light, no skeleton), LITE_SCALE of the size.
+-- Controllers/WorldView poses it whole (a waddle, a lean) in a few poses the pixel filter keeps pictures of, one set
+-- for every driftling of its kind.
+local LITE_MAX = 28
+local LITE_CORE = 0.04 -- a piece showing this share of all of them is the body's bulk: always kept
+local LITE_BIG = 0.015 -- a piece showing less than this share of all of them is a detail, unless it makes the kind
+local LITE_SMALL = 0.003 -- a feature or signature piece showing less than this share is left out all the same
+local LITE_PART = 0.25 -- of a feature joint's pieces, those showing at least this share of its biggest one
+local LITE_FEATURE: { [string]: boolean } = { wing = true, ear = true, tail = true, fin = true, pincer = true, antenna = true, stalk = true, tendril = true, shell = true, neck = true }
+local LITE_SIGN = { "Wing", "Membrane", "Horn", "Antler", "Tusk", "Trunk", "Beak", "Bill", "Crest", "Mane", "Ruff", "Frill", "Spade", "Sail", "Shell", "Cap", "Mantle", "Bell", "Dorsal", "HeadFin", "Crown", "Plume", "Spine", "Casque", "Hump", "Snout", "Muzzle", "Fluke", "Flipper", "Tentacle", "Lure", "Flame", "Crystal", "Icicle", "Bolt", "Club", "Sting", "Mandible", "Pincer", "Antenna", "Feather", "Topknot", "Ear", "Tail", "Fin", "Stalk", "Cloud", "Coral", "Sprout", "Leaf", "Toadstool", "Lantern", "Quill", "Collar", "Beard", "Forelock", "Paddle", "Shield", "Primary", "Coverts", "Web", "Shard", "Cere", "Comb", "Wool", "Tuft" }
+local LITE_EYE_LUMA = 0.3 -- a head darker than this gets light eyes
 DriftModels.LITE_SCALE = 0.7
 function DriftModels.lite(t: Thing): Thing
-	local cands: { { name: string, score: number } } = {}
+	local rig = t.rig
+	local function shows(p: BasePart): number
+		local sz = p.Size
+		local hi, lo = math.max(sz.X, sz.Y, sz.Z), math.min(sz.X, sz.Y, sz.Z)
+		return hi * (sz.X + sz.Y + sz.Z - hi - lo)
+	end
+	local function sign(name: string): boolean
+		for _, pre in LITE_SIGN do
+			if string.sub(name, 1, #pre) == pre then
+				return true
+			end
+		end
+		return false
+	end
+	local area: { [string]: number } = {}
 	local total = 0
+	local byJoint: { [string]: number } = {}
 	for name, p in t.parts do
-		if t.face[name] == nil and p.Transparency < 0.95 and p.Material ~= Enum.Material.Neon and p:GetAttribute("PixelPaint") == nil and p:GetAttribute("PixelEye") == nil then
-			local sz = p.Size
-			local score = (sz.X * sz.Y * sz.Z) ^ (2 / 3)
-			total += score
-			table.insert(cands, { name = name, score = score })
+		if t.face[name] == nil and p.Transparency < 0.95 and p:GetAttribute("PixelPaint") == nil and p:GetAttribute("PixelEye") == nil then
+			local a = shows(p)
+			area[name] = a
+			total += a
+			local j = if rig then rig.of[name] else nil
+			if j then
+				byJoint[j] = math.max(byJoint[j] or 0, a)
+			end
 		end
 	end
-	table.sort(cands, function(a, b): boolean
-		if a.score ~= b.score then
-			return a.score > b.score
+	-- (each piece's rank: 0 the body's bulk, the pieces showing at least LITE_CORE of it all; 1 the biggest piece of
+	-- each leg and arm; 2 the pieces that make the kind (a feature joint's, a signature name); 3 the other big ones)
+	type Pick = { name: string, a: number, rank: number }
+	local legTop: { [string]: string } = {}
+	for name, a in area do
+		local j = if rig then rig.of[name] else nil
+		local jd = if rig and j then rig.joints[j] else nil
+		if j and jd and (jd.kind == "leg" or jd.kind == "arm") then
+			local cur = legTop[j]
+			if cur == nil or area[cur] < a then
+				legTop[j] = name
+			end
 		end
-		return a.name < b.name
+	end
+	local isLegTop: { [string]: boolean } = {}
+	for _, name in legTop do
+		isLegTop[name] = true
+	end
+	local picked: { Pick } = {}
+	for name, a in area do
+		local p = t.parts[name]
+		local j = if rig then rig.of[name] else nil
+		local jd = if rig and j then rig.joints[j] else nil
+		local feature = jd ~= nil and LITE_FEATURE[jd.kind] == true and a >= LITE_PART * (byJoint[j :: string] or 0)
+		local rank = 4
+		if a >= LITE_CORE * total and p.Material ~= Enum.Material.Neon then
+			rank = 0
+		elseif isLegTop[name] and a >= LITE_SMALL * total then
+			rank = 1
+		elseif (feature or sign(name)) and a >= LITE_SMALL * total then
+			rank = 2
+		elseif a >= LITE_BIG * total and p.Material ~= Enum.Material.Neon then
+			rank = 3
+		end
+		if rank < 4 then
+			local pk: Pick = { name = name, a = a, rank = rank }
+			table.insert(picked, pk)
+		end
+	end
+	-- (over LITE_MAX, the lowest ranks and the ones showing least go first)
+	table.sort(picked, function(x, y): boolean
+		if x.rank ~= y.rank then
+			return x.rank < y.rank
+		end
+		if x.a ~= y.a then
+			return x.a > y.a
+		end
+		return x.name < y.name
 	end)
 	local keep: { [string]: boolean } = {}
-	for i, c in cands do
-		if i > LITE_PARTS or (i > 2 and c.score < total * LITE_MIN) then
+	for i, c in picked do
+		if i > LITE_MAX then
 			break
 		end
 		keep[c.name] = true
@@ -165,7 +239,29 @@ function DriftModels.lite(t: Thing): Thing
 		end
 	end
 	local k = DriftModels.LITE_SCALE
-	local dark = Blocks.color("black")
+	-- (dark eyes, or light ones on a dark head, so a bat or a black dragon still has a face: the head is the kept piece
+	-- whose middle is nearest the eye, dark below LITE_EYE_LUMA)
+	local eyeColor = Blocks.color("black")
+	for name in eyes do
+		local at = t.baseRest[name].Position
+		local best, bestD = nil :: BasePart?, math.huge
+		for other, q in t.parts do
+			if not eyes[other] then
+				local d = (t.baseRest[other].Position - at).Magnitude
+				if d < bestD then
+					best, bestD = q, d
+				end
+			end
+		end
+		if best then
+			local c = best.Color
+			if 0.299 * c.R + 0.587 * c.G + 0.114 * c.B < LITE_EYE_LUMA then
+				eyeColor = Blocks.color("cream")
+			end
+		end
+		break
+	end
+	local dark = eyeColor
 	for name, p in t.parts do
 		for _, a in { "PixelBlend", "PixelTex", "PixelOwn", "PixelEye", "PixelEyeIris", "PixelEyeDark", "PixelEyeLid", "PixelEyeSide", "Keep" } do
 			p:SetAttribute(a, nil)

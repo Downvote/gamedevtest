@@ -728,11 +728,18 @@ Models (`src/shared/Models`, Roblox modules):
   iris?, tex?, tex2?, form? }`: the eyes, and a "PixelTex" attribute on every non-face, non-Neon part of the body colour
   (`tex`) or the accent (`tex2`)), `has(shape)`, `animate(t, time, mood, k?, squash)`: hands it to `DriftRig.animate`
   (below). `lite(t) -> Thing` cuts a built "world" thing down for the islands (the request of 2026-11-22, "make
-  driftlings in the overworld smaller, low polygonal and very easy to render"): its `LITE_PARTS` (7) pieces that show
-  most (by size to the two-thirds power, none under `LITE_MIN` 3% of them all past the first two; no face part, Neon,
-  painted mark or eye among them) and its two eyes (`EyeL`, `EyeR`) as plain dark ovals 0.06 studs further out, the
-  rest destroyed; no blend, texture, smooth light, face or skeleton (`rig` nil, `face` and `tuck` empty, `lod`
-  "lite"), `DriftModels.LITE_SCALE` (0.7) of its size (`h` and `r` too), named `Micro_lite_<shape>`. The kit's `Rig` also carries `skel` and `anim` (DriftRig's skeleton and motion state, made when first
+  driftlings in the overworld smaller, low polygonal and very easy to render", then "they are low poly, but still make
+  them recognizable. for example, the dragon creatures have lost their wings" and "the bats as well"): each piece (no
+  face part, painted mark or eye) is measured by how much of it shows (its two biggest sizes multiplied) and ranked:
+  0 the body's bulk (at least `LITE_CORE` 4% of all of them, not Neon), 1 the biggest piece of each `leg` and `arm`
+  joint, 2 what makes the kind (a piece of a `LITE_FEATURE` joint, wing, ear, tail, fin, pincer, antenna, stalk,
+  tendril, shell or neck, showing at least `LITE_PART` a quarter of that joint's biggest, or a name starting with one
+  of `LITE_SIGN`: Wing, Horn, Antler, Beak, Mane, Crest, Sail and the rest), 3 the other big ones (at least
+  `LITE_BIG` 1.5%, not Neon); ranks 1 and 2 need `LITE_SMALL` 0.3%. It keeps the first `LITE_MAX` (28) by rank, then
+  by how much shows, and its two eyes (`EyeL`, `EyeR`) as plain ovals 0.06 studs further out, dark, or cream when the
+  kept piece nearest the eye is darker than `LITE_EYE_LUMA` (0.3); the rest is destroyed. No blend, texture, smooth
+  light, face or skeleton (`rig` nil, `face` and `tuck` empty, `lod` "lite"), `DriftModels.LITE_SCALE` (0.7) of its
+  size (`h` and `r` too), named `Micro_lite_<shape>`. The kit's `Rig` also carries `skel` and `anim` (DriftRig's skeleton and motion state, made when first
   posed) and `placed` (the CFrame `MicroModels.place` last put it at: the springs feel it move).
 - `DriftRig` (GAME_DESIGN 6, the request of 2026-11-14: "please use bones and rigging to make more realistic and
   detailed movement. follow and use as many animation principles when animating as well"): the skeleton and skin.

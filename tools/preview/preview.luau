@@ -3996,7 +3996,8 @@ end
 -- lite one, DriftModels.lite) in batches of 20 (five a row, four rows, turned three-quarters toward the viewer), each
 -- batch standing (zoo_<n>_idle) and in a cheer's hop (zoo_<n>_cheer); the log lists each batch's species in order
 -- (left to right, back to front).
-function SCEN.zoo()
+function SCEN.zoo(lod: string?)
+	lod = lod or "lite"
 	seedProfile(57, 1, {})
 	local p = join(57, "Keeper")
 	settle(p, 30, 1)
@@ -4039,9 +4040,17 @@ function SCEN.zoo()
 				break
 			end
 			table.insert(names, d.id)
+			local nParts = H.inClient(p, function()
+				local n = 0
+				for _ in MM.species(d.id, lod).parts do
+					n += 1
+				end
+				return n
+			end)
+			names[#names] = d.id .. " " .. nParts
 			local t = H.inClient(p, function()
-				local th = MM.species(d.id, "lite")
-				th.model:SetAttribute("PixelShadow", 0.6)
+				local th = MM.species(d.id, lod)
+				th.model:SetAttribute("PixelShadow", if lod == "lite" then 0.6 else 1)
 				th.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
 				th.model.Parent = E.workspace
 				PR.registerDynamic(th.model)
@@ -4060,7 +4069,7 @@ function SCEN.zoo()
 				end
 			end)
 			settle(p, 30, 0.5)
-			capture(p, string.format("zoo_%d_%s", batch, mood))
+			capture(p, string.format("zoo%s_%d_%s", if lod == "lite" then "" else "_" .. lod, batch, mood))
 		end
 	end
 	return p
@@ -6445,7 +6454,8 @@ local function hatchScenario(code)
 	return p
 end
 
--- "pals=<n>" or "pals=<id>,<id>,..." ("palsw=" at the islands' level of detail; an id "shape.body.accent" builds a
+-- "pals=<n>" or "pals=<id>,<id>,..." ("palsw=" at the "world" level of detail, "palsl=" the islands' lite one, posed
+-- whole; an id "shape.body.accent" builds a
 -- body plan in those colours): driftlings up close (Models/DriftModels, built "full" as the hatch scene and the
 -- portraits show them), eight to a picture in two rows of four on a patch of lawn far from the islands, framed by the
 -- camera's stage view; idle (pals_idle), cheering (pals_cheer) and hurt (pals_hurt: the lids shut, the mouth open). Batch n is Data/Creatures.list's species 8n-7 ..
@@ -6526,8 +6536,14 @@ local function palsScenario(arg, lod)
 	for _, mood in { "idle", "cheer", "hurt" } do
 		H.inClient(p, function()
 			for j, x in things do
-				MM.animate(x.t, 0.6 + j * 0.37, mood, 0)
-				MM.place(x.t, E.cf.new(x.x, 0, x.z) * E.cf.Angles(0, faceViewer + math.rad(30), 0))
+				-- (the islands' lite ones have no skeleton: they stand as built, a cheer a hop)
+				local lift = 0
+				if lod == "lite" then
+					lift = if mood == "cheer" then 0.22 * x.t.h else 0
+				else
+					MM.animate(x.t, 0.6 + j * 0.37, mood, 0)
+				end
+				MM.place(x.t, E.cf.new(x.x, lift, x.z) * E.cf.Angles(0, faceViewer + math.rad(30), 0))
 			end
 		end)
 		settle(p, 60, 0.5)
@@ -6910,11 +6926,24 @@ for _, name in list do
 			return palsScenario(palsArg)
 		end
 	end
-	-- (palsw=: the same, built at the islands' lighter level of detail)
+	-- (palsl=: the same, built as the islands show them, DriftModels.lite; palsw=: the "world" level of detail)
+	local palslArg = string.match(name, "^palsl=([%w_,%.]+)$")
+	if palslArg then
+		fn = function()
+			return palsScenario(palslArg, "lite")
+		end
+	end
 	local palswArg = string.match(name, "^palsw=([%w_,%.]+)$")
 	if palswArg then
 		fn = function()
 			return palsScenario(palswArg, "world")
+		end
+	end
+	-- (zoo=<lod>: every driftling at that level of detail, "world" or "full", to set beside the islands' lite ones)
+	local zooArg = string.match(name, "^zoo=(%a+)$")
+	if zooArg then
+		fn = function()
+			return SCEN.zoo(zooArg)
 		end
 	end
 	-- (castbench=<tier>: the whole layer cast again both ways on a decorated island of that tier, timed and checked)
