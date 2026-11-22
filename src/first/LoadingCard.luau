@@ -236,24 +236,14 @@ local function px(n: number): number
 end
 
 -- The game's pixel size for a screen (Render/Raster.pixelScale with Tuning.PixelScaleMin 2 and PixelScaleSides
--- 820, 1250, 1700, 2100: one more for each the short side exceeds), nudged to a whole number of the screen's own
--- pixels when the screen's size says it is scaled by a fraction (Pixel/DisplayScale's rule: the smallest scale that
--- makes both sides whole pixels; a size whole at 100% says nothing, and the card keeps K).
+-- 820, 1250, 1700, 2100: one more for each the short side exceeds), a whole number of GUI units as the game's own
+-- (no nudge to a display's scale since 2026-11-22: "make the pixel scale always 100%, no need for that option anymore").
 local function pixelK(vp: Vector2): number
 	local short = math.min(vp.X, vp.Y)
 	local k = 2
 	for _, s in { 820, 1250, 1700, 2100 } do
 		if short > s then
 			k += 1
-		end
-	end
-	for _, d in { 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.625, 2.75, 3 } do
-		local px, py = vp.X * d, vp.Y * d
-		if math.abs(px - math.floor(px + 0.5)) < 0.02 and math.abs(py - math.floor(py + 0.5)) < 0.02 then
-			if d ~= math.floor(d) then
-				return math.max(1, math.floor(k * d + 0.5)) / d
-			end
-			break
 		end
 	end
 	return k

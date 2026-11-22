@@ -389,10 +389,6 @@ function IslandService.init()
 			-- the View slider's notch (the Settings panel, 2026-11-18): kept with the profile
 			s.profile.settings.zoom = a.v
 			return true, nil
-		elseif a.k == "screen" and type(a.v) == "string" and Tuning.ScreenScales[a.v] ~= nil then
-			-- the screen's own scale (the Settings panel, 2026-11-20: Pixel/DisplayScale): kept with the profile
-			s.profile.settings.screen = a.v
-			return true, nil
 		elseif a.k == "lang" and type(a.v) == "string" and (a.v == "auto" or Lang.byCode[a.v] ~= nil) then
 			-- the language (the Settings panel, 2026-11-20: "like the bakery game, make translations for different
 			-- languages"): "auto" (the player's Roblox language) or a code the game has, kept with the profile

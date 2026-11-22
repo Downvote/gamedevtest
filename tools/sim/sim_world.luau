@@ -681,10 +681,12 @@ local pxs, pys = CCa.pan()
 H.expect(pxs ~= pxh or pys ~= pyh, "walk", "a walk across the own island moves the view too", string.format("%d,%d -> %d,%d", pxh, pyh, pxs, pys))
 centred("still in the middle")
 H.expect(H.buttonNamed(a, "Home") == nil, "walk", "the Home button stays away on the own island")
--- The follow is a soft spring (the request of 2026-11-18: "make the camera a smooth lerp follow the player like most
--- top down games instead of sharply cutting to the player"). Walked a 60th of a second at a time at the walking pace,
--- the view sets off gently, trails the founder by about their speed times Tuning.CamFollowSecs, keeps them still on
--- the screen while they walk steadily, and once they stop eases in onto them without going past.
+-- The follow eases (the request of 2026-11-18: "make the camera a smooth lerp follow the player like most top down
+-- games instead of sharply cutting to the player"). Walked a 60th of a second at a time at the walking pace, the root
+-- given the velocity Roblox's humanoid gives it, the view sets off a little behind, trails the founder by about their
+-- speed times Tuning.CamTrailSecs (the report of 2026-11-22, "the camera is still choppy, it sometimes lags behind or
+-- stutters while moving": a gap from their speed, not a spring after their place), keeps them still on the screen
+-- while they walk steadily, and once they stop eases in onto them without going past.
 do
 	local r0 = rootOf(a)
 	local v = CCa.view()
@@ -706,6 +708,8 @@ do
 	local founderMoved, viewMoved = 0, 0
 	local shakes, lastSx, lastSy = 0, sx0, sy0
 	local p0x, p0y = CCa.pan()
+	local root = rootOf(a)
+	root.AssemblyLinearVelocity = E.v3(-Tuning.WalkSpeed, 0, 0)
 	for f = 1, walkFrames do
 		a.Character:PivotTo(E.cf.new(x0 - Tuning.WalkSpeed * dt * f, 3, z0))
 		E.run(dt, dt)
@@ -721,13 +725,13 @@ do
 		end
 		lastSx, lastSy = sx, sy
 	end
-	H.expect(viewMoved < founderMoved * 0.65, "walk", "the view sets off gently as the founder starts to walk", string.format("view %.1f px, founder %.1f px in 4 frames", viewMoved, founderMoved))
+	H.expect(viewMoved < founderMoved - 1, "walk", "the view sets off a little behind as the founder starts to walk", string.format("view %.1f px, founder %.1f px in 4 frames", viewMoved, founderMoved))
 	local g1x, g1y = ground()
 	local pace = math.sqrt((g1x - g0x) ^ 2 + (g1y - g0y) ^ 2) / (walkFrames * dt) -- art px a second
 	local sx1, sy1 = onScreen()
 	local trail = math.sqrt((sx1 - sx0) ^ 2 + (sy1 - sy0) ^ 2)
-	local want = pace * Tuning.CamFollowSecs
-	H.expect(trail >= want * 0.6 and trail <= want * 1.4, "walk", "it trails a walking founder by their speed times CamFollowSecs", string.format("%.1f art px, about %.1f wanted", trail, want))
+	local want = pace * Tuning.CamTrailSecs
+	H.expect(trail >= want * 0.6 and trail <= want * 1.4, "walk", "it trails a walking founder by their speed times CamTrailSecs", string.format("%.1f art px, about %.1f wanted", trail, want))
 	H.expect(shakes == 0, "walk", "a steady walk keeps the founder still on the screen (no pixel shake)", string.format("%d frames moved them over a pixel", shakes))
 	-- they stop: the view eases in, a little less each frame, and stops on them (each axis on its own: its step in
 	-- whole art px never grows by more than the pixel its rounding can add)
@@ -735,6 +739,7 @@ do
 	local growing = 0
 	local stepList: { string } = {}
 	local lpx, lpy = CCa.pan()
+	root.AssemblyLinearVelocity = E.v3(0, 0, 0)
 	-- past them: a step of the view back the way it came (an overshoot it then corrects), or the founder more than a
 	-- pixel on the far side of where they stood. The founder stops a fraction of a pixel off where they started, so a
 	-- sub-pixel offset either side is not an overshoot (2026-11-20: at the View slider's new default, 11 art px a stud,
@@ -776,7 +781,7 @@ do
 			back = f
 		end
 	end
-	H.expect(moving >= 12, "walk", "once they stop the view eases in over a few frames, not at once", string.format("still moving %d frames on", moving))
+	H.expect(moving >= 4, "walk", "once they stop the view eases in over a few frames, not at once", string.format("still moving %d frames on", moving))
 	H.expect(growing == 0 and not past, "walk", "slowing all the way, never past them", string.format("%d frames sped up, past %s (steps %s)", growing, tostring(past), table.concat(stepList, " ")))
 	H.expect(back > 0 and back <= 60, "walk", "and it is back on them within a second", string.format("frame %d", back))
 end

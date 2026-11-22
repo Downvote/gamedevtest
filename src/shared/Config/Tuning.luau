@@ -94,10 +94,15 @@ local Tuning = {
 	-- the request of 2026-11-14 ("allow expansion up to level 20, you can make the previous levels of expansion a bit
 	-- cheaper too"): levels 2 to 10 a fifth off, levels 11 to 20 rising on from there. Then the request of
 	-- 2026-11-17, "also, make expansion cheaper at lower levels": level 2 half off again, 3 to 7 less off the higher
-	-- they are (about 45, 40, 30, 20 and 10%), 8 and up as they were (480, 7200, 48000, 128000, 300000, 640000 before)
+	-- they are (about 45, 40, 30, 20 and 10%), 8 and up as they were (480, 7200, 48000, 128000, 300000, 640000 before).
+	-- Then the request of 2026-11-22, "could you also increase expansion costs, especially those at late game? it should
+	-- take at least a week of playing to get to the final expansion level", the user choosing about 40 hours of play
+	-- to Everdrift: levels 2 to 7 as they were, 8 to 10 a little dearer (1280000, 2400000, 4000000 before), 11 too, 12
+	-- and up two to eighteen times (6000000, 7200000, 8600000, 10200000, 12000000, 14000000, 16500000, 19500000 and
+	-- 23000000 before): the Career's three seeds reach Everdrift at about 35, 39 and 46 hours, from 21 to 25
 	TierCost = {
-		0, 240, 4000, 29000, 90000, 240000, 580000, 1280000, 2400000, 4000000,
-		5000000, 6000000, 7200000, 8600000, 10200000, 12000000, 14000000, 16500000, 19500000, 23000000,
+		0, 240, 4000, 29000, 90000, 240000, 580000, 1500000, 2900000, 4400000,
+		5000000, 13000000, 24000000, 48000000, 92000000, 110000000, 170000000, 270000000, 320000000, 420000000,
 	},
 	-- the huts (GAME_DESIGN 4.1): a resident's comfort (its hut's, plus this by the hut's level) adds to its work
 	ComfortLvl = { 0, 0.04, 0.08 },
@@ -311,7 +316,7 @@ local Tuning = {
 	UndoRecords = 12000,
 	LayoutSlots = 3,
 	HomeCooldown = 3, -- s between two "go home" requests
-	WalkSpeed = 16,
+	WalkSpeed = 12, -- studs a second (16, Roblox's own, until 2026-11-22: "can you slow down the walk speed of the player?")
 	JumpHeight = 7.2, -- the founder jumps on the islands (studs; held at 0 in Build mode)
 
 	-- camera and pixel filter (Random Bakery's values; ARCHITECTURE 9)
@@ -345,9 +350,6 @@ local Tuning = {
 	-- scale (Raster.gridScale): the same notch, further out (the request of 2026-11-22, "the view of the game should
 	-- also be zoomed out more on mobile"). At the default notch a phone shows about as much of the island as a desktop.
 	CamZoomPhone = 0.75,
-	-- the Settings panel's Screen choices (Pixel/DisplayScale): the display's own scale, so an art pixel is a whole
-	-- number of the screen's pixels (the report of 2026-11-20, a tree drawn on a screen at 125%); 0 is Auto
-	ScreenScales = { auto = 0, ["100"] = 1, ["125"] = 1.25, ["150"] = 1.5, ["175"] = 1.75, ["200"] = 2 } :: { [string]: number },
 	-- on a phone (the screen's short side 500 px or less) a smaller box: the request of 2026-11-14, "On mobile, zoom in to
 	-- fit the island more" (the camera follows the founder round the rest); 0.75 until the desktop view came closer
 	-- the same way (0.95 to 0.75)
@@ -361,12 +363,17 @@ local Tuning = {
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	-- seconds: the follow's smooth time (a critically damped spring, the request of 2026-11-18: "make the camera a smooth
-	-- lerp follow the player like most top down games instead of sharply cutting to the player"). A walking founder is
-	-- trailed by their speed times this (about 2 studs at 16 a second) and the view settles on them a third of a second
-	-- after they stop. Smaller: tighter; bigger: looser. (Before, the view moved 18% of the way a 60th of a second, at
+	-- lerp follow the player like most top down games instead of sharply cutting to the player"): how the gap behind a
+	-- walking founder (CamTrailSecs) eases in and out, and how the view glides to a cutscene's point or back from a
+	-- Build mode drag. Smaller: tighter; bigger: looser. (Before, the view moved 18% of the way a 60th of a second, at
 	-- least a whole art px a frame, and stopped dead on the founder.) 0.12 since the report of 2026-11-21, "the camera
 	-- stutters and lags after moving now": at 0.2 it trailed a walking founder by 34 art px.
 	CamFollowSecs = 0.12,
+	-- seconds of the founder's walk the view stands behind them while they walk (CameraController: their speed times
+	-- this, eased in and out on the spring above; about 8 art px at the default View). The report of 2026-11-22, "the
+	-- camera is still choppy, it sometimes lags behind or stutters while moving": the spring after their place trailed
+	-- them by their speed times CamFollowSecs (14 art px) and shook them a pixel as their steps came unevenly
+	CamTrailSecs = 0.06,
 	-- art px a second: the least the view moves while it is not on the founder yet (a whole art px a frame at 60), so
 	-- its last few px come one a frame and it stops, where the spring alone let them trickle in 2, 4, then 8 frames apart
 	CamFollowMinPx = 60,

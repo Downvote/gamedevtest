@@ -299,14 +299,9 @@ return function()
 		T.eq(p.tier, 20, "twenty tiers: a castaway's cay to Everdrift")
 		T.eq(select(2, Island.expand(p)), "max")
 	end)
-	T.it("the expansions' prices: the low levels cheaper, the more the lower; 11 to 20 rising smoothly from there", function()
-		-- (the request of 2026-11-14: "allow expansion up to level 20, you can make the previous levels of expansion a
-		-- bit cheaper too"; the prices before it: 8 to 10 still a fifth under them)
-		local OLD = { 0, 600, 9000, 60000, 160000, 380000, 800000, 1600000, 3000000, 5000000 }
-		for t = 8, 10 do
-			local k = Tuning.TierCost[t] / OLD[t]
-			T.truthy(k >= 0.75 and k <= 0.85, string.format("level %d at %.0f%% of its old price", t, k * 100))
-		end
+	T.it("the expansions' prices: the low levels cheaper, the more the lower; past them dearer, the late ones the most", function()
+		-- (the request of 2026-11-14, "allow expansion up to level 20, you can make the previous levels of expansion a
+		-- bit cheaper too", put 8 to 10 a fifth under their old prices; the request of 2026-11-22 below raised them)
 		-- (the request of 2026-11-17: "also, make expansion cheaper at lower levels"; the prices before it: each of 2 to
 		-- 7 cheaper, the lower the more, and every level still dearer than the one before)
 		local NOV14 = { 0, 480, 7200, 48000, 128000, 300000, 640000 }
@@ -318,12 +313,23 @@ return function()
 			last = k
 		end
 		T.truthy(Tuning.TierCost[2] / NOV14[2] <= 0.5, "level 2 at half or less")
-		for t = 2, 10 do
-			T.truthy(Tuning.TierCost[t] > Tuning.TierCost[t - 1], "level " .. t .. " dearer than " .. (t - 1))
+		-- (the request of 2026-11-22: "could you also increase expansion costs, especially those at late game? it should
+		-- take at least a week of playing to get to the final expansion level", about 40 hours of play to Everdrift;
+		-- the prices before it. 2 to 7 as they were, 8 and up no cheaper, the last five at least eight times theirs)
+		local NOV17 = { 0, 240, 4000, 29000, 90000, 240000, 580000, 1280000, 2400000, 4000000, 5000000, 6000000, 7200000, 8600000, 10200000, 12000000, 14000000, 16500000, 19500000, 23000000 }
+		for t = 2, 7 do
+			T.eq(Tuning.TierCost[t], NOV17[t], "level " .. t .. " as it was")
 		end
-		for t = 11, 20 do
+		for t = 8, 20 do
+			T.truthy(Tuning.TierCost[t] >= NOV17[t], string.format("level %d no cheaper: %.2f times", t, Tuning.TierCost[t] / NOV17[t]))
+		end
+		for t = 16, 20 do
+			T.truthy(Tuning.TierCost[t] >= 8 * NOV17[t], string.format("level %d at %.1f times its old price", t, Tuning.TierCost[t] / NOV17[t]))
+		end
+		-- (every level dearer than the one before; from 8 on by less than three times)
+		for t = 2, 20 do
 			local k = Tuning.TierCost[t] / Tuning.TierCost[t - 1]
-			T.truthy(k > 1.15 and k < 1.6, string.format("level %d at %.2f times the one before", t, k))
+			T.truthy(k > 1 and (t < 8 or k < 3), string.format("level %d at %.2f times the one before", t, k))
 		end
 	end)
 	T.it("huts: a resident's comfort (its hut's and its level's) makes it work more; none with no hut", function()

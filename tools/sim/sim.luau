@@ -148,48 +148,14 @@ local PRm = H.cmod(p, "Pixel.PixelRenderer")
 H.expect(H.clickNamed(p, "Set_pixel_low", { wait = 0.5 }) and prof.settings.pixel == "low", "settings", "Pixel art Low, kept with the profile", tostring(prof.settings.pixel))
 H.expect(H.clickNamed(p, "Set_pixel_high", { wait = 0.5 }) and prof.settings.pixel == "high", "settings", "and High again", tostring(prof.settings.pixel))
 H.expect(H.req(p, "settings.set", { k = "sfx", v = "loud" }).err == "bad_payload", "settings", "a sounds value that isn't on or off: bad_payload")
--- the Screen choice (the report of 2026-11-20, "the tree still looks like this", with screenshots whose every pixel was
--- 2.5 of the screen's: Pixel/DisplayScale fits the pixel size to a whole number of the screen's own pixels)
+-- no Screen choice since 2026-11-22 ("make the pixel scale always 100%, no need for that option anymore"): the pixel
+-- size is the game's own, a whole number of GUI units, and a Screen value is refused like any unknown setting
 do
-	local DS = H.cmod(p, "Pixel.DisplayScale")
 	local PRs = H.cmod(p, "Pixel.PixelRenderer")
-	for _, b in { "Set_screen_auto", "Set_screen_100", "Set_screen_125", "Set_screen_150", "Set_screen_175", "Set_screen_200" } do
-		H.expect(H.buttonNamed(p, b) ~= nil, "settings", "the panel's " .. b)
-	end
-	local k0 = H.inClient(p, PRs.pixelScale)
-	H.expect(prof.settings.screen == "auto" and H.inClient(p, DS.factor) == 1, "settings", "a new player's Screen: Auto, the sim's screen found at 100%", string.format("%s %g", tostring(prof.settings.screen), H.inClient(p, DS.factor)))
-	H.expect(H.clickNamed(p, "Set_screen_125", { wait = 0.6 }) and prof.settings.screen == "125", "settings", "Screen 125%, kept with the profile", tostring(prof.settings.screen))
-	local k1 = H.inClient(p, PRs.pixelScale)
-	local px1 = k1 * 1.25
-	H.expect(H.inClient(p, DS.factor) == 1.25 and math.abs(px1 - math.floor(px1 + 0.5)) < 1e-6 and k1 ~= k0, "settings", "at 125% the pixel size is a whole number of the screen's pixels", string.format("%g units -> %g units (%g pixels)", k0, k1, px1))
-	-- (the next report, "it still looks uneven no matter what pixel scale i use": Roblox keeps an Offset whole, so the
-	-- pixel size reaches the picture through a UIScale, never an offset; the harness keeps offsets whole too)
-	-- (the pixel layer's own UIScale is checked with the sky, where the filter is on)
-	local spg = p:FindFirstChildOfClass("PlayerGui")
-	local fl = spg and spg:FindFirstChild("Found_screen", true)
-	H.expect(fl ~= nil and (fl :: any).Text == "Found 100%", "settings", "beside Screen, what Auto found (the sim's screen: 100%)", if fl then (fl :: any).Text else "none")
-	H.expect(H.clickNamed(p, "Set_screen_auto", { wait = 0.6 }) and prof.settings.screen == "auto" and math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "and Auto again: back as it was", string.format("%g", H.inClient(p, PRs.pixelScale)))
-	-- (Auto finds a screen at 125% from what Roblox reports there: sizes 0.8 of a unit apart, among whole mouse
-	-- positions that say nothing; the report of 2026-11-20, "its still uneven", Auto left at 100% by them)
-	local found = H.inClient(p, function()
-		for _, v in { 100, 205, 63, 640, 1092.8, 412, 614.4, 333 } do
-			DS.observe(v)
-		end
-		return DS.factor()
-	end)
-	H.expect(found == 1.25, "settings", "Auto finds a screen at 125% from the sizes with a fraction, whole mouse positions among them", tostring(found))
-	H.inClient(p, DS.debugReset)
-	local whole = H.inClient(p, function()
-		for _, v in { 100, 205, 63, 640, 1280, 720 } do
-			DS.observe(v)
-		end
-		return DS.factor()
-	end)
-	H.expect(whole == 1, "settings", "and stays at 100% when every value is whole", tostring(whole))
-	H.inClient(p, DS.debugReset)
-	E.run(0.3)
-	H.expect(math.abs(H.inClient(p, PRs.pixelScale) - k0) < 1e-6, "settings", "(and the sim's screen back at 100%)", string.format("%g", H.inClient(p, PRs.pixelScale)))
-	H.expect(H.req(p, "settings.set", { k = "screen", v = "133" }).err == "bad_payload", "settings", "a Screen value that isn't one of the choices: bad_payload")
+	H.expect(H.buttonNamed(p, "Set_screen_auto", true) == nil and H.buttonNamed(p, "Set_screen_125", true) == nil, "settings", "no Screen row in the panel")
+	local k = H.inClient(p, PRs.pixelScale)
+	H.expect(k == math.floor(k) and k >= 1, "settings", "the pixel size a whole number of units (100%)", tostring(k))
+	H.expect(H.req(p, "settings.set", { k = "screen", v = "125" }).err == "bad_payload", "settings", "a Screen value: bad_payload (the choice went)")
 end
 local _ = PRm
 -- the View slider (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10

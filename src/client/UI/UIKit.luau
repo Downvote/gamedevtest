@@ -106,9 +106,8 @@ local function layoutCanvas(rec: CanvasRec)
 		local vp = viewport()
 		size = Vector2.new(vp.X, vp.Y - top)
 	end
-	-- (K may be a fraction of a unit on a display scaled by a fraction, Pixel/DisplayScale: still a whole number of
-	-- the screen's pixels. Roblox keeps an Offset whole, so a shift with a fraction in it is given as a share of the
-	-- root's height instead: a Scale keeps its fraction)
+	-- (K has been a whole number of units since 2026-11-22, when the Screen choice went; a shift with a fraction in it
+	-- would still go as a share of the root's height, as Roblox keeps an Offset whole and a Scale its fraction)
 	local oy = top % K
 	local shift = if oy < 1e-6 or K - oy < 1e-6 then 0 else K - oy
 	rec.scaler.Scale = K

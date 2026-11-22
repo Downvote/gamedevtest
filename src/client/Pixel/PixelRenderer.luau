@@ -429,6 +429,7 @@ local SG = {
 	vpRawX = nil :: number?,
 	vpRawY = nil :: number?,
 	vpView = nil :: CameraController.View?,
+	vpJump = false, -- (this frame's window jumped: SG.viewPan; the scroll re-bakes at it even with strips pending)
 	frameNo = 0, -- (frames stepped)
 	tickNow = false, -- (this frame composes a tick: frameStep)
 	tickRun = false, -- (and so did the frame before it)
@@ -5918,6 +5919,17 @@ end
 function SG.viewPan(s: Surf): (number, number)
 	local rx, ry = CameraController.drawnPan()
 	local px, py = rx, ry
+	-- (a jump, to another island or home: the camera's pan half the layer or more from the picture, scrollToward's own
+	-- rule. The window goes straight there, unclamped, so the scroll re-bakes at the new pan: held to the old picture
+	-- it caught up a share a frame and the layer scrolled after it across the sky, about 1,500 px over a second; the
+	-- request of 2026-11-22, "make the camera snap to the player instead of the camera having to travel all the way")
+	if s.m > 0 and (math.abs(rx - s.m - s.cam.gx) >= s.W // 2 or math.abs(ry - s.m - s.cam.gy) >= s.H // 2) then
+		SG.vpRawX, SG.vpRawY = rx, ry
+		SG.vpX, SG.vpY, SG.vpAt, SG.vpView = rx, ry, -1, s.view
+		SG.vpLag, SG.vpBlocked, SG.vpJump = 0, false, true
+		return rx, ry
+	end
+	SG.vpJump = false
 	if s.m > 0 and SG.vpView == s.view and SG.vpAt >= 0 and SG.vpRawX ~= nil and SG.vpRawY ~= nil then
 		-- (catching up: the camera's own move this frame and a share of how far behind it the window is)
 		local lx, ly = SG.vpX, SG.vpY
@@ -7403,7 +7415,7 @@ local function frameStep(dt: number)
 		local edge = math.min(Tuning.PixelPanEdge, m)
 		local sc0 = SG.clock()
 		local before = stats.scrolls
-		if SG.pend == nil and (m == 0 or ox < edge or oy < edge or ox > s.W - s.vw - edge or oy > s.H - s.vh - edge) then
+		if (SG.pend == nil or SG.vpJump) and (m == 0 or ox < edge or oy < edge or ox > s.W - s.vw - edge or oy > s.H - s.vh - edge) then
 			scrollToward(s, tx - m, ty - m)
 		end
 		showWindow(s)

@@ -1070,7 +1070,8 @@ Water keeps its own rules (§4.3).
 - **The tiers** (`TierCost`, in wood, paid in shells since 2026-11-14 at the rate of §4.4): Driftstone, Breezy Isle
   (240 wood: 1,200 shells), Grand Isle (4,000: 36,000), then **Kite Town** (29,000: 470,000), **Cumulus City** (90,000:
   2,600,000) and **Sunspire Capital** (240,000: 13,000,000; the low levels cheaper since 2026-11-17, §4.4), since 2026-11-13 four longer islands past the capital and
-  since 2026-11-14 ten more past those, to Everdrift (23,000,000: 2,200,000,000; §4.4), each coming about when the
+  since 2026-11-14 ten more past those, to Everdrift (420,000,000: 40,000,000,000 since 2026-11-22, 23,000,000:
+  2,200,000,000 before; §4.4), each coming about when the
   island before it is built up (a fifth off every price up to Driftling Haven the same day). (They were paid in shells
   and wood until 2026-11-13, in wood until 2026-11-14; the first two were made cheaper on 2026-11-12: "expanding island costs too much, make them cheaper
   early on"; Kite Town went from 130,000 to 150,000 with the conveyor tide and down to 60,000 with the ten tiers,
@@ -1306,22 +1307,24 @@ Moonlit Heights (`WoodTierTop`, 7; `Island.expandCost`), the table's last column
 | 5 | Cumulus City | 90,000 (128,000, 160,000) | 3,002 | 180 | 460 | 240 | 96 | 9 | 2,600,000 (3,700,000) |
 | 6 | Sunspire Capital | 240,000 (300,000, 380,000) | 3,658 | 240 | 600 | 300 | 168 | 10 | 13,000,000 (16,000,000) |
 | 7 | Moonlit Heights | 580,000 (640,000, 800,000) | 4,368 | 300 | 750 | 370 | 192 | 10 | 55,000,000 (60,000,000) |
-| 8 | Evergreen Isle | 1,280,000 (was 1,600,000) | 5,129 | 370 | 900 | 440 | 216 | 10 | 120,000,000 |
-| 9 | Skyreach Isle | 2,400,000 (was 3,000,000) | 5,977 | 450 | 1,050 | 520 | 240 | 10 | 230,000,000 |
-| 10 | Driftling Haven | 4,000,000 (was 5,000,000) | 6,608 | 540 | 1,200 | 600 | 264 | 10 | 380,000,000 |
+| 8 | Evergreen Isle | 1,500,000 (1,280,000 till 2026-11-22, 1,600,000 before) | 5,129 | 370 | 900 | 440 | 216 | 10 | 140,000,000 (was 120,000,000) |
+| 9 | Skyreach Isle | 2,900,000 (2,400,000 till 2026-11-22, 3,000,000 before) | 5,977 | 450 | 1,050 | 520 | 240 | 10 | 270,000,000 (was 230,000,000) |
+| 10 | Driftling Haven | 4,400,000 (4,000,000 till 2026-11-22, 5,000,000 before) | 6,608 | 540 | 1,200 | 600 | 264 | 10 | 420,000,000 (was 380,000,000) |
 | 11 | Lantern Loft | 5,000,000 | 7,159 | 600 | 1,320 | 660 | 336 | 10 | 470,000,000 |
-| 12 | Highwind Reach | 6,000,000 | 7,726 | 660 | 1,440 | 720 | 364 | 10 | 570,000,000 |
-| 13 | Mistwood Isle | 7,200,000 | 8,286 | 720 | 1,560 | 780 | 392 | 11 | 680,000,000 |
-| 14 | Pearlstone Perch | 8,600,000 | 8,837 | 780 | 1,680 | 840 | 480 | 11 | 810,000,000 |
-| 15 | Cloudberry Isle | 10,200,000 | 9,396 | 840 | 1,800 | 900 | 512 | 11 | 960,000,000 |
-| 16 | Amberfield | 12,000,000 | 9,969 | 900 | 1,920 | 960 | 544 | 11 | 1,100,000,000 |
-| 17 | Starfall Peak | 14,000,000 | 10,525 | 960 | 2,040 | 1,020 | 648 | 12 | 1,300,000,000 |
-| 18 | Cloudcrown | 16,500,000 | 11,091 | 1,020 | 2,160 | 1,080 | 684 | 12 | 1,600,000,000 |
-| 19 | Farsky | 19,500,000 | 11,645 | 1,080 | 2,280 | 1,140 | 720 | 12 | 1,800,000,000 |
-| 20 | Everdrift | 23,000,000 | 12,193 | 1,140 | 2,400 | 1,200 | 840 | 12 | 2,200,000,000 |
+| 12 | Highwind Reach | 13,000,000 (was 6,000,000) | 7,726 | 660 | 1,440 | 720 | 364 | 10 | 1,200,000,000 (was 570,000,000) |
+| 13 | Mistwood Isle | 24,000,000 (was 7,200,000) | 8,286 | 720 | 1,560 | 780 | 392 | 11 | 2,300,000,000 (was 680,000,000) |
+| 14 | Pearlstone Perch | 48,000,000 (was 8,600,000) | 8,837 | 780 | 1,680 | 840 | 480 | 11 | 4,500,000,000 (was 810,000,000) |
+| 15 | Cloudberry Isle | 92,000,000 (was 10,200,000) | 9,396 | 840 | 1,800 | 900 | 512 | 11 | 8,700,000,000 (was 960,000,000) |
+| 16 | Amberfield | 110,000,000 (was 12,000,000) | 9,969 | 900 | 1,920 | 960 | 544 | 11 | 10,000,000,000 (was 1,100,000,000) |
+| 17 | Starfall Peak | 170,000,000 (was 14,000,000) | 10,525 | 960 | 2,040 | 1,020 | 648 | 12 | 16,000,000,000 (was 1,300,000,000) |
+| 18 | Cloudcrown | 270,000,000 (was 16,500,000) | 11,091 | 1,020 | 2,160 | 1,080 | 684 | 12 | 26,000,000,000 (was 1,600,000,000) |
+| 19 | Farsky | 320,000,000 (was 19,500,000) | 11,645 | 1,080 | 2,280 | 1,140 | 720 | 12 | 30,000,000,000 (was 1,800,000,000) |
+| 20 | Everdrift | 420,000,000 (was 23,000,000) | 12,193 | 1,140 | 2,400 | 1,200 | 840 | 12 | 40,000,000,000 (was 2,200,000,000) |
 
-Past Driftling Haven each step costs about a fifth more than the one before (1.25 times for Lantern Loft, then 1.17 to
-1.2 times), smooth to the last.
+Until 2026-11-22 each step past Driftling Haven cost about a fifth more than the one before. Since the request of that
+day ("could you also increase expansion costs, especially those at late game? it should take at least a week of
+playing to get to the final expansion level", §10) the late steps are far bigger, set so the Career spends about two
+and a half to three and a half hours on each island from Lantern Loft on, about 40 hours to Everdrift in all.
 
 No new buildings or huts open on tiers 7 to 10 and no new kinds hatch there. What those islands bring is room (the
 limits above), the dearest decor (Gilded Walk, Lava Rock, the Lantern Tower, the Fire Basin, the Steam Vent and the
@@ -2956,6 +2959,27 @@ text (the requests and how each was met) is in the history of this file, up to c
   than the frame taking longer. No driftling ever blinks out in a crowd: each keeps its last picture until its turn
   to be drawn again comes round. Campfire smoke and the lights round a rare egg move ten or twelve times a second,
   like hand-drawn sprites.
+
+  > The report (2026-11-22): "also, the camera is still choppy, it sometimes lags behind or stutters while moving."
+
+  The spring chased your founder's place, and your founder moves in whole physics steps (240 a second), so a frame
+  holds three, four or five of them depending on how long it was. The spring took on every one of those uneven moves:
+  the gap between it and your founder wobbled round a pixel, your founder flicked a pixel forward and back on the
+  screen a few times a second, and the view trailed about 14 art px behind. Now the view stands behind your founder by
+  a gap worked out from how fast they are walking (`Tuning.CamTrailSecs`, 0.06 s of the walk: about 8 art px at the
+  default View), eased in when you set off and out when you stop. Walking at a steady pace the gap doesn't change, so
+  your founder holds perfectly still on the screen and the island slides past them. In the preview with uneven frames
+  (`jitter`), your founder moved on the screen on 4 to 7 frames of every one second leg, 1 to 3 of them straight back;
+  now on none. Once you stop, the view comes to rest in 0.13 s, a pixel a frame (`stop`). A change of what the view
+  centres on (the HUD's strips, a resize, leaving Build mode) still glides over on the old spring.
+
+  > The request (2026-11-22): "also, when visiting or when going home, make the camera snap to the player instead of
+  > the camera having to travel all the way to where the player is"
+
+  The camera already jumped there, but the picture didn't: it caught up with the camera a share a frame and slid
+  across the sky between the islands, about 1,500 art px over a second, after the loading card had opened. Now a jump
+  that far is shown at once: the picture is drawn again where your founder is, under the loading card, and opens on
+  them (the `visit` preview counts the frames the camera and the picture move after the card opens: none).
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are
@@ -3003,7 +3027,9 @@ behind what stands in front of them and are drawn on whole art pixels like every
 ## 9. Your founder, settings and the tips
 
 The My founder screen (§14.4) sets the founder's whole look (every client sees it). The founder walks and jumps
-(`JumpHeight`) on the islands; jumping is held in Build mode (the phone's jump button hides with it).
+(`JumpHeight`) on the islands; jumping is held in Build mode (the phone's jump button hides with it). They walk at 12
+studs a second (`Tuning.WalkSpeed`; Roblox's own 16 until the request of 2026-11-22: "can you slow down the walk speed
+of the player?").
 The founder is drawn at three quarters of their old size (the request of 2026-11-14: "make the chacter smaller, about
 75% the original size"; `Tuning.FounderScale`), shrunk about their feet; how far they walk and jump is the same.
 The buildings, trees and decor don't stop the founder: they walk through them, and their feet stay on the ground as
@@ -3032,33 +3058,20 @@ the founder cheer, arms up. With reduced motion on there are no fidgets and the 
 > game's pixel was 2 of Roblox's units, so the art came out in columns 2 and 3 pixels wide by turns, its 1 px outlines
 > broken into dots and steps. The previews draw at 100% and never showed it.
 
-**Screen** (Settings, `settings.screen`): Auto, 100%, 125%, 150%, 175%, 200% ("Pixels look uneven? Pick your screen's
-scale."). The game's pixel size is fitted so one art pixel is a whole number of the screen's own pixels: on a screen
-at 125% the 2-unit pixel becomes 2.4 units, 3 of the screen's pixels, and 3 units become 3.2, 4 pixels. Auto works the
-scale out from what Roblox reports (no script can ask for it: at 125% a mouse moved one pixel moves 0.8 of a unit, a
-window 1366 pixels wide is 1092.8 units); a screen at a whole scale (100%, a Mac's 200%, a phone's 300%) keeps its
-pixel size as it was. The loading card does the same from the screen's size alone.
+Settings had a **Screen** choice from then (Auto, 100%, 125%, 150%, 175%, 200%) that fitted the game's pixel to a
+whole number of the screen's own pixels (2.4 units at 125%, 3 of the screen's pixels), worked out from what Roblox
+reports or picked by hand; the layers were laid out in art pixels and scaled by K with a UIScale, since Roblox keeps
+an Offset whole. It went with the request of 2026-11-22:
 
-> The next report (2026-11-20): "it still looks uneven no matter what pixel scale i use", with a screenshot whose
-> pixels were still 2.5 of the screen's, and asked which Screen options were tried: "all of them".
+> make the pixel scale always 100%, no need for that option anymore
 
-Roblox keeps an Offset as a whole number of units: one given with a fraction loses it. The pixel layer, the painted sky
-and the hatch scene's backdrop were sized as W × K units in offsets, and the interface's canvases moved down by a
-fraction of a unit to sit on the grid, so with K at 2.4 or 3.2 every one of them was cut short and the picture no
-longer matched the grid it was drawn for. Now each is laid out in art pixels and scaled by K with a UIScale (a scale
-keeps its fraction), and a canvas's shift goes in as a share of its root's height. The previews' harness keeps an
-Offset whole the way Roblox does, so a fractional offset shows there too. Beside "Screen" the panel says what Auto
-found ("Found 125%"): if it says 100% on a screen at 125%, Auto could not tell, and the 125% button sets it by hand.
-
-Auto also counted whole numbers as evidence: a mouse position Roblox hands over in whole units fits any screen, but
-a whole number of units times 1.25 is rarely whole, so those kept Auto at 100% on a screen at 125% (the next
-screenshot of the same day still had every pixel 2.5 of the screen's). Now only a value with a fraction counts (a
-window 1534.4 units wide says 125%); with none, Auto stays at 100%.
+The game's pixel is a whole number of Roblox's units again on every screen (2 on phones, 3 at 1080p, 4 at 1440p), the
+Screen row is gone from Settings, and a save's old choice is dropped. The layers keep their UIScale of K.
 
 **Settings** (the menu bar's last tab, a steel gear; `UI/SettingsUI`; the request of 2026-11-14: "Add a settings tab,
 replacing the music button"): Music On / Off, Sounds On / Off (every one-shot sound and the island's waves, birds and
 rain; `settings.sfx`), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
-for an option to turn off the pixel filter"), Screen (below), and View, a slider with ten notches that zooms the camera out and in
+for an option to turn off the pixel filter"), and View, a slider with ten notches that zooms the camera out and in
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
 big island's middle all at once, to 16, close enough to see a driftling's freckles; each is about the same step closer
@@ -3364,28 +3377,41 @@ expansion a bit cheaper too") moved the early pace a little: in the two-store ec
 Driftling Haven a fifth cheaper, the town came at 55 to 59 minutes (was 57 to 65), Cumulus City at 92 to 94 (was 98 to
 107) and Sunspire Capital at 2 hours 18 to 2 hours 20 (was 2 hours 33 to 2 hours 47), so its bound moved from two and
 a half hours to two; with one store the town and the city sit about where they were and the capital comes sooner (the
-bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take about half an
-hour of the checker's time each): `luau tests/career.luau -a <seed> 2100` prints it. With today's settings (shells as
-the one store, the cheaper eggs, the automatic work, the housing limit, the tree's lots every 6 minutes with 7 to 14
-eggs each, and since 2026-11-18 the bigger workplaces under the work cap) the three seeds reach each island at:
+bounds above). The rest of the way is measured, not held by the spec (three seeds played to tier 20 take a few minutes
+of the checker's time each): `luau tests/career.luau -a <seed> 3000` prints it.
+
+> The request (2026-11-22): "could you also increase expansion costs, especially those at late game? it should take
+> at least a week of playing to get to the final expansion level"
+
+Asked how much play a week meant, the user chose about 40 hours of play for the model player (a few hours a day).
+Levels 2 to 7 cost what they did, so the first hours and the spec's bounds don't move; 8 to 11 cost a little more and
+12 to 20 from two to eighteen times as much (`Tuning.TierCost`: 1,500,000 wood for 8 rising to 420,000,000 for 20, so
+Everdrift costs about 40,000,000,000 coins). The late levels went up the most because the island earns far more there:
+with time to fill each island's work and hut caps before the next, the Career earns about three times as much on the
+late islands as it did when it expanded the moment it could, so the first try at three times the old prices only
+moved Everdrift from 21 to 25 hours out to 24 to 32. With today's settings (shells as the one store, the cheaper eggs,
+the automatic work, the housing limit, the tree's lots every 6 minutes with 7 to 14 eggs each, the bigger workplaces
+under the work cap, and these prices) the three seeds reach each island at:
 
 | Tier | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|
-| 7 Moonlit Heights | 4 h 16 | 3 h 42 | 3 h 59 |
-| 10 Driftling Haven | 9 h 01 | 6 h 55 | 9 h 42 |
-| 11 Lantern Loft | 10 h 05 | 8 h 11 | 12 h 38 |
-| 13 Mistwood Isle | 12 h 10 | 10 h 24 | 15 h 10 |
-| 15 Cloudberry Isle | 14 h 15 | 12 h 46 | 17 h 12 |
-| 17 Starfall Peak | 16 h 40 | 14 h 06 | 18 h 59 |
-| 20 Everdrift | 21 h 29 | 17 h 21 | 22 h 43 |
+| 7 Moonlit Heights | 4 h 00 | 4 h 30 | 4 h 20 |
+| 10 Driftling Haven | 8 h 50 | 11 h 30 | 10 h 20 |
+| 11 Lantern Loft | 10 h 50 | 14 h 20 | 12 h 50 |
+| 13 Mistwood Isle | 15 h 20 | 19 h 50 | 18 h 40 |
+| 15 Cloudberry Isle | 20 h 20 | 26 h 50 | 25 h 10 |
+| 17 Starfall Peak | 26 h 10 | 34 h 30 | 30 h 50 |
+| 20 Everdrift | 35 h 00 | 46 h 30 | 39 h 00 |
+
+(At the prices before 2026-11-22 the same Career reached Moonlit Heights at 4 h 00 to 4 h 30 and Everdrift at 21 h 10
+to 24 h 50; the table before then said 17 h 21 to 22 h 43, measured before the work cap's and the eggs' later changes.)
 
 (With every workplace taking 2, before 2026-11-18, Moonlit Heights came at 6 h 15 to 8 h 05 and Everdrift at 28 h 56 to
 31 h 36: a place at work costs the same, but an island needs a dozen big workplaces where it needed a hundred small
 ones, so every driftling is at the best work much sooner. Before the 10 minute tree, with the same lots every three
 minutes, Everdrift came at 22 h 12 to 26 h 13; with lots three times the size every 10 minutes, at 23 h 41 to 25 h 36;
-with 5 to 12 eggs a lot every 10 minutes, at 30 h 21 to 32 h 15.) Everdrift comes in 17 to 23 hours, housing about
-730 driftlings on about 190 pieces when it does (about 420 before the work cap), with charm adding 93% to 97% to
-every shell.
+with 5 to 12 eggs a lot every 10 minutes, at 30 h 21 to 32 h 15.) Everdrift comes in 35 to 47 hours, housing about
+760 driftlings on about 130 pieces when it does, with charm adding 98% to every shell.
 Getting there took two changes to the Career and two to the prices. The old Career filled a full island with idle
 lumber camps (243 wood buildings for 104 driftlings) and sat on Moonlit Heights for good; now a building with no room left
 takes the weakest of its kind's place (above), which also brought Driftling Haven from never to inside a day. With the
@@ -3394,7 +3420,7 @@ the price grew 30%, and the seeds would have needed 30 hours or more; at 5,000,0
 buildings making about a third more than first planned (the Log Flume 900, the Ironwood Yard 1,700, the Canopy Mill
 3,200), the island keeps up. With shells, `WoodTierUp` carried on past Driftling Haven would have put Everdrift at
 180,000,000,000 shells; it stops there (`WoodTierTop`), so the last ten islands cost 470,000,000 to 2,200,000,000
-shells. The eggs' `EggTier` past Driftling Haven went from steps of a third to steps of about a sixth for the same
+shells (until 2026-11-22; since then 470,000,000 to about 40,000,000,000, above). The eggs' `EggTier` past Driftling Haven went from steps of a third to steps of about a sixth for the same
 reason.
 
 ## 11. Polish and animation

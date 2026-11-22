@@ -292,8 +292,9 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   island is paid back since 2026-11-14: it goes into the inventory), `UpgradeMult` (a level from an older save; no
   upgrades since 2026-11-11), `TierCost` (the wood to grow to
   each of the twenty tiers, paid in shells at `WoodShells` (5), `WoodTierUp` (1.8) and `WoodTierTop` (7: the growth
-  stops there): 0, 480, 7,200, 48,000, 128,000, 300,000, 640,000, 1,280,000, 2,400,000, 4,000,000, then 5,000,000,
-  6,000,000, 7,200,000, 8,600,000, 10,200,000, 12,000,000, 14,000,000, 16,500,000, 19,500,000, 23,000,000; every table
+  stops there): 0, 240, 4,000, 29,000, 90,000, 240,000, 580,000, 1,500,000, 2,900,000, 4,400,000, then 5,000,000,
+  13,000,000, 24,000,000, 48,000,000, 92,000,000, 110,000,000, 170,000,000, 270,000,000, 320,000,000, 420,000,000
+  (since 2026-11-22, about 40 hours of play to the top, GAME_DESIGN 10); every table
   by tier has twenty entries, and the top tier is `#TierCost`, GAME_DESIGN 4.4), `ComfortLvl`, `BoostMax` (0.7); no `StartFood`,
   `EatPal` or `Hungry` since food went), the Tree of Life's eggs (GAME_DESIGN 6: `EggSecs` (360: seconds between two
   lots, six minutes since 2026-11-17: "make the default time for egg refresh 6 minutes, and 3 minutes with gamepass";
@@ -321,7 +322,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
-  `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
+  `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamTrailSecs` (0.06: seconds of the founder's walk the view stands behind them), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanMargin` (24: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22) and
   `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
   (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
@@ -985,7 +986,7 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `look.set` | `look` (a `Looks.encode` string, at most 200 characters) | `Store.setLook` (`checkLook`: every index in range, every piece owned and of its slot; the whole look replaces the founder's; the `Founder` attribute follows) | bad_payload, locked |
 | `outfit.set` | `i` (1 .. #outfits + 1), `look` ("" deletes outfit i) | `Store.setOutfit` (saves the look's canonical code as outfit i; returns `{ outfits }`) | bad_payload, locked, dup, full |
-| `settings.set` | `k` ("pixel", "music", "sfx", "zoom", "screen", "lang" or "text"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10), the screen's scale (a key of `Tuning.ScreenScales`: auto, 100, 125, 150, 175, 200), the language ("auto" or a code of `Lang.LIST`), the text (pixel, smooth) | bad_payload |
+| `settings.set` | `k` ("pixel", "music", "sfx", "zoom", "lang" or "text"), `v` | the pixel tier (high, medium, low, off), the music or the sounds (on, off), the View slider's notch (a whole number 1 to 10), the language ("auto" or a code of `Lang.LIST`), the text (pixel, smooth). ("screen" went on 2026-11-22 with the Screen choice: a save's `settings.screen` is dropped by `Schema.reconcile`) | bad_payload |
 | `tut.next` | - | the tips go away for good, then the quest's egg (`Tree.ensure`) | - |
 | `quest.claim` | - | `Quest.claim` (data `{ id, shells, next }`), then the next quest's egg (`Tree.ensure`) | not_found, not_done |
 | `char.home` | - | PlotService puts the founder in front of their own tree | cooldown (`Tuning.HomeCooldown`), not_ready |
@@ -1165,8 +1166,7 @@ view, `CameraController.start`, `PixelRenderer.start`, `DayLight.start`, `UIKit.
 there yet): the palette's colours are written out and `PixelFont` / `PixelFontData` are mapped beside it.
 `LoadingCard` (GAME_DESIGN 11): `show()` (once: a `LoadingCard` ScreenGui, DisplayOrder 300, no inset; a canvas of
 `ceil(screen / K)` UI px under a UIScale K, the game's pixel size (`PixelScaleMin` 2 plus one per `PixelScaleSides`
-entry the screen's short side exceeds; fitted to a whole number of the screen's own pixels when the screen's size, in
-units, says it is scaled by a fraction: Pixel/DisplayScale's rule on the two sides alone); Roblox's touch buttons off while it is up), `phase(name)` ("island",
+entry the screen's short side exceeds, a whole number of units); Roblox's touch buttons off while it is up), `phase(name)` ("island",
 "picture"; it starts in "start"), `progress(f)`, `finish()` (the bar fills, `FADE_STEPS` (5) steps over `FADE_SEC`
 (0.45) to clear, destroyed, touch buttons back; by itself after `SAFETY_SEC` (45)), `state() -> { up, phase, bar,
 finished, fading, painted, fallback, actors, ticks, K, size, title (the title's block rect), island, isle, bob,
@@ -1287,24 +1287,14 @@ it all away or back; `musicState() -> { mood, on, tracks }`. The HUD sets the mo
 ### 9.1 Principle (Random Bakery's, cut down: one fitted scale, pans, no Actors)
 One EditableImage, shown full screen through an ImageLabel with `ResampleMode = Pixelated` from the screen's top-left
 corner: one art pixel is K × K screen px. K is the game's one pixel size (2 on phones and 768p, 3 at 1080p, 4 at
-1440p; a tier only makes it coarser), in Roblox's units. On a screen scaled by a fraction (125%, 150%, 175%: Roblox
-lays the interface out in density-independent units and draws them at the display's scale) `Pixel/DisplayScale`
-fits it to a whole number of the screen's own pixels, so K may be a fraction of a unit (2.4, 3.2): `DisplayScale.start()`
-(CameraController.start) watches mouse and touch positions and the camera's ViewportSize; `DisplayScale.observe(v)`
-keeps the last 32 distinct values with a fraction (a whole one fits any screen and is dropped: Roblox may round a
-mouse position to whole units); the scale is the smallest of `1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.625, 2.75, 3, 3.5, 4`
-that makes every one a whole number of pixels (within 0.02), 1 with fewer than 2 or none fitting, or the
-Settings choice (`setChoice(c)`, `Tuning.ScreenScales`: "auto" 0, "100" 1 .. "200" 2); `factor()`; `fit(K)` = K at a
-whole scale, else `round(K * s) / s`; `Changed` (the camera refits: `CameraController.pixelK` returns `fit` of
-`Raster.pixelScale`); `found()` (what Auto found, whatever the choice: Settings shows it); `debugState()`,
-`debugReset()`. Roblox keeps a UDim Offset whole, so nothing puts K into an offset: the layer's `Image` is W x H
-offset units with a UIScale child `PixelSize` of K, SkyBackdrop lays everything on a `Canvas` frame (W x H) with a
-UIScale of K, HatchBackdrop's `Image` has a `PixelSize` UIScale and its life `Layer` (W x H) a UIScale of K, the
-pieces on them placed and sized in art px; UIKit's canvases have their UIScale of K and sit on the K grid from the
-screen's corner (`top % K` with a tolerance), a fractional shift given as a share of the root's height (a UDim Scale
-keeps its fraction); the view's key formats K `%g`. (The jolts, `PixelRenderer.setOffset` and
-`HatchBackdrop.offset`, still move by whole art px times K in offsets: both lose the same fraction.) The report of 2026-11-20 ("the tree still looks like this": screenshots
-whose every pixel was 2.5 of the screen's). The **static layer** is a raycast G-buffer of the view: progressive passes (one
+1440p; a tier only makes it coarser), in Roblox's units, always a whole number of them: the pixel scale is 100%
+(the request of 2026-11-22, "make the pixel scale always 100%, no need for that option anymore"). From 2026-11-20 to
+2026-11-22 `Pixel/DisplayScale` fitted K to a whole number of the screen's own pixels on a screen scaled by a
+fraction (2.4 units at 125%), from what it could read of the scale or the Settings panel's Screen choice; both went.
+The layer's `Image` is W x H offset units with a UIScale child `PixelSize` of K, SkyBackdrop lays everything on a
+`Canvas` frame (W x H) with a UIScale of K, HatchBackdrop's `Image` has a `PixelSize` UIScale and its life `Layer`
+(W x H) a UIScale of K, the pieces on them placed and sized in art px; UIKit's canvases have their UIScale of K and
+sit on the K grid from the screen's corner; the view's key formats K `%g`. The **static layer** is a raycast G-buffer of the view: progressive passes (one
 ray per 4×4 block, per 2×2, then every pixel; `Pixel/BakeCast`: each ray starts where it comes down through `Tuning.PixelRayTop`, 80 studs up, not at the ray plane 500 studs back, and its depth still counts from the plane: Roblox's single-precision ball test from 500 studs off blurred the edges of small balls, 2026-11-20), time-sliced (`Tuning.PixelBakeMsPerFrame`, more
 behind the first curtain), sun visibility cast at each 2×2 block's even-even anchor and shared by the other three
 pixels when they show the same part and normal (their own shadow ray otherwise; then every shared pixel lit unlike a
@@ -1386,15 +1376,28 @@ key (`plot|a|phase|l|screen|K`) only changes with the plot, the screen or K: any
 island's tier) only moves the home pan.
 The **pan now** (`pan() -> (px, py)`, whole art px) follows the founder every frame (`RenderStepped`): the target puts
 the founder's ground point in the middle of the screen across and halfway between the HUD's top and bottom strips
-(and the tips banner), on any island. The target is not rounded; the follow's own place
-(`camX, camY`, art px) chases it on a critically damped spring (Unity's SmoothDamp, smooth time `CamFollowSecs` 0.12 s,
-the frame's dt counted) since 2026-11-18 ("make the camera a smooth lerp follow the player like most top down games
-instead of sharply cutting to the player"): it sets off gently, trails a steady walk by the founder's speed times
-`CamFollowSecs` (about 2 studs, 20 art px), and settles on them about a fifth of a second after they stop, never past
-them; it never moves slower than `CamFollowMinPx` (60 art px a second, a pixel a frame) while it is not there, so the
-last px do not trickle in further and further apart (the report of 2026-11-21, "the camera stutters and lags after
-moving now": at 0.2 s and no floor it trailed by 34 px and its last px came 2, 4, then 8 frames apart). (Before, the pan
-moved `CamGlide` 0.18 of the way a 60th of a second, at least an art px a frame, and stopped dead.) The pan is the
+(and the tips banner), on any island. The target is not rounded. Following the founder, the follow's own place
+(`camX, camY`, art px) is the target less a gap from their speed (`trailX, trailY`: the root's
+`AssemblyLinearVelocity` along the ground, at most 1.5 times `WalkSpeed`, on the grid, times `CamTrailSecs` 0.06 s;
+about 8 art px at the default View), plus `easeX, easeY`, what is left of a move of the target apart from the founder
+(the HUD's strips, a resize, coming back from Build mode or a cutscene's focus: the view goes on from where it was).
+Both ease on a critically damped spring (Unity's SmoothDamp, smooth time `CamFollowSecs` 0.12 s, the frame's dt
+counted): the gap toward the speed's, the ease toward nothing. Walking at a steady pace the gap stays the same, so the
+founder keeps still on the screen however unevenly frames and physics steps come; it eases in when they set out and
+out when they stop (the report of 2026-11-22, "the camera is still choppy, it sometimes lags behind or stutters while
+moving": the spring after the founder's place took on each frame's whole 240 Hz physics steps, its gap wobbled round
+a pixel, and it trailed by 14 art px; the `jitter` preview's founder moved on the screen on 4 to 7 frames a leg, 1 to
+3 of them straight back, now on none, and the `stop` preview's view settles 0.13 s after a stop, a pixel a frame). In
+Build mode, under a cutscene's focus and on a stage the follow's place chases the target on the spring itself (since
+2026-11-18, "make the camera a smooth lerp follow the player like most top down games instead of sharply cutting to
+the player"), never past it: landing on its target it stops there (it kept the speed it came in at and set off a pixel
+past the next frame, which the gap's easing showed after every stop; the `walk` checks of `sim_world`), and
+`debugFollow() -> { camX, camY, trailX, trailY, easeX, easeY, trailOn }` gives its state (sims). The spring never
+moves slower than `CamFollowMinPx` (60 art px a second, a pixel a frame) while it is not there, so the last px do not
+trickle in further and further apart (the report of 2026-11-21, "the
+camera stutters and lags after moving now": at 0.2 s and no floor it trailed by 34 px and its last px came 2, 4, then 8
+frames apart). (Before, the pan moved `CamGlide` 0.18 of the way a 60th of a second, at least an art px a frame, and
+stopped dead.) The pan is the
 target's pixel less the gap's (`round(t) - round(t - cam)` on each axis), so through a steady walk it steps with the
 founder pixel for pixel and they keep still on the screen; it moves at most what the renderer can scroll in a frame
 (`panCaps`: `PixelPanRays` over 1.5 rays a pixel of a strip), so its picture never falls behind into a re-bake. The pan
@@ -1425,7 +1428,10 @@ puts the window from `pan()` alone. The `pan` probe walks the founder held stand
 window from the pan and then from the founder: its picture went back and forth from one frame to the next 31 times in
 240 frames, then 6 (the rest the follow easing round the square's corners). In the
 classic style the Roblox camera stands on the unrounded place. A target more than three quarters of the screen away
-snaps (one bake instead of a scroll that would bake several times). A new character is ignored until it has stood on its own lot once or 3 s have passed
+snaps (`jumpTo`: one bake instead of a scroll that would bake several times), visiting another island or going home
+among them; the renderer shows the new place at once too (9.3, the window: the request of 2026-11-22, "when visiting
+or when going home, make the camera snap to the player instead of the camera having to travel all the way to where
+the player is"). A new character is ignored until it has stood on its own lot once or 3 s have passed
 (Roblox drops it mid-street before the server moves it home). Build mode (GAME_DESIGN 4.5: "make the camera still follow
 the player as they walk around, even though it is displaced downwards abit"): `setFree(true, down?)` keeps the follow,
 the target lowered by half of `down` art px (Build mode's tray height) plus a drag offset; `panBy(dx, dy)` (full-screen
@@ -1525,7 +1531,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   the whole count so `Raster.cam`'s ceil adds none). `Surf.m` is the margin, `vw`, `vh` the screen's size and `ox`,
   `oy` where the screen stands in the layer (`showWindow(s)`, every step: `CameraController.pan()` less the layer's
   top-left, clamped to the picture), shown through the image's `ImageRectOffset` / `ImageRectSize` (the label stays the
-  screen's size at 0, 0; an Offset is whole units, a pixel 2.4 at 125%). The layer scrolls only once the window comes
+  screen's size at 0, 0). The layer scrolls only once the window comes
   within `Tuning.PixelPanEdge` (18; 2 until 2026-11-21, 4 until 2026-11-22: the step leaves a gap between the screen and the strips coming in, which they are cast in before the view reaches them, Pans; at 4 of 14 the view was on them a frame after the scroll) of its edge, re-centred under it (`scrollToward(s, pan - m)`, at most
   `PixelPanRays` a frame as before), so a walk shifts, composes and uploads the whole picture once every 2 to 4 frames,
   not every frame; between, nothing but the window moves (and the moving models, composed incrementally). `project`
@@ -1678,7 +1684,12 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   (`SG.pend`); `SG.pendStep(s, deadline)` casts them, the anchors first, each filling its 2x2 block, then the rest.
   `SG.viewPan(s)` is the window's pan for the frame: the camera's (`CameraController.drawnPan`), never the layer's
   outer 3 px, held 3 px clear of strips not finished, catching up after by its own move and `PixelCatchUpPx` or
-  `PixelCatchUpShare` of the gap; no scroll while pieces are queued. Once the window is more than `PixelHoldMaxPx`
+  `PixelCatchUpShare` of the gap; no scroll while pieces are queued. A jump (the camera's pan, less the margin, half
+  the layer or more from its top-left: `scrollToward`'s own rule for a re-bake) is taken as it is, unclamped and with
+  no catching up (`SG.vpJump` for the frame; the scroll goes ahead even with pieces queued), so the layer re-bakes at
+  the new pan at once: a visit or the way home. Held to the old picture, the window had caught up a share a frame and
+  the layer scrolled after it across the sky, 64 frames and about 1,560 px (the `visit` preview, which logs the frames
+  the camera and the window moved from the card opening: now 0 and 0). Once the window is more than `PixelHoldMaxPx`
   behind the camera (`SG.vpLag`), what is left of the strips is cast in full at once, so every pixel shown is a whole
   one and the window falls no further behind. With `Tuning.PixelCoarseLead` (off: in the densest walk the coarse
   blocks stayed on screen for most of it, against the rule on pixel art), the strips are shown before they are whole
@@ -3142,12 +3153,10 @@ scrolls when they run past the sheet's foot, a phone's or a short tablet's (the 
 mobile and other devices, you cant scroll down to see it"); `UIKit.refreshPanel` keeps its place.
 The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: taller when narrow and for the Language row's lines): `ROWS` Language
 (`settings.lang`, 2026-11-20: Auto and each `Lang.LIST` language by its own name, `raw` buttons, a `flow` row that
-wraps onto as many lines as the body needs; `own` like Screen), Text (`settings.text`: Pixel, Smooth, with the hint
+wraps onto as many lines as the body needs, `own`: its buttons on lines of their own under the label), Text (`settings.text`: Pixel, Smooth, with the hint
 "Smooth is easier to read on a small screen."), Music (`settings.music`), Sounds
-(`settings.sfx`), Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish) and Screen
-(`settings.screen`: auto, 100, 125, 150, 175, 200; its six buttons on a line of their own under the label, `own`, with
-a hint and `Found_screen`, what Auto found, "Found {n}%", right of the label; `SettingsUI.apply()` hands the value to
-`DisplayScale.setChoice` every frame), each a row of buttons
+(`settings.sfx`) and Pixel art (`settings.pixel`: high, medium, low; no off button, the user's wish; the Screen row
+went on 2026-11-22, the pixel scale always 100%), each a row of buttons
 `Set_<k>_<v>`, the chosen one lit. A tap sets a pending value (used until the view says the same), applies it at once (`Audio.setMusicOn`,
 `Audio.setSoundsOn`, `PixelRenderer.setTier`, `SettingsUI.applyLanguage` for lang and text) and sends `settings.set`; a refusal drops the pending value with a notice.
 Under them the View row (2026-11-18, `settings.zoom`): `ZoomOut` (-), the track (an ink frame round a groove, filled to

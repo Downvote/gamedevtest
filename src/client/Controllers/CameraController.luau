@@ -6,10 +6,11 @@
 -- ground stud, its phase, the ray plane `l`) depends only on the plot, the screen and K; on it the view pans by whole
 -- art px (`pan()`), so the pixel renderer scrolls its picture instead of baking it again:
 --   follow (the default): the view keeps the founder (the player's character) in the middle of the screen between
---     the HUD's strips, wherever they walk, on a soft spring (Tuning.CamFollowSecs): it eases off when they set out,
---     trails them a little while they walk and eases in to stop on them once they stand (the request of 2026-11-18:
---     "make the camera a smooth lerp follow the player like most top down games instead of sharply cutting to the
---     player"); the pan is in whole art px (at most what the renderer can scroll in a frame);
+--     the HUD's strips, wherever they walk. It stands a little behind them by their speed (Tuning.CamTrailSecs of
+--     their walk), that gap eased in when they set out and out when they stop (Tuning.CamFollowSecs): the request of
+--     2026-11-18, "make the camera a smooth lerp follow the player like most top down games instead of sharply
+--     cutting to the player", and the report of 2026-11-22, "the camera is still choppy, it sometimes lags behind or
+--     stutters while moving". The pan is in whole art px (at most what the renderer can scroll in a frame);
 --   free (Build mode): the view still follows the founder, lowered a little (Build mode's tray covers the bottom of
 --     the screen), plus where Build mode drags it (`panBy`, kept over the own plot); a drag holds while the founder
 --     stands, and once they walk the view eases back onto them (the request of 2026-11-14: "in build mode, make the
@@ -30,7 +31,6 @@ local Street = require(ReplicatedStorage.Shared.Data.Street)
 local Raster = require(ReplicatedStorage.Shared.Render.Raster)
 local Util = require(ReplicatedStorage.Shared.Logic.Util)
 local StateClient = require(script.Parent.StateClient)
-local DisplayScale = require(script.Parent.Parent.Pixel.DisplayScale)
 local ScreenSize = require(script.Parent.Parent.Pixel.ScreenSize)
 
 export type Room = { x0: number, x1: number, z0: number, z1: number, y1: number }
@@ -103,6 +103,19 @@ local stepAt: Vector3? = nil
 local stepLockX: number?, stepLockY: number? = nil, nil
 local drawnLockX: number?, drawnLockY: number? = nil, nil
 local lockOff = false -- (previews: the window put from the pan alone, debugLock)
+-- The follow of the founder (the report of 2026-11-22, "the camera is still choppy, it sometimes lags behind or
+-- stutters while moving"). A spring after the founder's place took on how far they moved each frame, which is a
+-- whole number of 240 Hz physics steps and not the frame's length: the gap wobbled round its pixel and the founder
+-- flicked a pixel back and forth on the screen a few times a second, and the spring trailed them 14 art px. Now the
+-- view is the founder's place less a gap worked out from their speed (`trailX, trailY`, art px: the root's velocity
+-- times Tuning.CamTrailSecs, eased toward on a spring of Tuning.CamFollowSecs), so walking at a steady pace it stays
+-- the same and the founder keeps still on the screen; what else moves the target (the HUD's strips, a resize) is
+-- glided over by `easeX, easeY`, which the spring brings back to nothing.
+local trailX, trailY, trailVX, trailVY = 0, 0, 0, 0
+local easeX, easeY, easeVX, easeVY = 0, 0, 0, 0
+local trailOn = false
+local offX: number?, offY: number? = nil, nil -- (the target less the founder's ground point, the frame before)
+local followRoot: BasePart? = nil -- (the root `target` followed this frame: none with a focus or in Build mode)
 local DRAWN_SLACK = 8 -- art px the rig as drawn may be from the follow before the pan is shown as it is
 
 -- (the whole screen, a notched phone's safe-area margins too: Camera.ViewportSize left them out there, and the
@@ -112,10 +125,11 @@ local function screenSize(): Vector2
 	return Vector2.new(math.max(320, v.X), math.max(240, v.Y))
 end
 
--- (nudged to a whole number of the screen's own pixels on a display scaled by a fraction: Pixel/DisplayScale)
+-- (always as Raster picks it, a whole number of GUI units: the Settings panel's Screen choice, which nudged it to a
+-- display's own scale, went on 2026-11-22: "make the pixel scale always 100%, no need for that option anymore")
 function CameraController.pixelK(size: Vector2?): number
 	local s = size or screenSize()
-	return DisplayScale.fit(Raster.pixelScale(s.X, s.Y, Tuning.PixelScaleMin, Tuning.PixelScaleSides, pixelLimit, 1024))
+	return Raster.pixelScale(s.X, s.Y, Tuning.PixelScaleMin, Tuning.PixelScaleSides, pixelLimit, 1024)
 end
 
 local function blocks(size: Vector2, K: number): { Raster.Rect }
@@ -280,6 +294,7 @@ local targetOf: (v: View) -> (number, number) -- (where the view should be: belo
 local function jumpTo(tx: number, ty: number)
 	camX, camY, velX, velY = tx, ty, 0, 0
 	panX, panY = math.floor(tx + 0.5), math.floor(ty + 0.5)
+	trailOn, offX, offY = false, nil, nil
 end
 
 function CameraController.refit()
@@ -361,6 +376,11 @@ function CameraController.drawnPan(): (number, number)
 		return panX, panY
 	end
 	return px, py
+end
+
+-- Sims: the follow's state (its place, the gap behind the founder, what is left to glide over), art px.
+function CameraController.debugFollow(): { camX: number, camY: number, trailX: number, trailY: number, easeX: number, easeY: number, trailOn: boolean }
+	return { camX = camX, camY = camY, trailX = trailX, trailY = trailY, easeX = easeX, easeY = easeY, trailOn = trailOn }
 end
 
 -- Previews: where the founder's rig, as AvatarView last put it, stands on the screen (the lock kept with it, art px
@@ -465,6 +485,7 @@ end
 -- founder does).
 local function target(v: View): (number, number)
 	followAt = nil
+	followRoot = nil
 	if v.stage then
 		local st = stage
 		if st == nil or stageShift == Vector3.zero then
@@ -491,6 +512,7 @@ local function target(v: View): (number, number)
 		end
 		p = root.Position
 		followAt = p
+		followRoot = root
 	end
 	-- the founder (or a cutscene's focus) in the middle of the screen between the HUD's strips (the ground under
 	-- them: their feet)
@@ -522,6 +544,9 @@ end
 -- time. It sets off gently, trails a founder walking at a steady pace by their speed times that, and settles on them
 -- once they stand without going past. Returns the new place and speed.
 local function follow(cur: number, to: number, vel: number, dt: number): (number, number)
+	if cur == to and math.abs(vel) < 0.5 then
+		return to, 0 -- (there and at rest)
+	end
 	local w = 2 / Tuning.CamFollowSecs
 	local x = w * dt
 	local e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
@@ -539,7 +564,9 @@ local function follow(cur: number, to: number, vel: number, dt: number): (number
 	if gap ~= 0 and math.abs(out - cur) < least then
 		local d = math.min(least, math.abs(gap))
 		out = cur + (if gap > 0 then d else -d)
-		nv = (out - cur) / dt
+		-- (landing on it, it stops there: with the speed it came in at, the next frame set off past it, as `to - cur`
+		-- was 0 and the check above never caught it, and the view stepped a pixel back after a stop)
+		nv = if d == math.abs(gap) then 0 else (out - cur) / dt
 	end
 	if math.abs(to - out) < 0.01 and math.abs(nv) < 0.5 then
 		out, nv = to, 0
@@ -602,8 +629,43 @@ local function step(dt: number?)
 	-- (the frame's length counts, so the view keeps up as well at 30 frames a second as at 60)
 	local secs = math.clamp(dt or 1 / 60, 1 / 240, 0.1)
 	local cx0, cy0 = camX, camY
-	camX, velX = follow(camX, tx, velX, secs)
-	camY, velY = follow(camY, ty, velY, secs)
+	local root = followRoot
+	local gx, gy = fGX, fGY
+	if root and gx and gy and not free and not v.stage then
+		local ox, oy = tx - gx, ty - gy
+		if not trailOn then
+			-- (from a glide, a cutscene's focus or Build mode: the view goes on from where it is)
+			trailOn = true
+			trailX, trailY, trailVX, trailVY = 0, 0, 0, 0
+			easeX, easeY, easeVX, easeVY = camX - tx, camY - ty, velX, velY
+		elseif offX and offY then
+			-- (the target moved apart from the founder: the HUD's strips, the screen resized. The view glides there)
+			easeX -= ox - offX
+			easeY -= oy - offY
+		end
+		offX, offY = ox, oy
+		-- (the founder's speed on the screen, art px a second, along the ground: a jump's rise is not followed; at most
+		-- half again their walk, so a fall or a push does not throw the view)
+		local vel = root.AssemblyLinearVelocity
+		local flat = if typeof(vel) == "Vector3" then Vector3.new(vel.X, 0, vel.Z) else Vector3.zero
+		local most = Tuning.WalkSpeed * 1.5
+		if flat.Magnitude > most then
+			flat = flat.Unit * most
+		end
+		local at = root.Position
+		local vx, vy = Raster.gridPoint(ROT12, v.grid, at.X + flat.X, Street.LAWN_Y + 1.5, at.Z + flat.Z)
+		trailX, trailVX = follow(trailX, (vx - gx) * Tuning.CamTrailSecs, trailVX, secs)
+		trailY, trailVY = follow(trailY, (vy - gy) * Tuning.CamTrailSecs, trailVY, secs)
+		easeX, easeVX = follow(easeX, 0, easeVX, secs)
+		easeY, easeVY = follow(easeY, 0, easeVY, secs)
+		local nx, ny = tx - trailX + easeX, ty - trailY + easeY
+		velX, velY = (nx - camX) / secs, (ny - camY) / secs
+		camX, camY = nx, ny
+	else
+		trailOn, offX, offY = false, nil, nil
+		camX, velX = follow(camX, tx, velX, secs)
+		camY, velY = follow(camY, ty, velY, secs)
+	end
 	-- The pan in whole art px. It is the target's pixel less the gap's: while the founder walks at a steady pace the gap
 	-- stays the same, so the pan steps with them pixel for pixel and they keep still on the screen (rounding the
 	-- follow's place on its own would shake them by a pixel); as the view closes in or falls back the gap changes a
@@ -749,11 +811,6 @@ function CameraController.start()
 	if cv then
 		fromView(cv)
 	end
-	-- (the screen's own scale found or set: the pixel size follows)
-	DisplayScale.start()
-	DisplayScale.Changed:Connect(function()
-		CameraController.refit()
-	end)
 	local cam = Workspace.CurrentCamera
 	ScreenSize.start()
 	ScreenSize.Changed:Connect(function()

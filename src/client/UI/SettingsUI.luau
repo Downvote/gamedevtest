@@ -10,9 +10,8 @@
 --   Music     On / Off                  settings.music: the background music
 --   Sounds    On / Off                  settings.sfx: every one-shot sound and the island's loops (waves, birds, rain)
 --   Pixel art High / Medium / Low       settings.pixel: the pixel filter's detail (no Off: the user asked for none, 2026-11-14)
---   Screen    Auto / 100% .. 200%       settings.screen: the display's own scale (Pixel/DisplayScale), so every art pixel
---                                       is a whole number of the screen's pixels (2026-11-20: the tree's outlines broken
---                                       on a screen at 125%); its choices on a line of their own under the label
+--   (Screen, Auto / 100% .. 200%, went on 2026-11-22: "make the pixel scale always 100%, no need for that option
+--   anymore"; the game's pixel size is used as it is)
 --   View      - [ten notches] +         settings.zoom: the camera's zoom on the islands (the request of 2026-11-18: "make a
 --                                       view slider for zooming the camera in and out, with 10 notches"); drag the knob,
 --                                       tap a notch or the - and + at the ends
@@ -32,7 +31,6 @@ local StateClient = require(script.Parent.Parent.Controllers.StateClient)
 local Audio = require(script.Parent.Parent.Controllers.Audio)
 local CameraController = require(script.Parent.Parent.Controllers.CameraController)
 local PixelRenderer = require(script.Parent.Parent.Pixel.PixelRenderer)
-local DisplayScale = require(script.Parent.Parent.Pixel.DisplayScale)
 local UIKit = require(script.Parent.UIKit)
 
 local SettingsUI = {}
@@ -60,20 +58,6 @@ local ROWS: { Row } = {
 		opts = { { v = "high", text = "High" }, { v = "medium", text = "Medium" }, { v = "low", text = "Low" } },
 		hint = "Lower runs smoother on older phones.",
 	},
-	{
-		k = "screen",
-		label = "Screen",
-		opts = {
-			{ v = "auto", text = "Auto" },
-			{ v = "100", text = "100%" },
-			{ v = "125", text = "125%" },
-			{ v = "150", text = "150%" },
-			{ v = "175", text = "175%" },
-			{ v = "200", text = "200%" },
-		},
-		hint = "Pixels look uneven? Pick your screen's scale.",
-		own = true,
-	},
 }
 SettingsUI.ROWS = ROWS
 
@@ -94,8 +78,6 @@ function SettingsUI.value(k: string): string
 	end
 	if k == "pixel" then
 		return if type(saved) == "string" then saved else "high"
-	elseif k == "screen" then
-		return if type(saved) == "string" and Tuning.ScreenScales[saved] ~= nil then saved else "auto"
 	elseif k == "lang" then
 		return if type(saved) == "string" and (saved == "auto" or Lang.byCode[saved] ~= nil) then saved else "auto"
 	elseif k == "text" then
@@ -108,7 +90,6 @@ end
 function SettingsUI.apply()
 	Audio.setMusicOn(SettingsUI.value("music") ~= "off")
 	Audio.setSoundsOn(SettingsUI.value("sfx") ~= "off")
-	DisplayScale.setChoice(SettingsUI.value("screen"))
 end
 
 -- The language and the text as the settings say, a tap not answered yet included (Main.client on every view; UIKit
@@ -331,11 +312,6 @@ local function build(sheet: Frame, _arg: any?)
 	local y = 4
 	for _, row in ROWS do
 		UIKit.text(body, row.label, UDim2.fromOffset(60, 12), UDim2.fromOffset(PAD, y + 2), { color = UIKit.color("text"), name = "Label_" .. row.k })
-		if row.k == "screen" then
-			-- (what Auto found, so a player can tell whether the game saw the screen's scale)
-			local found = Lang.fmt("Found {n}%", { n = math.floor(DisplayScale.found() * 100 + 0.5) })
-			UIKit.text(body, found, UDim2.fromOffset(w - 2 * PAD - 60, 12), UDim2.fromOffset(PAD + 60, y + 2), { color = UIKit.color("text_dim"), x = "right", name = "Found_screen" })
-		end
 		local cur = SettingsUI.value(row.k)
 		if row.flow then
 			-- (the choices flow over lines of their own under the label, from the left)
