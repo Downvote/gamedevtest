@@ -2,9 +2,11 @@
 -- The islands' life (docs/ARCHITECTURE.md 10.2; GAME_DESIGN 5, 6, 8): every driftling living in a hut is its 3D
 -- model (Models/MicroModels) in Workspace.PixelDynamic, registered with the pixel renderer and moved every frame (the
 -- driftlings do all the work: no villagers since 2026-11-12). It walks to the building it works at and works there a
--- while (pecking in the fields, dipping for fish, pushing at the wood, waving at the shops: what it works at flies off
--- now and then), strolls round the island, and back; one with nowhere to work naps at its hut. One just hatched from
--- the Tree of Life's eggs steps out of its egg (Controllers/EggView: the eggs themselves) and walks off to work. Who
+-- while, strolls round the island, and back; one with nowhere to work naps at its hut. At its building it goes in and
+-- is not drawn until it comes out again for a stroll or a new place (the request of 2026-11-22: "to ease the renderer,
+-- could you make it such that creatures working or in their houses arent rendered, as if they are in the building?").
+-- One just hatched from the Tree of Life's eggs steps out of its egg (Controllers/EggView: the eggs themselves) and
+-- walks off to work. Who
 -- lives on each
 -- island comes from its plot's attributes (PlotService: Pals, Tier), where the buildings stand from its Static.Decor
 -- models' names (uid:id:x:z:rot:lvl), so a visit shows a neighbour's island alive too. Only islands near the view get
@@ -66,6 +68,14 @@ type Walker = {
 	moodNow: string, -- what its model plays when posed: "walk", its work, "idle" or its cheer
 	px: number, -- where its model was last put (world): the pixel filter slides its picture on from there
 	pz: number,
+	-- Inside its building (working, or napping in its hut): no model, nothing for the pixel filter to draw (the request
+	-- of 2026-11-22: "to ease the renderer, could you make it such that creatures working or in their houses arent
+	-- rendered, as if they are in the building?"). `inUid` is the building it is in, `goal` the one it walks to;
+	-- `fresh`: just come into view with the island (not hatched), so it starts inside rather than walking there.
+	inside: boolean,
+	inUid: number,
+	goal: number,
+	fresh: boolean,
 }
 
 local walkers: { [string]: Walker } = {} -- key: "<plot>:p<id>"
@@ -434,9 +444,16 @@ local function newWalker(key: string, id: number, plot: number, sp: string, work
 		moodNow = "idle",
 		px = x,
 		pz = z,
+		inside = false,
+		inUid = 0,
+		goal = 0,
+		fresh = at == nil,
 	}
-	-- (its model when it is near the screen: dress, from the frame loop)
-	if PixelRenderer.nearScreen(Vector3.new(x, Street.LAWN_Y, z), MODEL_NEAR) then
+	if w.fresh then
+		-- (into its building on its first step: decide)
+		w.untilT = 0
+	elseif PixelRenderer.nearScreen(Vector3.new(x, Street.LAWN_Y, z), MODEL_NEAR) then
+		-- (its model when it is near the screen: dress, from the frame loop)
 		dress(w)
 	end
 	return w
@@ -525,29 +542,47 @@ local function spotsNow(i: number): { [number]: Spot }
 	return (c :: any).spots
 end
 
--- Where a driftling heads next: the building it works at (somewhere along its front), its hut for a nap when it has
--- nowhere to work, or a stroll now and then.
+-- A spell inside its building: how long it stays before it thinks again (a nap lasts longer).
+local function spell(w: Walker): number
+	return 8 + w.rng:next() * 6 + (if w.mood == "nap" then 12 else 0)
+end
+
+-- Where a driftling heads next: the building it works at (in at its front), its hut for a nap when it has nowhere to
+-- work, or a stroll now and then (Tuning.PalStrollShare of its spells). One already inside the building it would go to
+-- stays in; one just come into view starts inside it.
 local function decide(w: Walker, t: number)
 	local spots = spotsNow(w.plot)
-	local s = if w.work ~= 0 then spots[w.work] else nil
-	if s == nil then
-		-- resting at its hut
-		s = spots[w.home]
-	end
-	if s and (w.nextWork or w.work == 0 or w.rng:next() < 0.75) then
-		local side = (w.rng:next() - 0.5) * s.w
-		w.tx, w.tz = s.cx + side, s.cz + s.d / 2 + 0.6 + w.rng:next()
-		w.state = "walk"
-		w.nextWork = false
+	local uid = if w.work ~= 0 and spots[w.work] then w.work else w.home
+	local s = spots[uid]
+	if s and (w.nextWork or w.work == 0 or w.fresh or w.rng:next() >= Tuning.PalStrollShare) then
 		w.action = WORK_ACTION[s.id] or "tend"
 		w.mood = if w.work == 0 then "nap" else palMoodOf(s.id)
+		w.nextWork = false
+		if w.fresh or (w.inside and w.inUid == uid) then
+			-- (in it already, or starting there: at its door, inside, part way through a spell)
+			local side = (w.rng:next() - 0.5) * s.w * 0.5
+			w.x, w.z = s.cx + side, s.cz + s.d / 2 + 0.4
+			w.tx, w.tz, w.px, w.pz = w.x, w.z, w.x, w.z
+			w.inside, w.inUid, w.state = true, uid, "work"
+			w.untilT = t + spell(w) * (if w.fresh then w.rng:next() else 1)
+			w.fresh = false
+			return
+		end
+		-- (to its door, then in)
+		local side = (w.rng:next() - 0.5) * s.w * 0.5
+		w.tx, w.tz = s.cx + side, s.cz + s.d / 2 + 0.4
+		w.goal = uid
+		w.state = "walk"
 	else
 		w.tx, w.tz = strollPoint(w.plot, w.rng)
 		w.state = "walk"
 		w.nextWork = true
 		w.action = "stand"
 		w.mood = "idle"
+		w.goal = 0
 	end
+	-- (out of the building it was in, by its door)
+	w.inside, w.inUid, w.fresh = false, 0, false
 	w.untilT = t + 20
 end
 
@@ -557,13 +592,11 @@ local function stepWalker(w: Walker, t: number, dt: number)
 	local speed = 0
 	if w.state == "walk" then
 		if d < 0.2 or t > w.untilT then
-			-- arrived: work a while at a building, or idle a moment after a stroll
+			-- arrived: in at the building's door for a spell, or idle a moment after a stroll
 			if w.action ~= "stand" then
 				w.state = "work"
-				-- (a nap lasts longer)
-				w.untilT = t + 8 + w.rng:next() * 6 + (if w.mood == "nap" then 12 else 0)
-				-- (turned three-quarters to the view, so the work reads: east along the front, or south)
-				w.yaw = if w.rng:next() < 0.5 then 0 else math.pi / 2
+				w.inside, w.inUid = true, w.goal
+				w.untilT = t + spell(w)
 				w.beat = t * (WORK_RATE[w.action] or 0.5) + w.ph
 			else
 				w.state = "idle"
@@ -580,6 +613,13 @@ local function stepWalker(w: Walker, t: number, dt: number)
 		decide(w, t)
 	end
 	local y = groundY()
+	if w.inside then
+		-- (in its building: no model, so nothing to draw)
+		if w.thing then
+			undress(w)
+		end
+		return
+	end
 	-- (its model only near the screen)
 	local here = Vector3.new(w.x, y, w.z)
 	if w.thing == nil then
@@ -978,7 +1018,8 @@ end
 function WorldView.cheer(words: { string }, color: Color3)
 	local k = 0
 	for _, w in walkers do
-		if w.plot ~= myPlot then
+		-- (the ones out and about: one inside its building is not seen)
+		if w.plot ~= myPlot or w.inside then
 			continue
 		end
 		k += 1
@@ -1195,8 +1236,23 @@ function WorldView.holdPal(plot: number, id: number, secs: number, x: number?, z
 		end
 		w.tx, w.tz = w.x, w.z
 		w.state = "idle"
+		w.inside, w.inUid, w.fresh = false, 0, false
 		w.untilT = os.clock() + secs
 	end
+end
+
+-- Sims: how many of the island's driftlings are inside their buildings now, and how many in all.
+function WorldView.insideCount(plot: number): (number, number)
+	local inside, all = 0, 0
+	for _, w in walkers do
+		if w.plot == plot then
+			all += 1
+			if w.inside then
+				inside += 1
+			end
+		end
+	end
+	return inside, all
 end
 
 -- CLI checks only: the islanders drawn now (all islands', and the own island's).

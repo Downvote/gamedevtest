@@ -360,6 +360,11 @@ local Tuning = {
 	-- a founder left alone this long dozes off where it stands (the request of 2026-11-15: "like dozing off while afk";
 	-- the bakery's 40 s): no key, mouse or touch and no step for the own one, no step for another player's
 	DozeSecs = 40,
+	-- the share of a driftling's spells in its building that end in a stroll round the island (Controllers/WorldView);
+	-- the rest it stays in. Inside a building it is not drawn (the request of 2026-11-22: "to ease the renderer, could
+	-- you make it such that creatures working or in their houses arent rendered, as if they are in the building?"), so
+	-- the strolls are what shows of an island's driftlings. One with nowhere to work naps in its hut and never strolls
+	PalStrollShare = 0.25,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	-- seconds: the follow's smooth time (a critically damped spring, the request of 2026-11-18: "make the camera a smooth

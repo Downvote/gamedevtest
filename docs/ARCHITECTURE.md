@@ -310,7 +310,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `TideLuck`, `TideMutTier` or `HutTide`, and none of the old tree's `TreeSecs`, `TreeLuck`, `TreeMutLuck`,
   `TreeSpeedCost`, `TreeLuckCost`, `PenSafe`, `PenShown` or `TreeStages`), breeding (`BreedShells` (an egg's price by the
   child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the island's lean (`MutLean`, `MutLeanFloor`),
-  the founders' doze (`DozeSecs` 40), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
+  the founders' doze (`DozeSecs` 40), the share of a driftling's spells in its building that end in a stroll (`PalStrollShare` 0.25, WorldView), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
   (`MaxPlots`, `PlotSpacing` (170 since 2026-11-20: the islands are whole and round from the start, so a channel of
   sea stays between two), `PlotPieces` (buildings and decor by tier: 36, 60, 90, 130, 180, 240, 300, 370, 450, 540,
   then 60 more a tier to 1,140), `HousingLimit` (the driftlings an island's huts may house together by its tier, however many huts: since 2026-11-19
@@ -2286,12 +2286,20 @@ is lit from the top left), on the Popup canvas over everything (ZIndex 40, "TutA
 ### 10.2 `WorldView` and `EggView`
 The islanders: a walker per hut driftling (`MicroModels.driftling` in its species' shape and colours), parsed from
 each owned plot's `Pals` attribute and placed among the buildings read from its `Static.Decor` models' names
-(`uid:id:x:z:rot:lvl`). A driftling goes to the building it works at (or its hut) and works there by its kind
-(`palMoodOf`: `dip` at a pier or kelp farm, `peck` at the other farms, `push` at the wood and the boosts, `wave` at the
-shops, `nap` at a hut or the hatchery, for longer: `DriftModels.animate`'s work moods), now and then a stroll
-(`strollPoint`: a buildable cell off the Tree of Life where it stands). One new in a hut on an island already peopled has just
-hatched: it steps out where its egg lay (`EggView.hatchPoint`) with a cheer and walks off to work (`born`). Workers
-stand along the building's front, turned three-quarters to the view (east or south). Only islands within 100 studs of
+(`uid:id:x:z:rot:lvl`). A driftling goes to the building it works at (or its hut), to a door point on its front, and
+goes in (`Walker.inside`, `inUid`: the building; `goal`: the one it walks to): inside it has no model (`undress`, never
+dressed), so the pixel filter has nothing of it to draw, pose or slide, and no chips fly (the request of 2026-11-22:
+"to ease the renderer, could you make it such that creatures working or in their houses arent rendered, as if they
+are in the building?"). A spell inside (`spell`: 8 to 14 s, a nap 12 more) ends in `decide`: a stroll for
+`Tuning.PalStrollShare` (0.25) of them (`strollPoint`: a buildable cell off the Tree of Life where it stands), out at its
+door and back in after, else it stays in the same building; a new place (its work or hut changed) brings it out to walk
+there. One with nowhere to work naps in its hut and never strolls. A walker made with its island (`fresh`: not just
+hatched) starts inside its building part way through a spell, so arriving on an island shows no crowd walking in. Its
+mood (`palMoodOf`: `dip` at a pier or kelp farm, `peck` at the other farms, `push` at the wood and the boosts, `wave`
+at the shops, `nap` at a hut or the hatchery) is kept but not seen while it is inside. `cheer` passes the ones inside;
+`insideCount(plot) -> (inside, all)` (sims). The `crowd` preview (68 driftlings on a full tier 4 town): 19 to 26 dressed
+against 66, the pixel filter 24.2 ms a frame against 34.6 (the slowest 147 against 269), its models 2.9 ms against 4.7. One new in a hut on an island already peopled has just
+hatched: it steps out where its egg lay (`EggView.hatchPoint`) and walks off to its building (`born`). Only islands within 100 studs of
 the view's centre are drawn (synced every half second); no campfire's flame or smoke since 2026-11-20 (`fireOn` went
 with the campfire). Each island's sign gets a World-root label (its name, the own in gold, or
 "Unclaimed isle"; the `SignBoard` is looked up once in `Static.Land` and kept in `signBoards[i]` while it stays in the

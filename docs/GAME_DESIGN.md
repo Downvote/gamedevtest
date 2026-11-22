@@ -3548,8 +3548,20 @@ reason.
   Work is a loop of real moves now (`DriftModels`' work moods), each building its own. (Until 2026-11-12 villagers
   worked beside the driftlings with a hoe, an axe, a line and a tray; their poses are still in `CharacterModels`.)
   A driftling pecks at the ground in the fields,
-  dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stand along the
-  building's front, apart, turned three-quarters to the view so the work reads.
+  dips its head for fish at a pier, leans in and pushes at the wood, waves and chatters at the shops, and naps at a hut (eyes shut, low and breathing slowly, for longer). Workers stood along the
+  building's front, apart, turned three-quarters to the view so the work read, until the request below.
+
+  > The request (2026-11-22): "to ease the renderer, could you make it such that creatures working or in their houses
+  > arent rendered, as if they are in the building?"
+
+  A driftling walks to its workplace (or its hut) and goes in at the front, and from then on it isn't drawn at all:
+  no model, nothing for the pixel filter to place or pose. Now and then it comes back out the same door for a stroll
+  round the island (a quarter of its spells inside, `Tuning.PalStrollShare`), then goes back in. One with nowhere to
+  work naps in its hut and stays in. When you arrive on an island its driftlings are already inside; one that just
+  hatched still steps out of its egg and walks to its new building first. Only driftlings out and about cheer, show
+  their name on hover and can be tapped. Most of an island's driftlings are indoors at any moment: in the `crowd`
+  preview (a full town of 68) 19 to 26 have a model instead of 66, and the pixel filter's work a frame went from
+  34.6 ms to 24.2 (its slowest frame from 269 ms to 147).
 - **The sky lives:** the sky runs through its own day and night, the sea of clouds drifts slowly below, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
   time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
   rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no
