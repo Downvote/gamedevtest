@@ -275,6 +275,10 @@ function IslandService.init()
 	Router.on("pal.sell", function(s, a)
 		return Tree.sell(s.profile, a.id)
 	end)
+	-- every driftling of one rarity sold (the request of 2026-11-22: "make a bulksell by rarity option for creatures")
+	Router.on("pal.sellAll", function(s, a)
+		return Tree.sellRarity(s.profile, a.r)
+	end)
 	-- the Hatchery (GAME_DESIGN 6.1): two driftlings bred for an egg
 	Router.on("breed.start", function(s, a)
 		return Breed.start(s.profile, a.uid, a.a, a.b)
@@ -284,6 +288,17 @@ function IslandService.init()
 		local ok, data = Breed.hatch(s.profile, a.uid)
 		if ok then
 			Store.addXp(s.profile, "breed")
+		end
+		return ok, data
+	end)
+	-- every ready egg at once (the request of 2026-11-22: "and hatchery as well, make a open all hatchery eggs"): no
+	-- hatch scene for each, the client shows what came out of them all
+	Router.on("breed.hatchAll", function(s, _a)
+		local ok, data = Breed.hatchAll(s.profile)
+		if ok then
+			for _ in data.list do
+				Store.addXp(s.profile, "breed")
+			end
 		end
 		return ok, data
 	end)

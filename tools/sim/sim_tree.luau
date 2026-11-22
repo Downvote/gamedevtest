@@ -1505,6 +1505,55 @@ do
 	checks("bulk")
 end
 
+------------------------------------------------------------------ 12c. the bulk sell
+-- The request (2026-11-22): "make a bulksell by rarity option for creatures". Refusals; from the driftlings panel, a
+-- tap on a rarity's egg picks it, Sell (two taps) sells every driftling of that rarity at once, the rest stay, a
+-- notice says how many and for how much; a rarity with none says so.
+E.phase = "bulksell"
+do
+	H.expect(rawErr(p, "pal.sellAll", { r = 0 }) == "bad_payload", "bulksell", "a rarity under the commonest refused")
+	H.expect(rawErr(p, "pal.sellAll", { r = 99 }) == "bad_payload", "bulksell", "a rarity past the rarest refused")
+	H.expect(rawErr(p, "pal.sellAll", { r = "1" }) == "bad_payload", "bulksell", "a rarity that isn't a number refused")
+	-- three commons and an uncommon, the island's others gone
+	local c1, c2
+	for _, d in Creatures.list do
+		if d.rarity == 1 and c1 == nil then
+			c1 = d.id
+		elseif d.rarity == 2 and c2 == nil then
+			c2 = d.id
+		end
+	end
+	prof.pals = {}
+	for _ = 1, 3 do
+		Tree.add(prof, c1, {})
+	end
+	local keep = Tree.add(prof, c2, {})
+	local n1, worth1 = Tree.rarityWorth(prof, 1)
+	H.push(p, 0.3)
+	H.inClient(p, C.UIKit.openPanel, "pals")
+	E.run(0.4)
+	H.expect(gui(p, "SellR_1") ~= nil and gui(p, "SellRarity") ~= nil, "bulksell", "the driftlings panel has the rarity row and Sell")
+	tap(p, "SellR_3")
+	H.expect(string.find(buttonText(gui(p, "SellRarity")), "None to sell", 1, true) ~= nil, "bulksell", "a rarity with none: nothing to sell", buttonText(gui(p, "SellRarity")))
+	tap(p, "SellRarity")
+	H.expect(says(p, "No driftlings of that rarity.") and #prof.pals == 4, "bulksell", "a tap says so and sells nothing")
+	tap(p, "SellR_1")
+	local words = buttonText(gui(p, "SellRarity"))
+	H.expect(string.find(words, "Sell " .. n1, 1, true) ~= nil, "bulksell", "Common picked: the button says how many and what they bring", words)
+	local s0, sold0 = prof.shells, prof.stats.sold
+	tap(p, "SellRarity")
+	H.expect(#prof.pals == 4, "bulksell", "one tap only asks (Sure?)")
+	tap(p, "SellRarity")
+	E.run(0.3)
+	-- (the island earns on while the taps go: at least what they sold for)
+	H.expect(#prof.pals == 1 and prof.pals[1].id == keep.id and prof.shells >= s0 + worth1 and prof.stats.sold == sold0 + n1, "bulksell", "the second tap sells every common, the uncommon stays", string.format("%d left, +%d coins of %d, sold +%d of %d", #prof.pals, prof.shells - s0, worth1, prof.stats.sold - sold0, n1))
+	H.expect(says(p, string.format("Sold %d driftlings for %s coins.", n1, Numbers.coins(worth1))), "bulksell", "a notice says how many and for how much")
+	H.expect(rawErr(p, "pal.sellAll", { r = 1 }) == "not_found", "bulksell", "none left of it: not_found")
+	H.inClient(p, C.UIKit.closePanel)
+	H.push(p, 0.3)
+	checks("bulksell")
+end
+
 ------------------------------------------------------------------ 13. a neighbour: both islands' eggs on both clients, tags only on the own
 E.phase = "neighbour"
 local q = H.addPlayer({ userId = 9702, name = "Neighbour" })

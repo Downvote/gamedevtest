@@ -411,13 +411,29 @@ local Tuning = {
 	-- all times should not go above 20ms even at the highest stress tests")
 	PixelFrameMs = 16,
 	PixelMinCastMs = 1,
-	-- the screen's window, held off a scroll's strips until they are cast, catches up with the camera by its own move a
-	-- frame and this many art px more, or this share of how far behind it is if that is more
-	PixelCatchUpPx = 1,
-	PixelCatchUpShare = 0.2,
+	-- the screen's window over ground not cast yet (PixelRenderer's SG.windowAxis; the report of 2026-11-22: "when moving
+	-- the player around and the camera follows, it stutters, moving a bit, stopping, then moving again. if its
+	-- neccessary, can you make it one smooth motion as the player moves instead, even if the camera moves slower
+	-- instead if theres alot to render?"): it stays on the camera while it would reach a strip not cast yet no sooner
+	-- than the strip is done (what is left of it at the pace strips are being cast); else it eases off before the strip
+	-- and back on after, its speed dropping at most PixelWindowBrake art px a second each second and its own toward the
+	-- camera growing at most PixelWindowAccel, closing the gap at PixelWindowCatch of it a second (PixelWindowMinPx at
+	-- least). It follows the camera's speed eased by PixelWindowCamEase of each frame's step (in whole art px the camera
+	-- goes 2 and 3 a frame by turns). Until then it stopped dead 3 px short of the strip and caught up by its own move
+	-- and 1 px a frame more, or a fifth of the gap: 1 px a frame, then 6 to 9 at once, over and over, on a machine slow
+	-- to cast
+	PixelWindowBrake = 1200,
+	PixelWindowAccel = 500,
+	PixelWindowCatch = 5,
+	PixelWindowMinPx = 30,
+	PixelWindowCamEase = 0.3,
+	-- ms more a frame for the strips while the window waits on them, all of it at PixelHoldMaxPx behind (less, the less
+	-- behind), so it keeps moving rather than one long frame catching it up
+	PixelLagMs = 8,
 	-- art px the window may fall behind the camera on ground not cast yet: past it, what is left of a scroll's strips is
-	-- cast in full at once (with PixelCoarseLead, one ray a 4x4 block first, shown coarse for a moment, then in full)
-	PixelHoldMaxPx = 24,
+	-- cast in full at once (with PixelCoarseLead, one ray a 4x4 block first, shown coarse for a moment, then in full).
+	-- 48 since the smooth window (24 before): the long frame is the last resort now
+	PixelHoldMaxPx = 48,
 	-- true: strips the view waits on are shown before they are whole (from one ray a 2x2 or 4x4 block) and finished
 	-- after. Off: every pixel shown is a whole one (the user's rule on pixel art: "avoiding mixels"); in the densest
 	-- walk the coarse blocks stayed on screen for most of it, the full casts behind them losing to each next scroll

@@ -249,4 +249,26 @@ function Breed.hatch(p: Profile, uid: number): (boolean, any)
 	return true, out
 end
 
+-- Every ready egg hatched at once (the request of 2026-11-22: "and hatchery as well, make a open all hatchery eggs"),
+-- each as `hatch`, in the Hatcheries' order: what hatched (`list`, each as `hatch`'s); not_found with none ready.
+function Breed.hatchAll(p: Profile): (boolean, any)
+	local uids: { number } = {}
+	for _, e in p.eggs do
+		if e.left <= 0 then
+			table.insert(uids, e.uid)
+		end
+	end
+	local list: { Hatched } = {}
+	for _, uid in uids do
+		local ok, data = Breed.hatch(p, uid)
+		if ok then
+			table.insert(list, data)
+		end
+	end
+	if #list == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	return true, { list = list }
+end
+
 return table.freeze(Breed)

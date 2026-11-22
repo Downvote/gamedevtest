@@ -842,6 +842,43 @@ function Tree.sell(p: Profile, id: number): (boolean, any)
 	return false, "not_found" :: ErrCode
 end
 
+-- Every driftling of rarity `r` sold at once (the request of 2026-11-22: "make a bulksell by rarity option for
+-- creatures"): what they made in shells and how many; not_found with none of it, bad_payload for no such rarity. Each
+-- as Tree.sell's, a hut's room going to one waiting with no hut.
+function Tree.sellRarity(p: Profile, r: number): (boolean, any)
+	if r < 1 or r > Traits.RMAX or r ~= math.floor(r) then
+		return false, "bad_payload" :: ErrCode
+	end
+	local shells, sold = 0, 0
+	for i = #p.pals, 1, -1 do
+		local d = Creatures.byId[p.pals[i].sp]
+		if d and d.rarity == r then
+			shells += sellOne(p, i)
+			sold += 1
+		end
+	end
+	if sold == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	Tree.settle(p)
+	Tree.fillJobs(p)
+	return true, { shells = shells, sold = sold }
+end
+
+-- How many of the island's driftlings are of rarity `r` and what they would sell for together (the bulk sell's
+-- button).
+function Tree.rarityWorth(p: Profile, r: number): (number, number)
+	local n, price = 0, 0
+	for _, x in p.pals do
+		local d = Creatures.byId[x.sp]
+		if d and d.rarity == r then
+			n += 1
+			price += Tree.price(x)
+		end
+	end
+	return n, price
+end
+
 -- A driftling to another hut (`uid`), the player's pick. A full hut takes it only in a swap: `swap` (a driftling living
 -- there) goes to where this one was. not_found, bad_payload (not a hut, a swap that doesn't live there), full.
 function Tree.house(p: Profile, id: number, uid: number, swap: number): (boolean, any)

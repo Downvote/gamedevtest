@@ -426,11 +426,22 @@ local SG = {
 	vpX = 0,
 	vpY = 0,
 	vpAt = -1,
+	vpFX = nil :: number?, -- (the window's place with its fraction, and its speed in art px a second: SG.windowAxis)
+	vpFY = nil :: number?,
+	vpVX = 0,
+	vpVY = 0,
+	vpCX = 0, -- (the camera's speed last frame, art px a second)
+	vpCY = 0,
+	dt = 1 / 60, -- (this frame's length, seconds: frameStep)
+	pendCalls = 0, -- (pixels SG.pendStep cast this frame, and per frame lately while it had work: SG.pendLeft's pace)
+	pendRate = 300,
 	vpRawX = nil :: number?,
 	vpRawY = nil :: number?,
 	vpView = nil :: CameraController.View?,
 	vpJump = false, -- (this frame's window jumped: SG.viewPan; the scroll re-bakes at it even with strips pending)
 	isleOff = false, -- (previews: the whole island's cast held off, PixelRenderer.debugIsleOff)
+	budgetScale = 1, -- (previews: the frame's own share scaled, a slower machine's: PixelRenderer.debugBudget)
+	castSlowUs = 0, -- (previews: microseconds added to every pixel cast, a slower machine's: PixelRenderer.debugCastSlow)
 	frameNo = 0, -- (frames stepped)
 	tickNow = false, -- (this frame composes a tick: frameStep)
 	tickRun = false, -- (and so did the frame before it)
@@ -1573,6 +1584,12 @@ end
 -- where it is sure to show (SG.shareAt; a pixel of its own, not an anchor or a stand-in), else its ray. The island's own view
 -- only: a stage's parts are not on the map, nor is the next island the pre-cast draws.
 function SG.castPx(s: Surf, gx: number, gy: number, bx1: number, by1: number, own: boolean, shadows: boolean, rx0: number, ry0: number, rx1: number, ry1: number)
+	if SG.castSlowUs > 0 then
+		-- (previews: a slower machine's cast, PixelRenderer.debugCastSlow)
+		local until0 = os.clock() + SG.castSlowUs / 1e6
+		while os.clock() < until0 do
+		end
+	end
 	if not SG.noShare and not s.view.stage then
 		local part, p2, near2, near3, flat1, flat2 = SG.Map.at(gx, gy)
 		if part == false then
@@ -5811,6 +5828,7 @@ function SG.pendStep(s: Surf, deadline: number): boolean
 						if P.x > x1 then
 							P.x, P.y = x0, y + 1
 						end
+						SG.pendCalls += n
 						pf.pendMs = (pf.pendMs or 0) + (SG.clock() - t0) * 1000
 						return false
 					end
@@ -5824,8 +5842,35 @@ function SG.pendStep(s: Surf, deadline: number): boolean
 		P.started = false
 	end
 	SG.pend = nil
+	SG.pendCalls += n
 	pf.pendMs = (pf.pendMs or 0) + (SG.clock() - t0) * 1000
 	return true
+end
+
+-- The pixels SG.pendStep still has to cast for the last scroll's strips (its anchors a quarter of each piece, the
+-- rest three quarters), 0 with none.
+function SG.pendLeft(s: Surf): number
+	local P = SG.pend
+	if P == nil then
+		return 0
+	end
+	local W, H = s.W, s.H
+	local total, before = 0, 0
+	for i, q in P.pieces do
+		local x0, y0 = math.max(0, q.x0), math.max(0, q.y0)
+		local x1, y1 = math.min(W - 1, q.x1), math.min(H - 1, q.y1)
+		local area = math.max(0, x1 - x0 + 1) * math.max(0, y1 - y0 + 1)
+		total += area
+		if i < P.i then
+			before += area
+		elseif i == P.i and P.started then
+			before += math.max(0, P.y - y0) * math.max(0, x1 - x0 + 1)
+		end
+	end
+	if P.phase <= 1 then
+		return math.max(0, total - before) / 4 + total * 3 / 4
+	end
+	return math.max(0, total - before) * 3 / 4
 end
 
 -- The last scroll's strips shown as they stand (SG.pend past its anchors: every 2x2 block filled from its anchor), when
@@ -5924,9 +5969,65 @@ end
 -- last scroll's strips while they are not finished (SG.pend, SG.unfin: 3 px clear of them, as far as finishing them
 -- changes the pixels beside them) and, once let go, catching up with the camera a little faster than it moves rather
 -- than in one jump. Worked out once a frame, before a scroll (showWindow takes it).
+-- One axis of the window a frame (the report of 2026-11-22: "when moving the player around and the camera follows, it
+-- stutters, moving a bit, stopping, then moving again. if its neccessary, can you make it one smooth motion as the
+-- player moves instead, even if the camera moves slower instead if theres alot to render?"). `f`: the window's place
+-- (art px, with its fraction); `u`: its speed less the camera's last frame (art px a second); `cvp`: the camera's
+-- speed last frame; `cam`, `was`: the camera's place now and last frame; `cv`: its speed now (eased over a few frames,
+-- SG.viewPan: in whole art px it goes 2 and 3 a frame by turns); `wlo`, `whi`: how far it may go before strips not cast yet (math.huge: none that way);
+-- `lo`, `hi`: the layer's own bounds; `allow`: the speed at which it reaches those strips just as they are done
+-- (SG.viewPan: what is left of them at the pace they are being cast). On the camera last frame and free to follow
+-- it, it stays on it exactly (locked), as before. Otherwise it keeps its own speed or its speed against the camera's,
+-- whichever is nearer the camera's now (a turn of the camera's passes through; the camera slowing after the window was
+-- held back does not send it backwards), and eases toward the camera's speed plus its own toward the camera, PixelWindowCatch of the gap a second (PixelWindowMinPx at
+-- least, never faster than stops on it) reached at PixelWindowAccel a second each second and dropped at
+-- PixelWindowBrake; held to `allow` and to what stops short of the strips (PixelWindowBrake): one smooth motion,
+-- slower while there is a lot to cast, where it stopped dead short of the strips and then jumped to catch up.
+-- Returns the new place, the new `u` and whether it is locked.
+function SG.windowAxis(f: number, u: number, cvp: number, cam: number, was: number, cv: number, wlo: number, whi: number, lo: number, hi: number, allow: number, dt: number): (number, number, boolean)
+	local brake = Tuning.PixelWindowBrake
+	-- (on the camera last frame, or on it now: it stays on it, if it may go there)
+	if (math.abs(f - was) < 0.5 or math.abs(f - cam) < 0.5) and math.abs(cv) <= allow and cam >= wlo and cam <= whi and cam >= lo and cam <= hi then
+		return cam, 0, true
+	end
+	-- (its speed against the camera's now: as it was against the camera's, or its own speed kept, the nearer)
+	if math.abs(cvp + u - cv) < math.abs(u) then
+		u = cvp + u - cv
+	end
+	local rel = cam - f
+	local catch = 0
+	if math.abs(rel) >= 0.5 then
+		local most = math.sqrt(2 * brake * math.abs(rel))
+		catch = math.sign(rel) * math.min(most, math.max(math.abs(rel) * Tuning.PixelWindowCatch, Tuning.PixelWindowMinPx))
+	end
+	-- (its own speed toward the camera, eased)
+	local acc = (if math.abs(catch) < math.abs(u) or catch * u < 0 then brake else Tuning.PixelWindowAccel) * dt
+	local nu = u + math.clamp(catch - u, -acc, acc)
+	local nv = cv + nu
+	-- (held to the strips' pace: no faster than meets them as they are done, slowing at PixelWindowBrake)
+	if math.abs(nv) > allow then
+		local prev = cv + u
+		local want = math.clamp(nv, -allow, allow)
+		nv = if math.abs(prev) > math.abs(want) then prev + math.clamp(want - prev, -brake * dt, brake * dt) else want
+	end
+	-- (never faster than stops short of the strips not cast yet)
+	if nv > 0 and whi < math.huge then
+		nv = math.min(nv, math.sqrt(2 * brake * math.max(0, whi - f)))
+	elseif nv < 0 and wlo > -math.huge then
+		nv = math.max(nv, -math.sqrt(2 * brake * math.max(0, f - wlo)))
+	end
+	local nf = f + nv * dt
+	local top, bottom = math.min(hi, whi), math.max(lo, wlo)
+	if nf > top then
+		nf, nv = top, math.min(nv, 0)
+	elseif nf < bottom then
+		nf, nv = bottom, math.max(nv, 0)
+	end
+	return nf, nv - cv, false
+end
+
 function SG.viewPan(s: Surf): (number, number)
 	local rx, ry = CameraController.drawnPan()
-	local px, py = rx, ry
 	-- (a jump, to another island or home: the camera's pan half the layer or more from the picture, scrollToward's own
 	-- rule. The window goes straight there, unclamped, so the scroll re-bakes at the new pan: held to the old picture
 	-- it caught up a share a frame and the layer scrolled after it across the sky, about 1,500 px over a second; the
@@ -5934,49 +6035,90 @@ function SG.viewPan(s: Surf): (number, number)
 	if s.m > 0 and (math.abs(rx - s.m - s.cam.gx) >= s.W // 2 or math.abs(ry - s.m - s.cam.gy) >= s.H // 2) then
 		SG.vpRawX, SG.vpRawY = rx, ry
 		SG.vpX, SG.vpY, SG.vpAt, SG.vpView = rx, ry, -1, s.view
+		SG.vpFX, SG.vpFY, SG.vpVX, SG.vpVY = rx, ry, 0, 0
 		SG.vpLag, SG.vpBlocked, SG.vpJump = 0, false, true
 		return rx, ry
 	end
 	SG.vpJump = false
-	if s.m > 0 and SG.vpView == s.view and SG.vpAt >= 0 and SG.vpRawX ~= nil and SG.vpRawY ~= nil then
-		-- (catching up: the camera's own move this frame and a share of how far behind it the window is)
-		local lx, ly = SG.vpX, SG.vpY
-		local ax = math.abs(rx - (SG.vpRawX :: number)) + math.max(Tuning.PixelCatchUpPx, math.ceil(math.abs(rx - lx) * Tuning.PixelCatchUpShare))
-		local ay = math.abs(ry - (SG.vpRawY :: number)) + math.max(Tuning.PixelCatchUpPx, math.ceil(math.abs(ry - ly) * Tuning.PixelCatchUpShare))
-		px, py = math.clamp(px, lx - ax, lx + ax), math.clamp(py, ly - ay, ly + ay)
-	end
+	local dt = SG.dt
+	local fresh = not (SG.vpView == s.view and SG.vpAt >= 0 and SG.vpRawX ~= nil and SG.vpRawY ~= nil)
+	local wasX = if fresh then rx else SG.vpRawX :: number
+	local wasY = if fresh then ry else SG.vpRawY :: number
 	SG.vpRawX, SG.vpRawY = rx, ry
-	local list = SG.unfin
+	-- (the camera's speed, eased: Tuning.PixelWindowCamEase of each frame's step)
+	local cpx, cpy = SG.vpCX, SG.vpCY
+	local k = Tuning.PixelWindowCamEase
+	local cvx = if fresh then 0 else cpx + ((rx - wasX) / dt - cpx) * k
+	local cvy = if fresh then 0 else cpy + ((ry - wasY) / dt - cpy) * k
+	SG.vpCX, SG.vpCY = cvx, cvy
+	local px, py = rx, ry
 	if s.m > 3 then
 		local gx, gy, W, H, vw, vh = s.cam.gx, s.cam.gy, s.W, s.H, s.vw, s.vh
-		-- (never the layer's outer 3 px, which the next scroll's strips would change: a scroll's strips then never come
-		-- in that close to the window, however far it moves)
-		px = math.clamp(px, gx + 3, gx + W - vw - 3)
-		py = math.clamp(py, gy + 3, gy + H - vh - 3)
-		local bx, by = px, py
-		local strips: { Rect } = list or {}
+		-- how far the window may go: never the layer's outer 3 px, which the next scroll's strips would change (a
+		-- scroll's strips then never come in that close to the window, however far it moves), and 3 px clear of the
+		-- strips not finished yet
+		local loX, hiX = gx + 3, gx + W - vw - 3
+		local loY, hiY = gy + 3, gy + H - vh - 3
+		-- (the strips not finished yet: walls the window eases off before)
+		local wloX, whiX, wloY, whiY = -math.huge, math.huge, -math.huge, math.huge
+		local strips: { Rect } = SG.unfin or {}
 		for _, r in strips do
 			if r.x1 - r.x0 < r.y1 - r.y0 then
 				-- (a strip down the layer's side)
 				if r.x0 > W // 2 then
-					px = math.min(px, gx + r.x0 - 3 - vw)
+					whiX = math.min(whiX, gx + r.x0 - 3 - vw)
 				else
-					px = math.max(px, gx + r.x1 + 4)
+					wloX = math.max(wloX, gx + r.x1 + 4)
 				end
 			else
 				if r.y0 > H // 2 then
-					py = math.min(py, gy + r.y0 - 3 - vh)
+					whiY = math.min(whiY, gy + r.y0 - 3 - vh)
 				else
-					py = math.max(py, gy + r.y1 + 4)
+					wloY = math.max(wloY, gy + r.y1 + 4)
 				end
 			end
 		end
+		if fresh or SG.vpFX == nil or SG.vpFY == nil then
+			-- (a new view: the window starts on the camera, within the layer)
+			SG.vpFX, SG.vpFY = math.clamp(rx, loX, hiX), math.clamp(ry, loY, hiY)
+			SG.vpVX, SG.vpVY = 0, 0
+		end
+		-- (the speed at which the window meets the strips not cast yet just as they are done: the distance to them over
+		-- the frames what is left of them takes at the pace they are being cast, and a frame to finish them; none to
+		-- wait for, any speed)
+		local allowX, allowY = math.huge, math.huge
+		if SG.unfin then
+			local frames = 1 + SG.pendLeft(s) / math.max(SG.pendRate, 1)
+			local secs = frames * dt
+			local fx0, fy0 = SG.vpFX :: number, SG.vpFY :: number
+			if cvx > 0 and whiX < math.huge then
+				allowX = math.max(0, whiX - fx0) / secs
+			elseif cvx < 0 and wloX > -math.huge then
+				allowX = math.max(0, fx0 - wloX) / secs
+			end
+			if cvy > 0 and whiY < math.huge then
+				allowY = math.max(0, whiY - fy0) / secs
+			elseif cvy < 0 and wloY > -math.huge then
+				allowY = math.max(0, fy0 - wloY) / secs
+			end
+		end
+		local fx, vx, lockX = SG.windowAxis(SG.vpFX :: number, SG.vpVX, cpx, rx, wasX, cvx, wloX, whiX, loX, hiX, allowX, dt)
+		local fy, vy, lockY = SG.windowAxis(SG.vpFY :: number, SG.vpVY, cpy, ry, wasY, cvy, wloY, whiY, loY, hiY, allowY, dt)
+		SG.vpFX, SG.vpFY, SG.vpVX, SG.vpVY = fx, fy, vx, vy
+		-- (in whole art px, never past the layer nor into a strip not finished)
+		local topX, botX = math.min(hiX, whiX), math.max(loX, wloX)
+		local topY, botY = math.min(hiY, whiY), math.max(loY, wloY)
+		px = if lockX then rx else math.floor(fx + 0.5)
+		py = if lockY then ry else math.floor(fy + 0.5)
+		px = math.clamp(px, math.min(botX, topX), math.max(botX, topX))
+		py = math.clamp(py, math.min(botY, topY), math.max(botY, topY))
 		px = math.clamp(px, gx, gx + W - vw)
 		py = math.clamp(py, gy, gy + H - vh)
-		-- (whether the strips held it this frame: SG.release lets them be shown)
-		SG.vpBlocked = px ~= bx or py ~= by
+		-- (whether the strips hold it this frame: SG.release lets them be shown)
+		SG.vpBlocked = not (lockX and lockY)
+	else
+		SG.vpFX, SG.vpFY, SG.vpVX, SG.vpVY = rx, ry, 0, 0
 	end
-	local _ = list
 	if px ~= rx or py ~= ry then
 		local pf = stats.perf :: any
 		pf.heldFrames = (pf.heldFrames or 0) + 1
@@ -5984,6 +6126,12 @@ function SG.viewPan(s: Surf): (number, number)
 	end
 	SG.vpX, SG.vpY, SG.vpAt, SG.vpView = px, py, SG.frameNo, s.view
 	SG.vpLag = math.max(math.abs(px - rx), math.abs(py - ry))
+	if SG.vpBlocked and (SG.pend or SG.unfin) then
+		-- (behind the camera, or easing off before ground not cast yet: the strips get more of the frame the further
+		-- behind it is, Tuning.PixelLagMs at PixelHoldMaxPx, so the window keeps moving rather than one long frame
+		-- catching it up)
+		SG.castEnd += Tuning.PixelLagMs * math.clamp((SG.vpLag + 4) / Tuning.PixelHoldMaxPx, 0, 1) / 1000
+	end
 	if SG.vpLag > Tuning.PixelHoldMaxPx then
 		local pf = stats.perf :: any
 		pf.lagFrames = (pf.lagFrames or 0) + 1
@@ -6348,6 +6496,7 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local late = inc and not needFull and SG.live(s) and Tuning.PixelPanLate
 	SG.unfin = strips
 	SG.unfinAt = SG.frameNo
+
 	if defer and late and #pieces > 0 then
 		-- (the request of 2026-11-22, "ms at all times should not go above 20ms even at the highest stress tests": a
 		-- scroll onto ground the look-ahead had not cast took 170 to 230 ms in one frame of the stress walk)
@@ -7596,7 +7745,13 @@ local function frameStep(dt: number)
 		return
 	end
 	local f0 = SG.clock()
-	SG.frameEnd = f0 + Tuning.PixelFrameMs / 1000
+	SG.dt = math.clamp(dt, 1 / 240, 0.1)
+	-- (the strips' pace: pixels SG.pendStep cast a frame lately, over the frames it had work)
+	if SG.pendCalls > 0 then
+		SG.pendRate = SG.pendRate * 0.7 + SG.pendCalls * 0.3
+		SG.pendCalls = 0
+	end
+	SG.frameEnd = f0 + Tuning.PixelFrameMs * SG.budgetScale / 1000
 	SG.castEnd = SG.frameEnd
 	SG.castSpent = 0
 	local pfs = stats.perf :: any
@@ -8267,6 +8422,17 @@ function PixelRenderer.waitPrerender(report: (number) -> ())
 		end
 		task.wait(0.05)
 	end
+end
+
+-- Previews: the filter's own share of a frame (Tuning.PixelFrameMs) scaled by `k`, so the work that can wait gets what
+-- a slower machine's frame would leave it (the stop-go of 2026-11-22 seen on a client slower than the emulator).
+function PixelRenderer.debugBudget(k: number)
+	SG.budgetScale = k
+end
+
+-- Previews: `us` microseconds added to every pixel cast (0: none), as a machine that casts slower than the emulator.
+function PixelRenderer.debugCastSlow(us: number)
+	SG.castSlowUs = us
 end
 
 -- Previews: the whole island's cast held off (true) or let go again.

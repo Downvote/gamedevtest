@@ -837,6 +837,53 @@ return function()
 		T.eq(b.home, nest, "moved in")
 	end)
 
+	T.it("selling by rarity (2026-11-22): every driftling of it at once, their prices together; the rest stay; refusals", function()
+		local p = fresh()
+		local c1, c2
+		for _, d in Creatures.list do
+			if d.rarity == 1 and c1 == nil then
+				c1 = d.id
+			elseif d.rarity == 2 and c2 == nil then
+				c2 = d.id
+			end
+		end
+		local a = pal(p, c1, {})
+		local b = pal(p, c1, { "busy2" })
+		local c = pal(p, c2, {})
+		local n, worth = Tree.rarityWorth(p, 1)
+		T.eq(n, 2)
+		T.eq(worth, Tree.price(a) + Tree.price(b))
+		T.eq(select(2, Tree.sellRarity(p, 0)), "bad_payload")
+		T.eq(select(2, Tree.sellRarity(p, Traits.RMAX + 1)), "bad_payload")
+		T.eq(select(2, Tree.sellRarity(p, 1.5)), "bad_payload")
+		T.eq(select(2, Tree.sellRarity(p, 3)), "not_found", "none of it")
+		local shells, sold = p.shells, p.stats.sold
+		local ok, data = Tree.sellRarity(p, 1)
+		T.truthy(ok)
+		T.eq(data.sold, 2)
+		T.eq(data.shells, worth)
+		T.eq(p.shells, shells + worth)
+		T.eq(p.stats.sold, sold + 2, "each counts as sold (the daily tasks)")
+		T.eq(#p.pals, 1)
+		T.eq(p.pals[1].id, c.id, "the other rarity stays")
+		T.eq(select(2, Tree.sellRarity(p, 1)), "not_found", "sold once")
+		-- a hut's room goes to one waiting with no hut
+		build(p, "lumber")
+		local nest = build(p, "nest")
+		Tree.settle(p)
+		local room = 0
+		for _, h in Tree.huts(p) do
+			room = h.room
+		end
+		for _ = 1, room do
+			pal(p, c1, {})
+		end
+		local waiting = pal(p, c2, {})
+		T.eq(waiting.home, 0, "every hut full")
+		T.truthy(Tree.sellRarity(p, 1))
+		T.eq(waiting.home, nest, "moved in")
+	end)
+
 	T.it("a hut cleared away or replaced smaller leaves its driftlings with no hut till there's room", function()
 		local p = fresh()
 		p.tier = 2

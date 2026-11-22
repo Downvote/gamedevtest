@@ -811,6 +811,67 @@ local function incTally(p, PR, every)
 	return t
 end
 
+-- The picture's window against the camera, frame by frame (the report of 2026-11-22, "when moving the player around
+-- and the camera follows, it stutters, moving a bit, stopping, then moving again"): `step()` after each frame, `line()`
+-- for the frames since the last: the frames the camera moved while the window stood still and the runs of them
+-- (stops), the frames the window moved over a pixel more than the camera (bursts), how much its step changed from one
+-- frame to the next on average, and the most it fell behind.
+local function winTally(p, PR)
+	local CCm = modOr(p, "Controllers.CameraController")
+	local t = { wins = {} :: { { number } } }
+	function t.step()
+		if CCm == nil or PR.debugStatic == nil then
+			return
+		end
+		local sw = H.inClient(p, PR.debugStatic)
+		local cx, cy = H.inClient(p, CCm.drawnPan)
+		table.insert(t.wins, { sw.px, sw.py, cx, cy })
+	end
+	function t.line(): string
+		local wins = t.wins
+		t.wins = {}
+		-- (past the first second: the start of a walk is the follow setting off)
+		local first = math.min(61, #wins)
+		if #wins - first < 3 then
+			return "no frames"
+		end
+		local crawls, episodes, bursts, jerk, lagMax, inCrawl, lastStep = 0, 0, 0, 0, 0, false, -1
+		for k = first + 1, #wins do
+			local a, b = wins[k - 1], wins[k]
+			local ws = math.abs(b[1] - a[1]) + math.abs(b[2] - a[2])
+			local cs = math.abs(b[3] - a[3]) + math.abs(b[4] - a[4])
+			lagMax = math.max(lagMax, math.abs(b[1] - b[3]), math.abs(b[2] - b[4]))
+			-- (a crawl: the window a pixel or less while the camera went two or more; a burst: three more than the camera)
+			if cs >= 2 and ws <= 1 then
+				crawls += 1
+				if not inCrawl then
+					episodes += 1
+				end
+				inCrawl = true
+			else
+				inCrawl = false
+			end
+			if ws >= cs + 3 then
+				bursts += 1
+			end
+			if lastStep >= 0 then
+				jerk += math.abs(ws - lastStep)
+			end
+			lastStep = ws
+		end
+		-- (the window's steps and the camera's, window/camera, over 90 frames from the middle of the walk)
+		local seq = {}
+		local mid = math.max(first + 1, (#wins + first) // 2 - 45)
+		for k = mid, math.min(#wins, mid + 90) do
+			local a, b = wins[k - 1], wins[k]
+			table.insert(seq, string.format("%d/%d", math.abs(b[1] - a[1]) + math.abs(b[2] - a[2]), math.abs(b[3] - a[3]) + math.abs(b[4] - a[4])))
+		end
+		t.seq = table.concat(seq, " ")
+		return string.format("over %d frames: %d crawls (%d runs of them), %d bursts, its step changed by %.2f px a frame on average, at most %d px behind the camera", #wins - first, crawls, episodes, bursts, jerk / (#wins - first - 1), lagMax)
+	end
+	return t
+end
+
 -- "crowd": a busy town's driftlings on the move (the request of 2026-11-18: "make it such that overworld creatures
 -- move smoother"). A Kite Town (tier 4) filled to its limits with driftlings, walking to work and back; the world at
 -- 60 frames a second of its own time (the renderer's and WorldView's budgets on the real clock, as in stress). For
@@ -990,7 +1051,7 @@ function SCEN.crowd()
 	return p
 end
 
-function SCEN.stress(legs: number?)
+function SCEN.stress(legs: number?, slow: boolean?)
 	local Tuning = H.sharedServer("Config.Tuning")
 	local Creatures = H.sharedServer("Data.Creatures")
 	local Plot = H.sharedServer("Logic.Plot")
@@ -1123,6 +1184,12 @@ function SCEN.stress(legs: number?)
 			log("stress %s world view (ms a frame): driftlings %.2f, poses %.2f, fires/chips/signs %.2f, building cards %.2f, eggs %.2f; %d models out, %d pooled", label, c.walk * 1000 / n, c.pose * 1000 / n, c.rest * 1000 / n, c.tags * 1000 / n, c.eggs * 1000 / n, c.dressed, c.pooled)
 		end
 	end
+	if slow and PR.debugCastSlow then
+		-- (a slower machine: every pixel cast takes 25 microseconds more, several times what the emulator's take on
+		-- open ground)
+		H.inClient(p, PR.debugCastSlow, 25)
+		log("stress: every pixel cast 25 us slower (a slower machine)")
+	end
 	H.inClient(p, PR.debugPerf)
 	if PR.debugFrameLog then
 		H.inClient(p, PR.debugFrameLog, 20)
@@ -1132,6 +1199,7 @@ function SCEN.stress(legs: number?)
 	local frames = 0
 	local segWall, segFrames = realClock(), 0
 	local worstFrame, worstAt = 0, ""
+	local wt = winTally(p, PR)
 	for leg = 1, math.min(#route - 1, legs or #route) do
 		local a, b = route[leg], route[leg + 1]
 		local len = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
@@ -1148,12 +1216,15 @@ function SCEN.stress(legs: number?)
 			end
 			frames += 1
 			segFrames += 1
+			wt.step()
 			-- (the checks on one leg only: each composes the whole frame once more, which the timings would carry)
 			if leg == 2 then
 				tally.step(frames)
 			end
 		end
 		report("leg " .. leg, segFrames, realClock() - segWall)
+		log("stress leg %d, the window: %s", leg, wt.line())
+		log("stress leg %d, the window's steps mid-walk (window/camera): %s", leg, wt.seq or "")
 		scripts("leg " .. leg, segFrames)
 		capture(p, string.format("stress_leg%d", leg))
 		E.coTime = {}
@@ -1570,12 +1641,17 @@ function SCEN.scrollcost(tier: number?)
 		local counts = { pan = 0, still = 0 }
 		local walls = { pan = 0, still = 0 }
 		local steps: { number } = {}
+		-- (the window and the camera each frame: the stop-go of the report of 2026-11-22, "it stutters, moving a bit,
+		-- stopping, then moving again")
+		local wt = winTally(p, PR)
+		local walkSpeed = H.sharedServer("Config.Tuning").WalkSpeed
 		for i = 1, 150 do
-			local x = if leg == 0 then 0 elseif leg == 1 then i * dt * 16 else (150 - i) * dt * 16
+			local x = if leg == 0 then 0 elseif leg == 1 then i * dt * walkSpeed else (150 - i) * dt * walkSpeed
 			p.Character:PivotTo(E.cf.new(start.X + x, start.Y, start.Z))
 			local t0 = realClock()
 			E.step(dt)
 			local wall = (realClock() - t0) * 1000
+			wt.step()
 			local st = H.inClient(p, PR.debugPerf)
 			table.insert(steps, st.stepMs or 0)
 			local kind = if (st.panFrames or 0) > 0 then "pan" else "still"
@@ -1617,6 +1693,7 @@ function SCEN.scrollcost(tier: number?)
 			table.sort(steps)
 			log("scrollcost %s, all frames: the renderer's step %.1f ms on average, %.1f ms at the 90th percentile, %.1f ms at worst", label, total / math.max(1, #steps), steps[math.max(1, math.floor(#steps * 0.9))] or 0, steps[#steps] or 0)
 		end
+		log("scrollcost %s, the window: %s", label, wt.line())
 		local c = H.inClient(p, PR.debugPerf).cache
 		local a = if PR.debugAhead then H.inClient(p, PR.debugAhead) else nil
 		log("scrollcost %s: the strips' pixels copied from the cache %d, cast %d; tiles cast ahead %d (%d dropped)", label, sums.pan.loaded or 0, sums.pan.missed or 0, a and a.tiles or 0, a and a.dropped or 0)
@@ -2931,6 +3008,19 @@ local function panelScenario(name)
 			end
 			E.run(0.4)
 			capture(p, "panel_hatch_search")
+			-- both Hatcheries' eggs ready: the panel's Hatch all (panel_hatch_ready), then what came out of them in the
+			-- Hatched panel (panel_hatch_all; the request of 2026-11-22: "and hatchery as well, make a open all hatchery
+			-- eggs")
+			H.req(p, "breed.start", { uid = slot, a = prof.pals[3].id, b = prof.pals[4].id })
+			for _, e in prof.eggs do
+				e.left = 0
+			end
+			H.push(p, 0.4)
+			H.openPanel(p, "hatch")
+			E.run(0.6)
+			capture(p, "panel_hatch_ready")
+			H.clickNamed(p, "HatchAll", { wait = 1.5 })
+			capture(p, "panel_hatch_all")
 		end
 	end
 	if name == "pal" and UIKit and UIKit.openPanel then
@@ -7118,10 +7208,12 @@ for _, name in list do
 		end
 	end
 	-- (stress=<n>: the stress walk's first n legs only)
-	local stressLegs = string.match(name, "^stress=(%d)$")
+	-- (stress=<n>[:slow]: the stress walk's first n legs only; `:slow` with every pixel cast 25 us slower, as a slower
+	-- machine casts)
+	local stressLegs, stressSlow = string.match(name, "^stress=(%d)(:?s?l?o?w?)$")
 	if stressLegs then
 		fn = function()
-			return SCEN.stress(tonumber(stressLegs))
+			return SCEN.stress(tonumber(stressLegs), stressSlow == ":slow")
 		end
 	end
 	local erArg = string.match(name, "^expandrim=([%d:%a]+)$")

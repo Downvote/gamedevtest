@@ -2711,11 +2711,12 @@ new poses, which an image of its own would not save.
   and a gamepad's A tap too. One scene at a time. With the pixel filter off (the classic look) the egg floats the same
   way without the painted sky.
 
-### 6.3 Many eggs at once and Auto Hatch (`Logic/Tree.bulk`, the Tree panel, the Hatched panel)
+### 6.3 Many at once: eggs, Auto Hatch, the Hatchery's eggs and selling (`Logic/Tree.bulk`, `Breed.hatchAll`, `Tree.sellRarity`)
 
 > The request (2026-11-22): "make a bulk open eggs button, where you open all eggs at once in the tree, or can select
 > eggs to be bulk opened", then "selecting as in: bulk buy over a certain rarity", and "also, make an auto buy
-> gamepass, which lets you auto buy eggs that appear above a rarity of your choosing".
+> gamepass, which lets you auto buy eggs that appear above a rarity of your choosing". Then "also, make a bulksell by
+> rarity option for creatures" and "and hatchery as well, make a open all hatchery eggs".
 
 **Hatching many at once.** Over the egg list in the Tree of Life's panel sits a row of small eggs, one for each rarity.
 Tap one to pick the lowest rarity you want: the eggs from it up stay lit with a line under them, the commoner ones turn
@@ -2738,6 +2739,21 @@ left alone (the Hatch button is for those). A notice says what happened ("Auto H
 Skyfox.", "New!" first when a new kind came), or why nothing did ("Auto Hatch: huts full.", "Auto Hatch: not enough
 coins."). Without the pass, the same spot holds a button to buy it. The rarity is saved with your settings; it stays
 set if the pass ever goes, and works again when it is back.
+
+**Hatching every ready Hatchery egg.** With two or more Hatchery eggs ready, the Hatchery panel shows Hatch all beside
+its hint ("Hatch all (3)"). One tap hatches every ready egg, each just as a tap on its Hatchery would (the kind and
+mutations shown when it was laid, into a hut with room or waiting for one), and the warming eggs stay. No Hatch scene
+plays for each: the Hatched panel shows them all ("Hatched 3 eggs from your Hatcheries."), and Back returns to the
+Hatchery. One ready egg still has its own Hatch button and its scene.
+
+**Selling by rarity.** Over the list in the Driftlings panel sits a row of the rarities' small eggs, "Sell by rarity"
+in front where there is room. The rarities you have driftlings of are drawn whole, the rest as silhouettes; tap one to
+pick it (a line under it, Common at first). The button beside the row says how many of that rarity you have and what
+they bring together ("Sell 4: 28"), and two taps sell every one of them at once, each for what it sells for alone
+(`Tree.price`), the same as selling them one by one: a hut's room goes to one waiting with no hut, and each counts for
+the daily tasks. A notice says how many went and for how much. With none of that rarity the button reads "None to
+sell" and a tap says so. It sells every driftling of the rarity, wherever it lives or works, so the second tap is the
+check, as for a single Sell.
 
 ## 7. Expeditions and battles (gone)
 
@@ -2996,6 +3012,24 @@ text (the requests and how each was met) is in the history of this file, up to c
   and a walk round its town afterwards drew nothing new: the filter's work a frame went from 23.4 ms on average to
   15.2, its worst frame from 215 ms to 48, and the frames over 25 ms from 254 to 117. The game's rays are Roblox's own
   native code, much quicker than the emulator's, so it should get through the island sooner than that.
+
+  > The report (2026-11-22): "when moving the player around and the camera follows, it stutters, moving a bit,
+  > stopping, then moving again. if its neccessary, can you make it one smooth motion as the player moves instead,
+  > even if the camera moves slower instead if theres alot to render?"
+
+  The picture you see is a window onto a bigger one the filter keeps drawn around it. Walking toward its edge, the
+  filter shifts it along and draws the new strip; the window waits for that strip rather than show half a drawing.
+  It used to wait by stopping dead 3 px short of the strip, then catch up a fifth of the gap a frame once the strip was
+  done: a pixel a frame, a stop, then 6 to 9 at once, the stutter you saw. Now it sees the strip coming. It works out
+  how much of the strip is left to draw and how fast strips are being drawn lately, and when it would arrive before
+  the strip is done it slows down early, to the speed that gets it there as the strip is finished; once the strip is
+  done it catches up with the camera smoothly (no faster than it can stop on it, its speed changing a little a frame).
+  So on a slow machine or a busy island the view moves one steady way, a little behind your founder, instead of
+  stopping and jumping. Where there is nothing to wait for it stays exactly on the camera, as before. In the stress
+  walk on a machine made slower on purpose (`stress=1:slow`) the old window crawled on 13 frames and jumped on 3, its
+  step changing by 0.66 px a frame on average; now it crawls on none and jumps on none (0.62 px a frame, the camera's
+  own 2 and 3 px steps by turns). Where the camera itself sets off fast it used to stop on the strips and then jump 8
+  px; now it eases off and catches up over about a second.
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are

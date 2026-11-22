@@ -491,16 +491,33 @@ local function buildHatch(body: Frame, arg: any?)
 	-- as mutations and rarity": the rarity here, the mutations on each pair's line; Finish now in the first warming
 	-- egg's row, so the words have the whole width)
 	local warming = false
+	local readyN = 0
 	local allEggs: { Types.Egg } = v.eggs or {}
 	for _, e in allEggs do
 		if e.left > 0 then
 			warming = true
+		else
+			readyN += 1
 		end
 	end
 	local finishShown = false
+	-- (two or more ready: Hatch all, the request of 2026-11-22: "and hatchery as well, make a open all hatchery eggs";
+	-- no hatch scene for each, the Hatched panel shows them all: EggView.hatcheryAll)
+	local allW = 0
+	if readyN >= 2 then
+		local allText = Lang.f("Hatch all ({1})", readyN)
+		allW = math.max(70, UIKit.textWidth(allText) + 12)
+		UIKit.button(body, allText, UDim2.fromOffset(allW, 13), UDim2.fromOffset(W - allW, 0), function()
+			EggView.hatcheryAll()
+		end, { name = "HatchAll", color = UIKit.color("button_ok") }).ZIndex = 4
+		allW += 4
+	end
 	-- (the request of 2026-11-19: "In hatchery, show the resultant mutation combination the pet will have. Always take
 	-- the highest tier mutations to combine with each other if possible": Logic/Breed.preview, shown before Breed)
-	local top = hint(body, "Breed two driftlings for an egg. It gets their best mutations.", W)
+	local top = hint(body, "Breed two driftlings for an egg. It gets their best mutations.", W - allW)
+	if allW > 0 then
+		top = math.max(top, 16)
+	end
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	local hs = hatcheries(v)
@@ -734,6 +751,52 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 	end, "Sell_" .. x.id)
 end
 
+-- A row of the rarities' small eggs (the bulk hatch's and Auto Hatch's pick: the request of 2026-11-22), each a
+-- button 12 px wide: those at `floor` or rarer drawn whole (with `only`, that one alone: the bulk sell's, which draws
+-- whole too the rarities `whole` says), the others as silhouettes, a line under the ones picked.
+-- With `off`, an Off button first (floor 0). Returns the row's width.
+local function rarityRow(parent: Instance, x: number, y: number, floor: number, off: boolean, prefix: string, pick: (r: number) -> (), only: boolean?, whole: ((r: number) -> boolean)?): number
+	local cx = x
+	if off then
+		local ow = math.max(26, UIKit.textWidth(Lang.t("Off")) + 10)
+		local ob = UIKit.button(parent, "Off", UDim2.fromOffset(ow, 11), UDim2.fromOffset(cx, y), function()
+			pick(0)
+		end, { name = prefix .. "0", color = if floor <= 0 then UIKit.color("button_ok") else UIKit.color("plate_light") })
+		ob.ZIndex = 4
+		cx += ow + 2
+	end
+	for r = 1, Traits.RMAX do
+		local b = Instance.new("TextButton")
+		b.Name = prefix .. r
+		b.Text = ""
+		b.BackgroundTransparency = 1
+		b.BorderSizePixel = 0
+		-- (on: a button with it off reads as disabled, UIKit's way; with no background it tints nothing)
+		b.AutoButtonColor = true
+		b.Size = UDim2.fromOffset(12, 13)
+		b.Position = UDim2.fromOffset(cx, y)
+		b.ZIndex = 4
+		b.Parent = parent
+		-- (a commoner one as its silhouette: the sprite may be an image or, without EditableImage, a frame of pixels,
+		-- so it is drawn dark rather than faded)
+		local on = floor >= 1 and (r == floor or (r > floor and not only))
+		local drawn = on or (whole ~= nil and whole(r))
+		PixelSprites.image(b, "mini_egg_" .. r .. (if drawn then "" else "_sil"), UDim2.fromOffset(0, 0), 5)
+		if on then
+			UIKit.rect(b, UDim2.fromOffset(if r < Traits.RMAX then 12 else 11, 1), UDim2.fromOffset(0, 12), UIKit.color("accent"), 5).Name = "Picked"
+		end
+		b.Activated:Connect(function()
+			Audio.play("click")
+			pick(r)
+		end)
+		cx += 12
+	end
+	return cx - x
+end
+
+-- the bulk sell's rarity (the egg row over the list; kept while the game runs, 1: Common)
+local sellRarity = 1
+
 local function buildPals(body: Frame, arg: any?)
 	local v = StateClient.view()
 	if v == nil then
@@ -776,6 +839,55 @@ local function buildPals(body: Frame, arg: any?)
 		end, { name = "OpenHatch", color = UIKit.color("pink") })
 	end
 	top = math.max(top, 16)
+	-- the bulk sell (the request of 2026-11-22: "make a bulksell by rarity option for creatures"): a tap on one of the
+	-- rarities' eggs picks it, and Sell (two taps) sells every driftling of that rarity (Logic/Tree.sellRarity; the
+	-- button says how many and what they bring: Tree.rarityWorth)
+	if #v.pals > 0 then
+		local r = math.clamp(sellRarity, 1, Traits.RMAX)
+		local lead = Lang.t("Sell by rarity")
+		local lw = UIKit.textWidth(lead) + 6
+		local x0 = 0
+		if lw + 12 * Traits.RMAX + 4 + 90 <= W then
+			UIKit.text(body, lead, UDim2.fromOffset(lw, 13), UDim2.fromOffset(0, top), { color = UIKit.color("text_dim"), name = "SellLead" })
+			x0 = lw
+		end
+		-- (the rarities the island has driftlings of drawn whole, the rest as silhouettes)
+		local have: { [number]: boolean } = {}
+		for _, x in v.pals do
+			local d = Creatures.byId[x.sp]
+			if d then
+				have[d.rarity] = true
+			end
+		end
+		local rowW = rarityRow(body, x0, top, r, false, "SellR_", function(nr: number)
+			if nr ~= sellRarity then
+				sellRarity = nr
+				UIKit.refreshPanel()
+			end
+		end, true, function(k: number): boolean
+			return have[k] == true
+		end)
+		local n, worth = Tree.rarityWorth(asProfile(v), r)
+		local bx = x0 + rowW + 4
+		local sw = math.min(150, W - bx)
+		if n > 0 then
+			confirmButton(body, Lang.f("Sell {1}: {2}", n, Numbers.coins(worth)), UDim2.fromOffset(sw, 13), UDim2.fromOffset(bx, top), function()
+				local res = ask("pal.sellAll", { r = r })
+				if res.ok then
+					Audio.play("coins")
+					local data = if type(res.data) == "table" then res.data else {}
+					local got, sold = tonumber(data.shells) or 0, tonumber(data.sold) or 0
+					UIKit.notice(if sold == 1 then Lang.f("Sold 1 driftling for {1} coins.", Numbers.coins(got)) else Lang.f("Sold {1} driftlings for {2} coins.", sold, Numbers.coins(got)), UIKit.color("good"))
+				end
+			end, "SellRarity")
+		else
+			UIKit.button(body, "None to sell", UDim2.fromOffset(sw, 13), UDim2.fromOffset(bx, top), function()
+				Audio.play("deny")
+				UIKit.notice("No driftlings of that rarity.", UIKit.color("bad"))
+			end, { name = "SellRarity", color = UIKit.color("plate_light") }).ZIndex = 4
+		end
+		top += 16
+	end
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
 	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
@@ -1017,48 +1129,6 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 	end
 end
 
--- A row of the rarities' small eggs (the bulk hatch's and Auto Hatch's pick: the request of 2026-11-22), each a
--- button 12 px wide: those at `floor` or rarer drawn whole, the commoner ones as silhouettes, a line under the ones
--- picked.
--- With `off`, an Off button first (floor 0). Returns the row's width.
-local function rarityRow(parent: Instance, x: number, y: number, floor: number, off: boolean, prefix: string, pick: (r: number) -> ()): number
-	local cx = x
-	if off then
-		local ow = math.max(26, UIKit.textWidth(Lang.t("Off")) + 10)
-		local ob = UIKit.button(parent, "Off", UDim2.fromOffset(ow, 11), UDim2.fromOffset(cx, y), function()
-			pick(0)
-		end, { name = prefix .. "0", color = if floor <= 0 then UIKit.color("button_ok") else UIKit.color("plate_light") })
-		ob.ZIndex = 4
-		cx += ow + 2
-	end
-	for r = 1, Traits.RMAX do
-		local b = Instance.new("TextButton")
-		b.Name = prefix .. r
-		b.Text = ""
-		b.BackgroundTransparency = 1
-		b.BorderSizePixel = 0
-		-- (on: a button with it off reads as disabled, UIKit's way; with no background it tints nothing)
-		b.AutoButtonColor = true
-		b.Size = UDim2.fromOffset(12, 13)
-		b.Position = UDim2.fromOffset(cx, y)
-		b.ZIndex = 4
-		b.Parent = parent
-		-- (a commoner one as its silhouette: the sprite may be an image or, without EditableImage, a frame of pixels,
-		-- so it is drawn dark rather than faded)
-		local on = floor >= 1 and r >= floor
-		PixelSprites.image(b, "mini_egg_" .. r .. (if on then "" else "_sil"), UDim2.fromOffset(0, 0), 5)
-		if on then
-			UIKit.rect(b, UDim2.fromOffset(if r < Traits.RMAX then 12 else 11, 1), UDim2.fromOffset(0, 12), UIKit.color("accent"), 5).Name = "Picked"
-		end
-		b.Activated:Connect(function()
-			Audio.play("click")
-			pick(r)
-		end)
-		cx += 12
-	end
-	return cx - x
-end
-
 ------------------------------------------------------------------ Hatched: what a bulk hatch brought
 -- (EggView.hatchMany; the request of 2026-11-22: "make a bulk open eggs button, where you open all eggs at once in
 -- the tree") How many hatched and for how much, the eggs left (for coins, for room), then a card for each that came
@@ -1086,12 +1156,13 @@ local function buildHatched(body: Frame, arg: any?)
 	end)
 	local n = #list
 	local cost = tonumber(data.cost) or 0
-	local head = if data.bag
-		then (if n == 1 then Lang.t("Hatched 1 egg from your bag.") else Lang.f("Hatched {1} eggs from your bag.", n))
+	local head = if data.breed
+		then (if n == 1 then Lang.t("Hatched 1 egg from your Hatchery.") else Lang.f("Hatched {1} eggs from your Hatcheries.", n))
+		elseif data.bag then (if n == 1 then Lang.t("Hatched 1 egg from your bag.") else Lang.f("Hatched {1} eggs from your bag.", n))
 		else (if n == 1 then Lang.f("Hatched 1 egg for {1} coins.", Numbers.coins(cost)) else Lang.f("Hatched {1} eggs for {2} coins.", n, Numbers.coins(cost)))
 	UIKit.text(body, head, UDim2.fromOffset(W - 50, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Head" })
 	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
-		UIKit.openPanel("tree")
+		UIKit.openPanel(if data.breed then "hatch" else "tree")
 	end, { name = "Back", color = UIKit.color("plate_light") }).ZIndex = 4
 	-- the eggs left, and why
 	local top = 14

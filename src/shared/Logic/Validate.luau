@@ -59,6 +59,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["pal.auto"] = { id = "int" },
 	["pal.house"] = { id = "int", uid = "int", swap = "int" },
 	["pal.sell"] = { id = "int" },
+	-- every driftling of a rarity sold (Logic/Tree.sellRarity)
+	["pal.sellAll"] = { r = "rarity" },
 	["egg.hatch"] = { id = "int", swap = "int" },
 	-- the bulk hatch (every egg of rarity `min` or rarer, the tree's or the bag's) and Auto Hatch's floor (0 off:
 	-- Logic/Tree.bulk, setAuto)
@@ -66,6 +68,8 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["egg.auto"] = { r = "int" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
 	["breed.hatch"] = { uid = "int" },
+	-- every ready Hatchery egg hatched (Logic/Breed.hatchAll)
+	["breed.hatchAll"] = {},
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },
 	["settings.set"] = { k = "key", v = "any" },
 	["tut.next"] = {},

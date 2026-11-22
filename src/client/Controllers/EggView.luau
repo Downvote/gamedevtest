@@ -370,6 +370,28 @@ function EggView.hatchery(uid: number): boolean
 	return true
 end
 
+-- Every ready Hatchery egg at once (breed.hatchAll; the request of 2026-11-22: "and hatchery as well, make a open all
+-- hatchery eggs"): no hatch scene for each, the Hatched panel (UI/Menus) shows what came out of them all; the first's
+-- driftling steps out in front of its Hatchery.
+function EggView.hatcheryAll(): boolean
+	local res = StateClient.request("breed.hatchAll", {})
+	if not res.ok then
+		Audio.play("deny")
+		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+		return false
+	end
+	local data: { [string]: any } = if type(res.data) == "table" then res.data else {}
+	local list: { any } = if type(data.list) == "table" then data.list else {}
+	local first = list[1]
+	local at = if type(first) == "table" and tonumber(first.uid) then hatcheryFront(tonumber(first.uid) :: number) else nil
+	if at then
+		lastHatch[myPlot] = at
+	end
+	Audio.play("crack_open")
+	UIKit.openPanel("hatched", { list = list, cost = 0, breed = true })
+	return true
+end
+
 -- A tap on the own Hatchery `uid` (on the building or its tag): a ready egg hatches; otherwise its panel opens (the
 -- request of 2026-11-14: "allow clicking on a hatchery to open the hatchery menu").
 function EggView.tapHatchery(uid: number)

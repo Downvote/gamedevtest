@@ -45,7 +45,19 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > and the "hatched" panel (§10.4); StoreUI's Auto Hatch item; `art/products/AutoHatch.png`; the `panel=tree:auto` and
 > `panel=hatched` previews; `sim_tree.luau`'s section 12b). Then "the view setting is hidden in mobile and other
 > devices, you cant scroll down to see it. the view of the game should also be zoomed out more on mobile" (the Settings
-> rows in a `List` that scrolls, §10.14; `Tuning.CamZoomPhone`, §8; the `panel=settings:end` preview).
+> rows in a `List` that scrolls, §10.14; `Tuning.CamZoomPhone`, §8; the `panel=settings:end` preview). Then "also,
+> make a bulksell by rarity option for creatures" (`Tree.sellRarity`, `Tree.rarityWorth`, the action `pal.sellAll`;
+> the Driftlings panel's sell row, `Menus`' `rarityRow` with `only` and `whole`, `SellRarity`; `sim_tree.luau`'s
+> section 12c) and "and hatchery as well, make a open all hatchery eggs" (`Breed.hatchAll`, the action
+> `breed.hatchAll`, `EggView.hatcheryAll`, the Hatchery panel's `HatchAll`, the "hatched" panel's `breed`; the
+> `panel=hatch` preview's `panel_hatch_ready` and `panel_hatch_all`; `sim_clock.luau`'s Hatchery section).
+
+> The report (2026-11-22, GAME_DESIGN 8 quotes it): "when moving the player around and the camera follows, it
+> stutters, moving a bit, stopping, then moving again. if its neccessary, can you make it one smooth motion as the
+> player moves instead, even if the camera moves slower instead if theres alot to render?" (`SG.windowAxis`,
+> `SG.viewPan`'s ease, `SG.pendLeft`, `SG.pendRate`; `Tuning.PixelWindowBrake`, `PixelWindowAccel`,
+> `PixelWindowCatch`, `PixelWindowMinPx`, `PixelWindowCamEase`, `PixelLagMs`, `PixelHoldMaxPx` 48;
+> `PixelRenderer.debugBudget`, `debugCastSlow`; the previews' window tally and `stress=<n>:slow`, §9.3)
 
 > The request (2026-11-13, GAME_DESIGN quotes it): "add a search button for the building ui." (`BuildUI`'s
 > `SearchButton` and `focusSearch`, the `mini_search` sprite: §10.7)
@@ -330,7 +342,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `PixelPanCacheTilesTouch` (1400: on a touch screen with no keyboard), `PixelIsleSpare` (48: tiles the whole island's
   cast leaves free), `PixelIsleMs` (4: its time a frame once nothing nearer has work), `PixelIsleWaitSecs` (8: how long
   a loading card waits on it at most),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelCatchUpPx` (1) and `PixelCatchUpShare` (0.2: the window catching up after the strips held it), `PixelHoldMaxPx` (24: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelMoveMs` (8: ms more for the models that moved, came or went), `PixelMoveMin` (24: of those on the screen, moved every tick past both) and `PixelMoveCapMs` (6: what those may take more again), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelWindowBrake` (1200: art px a second each second the window slows at most, and what stops it short of strips not cast yet), `PixelWindowAccel` (500: what its speed toward the camera grows at most), `PixelWindowCatch` (5: of the gap a second it closes), `PixelWindowMinPx` (30: art px a second it closes at least) and `PixelWindowCamEase` (0.3: of each frame's step the camera's speed it follows takes), `PixelLagMs` (8: ms more a frame for the strips while the window waits on them, all of it at `PixelHoldMaxPx` behind), `PixelHoldMaxPx` (48: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelMoveMs` (8: ms more for the models that moved, came or went), `PixelMoveMin` (24: of those on the screen, moved every tick past both) and `PixelMoveCapMs` (6: what those may take more again), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
   drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
@@ -980,11 +992,13 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `layout.load` | `slot` | `Layout.load` (data `Plan`), through `rebuilt`: one Undo step | not_found, money, bad_payload |
 | `breed.start` | `uid`, `a`, `b` | `Breed.start` (an egg at the Hatchery `uid` from driftlings `a` and `b`; its price in shells) | not_found, egg, money, bad_payload |
 | `breed.hatch` | `uid` | `Breed.hatch` (the ready egg at the Hatchery `uid`; the pass track's breed points; data `Breed.Hatched`, the client plays the hatch scene with it: 2026-11-20) | not_found (no egg there), egg (still warming), bad_payload |
+| `breed.hatchAll` | - | `Breed.hatchAll` (every ready egg, in the Hatcheries' order; the pass track's breed points for each; data `{ list }`, each a `Breed.Hatched`: the client shows the Hatched panel, no hatch scene: 2026-11-22) | not_found (none ready) |
 | `island.expand` | - | `Island.expand` (paid in shells), `Tree.fill` (the bigger island's extra eggs, Fx eggs with `more`), the island rebuilt (data `{ tier, moved, cleared }`) | max, money |
 | `pal.work` | `id uid` (0: rest) | `Island.setHelp` (the pick kept: `pin`) | not_found, bad_payload |
 | `pal.auto` | `id` | `Island.autoWork` (back to the arrangement) | not_found |
 | `pal.house` | `id uid swap` (swap 0: none) | `Tree.house` | not_found, bad_payload, full |
 | `pal.sell` | `id` | `Tree.sell` (data `{ shells, sold }`) | not_found |
+| `pal.sellAll` | `r` (a rarity, 1 .. `Traits.RMAX`) | `Tree.sellRarity` (every driftling of that rarity, each at `Tree.price`; data `{ shells, sold }`: 2026-11-22) | not_found (none of it), bad_payload |
 | `egg.hatch` | `id swap` (an egg id under the tree; swap 0: none, else a hut driftling sold to make room) | `Tree.hatch`, the tips, Fx hatched (data `{ id, sp, muts, egg, r, hr, cost, sold, swapped, wx, wm, new }`) | not_found (a new lot replaced it), no_hut, money, full (every hut full and no swap: the client opens the swap picker), bad_payload |
 | `founder.set` | `skin hair style shirt` | `Island.setFounder` (the `Founder` attribute follows on the next sync) | bad_payload |
 | `look.set` | `look` (a `Looks.encode` string, at most 200 characters) | `Store.setLook` (`checkLook`: every index in range, every piece owned and of its slot; the whole look replaces the founder's; the `Founder` attribute follows) | bad_payload, locked |
@@ -1690,8 +1704,27 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   whole 2x2 blocks (the layer's size and pan are even) and queues the pieces the pan cache does not hold
   (`SG.pend`); `SG.pendStep(s, deadline)` casts them, the anchors first, each filling its 2x2 block, then the rest.
   `SG.viewPan(s)` is the window's pan for the frame: the camera's (`CameraController.drawnPan`), never the layer's
-  outer 3 px, held 3 px clear of strips not finished, catching up after by its own move and `PixelCatchUpPx` or
-  `PixelCatchUpShare` of the gap; no scroll while pieces are queued. A jump (the camera's pan, less the margin, half
+  outer 3 px nor nearer than 3 px to strips not finished (`SG.unfin`); no scroll while pieces are queued. Each axis is
+  `SG.windowAxis(f, u, cvp, cam, was, cv, wlo, whi, lo, hi, allow, dt) -> (f, u, locked)` (the report of 2026-11-22,
+  "it stutters, moving a bit, stopping, then moving again ... make it one smooth motion as the player moves instead,
+  even if the camera moves slower"): `SG.vpFX`/`vpFY` the window's place with its fraction, `SG.vpVX`/`vpVY` its
+  speed less the camera's, `SG.vpCX`/`vpCY` the camera's speed eased (`Tuning.PixelWindowCamEase` of each frame's
+  step: in whole px it goes 2 and 3 a frame by turns). `allow` is the speed that meets the strips just as they are
+  done: the distance to them over the frames what is left takes, `1 + SG.pendLeft(s) / SG.pendRate` (`pendLeft`: the
+  pixels `SG.pendStep` still has to cast, its anchors a quarter of each piece and the rest three quarters;
+  `pendRate`: the pixels it cast a frame lately, eased over the frames it had work, counted in `SG.pendCalls`). On
+  the camera last frame and free to follow it (the camera's step within the layer and the walls, its speed within
+  `allow`), the window is the camera's pan exactly. Otherwise it keeps its own speed or its speed against the
+  camera's, whichever is nearer the camera's now, and eases toward the camera's speed plus `PixelWindowCatch` of the
+  gap a second (`PixelWindowMinPx` at least, never faster than stops on it), its speed toward the camera growing at
+  most `PixelWindowAccel` px/s each second and dropping at `PixelWindowBrake`; held to `allow` (slowing at
+  `PixelWindowBrake`) and to `sqrt(2 * PixelWindowBrake * d)` short of the strips; drawn at its whole px. While it is
+  off the camera and strips wait, they get `PixelLagMs` more of the frame (all of it at `PixelHoldMaxPx` behind). Before,
+  it stopped dead 3 px short of the strips and caught up by its own move and 1 px a frame more, or a fifth of the gap
+  (`PixelCatchUpPx`, `PixelCatchUpShare`, gone). The stress walk with each pixel cast 25 us slower
+  (`stress=1:slow`): 13 crawls (the window a pixel or less a frame while the camera went two or more) and 3 bursts
+  (three more than the camera) in 859 frames, its step changing 0.66 px a frame on average, became none and none,
+  0.62. A jump (the camera's pan, less the margin, half
   the layer or more from its top-left: `scrollToward`'s own rule for a re-bake) is taken as it is, unclamped and with
   no catching up (`SG.vpJump` for the frame; the scroll goes ahead even with pieces queued), so the layer re-bakes at
   the new pan at once: a visit or the way home. Held to the old picture, the window had caught up a share a frame and
@@ -1843,7 +1876,8 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `cache`, the incremental composes `incFrames` and the art px they redid `incPx`, the whole ones `fullFrames`, the
   tiles each source marked `markBy`, the models left out `skips` and why `skipWhy`), `debugClock(fn?)` (the clock the
   budgets and timings read, `SG.clock`: the stress preview walks the world at 60 frames a second of its own time and
-  hands its real clock in), `debugIncCheck() -> { off, ties, checked, px, seen }` (arms a check of the next incremental
+  hands its real clock in), `debugBudget(k)` (the frame's budget `PixelFrameMs` times `k`, `SG.budgetScale`) and
+  `debugCastSlow(us)` (each pixel cast `us` microseconds slower, `SG.castSlowUs`: a slower machine, `stress=<n>:slow`), `debugIncCheck() -> { off, ties, checked, px, seen }` (arms a check of the next incremental
   compose: drawn without the budget, then composed whole at once and the frames before the effects compared; returns
   the last one's result: `ties` the pixels where two models meet within the depth bias, which the one put down first
   keeps), `debugInc()` (whether the island composes incrementally now), `debugGradeCheck() -> { checked, off, image, recasting }` (`SG.buf` against grading `sColor` afresh, and
@@ -2629,7 +2663,12 @@ colour, its rarity, passive and its effects, mutations (`Mut_<id>` each), where 
 Waiting for room." in orange); `Move_<id>` opens the hut picker (the same panel with `{ move = id }`: a
 row a hut with its room, `Move_<uid>`; a full hut lists its driftlings with `SwapWith_<id>`, sending `pal.house { id,
 uid, swap }`), `Help_<id>` the work picker (a driftling in a hut only): every workplace on the island whatever its knack, the fastest for this driftling first (`Tree.worthAt`), each `Spot_<uid>` with its name, who works there, its speed `Speed` ("x1.1", the fastest in the accent colour) and `Go_<uid>` ("Here", "Swap" when full, else "Go"), then `Rest` (`Go_0`), `Sell_<id>` (two
-taps, `Tree.price`); with no driftling, "No driftlings yet. Tap an egg under the Tree of Life to hatch it." (or "Build
+taps, `Tree.price`); over the list (2026-11-22, "make a bulksell by rarity option for creatures"), with any
+driftling: `SellLead` ("Sell by rarity", where the row and a 90 px button still fit), a `rarityRow` with `only` (the
+picked rarity alone lit and underlined) and `whole` (the rarities the island has driftlings of drawn whole, the rest
+as silhouettes), `SellR_<r>`, the pick kept in `sellRarity` while the game runs (1 at first), and `SellRarity`: "Sell 4:
+28" (`Tree.rarityWorth`; two taps, sending `pal.sellAll { r }`, a notice "Sold 4 driftlings for 28 coins.") or "None to
+sell" in grey (its tap: "No driftlings of that rarity."); with no driftling, "No driftlings yet. Tap an egg under the Tree of Life to hatch it." (or "Build
 a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DESIGN 6, title "Tree of Life", 380 x
 196: on the left `Pace` ("New eggs every 6:00", from `clutchSecs`: 3:00 with Quick Tree), `Next` ("Next in 2:41") over `TreeBar` (its fill
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
@@ -2656,7 +2695,7 @@ portrait, name, rarity, how fast it works, mutations, "Sells for n" and `SwapTak
 swap }`; with `{ hatch = id, bag = true }` the same for a bag egg ("... for the epic egg from your bag ...",
 `SwapTake_<id>` sending `EggView.hatchBag(id, swap)`); once a new lot has replaced the egg, "That egg is gone." and back to the tree
 panel), "hatch" (the `Hint`: "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Legendary and up need both parents that rare.", the panel's whole width; a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
-`EggName`, `EggLeft` ("Hatches in 3 min" from `StateClient.eggLeft`, or "Ready to hatch."), `EggBar`, its parents, a ready egg's `HatchNow_<uid>` (`EggView.hatchery(uid)`), `FinishNow` in the first warming egg's row: `StoreUI.buy("HatcheryNow")`) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
+`EggName`, `EggLeft` ("Hatches in 3 min" from `StateClient.eggLeft`, or "Ready to hatch."), `EggBar`, its parents, a ready egg's `HatchNow_<uid>` (`EggView.hatchery(uid)`; with two or more ready, `HatchAll` "Hatch all (2)" beside the hint, sending `EggView.hatcheryAll()`: `breed.hatchAll`, then the "hatched" panel with `breed`, its head "Hatched 2 eggs from your Hatcheries." and Back to the Hatchery: 2026-11-22), `FinishNow` in the first warming egg's row: `StoreUI.buy("HatcheryNow")`) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
 picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`; over the list the search box
 `PalSearch` (`UIKit.searchBox`) and "Sort by" `Sort_rarity` / `Sort_muts`, the picked one teal (2026-11-19: "for
 hatchery, make a search function, and a sort by mutation rarity or creature rarity"): `parentList(v, other, q, sort)`

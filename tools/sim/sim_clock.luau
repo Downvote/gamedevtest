@@ -883,6 +883,7 @@ do
 	do
 		local left = p.PlayerGui:FindFirstChild("EggLeft", true)
 		H.expect(left ~= nil and left.Text == "Ready to hatch." and H.buttonNamed(p, "HatchNow_" .. uid) ~= nil and H.buttonNamed(p, "FinishNow") == nil, "hatchery", "the panel: Ready to hatch., a Hatch button and no Finish now", left and left.Text)
+		H.expect(H.buttonNamed(p, "HatchAll") ~= nil, "hatchery", "two ready: Hatch all too")
 	end
 	H.closePanel(p)
 	-- a tap on the tag: the hatch scene with what came out, the driftling into the hut with room
@@ -950,6 +951,35 @@ do
 	local rs = H.req(p, "pal.sell", { id = fillers[1] or 0 })
 	H.expect(rs.ok and born[2] ~= nil and born[2].home ~= 0, "hatchery", "one sold: the hatchling waiting moves into its place", string.format("%s home %s", tostring(rs.err), tostring(born[2] and born[2].home)))
 	H.closePanel(p)
+	-- Hatch all (the request of 2026-11-22: "and hatchery as well, make a open all hatchery eggs"): two eggs ready at
+	-- once, the panel's Hatch all hatches both with no hatch scene, the Hatched panel shows a card for each, Back goes
+	-- to the Hatchery
+	do
+		for _, u in uids do
+			H.req(p, "breed.start", { uid = u, a = ids[1], b = ids[2] })
+		end
+		local hatched0 = prof.stats.hatched
+		H.expect(H.req(p, "breed.hatchAll", {}).err == "not_found", "hatchall", "none ready: not_found")
+		for _, e in prof.eggs do
+			e.left = 0
+		end
+		local n0 = #prof.pals
+		H.push(p, 0.4)
+		H.openPanel(p, "hatch")
+		H.expect(#prof.eggs == 2 and H.buttonNamed(p, "HatchAll") ~= nil, "hatchall", "two ready: the panel's Hatch all", tostring(#prof.eggs))
+		H.clickNamed(p, "HatchAll", { wait = 0.6 })
+		local cards = 0
+		for _, d in p.PlayerGui:GetDescendants() do
+			if string.sub(d.Name, 1, 4) == "Got_" then
+				cards += 1
+			end
+		end
+		H.expect(#prof.eggs == 0 and #prof.pals == n0 + 2 and prof.stats.hatched == hatched0 + 2, "hatchall", "both hatched at once", string.format("%d eggs, %d new", #prof.eggs, #prof.pals - n0))
+		H.expect(not H.inClient(p, HSh.isOpen) and H.currentPanel(p) == "hatched" and cards == 2, "hatchall", "no hatch scene: the Hatched panel with a card each", string.format("%s, %d cards", tostring(H.currentPanel(p)), cards))
+		H.clickNamed(p, "Back", { wait = 0.4 })
+		H.expect(H.currentPanel(p) == "hatch" and H.buttonNamed(p, "HatchAll") == nil, "hatchall", "Back to the Hatchery, nothing left to hatch", tostring(H.currentPanel(p)))
+		H.closePanel(p)
+	end
 	for _, u in uids do
 		H.expect(H.req(p, "plot.store", { i = indexOf(u) }).ok, "hatchery", "a Hatchery cleared away once empty")
 	end
