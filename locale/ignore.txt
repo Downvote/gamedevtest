@@ -76,3 +76,11 @@ Seam
 Stripe
 ({1},{2}) inc {3} id {4} depth {5}, whole {6} id {7} depth {8}, static {9} id {10}, tile {11}
 {1}@@slot
+ (no map)
+ (second)
+ (third or further)
+0 ms: heavy draw {1}: {2} draws over 8 ms, the slowest {3} ms (its blended body {4}), {5} parts, {6} px
+part {1}
+ray met {1} {2}
+sun without a ray: {1}, {2} off; without a ray: {3} of {4} cast pixels, {5} agree, {6} off {7}; {8}
+{1} ms (memory {2} KB): {3}

@@ -2845,7 +2845,27 @@ text (the requests and how each was met) is in the history of this file, up to c
   preview's emulator; walking the whole top-tier island (`stress`), its first long leg went from 41.6 ms a frame to
   between 36.6 and 39.8 over two runs, with about half the rays. In the middle of a crowded top-tier town
   (`scrollcost=20`) it breaks even (the whole picture cast again within 2% either way): most of what shows there is
-  small detail with edges of its own, and those still need their rays. On
+  small detail with edges of its own, and those still need their rays. Then (2026-11-22): "can you optimize further?"
+  and "optimize it to the max, ms at all times should not go above 20ms even at the highest stress tests". The pixel
+  filter now works out most hits without a ray at all: where a pixel's line enters a block, a wedge, a ball or a
+  cylinder with nothing else able to come in front, the hit is plain geometry; a second map of the island seen from
+  the sun answers most sun rays the same way. In the crowded top-tier town that is 70% of the pixels and 40,000 sun
+  rays a picture, every one checked against a real ray in the previews, and 61% fewer rays in all. Each frame also has
+  a budget now. The strips a scroll brings in are cast over the next frames while the view waits a few pixels short
+  of them (the picture is kept 24 art px past each edge of the screen, up from 14, so they have time); past 24 px
+  behind, the rest is cast at once. The strips are finished a band at a time, a crowd's driftlings move a share a
+  tick when they all moved at once, a driftling that costs more than a tick's share is drawn over a few frames, and
+  one that has no picture yet comes first, nearest the middle of the screen first. No pixel is shown coarse: a version
+  that showed new ground at one ray per 4x4 block first kept more frames under 20 ms, but in the thickest town the
+  blocks stayed on screen for most of the walk, which the rule on pixel art does not allow (`Tuning.PixelCoarseLead`
+  keeps it, off). Walking the whole top-tier island at every limit (`stress`), the first leg went from 45.8 ms a frame
+  on average to 25.6 and its frames over 25 ms from 246 to 89; the whole walk averages 25 ms, and standing in the
+  middle of it 8.5 ms with no frame over 20. It is not under 20 ms everywhere yet. On the densest ground a pixel takes
+  about 30 microseconds to cast in the preview's emulator, most of it rays, against 2 on open ground, so walking at
+  full speed past the thickest rows of buildings needs several times the casting a frame holds: there the view trails
+  the founder by up to 24 art px and then catches up in one long frame (150 to 480 ms), and a driftling walking into
+  view can take a few ticks to appear. Roblox's own rays are native code and much quicker than the emulator's, which
+  are written in Luau, so the game itself should do better than this; it has not been timed there. On
   2026-11-14 it came closer ("zoom into the island more such that there isnt too much sea in the screen"), then a
   step back out ("zoom out abit more. the whole island should still be visible"): the first island now fits on the
   screen whole, beach and all, with a little less sea round it than before (`Tuning.CamFrame` 0.95: 9 art px a stud

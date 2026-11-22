@@ -386,13 +386,37 @@ local Tuning = {
 	PixelMapHigh = 80,
 	PixelMapMs = 0.5,
 	PixelMapBuildMs = 2,
-	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers (a longer pan catches up over frames)
+	-- the sun's map (PixelRenderer: the same seen along the sun, so most sun rays need no ray): its grid's px a stud,
+	-- two px a block (a block a third of a stud across)
+	PixelSunMapQ = 6,
+	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers when they cannot wait (a stage; a longer pan catches up over frames)
+	-- the filter's own share of a frame, ms: the work that can wait (a scroll's strips, the look-ahead, the pre-cast) stops
+	-- where the frame's compose would take it past this, but always gets PixelMinCastMs (the request of 2026-11-22, "ms at
+	-- all times should not go above 20ms even at the highest stress tests")
+	PixelFrameMs = 16,
+	PixelMinCastMs = 1,
+	-- the screen's window, held off a scroll's strips until they are cast, catches up with the camera by its own move a
+	-- frame and this many art px more, or this share of how far behind it is if that is more
+	PixelCatchUpPx = 1,
+	PixelCatchUpShare = 0.2,
+	-- art px the window may fall behind the camera on ground not cast yet: past it, what is left of a scroll's strips is
+	-- cast in full at once (with PixelCoarseLead, one ray a 4x4 block first, shown coarse for a moment, then in full)
+	PixelHoldMaxPx = 24,
+	-- true: strips the view waits on are shown before they are whole (from one ray a 2x2 or 4x4 block) and finished
+	-- after. Off: every pixel shown is a whole one (the user's rule on pixel art: "avoiding mixels"); in the densest
+	-- walk the coarse blocks stayed on screen for most of it, the full casts behind them losing to each next scroll
+	PixelCoarseLead = false,
+	-- ms a frame the coarse pass gets at least once the window is twice PixelHoldMaxPx behind (four times: all it takes)
+	PixelCoarseMs = 6,
 	-- the islands' picture is kept this many art px past each edge of the screen: the view moves within it by showing
 	-- another window of the image, and the picture scrolls (re-centred under the view) only once the view comes within
 	-- PixelPanEdge px of its edge (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it
-	-- smooth and lerp to the player?")
-	PixelPanMargin = 14,
-	PixelPanEdge = 4,
+	-- smooth and lerp to the player?"). The gap between the two is what a scroll's strips have to be cast in before the
+	-- view reaches them: at 4 px of 14 the view was on them a frame after the scroll, and the walk's strips, cast over a
+	-- few frames to keep each frame short, held it back (the request of 2026-11-22, "ms at all times should not go above
+	-- 20ms even at the highest stress tests")
+	PixelPanMargin = 24,
+	PixelPanEdge = 18,
 	-- true: a scroll's strips get their shadow edges, ink and grade on the next frame, while they lie in the margin past
 	-- the screen's edge, and the margin the view leaves goes into the pan cache before the scroll (the request of
 	-- 2026-11-21, "reduce the frame speed close to the frame speed while standing without scrolling")
@@ -425,7 +449,21 @@ local Tuning = {
 	PixelHiddenMs = 40,
 	PixelDisplayOrder = -100,
 	PixelMaxDyn = 80, -- dynamic models drawn afresh a tick at most (an island's driftlings and founders; the rest show their kept pictures)
-	PixelDynMs = 8, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short)
+	PixelDynMs = 4, -- ms a tick of drawing models afresh, the founders first, then the longest undrawn (a crowd changes less often, the frame stays short; a model costlier than this is drawn over a few frames, PixelJobMs)
+	-- ms a tick of moving the models that changed on the frame (their old pixels put back, the new drawn, inked and graded):
+	-- the founders always, then those that waited longest; the rest move on a later tick (the request of 2026-11-22, "ms
+	-- at all times should not go above 20ms even at the highest stress tests")
+	PixelComposeMs = 4,
+	-- ms a frame a model too costly for a tick's draw time is drawn on (its body over a few frames; PixelRenderer's
+	-- SG.jobStart), at least, as long as the frame has the time
+	PixelJobMs = 3,
+	-- ms a tick spent looking at whether the models not posed have changed (their parts against their picture's): past
+	-- it, a crowd's models are looked at a share a tick, the founders always, and none past it in one tick
+	PixelSameMs = 2,
+	-- ms a part a model's first draw is guessed to take when nothing of its kind was drawn yet (at least: the guess
+	-- follows the first draws made); past PixelDynMs it is drawn over a few frames (a driftling's first draw blends its
+	-- body, 10 to 30 ms in the stress walk)
+	PixelFirstPartMs = 0.3,
 	-- true: a frame composed between two of the tier's ticks only because the view moved draws the founder it follows
 	-- where it stands now and leaves the rest as it was (PixelRenderer's lite compose; the request of 2026-11-21,
 	-- "reduce the frame speed close to the frame speed while standing without scrolling")

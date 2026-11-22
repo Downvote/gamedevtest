@@ -148,7 +148,7 @@ type DynPart = { part: BasePart, id: number, shape: string, glow: boolean, rgb: 
 -- then, the static picture's epoch (SG.ver) and the scale. cache false: never kept (its ids wrap round).
 -- shp: where the model's blob shadow is cast from as it was drawn (its PrimaryPart's position; nil: it cast none), so
 -- the shadow shown with a kept picture is the picture's, not the live model's.
-type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }, szs: { Vector3 }, gone: { boolean }, ver: number, ppu: number, shp: Vector3?, anchor: Vector3?, from: DynCache? }
+type DynCache = { gx: number, gy: number, w: number, h: number, n: number, px: buffer, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?, ver: number, ppu: number, shp: Vector3?, anchor: Vector3?, from: DynCache? }
 -- (what it shows since the last compose, for the incremental compose: shC the kept picture put down, nil when it was
 -- drawn and not kept; shR its rect a pixel round, in global art px; sx, sy, srx, sry its blob shadow's centre (global
 -- art px) and radii, sR the shadow's rect (global); sChg, sIn whether this compose draws the shadow because it changed
@@ -163,6 +163,10 @@ type Dyn = {
 	hi: number,
 	cache: DynCache?,
 	drawnAt: number?,
+	updAt: number?, -- (the tick it last moved on: SG.budgetPlan)
+	sameSeq: number?, -- (the tick it was last looked at for a change: SG.blitOk)
+	drawMs: number?, -- (ms its draws took lately, and since when it has waited for one: SG.plan)
+	wantAt: number?,
 	shC: DynCache?,
 	shR: Rect?,
 	shDz: number?,
@@ -353,18 +357,72 @@ local SG = {
 	Tiles = require(script.Parent.PanCache),
 	-- (which parts can meet the rays where, Pixel/RayMap: pixels it answers need no ray; SG.castPx. noShare: every
 	-- pixel cast, for debugCastCheck's fresh picture; the pixels written as sky and as shared since debugShare)
-	Map = require(script.Parent.RayMap),
+	Map = require(script.Parent.RayMap).new(0.1, 0.5),
+	-- (the same seen from the sun: a sun ray's hit, or that it meets nothing, worked out without the ray: SG.sunAt)
+	SunMap = require(script.Parent.RayMap).new(0.6, 0.6),
+	sunView = nil :: CameraController.View?,
+	sunRot = nil :: { number }?,
+	sunL0 = 0,
+	sunN = 0,
 	mapView = nil :: CameraController.View?,
 	noShare = false,
 	planes = (setmetatable({}, { __mode = "k" }) :: any) :: { [BasePart]: { [number]: { number } | false } }, -- (SG.facePlane's)
+	geom = (setmetatable({}, { __mode = "k" }) :: any) :: { [BasePart]: { number } }, -- (SG.geomOf's)
+	probe = nil :: { cert: number, agree: number, off: number, tried: number, ex: { string } }?,
+	lastHit = nil :: BasePart?,
+	-- (the hit SG.solve worked out without a ray, for castSample)
+	aPart = nil :: BasePart?,
+	aDepth = 0,
+	aNx = 0,
+	aNy = 0,
+	aNz = 0,
+	solvedN = 0,
 	skyN = 0,
 	sharedN = 0,
 	raysAt = 0,
+	frameLog = nil :: { over: number, list: { string } }?, -- (previews: the slow frames' breakdowns, debugFrameLog)
 	exclVer = 0, -- (refreshExclude's count: the pre-cast's filter follows it)
 	panAt = -1, -- SG.clock() of the view's last pan (SG.keep keeps a moving model's picture while one goes on)
 	need = {} :: { Dyn }, -- (a compose's models to draw afresh, in their order)
 	unfin = nil :: { Rect }?, -- (the last scroll's strips, their shadow edges, ink and grade still to do: SG.finishStrips)
 	unfinAt = 0, -- (the frame they came in on)
+	-- (strips shown before they were whole, the rest of their pixels still to cast: SG.release, SG.refineStep)
+	refine = {} :: { { r: Rect, x: number, y: number, pass: number } },
+	fin = nil :: { list: { Rect }, phase: number, i: number, y: number? }?, -- (SG.finishStep's place)
+	finCoarse = false, -- (the strips being finished were shown from their anchors' blocks: SG.release)
+	vpBlocked = false,
+	vpLag = 0, -- (art px the window was behind the camera this frame: SG.pendStep's coarser pass past PixelHoldMaxPx)
+	-- (the pieces of the last scroll's strips still to cast, a few a frame: SG.pendStep; nil: none)
+	pend = nil :: { pieces: { Rect }, phase: number, i: number, x: number, y: number, started: boolean, c4: boolean? }?,
+	-- (the frame's deadlines: frameEnd, the renderer's whole frame; castEnd, the casting that can wait, leaving the
+	-- compose its time: frameStep)
+	frameEnd = 0,
+	castEnd = 0,
+	estTick = 6, -- (ms a tick's compose and the rest of its frame took lately, and a lite frame's: the cast's share is what is left)
+	estLite = 3,
+	castSpent = 0, -- (ms this frame spent on the casting that can wait)
+	usPerPx = 1, -- (µs a pixel a tick's compose took lately to redo: SG.budgetPlan's budget in pixels)
+	updSeq = 0, -- (the ticks composed: a model's updAt is the one it last moved on)
+	drawAvg = 6, -- (ms a model's draw took lately: SG.plan's estimate for a model not drawn yet)
+	drawByName = {} :: { [string]: number }, -- (and a model of the same name's: a driftling of the same kind)
+	needMid = {} :: { [any]: number }, -- (SG.plan: how far from the screen's middle each model with no picture stands)
+	firstPerPart = Tuning.PixelFirstPartMs, -- (ms a part a model's first draw takes, of a kind never drawn: SG.plan)
+	sameEvery = 1, -- (ticks between two looks at whether a model not posed has changed: SG.blitOk, more in a crowd)
+	sameT = 0, -- (s this tick's looks took)
+	job = nil :: any, -- (the model being drawn over a few frames, SG.jobStart; its scratch frame, and what drawModel sets up for it)
+	jobIso = nil :: Raster.Frame?,
+	jobMode = false,
+	jobBlend = nil :: any,
+	jobDone = false,
+	heavyDraws = {} :: { [string]: { n: number, ms: number, parts: number, px: number, blend: number? } }, -- (previews: debugFrameLog)
+	blendMs = 0, -- (previews: the last draw's blended body)
+	-- (the window's pan this frame, held off what is not cast yet: SG.viewPan; the camera's own pan the frame before)
+	vpX = 0,
+	vpY = 0,
+	vpAt = -1,
+	vpRawX = nil :: number?,
+	vpRawY = nil :: number?,
+	vpView = nil :: CameraController.View?,
 	frameNo = 0, -- (frames stepped)
 	tickNow = false, -- (this frame composes a tick: frameStep)
 	tickRun = false, -- (and so did the frame before it)
@@ -752,14 +810,54 @@ local function waterPhase(wx: number, wz: number): number
 	return math.floor(v * 9.14) % 256
 end
 
-local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: number, own: boolean, shadows: boolean)
+local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: number, own: boolean, shadows: boolean, given: boolean?)
 	local cam = s.cam
 	local x, y = gx - cam.gx, gy - cam.gy
 	-- (Raster.origin and BakeCast.shadowMode, written out: this runs for every pixel cast)
 	local ox, oy, oz = cam.gox + gx * cam.ix + gy * cam.jx, cam.goy + gx * cam.iy + gy * cam.jy, cam.goz + gx * cam.iz + gy * cam.jz
 	local mode = if not shadows then BakeCast.SHADOW_OFF elseif own or (gx % 2 == 0 and gy % 2 == 0) then BakeCast.SHADOW_TEST else BakeCast.SHADOW_DEFER
-	local part, depth, ni, lit, rays, tint, face = BakeCast.cast(params, Vector3.new(ox, oy, oz), s.look, FAR, mode, SUN_V)
+	local part: BasePart?, depth: number, ni: number, lit: number, rays: number, tint: BasePart?, face: boolean
+	if given then
+		-- (the hit worked out without a ray: SG.solve; its sun as BakeCast.cast tests it)
+		part, depth, tint, rays, lit, face = SG.aPart, SG.aDepth, nil, 0, 1, false
+		local nx, ny, nz = SG.aNx, SG.aNy, SG.aNz
+		ni = Shading.normalIndex(nx, ny, nz)
+		if mode ~= BakeCast.SHADOW_OFF and nx * SUN_V.X + ny * SUN_V.Y + nz * SUN_V.Z > 0 then
+			face = true
+			if mode == BakeCast.SHADOW_TEST then
+				local hx, hy, hz = ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth
+				local l = SG.sunAt(part :: BasePart, hx, hy, hz, nx, ny, nz)
+				if l then
+					lit = l
+				else
+					rays = 1
+					lit = BakeCast.sunVisible(params, Vector3.new(hx, hy, hz), Vector3.new(nx, ny, nz), SUN_V)
+				end
+			else
+				lit = BakeCast.LIT_UNKNOWN
+			end
+		end
+	else
+		-- (the sun tested here, the sun's map first: SG.sunAt; its ray as BakeCast's own when the map cannot say)
+		local test = mode == BakeCast.SHADOW_TEST and SG.sunRot ~= nil and not SG.noShare
+		part, depth, ni, lit, rays, tint, face = BakeCast.cast(params, Vector3.new(ox, oy, oz), s.look, FAR, if test then BakeCast.SHADOW_DEFER else mode, SUN_V)
+		if test and face and lit == BakeCast.LIT_UNKNOWN and part then
+			-- (from the hit's own position, as BakeCast's ray starts: a point on a shadow's edge is told the same way)
+			local n = BakeCast.lastN
+			local hp = (BakeCast.lastRes :: RaycastResult).Position
+			local l = SG.sunAt(part, hp.X, hp.Y, hp.Z, n.X, n.Y, n.Z)
+			if l then
+				lit = l
+			else
+				lit = BakeCast.sunVisible(params, hp, n, SUN_V)
+				rays += 1
+			end
+		end
+	end
 	bakeRays += rays
+	if SG.probe then
+		SG.lastHit = part
+	end
 	-- (the hit point)
 	local wx, wy, wz = ox + cam.lx * depth, oy + cam.ly * depth, oz + cam.lz * depth
 	if part ~= nil then
@@ -799,8 +897,13 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 			end
 			if not shared then
 				local k = ni + 1
-				lit = BakeCast.sunVisible(params, Vector3.new(wx, wy, wz), Vector3.new(NX[k], NY[k], NZ[k]), SUN_V)
-				bakeRays += 1
+				local l = SG.sunAt(part, wx, wy, wz, NX[k], NY[k], NZ[k])
+				if l then
+					lit = l
+				else
+					lit = BakeCast.sunVisible(params, Vector3.new(wx, wy, wz), Vector3.new(NX[k], NY[k], NZ[k]), SUN_V)
+					bakeRays += 1
+				end
 			end
 		end
 	else
@@ -1111,6 +1214,352 @@ function SG.shareAt(s: Surf, gx: number, gy: number, p1: BasePart, p2: BasePart?
 	return true
 end
 
+-- A part as the pixel rays meet it, worked out once: { centre, its axes (the CFrame's columns), half sizes, kind, met }
+-- with kind 1 a block, 2 a ball, 3 a cylinder (along its X axis), 4 a wedge (its slope facing front and up), 0 a shape
+-- not worked out here (only its box is known); met 0 for a part no pixel ray meets (CanQuery and CanCollide off), 1
+-- for one in the rays' collision group, 2 for one in another group (whether the rays meet it is not known here); then
+-- its Transparency. A static part does not move (Pixel/RayMap); one hidden is forgotten (PixelRenderer.hideStatic).
+function SG.geomOf(p: BasePart): { number }
+	local got = SG.geom[p]
+	if got ~= nil then
+		return got :: any
+	end
+	local cg = p.CollisionGroup
+	local kind = 0
+	if p:IsA("Part") then
+		local sh = (p :: Part).Shape
+		kind = if sh == Enum.PartType.Block then 1 elseif sh == Enum.PartType.Ball then 2 elseif sh == Enum.PartType.Cylinder then 3 elseif sh == Enum.PartType.Wedge then 4 else 0
+	elseif p:IsA("WedgePart") then
+		kind = 4
+	end
+	local met = if not (p.CanQuery or p.CanCollide) then 0 elseif cg == "Default" or cg == nil or cg == "" then 1 else 2
+	local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
+	local size = p.Size
+	local out = { cx, cy, cz, r00, r10, r20, r01, r11, r21, r02, r12, r22, size.X / 2, size.Y / 2, size.Z / 2, kind, met, p.Transparency }
+	SG.geom[p] = out :: any
+	return out
+end
+
+-- Whether the ray from (ox, oy, oz) along (lx, ly, lz) meets box g (SG.geomOf, grown by 0.01 studs) before the depth
+-- tmax and a hair past it, as SG.boxHit for a part.
+function SG.boxHitG(g: { number }, ox: number, oy: number, oz: number, lx: number, ly: number, lz: number, tmax: number): boolean
+	local dx, dy, dz = ox - g[1], oy - g[2], oz - g[3]
+	local t0, t1 = -math.huge, math.huge
+	for a = 0, 2 do
+		local ax, ay, az, h = g[4 + a * 3], g[5 + a * 3], g[6 + a * 3], g[13 + a] + 0.01
+		local o = dx * ax + dy * ay + dz * az
+		local d = lx * ax + ly * ay + lz * az
+		if math.abs(d) < 1e-9 then
+			if o < -h or o > h then
+				return false
+			end
+		else
+			local ta, tb = (-h - o) / d, (h - o) / d
+			if ta > tb then
+				ta, tb = tb, ta
+			end
+			if ta > t0 then
+				t0 = ta
+			end
+			if tb < t1 then
+				t1 = tb
+			end
+			if t0 > t1 then
+				return false
+			end
+		end
+	end
+	return t1 >= 0 and t0 < tmax + 0.02
+end
+
+-- Where the ray from (ox, oy, oz) along the unit (lx, ly, lz) enters part shape g (SG.geomOf): the depth and the outward
+-- normal there. Returns nil and false when it misses, nil and true when it meets it so near an edge, a rim or a
+-- silhouette that a ray's own rounding could tell otherwise (the ray decides those).
+function SG.rayShape(g: { number }, ox: number, oy: number, oz: number, lx: number, ly: number, lz: number): (number?, boolean, number, number, number)
+	local dx, dy, dz = ox - g[1], oy - g[2], oz - g[3]
+	local kind = g[16]
+	local EDGE = 1e-3 -- (studs)
+	if kind == 2 then
+		-- a ball as wide as the part's smallest side
+		local r = math.min(g[13], g[14], g[15])
+		local b = dx * lx + dy * ly + dz * lz
+		local d2 = dx * dx + dy * dy + dz * dz - b * b -- (the square of how near the ray passes the centre)
+		local pass = math.sqrt(math.max(0, d2))
+		if math.abs(pass - r) < 0.01 then
+			return nil, true, 0, 0, 0
+		elseif pass > r then
+			return nil, false, 0, 0, 0
+		end
+		local t = -b - math.sqrt(r * r - d2)
+		if t < 0 then
+			return nil, true, 0, 0, 0
+		end
+		local px, py, pz = dx + lx * t, dy + ly * t, dz + lz * t
+		return t, false, px / r, py / r, pz / r
+	end
+	-- (the ray in the part's own axes)
+	local ax, ay, az = g[4], g[5], g[6]
+	local bx, by, bz = g[7], g[8], g[9]
+	local cxv, cyv, czv = g[10], g[11], g[12]
+	local o1, o2, o3 = dx * ax + dy * ay + dz * az, dx * bx + dy * by + dz * bz, dx * cxv + dy * cyv + dz * czv
+	local l1, l2, l3 = lx * ax + ly * ay + lz * az, lx * bx + ly * by + lz * bz, lx * cxv + ly * cyv + lz * czv
+	local h1, h2, h3 = g[13], g[14], g[15]
+	if kind == 3 then
+		-- a cylinder along X, as wide as the smaller of the other two sides
+		local r = math.min(h2, h3)
+		local best, n1, n2, n3 = math.huge, 0, 0, 0
+		local A = l2 * l2 + l3 * l3
+		if A > 1e-12 then
+			local B = o2 * l2 + o3 * l3
+			local C = o2 * o2 + o3 * o3 - r * r
+			local pass = math.sqrt(math.max(0, C + r * r - B * B / A))
+			if math.abs(pass - r) < 0.01 then
+				return nil, true, 0, 0, 0
+			end
+			if pass < r then
+				local t = (-B - math.sqrt(math.max(0, B * B - A * C))) / A
+				local x = o1 + l1 * t
+				if math.abs(math.abs(x) - h1) < 0.01 then
+					return nil, true, 0, 0, 0
+				end
+				if math.abs(x) <= h1 and t >= 0 then
+					best, n1, n2, n3 = t, 0, (o2 + l2 * t) / r, (o3 + l3 * t) / r
+				end
+			end
+		end
+		if math.abs(l1) > 1e-12 then
+			local face = if l1 > 0 then -h1 else h1
+			local t = (face - o1) / l1
+			local y, z = o2 + l2 * t, o3 + l3 * t
+			local rad = math.sqrt(y * y + z * z)
+			if math.abs(rad - r) < 0.01 then
+				return nil, true, 0, 0, 0
+			end
+			if rad <= r and t >= 0 and t < best then
+				best, n1, n2, n3 = t, if l1 > 0 then -1 else 1, 0, 0
+			end
+		end
+		if best == math.huge then
+			return nil, false, 0, 0, 0
+		end
+		return best, false, n1 * ax + n2 * bx + n3 * cxv, n1 * ay + n2 * by + n3 * cyv, n1 * az + n2 * bz + n3 * czv
+	end
+	-- a block, or a wedge (the block cut by its slope): the faces the ray goes in through, the last of them its entry
+	local t0, t1, second = -math.huge, math.huge, -math.huge
+	local n1, n2, n3 = 0, 0, 0
+	-- (X)
+	if math.abs(l1) < 1e-12 then
+		if o1 < -h1 or o1 > h1 then
+			return nil, false, 0, 0, 0
+		end
+	else
+		local enter, exit = (-h1 - o1) / l1, (h1 - o1) / l1
+		local sg = -1
+		if l1 < 0 then
+			enter, exit, sg = exit, enter, 1
+		end
+		second, t0, t1 = t0, enter, exit
+		n1 = sg
+	end
+	-- (Y)
+	if math.abs(l2) < 1e-12 then
+		if o2 < -h2 or o2 > h2 then
+			return nil, false, 0, 0, 0
+		end
+	else
+		local enter, exit = (-h2 - o2) / l2, (h2 - o2) / l2
+		local sg = -1
+		if l2 < 0 then
+			enter, exit, sg = exit, enter, 1
+		end
+		if enter > t0 then
+			second, t0 = t0, enter
+			n1, n2, n3 = 0, sg, 0
+		elseif enter > second then
+			second = enter
+		end
+		if exit < t1 then
+			t1 = exit
+		end
+	end
+	-- (Z)
+	if math.abs(l3) < 1e-12 then
+		if o3 < -h3 or o3 > h3 then
+			return nil, false, 0, 0, 0
+		end
+	else
+		local enter, exit = (-h3 - o3) / l3, (h3 - o3) / l3
+		local sg = -1
+		if l3 < 0 then
+			enter, exit, sg = exit, enter, 1
+		end
+		if enter > t0 then
+			second, t0 = t0, enter
+			n1, n2, n3 = 0, 0, sg
+		elseif enter > second then
+			second = enter
+		end
+		if exit < t1 then
+			t1 = exit
+		end
+	end
+	if kind == 4 then
+		-- the slope through the bottom front edge and the top back edge, its normal (0, size Z, -size Y) made unit
+		local len = math.sqrt(h3 * h3 + h2 * h2)
+		local m2, m3 = h3 / len, -h2 / len
+		local dist = m2 * (o2 + h2) + m3 * (o3 + h3)
+		local den = m2 * l2 + m3 * l3
+		if math.abs(den) < 1e-12 then
+			if dist > 0 then
+				return nil, false, 0, 0, 0
+			end
+		elseif den < 0 then
+			local t = -dist / den
+			if t > t0 then
+				second, t0 = t0, t
+				n1, n2, n3 = 0, m2, m3
+			elseif t > second then
+				second = t
+			end
+		else
+			local t = -dist / den
+			if t < t1 then
+				t1 = t
+			end
+		end
+	end
+	if t0 > t1 + EDGE then
+		return nil, false, 0, 0, 0
+	end
+	if t0 > t1 - EDGE or second > t0 - EDGE or t0 < 0 then
+		return nil, true, 0, 0, 0
+	end
+	return t0, false, n1 * ax + n2 * bx + n3 * cxv, n1 * ay + n2 * by + n3 * cyv, n1 * az + n2 * bz + n3 * czv
+end
+
+-- The sun at a surface point (px, py, pz) of part `own`, its outward normal (nx, ny, nz) facing the sun, worked out
+-- without the sun ray where the sun's map (SG.SunMap: Pixel/RayMap seen along the sun) is sure of it: the ray starts
+-- 0.05 studs off the face, as BakeCast's does, and every point of it falls in one block of that map, which names the
+-- two parts that come nearest the sun there and how near the third comes. The point's own part never shades its own
+-- face (a convex shape: the ray leaves it). Of the others nearer the sun than the ray's start, one whose shape the ray
+-- enters within its length shades it (0); none, with no third part nearer, leaves it lit (1); nil when the ray decides
+-- (the map not ready, an edge, a shape not worked out, a third part that may be in the way). The request of
+-- 2026-11-22, "optimize it to the max": the sun rays had become most of the rays left.
+function SG.sunAt(own: BasePart, px: number, py: number, pz: number, nx: number, ny: number, nz: number): number?
+	local R = SG.sunRot
+	if R == nil or SG.noShare then
+		return nil
+	end
+	local sx, sy, sz = px + nx * 0.05, py + ny * 0.05, pz + nz * 0.05
+	local q = Tuning.PixelSunMapQ
+	local u = (sx * R[4] + sy * R[7] + sz * R[10]) * q
+	local v = -(sx * R[5] + sy * R[8] + sz * R[11]) * q
+	local p1, p2, d2, d3, _, _, d1 = SG.SunMap.at(math.floor(u), math.floor(v))
+	if p1 == nil then
+		return nil
+	elseif p1 == false then
+		return SG.sunDone(1, px, py, pz, nx, ny, nz)
+	end
+	local dS = -(sx * R[6] + sy * R[9] + sz * R[12]) - SG.sunL0
+	local LX, LY, LZ = SUN_V.X, SUN_V.Y, SUN_V.Z
+	local far = BakeCast.SHADOW_RAY
+	local geom = SG.geom
+	for k = 1, 2 do
+		local p: BasePart? = if k == 1 then p1 :: BasePart else p2
+		local near = if k == 1 then d1 else d2
+		if p and near < dS + 1e-3 then
+			local g = geom[p] or SG.geomOf(p :: BasePart)
+			if p == own then
+				if g[16] == 0 or g[17] ~= 1 then
+					return nil -- (a shape not worked out may not be convex)
+				end
+			elseif g[17] == 1 and g[16] ~= 0 then
+				local t, edge = SG.rayShape(g, sx, sy, sz, LX, LY, LZ)
+				if edge then
+					return nil
+				elseif t then
+					if t < far - 0.01 then
+						return SG.sunDone(0, px, py, pz, nx, ny, nz)
+					elseif t < far + 0.01 then
+						return nil
+					end
+				end
+			elseif g[17] ~= 0 and SG.boxHitG(g, sx, sy, sz, LX, LY, LZ, far) then
+				return nil
+			end
+		end
+	end
+	if d3 < dS + 1e-3 then
+		return nil
+	end
+	return SG.sunDone(1, px, py, pz, nx, ny, nz)
+end
+
+-- (SG.sunAt's answer counted; previews: checked against the sun ray's own)
+function SG.sunDone(l: number, px: number, py: number, pz: number, nx: number, ny: number, nz: number): number
+	SG.sunN += 1
+	local pr = SG.probe :: any
+	if pr then
+		local real = BakeCast.sunVisible(params, Vector3.new(px, py, pz), Vector3.new(nx, ny, nz), SUN_V)
+		pr.sunN = (pr.sunN or 0) + 1
+		if real ~= l then
+			pr.sunOff = (pr.sunOff or 0) + 1
+		end
+	end
+	return l
+end
+
+-- The pixel ray's hit worked out without a ray where the map (Pixel/RayMap) is sure of it: of the block's two nearest
+-- parts, the one the ray enters first (its shape worked out exactly, SG.rayShape; a part of another shape only so long
+-- as the ray misses its box), with the third part on no nearer, and opaque; or the sky, when the ray misses both and
+-- there is no third. Sets SG.aPart (nil: the sky), SG.aDepth and the normal SG.aNx, aNy, aNz; false when it needs its
+-- ray (the request of 2026-11-22, "optimize it to the max": a third of the dense town's rays).
+function SG.solve(s: Surf, gx: number, gy: number, p1: BasePart, p2: BasePart?, near2: number, near3: number): boolean
+	local cam = s.cam
+	local ox, oy, oz = cam.gox + gx * cam.ix + gy * cam.jx, cam.goy + gx * cam.iy + gy * cam.jy, cam.goz + gx * cam.iz + gy * cam.jz
+	local lx, ly, lz = cam.lx, cam.ly, cam.lz
+	local best, bp, bnx, bny, bnz = math.huge, nil :: BasePart?, 0, 0, 0
+	local geom = SG.geom
+	local g1 = geom[p1] or SG.geomOf(p1)
+	local met1 = g1[17]
+	if met1 == 1 and g1[16] ~= 0 then
+		local t, edge, nx, ny, nz = SG.rayShape(g1, ox, oy, oz, lx, ly, lz)
+		if edge then
+			return false
+		elseif t then
+			best, bp, bnx, bny, bnz = t, p1, nx, ny, nz
+		end
+	elseif met1 ~= 0 and SG.boxHitG(g1, ox, oy, oz, lx, ly, lz, math.huge) then
+		return false
+	end
+	if p2 and near2 < best + 1e-3 then
+		local g2 = geom[p2] or SG.geomOf(p2 :: BasePart)
+		local met2 = g2[17]
+		if met2 == 1 and g2[16] ~= 0 then
+			local t, edge, nx, ny, nz = SG.rayShape(g2, ox, oy, oz, lx, ly, lz)
+			if edge then
+				return false
+			elseif t then
+				if math.abs(t - best) <= 2e-3 then
+					return false -- (two faces level with each other: the ray's own pick)
+				elseif t < best then
+					best, bp, bnx, bny, bnz = t, p2, nx, ny, nz
+				end
+			end
+		elseif met2 ~= 0 and SG.boxHitG(g2, ox, oy, oz, lx, ly, lz, best) then
+			return false
+		end
+	end
+	if near3 <= best + 1e-3 then
+		return false
+	end
+	if bp and (geom[bp] :: { number })[18] >= BakeCast.CLEAR_MIN then
+		return false
+	end
+	SG.aPart, SG.aDepth, SG.aNx, SG.aNy, SG.aNz = bp, best, bnx, bny, bnz
+	return true
+end
+
 -- One pixel of a cast over a layer rect (rx0 .. rx1, ry0 .. ry1, layer px), filling its block up to (bx1, by1) (global,
 -- inclusive) as castSample does: the sky with no ray where no part reaches it (Pixel/RayMap), the face its anchors met
 -- where it is sure to show (SG.shareAt; a pixel of its own, not an anchor or a stand-in), else its ray. The island's own view
@@ -1121,7 +1570,61 @@ function SG.castPx(s: Surf, gx: number, gy: number, bx1: number, by1: number, ow
 		if part == false then
 			SG.skyAt(s, gx, gy, bx1, by1)
 			return
-		elseif part and not own and bx1 == gx and by1 == gy and (gx % 2 == 1 or gy % 2 == 1) and SG.shareAt(s, gx, gy, part :: BasePart, p2, near2, near3, flat1, flat2, shadows, rx0, ry0, rx1, ry1) then
+		end
+		if part and SG.solve(s, gx, gy, part :: BasePart, p2, near2, near3) then
+			local pr = SG.probe
+			if pr then
+				-- (previews: the hit worked out without a ray against the ray's own)
+				local ap, ad, anx, any_, anz = SG.aPart, SG.aDepth, SG.aNx, SG.aNy, SG.aNz
+				pr.cert += 1
+				castSample(s, gx, gy, bx1, by1, own, shadows)
+				local i = (gy - s.cam.gy) * s.W + (gx - s.cam.gx)
+				local id = buffer.readu16(s.sId, i * 2)
+				local dd = buffer.readf32(s.sDepth, i * 4)
+				local nn = buffer.readu8(s.sNormal, i)
+				local want = if ap then staticIdOf(ap) else 0
+				local an = if ap then Shading.normalIndex(anx, any_, anz) else BakeCast.SKY_NORMAL
+				if ap and SmoothParts.model(ap) then
+					an = nn -- (the normal of a model lit smooth is its own, worked out after the hit)
+				end
+				if id == want and (ap == nil or math.abs(dd - ad) < 2e-3) and nn == an then
+					pr.agree += 1
+				else
+					pr.off += 1
+					if #pr.ex < 6 then
+						table.insert(pr.ex, string.format("[%d,%d %s %.3f n%d / %s %.3f n%d]", gx, gy, if ap then ap.Name else "sky", ad, an, tostring(id), dd, nn))
+					end
+				end
+				return
+			end
+			SG.solvedN += 1
+			if SG.aPart == nil then
+				SG.skyAt(s, gx, gy, bx1, by1)
+			else
+				castSample(s, gx, gy, bx1, by1, own, shadows, true)
+			end
+			return
+		end
+		if part and not own and bx1 == gx and by1 == gy and (gx % 2 == 1 or gy % 2 == 1) and SG.shareAt(s, gx, gy, part :: BasePart, p2, near2, near3, flat1, flat2, shadows, rx0, ry0, rx1, ry1) then
+			return
+		end
+		local pr = SG.probe
+		if pr then
+			pr.tried += 1
+			-- (what the rays the map could not answer met)
+			castSample(s, gx, gy, bx1, by1, own, shadows)
+			local h = SG.lastHit
+			local k = if h == nil then "sky" elseif h:IsA("Part") then "part " .. tostring((h :: Part).Shape) elseif h:IsA("WedgePart") then "wedge" else h.ClassName
+			if h and part == nil then
+				k ..= " (no map)"
+			elseif h and h ~= part and h ~= p2 then
+				k ..= " (third or further)"
+			elseif h and h == p2 then
+				k ..= " (second)"
+			end
+			local hs = (pr :: any).hits or {}
+			;(pr :: any).hits = hs
+			hs[k] = (hs[k] or 0) + 1
 			return
 		end
 	end
@@ -1150,10 +1653,32 @@ function SG.mapStep()
 			end
 		end
 		SG.Map.setView(v.rot12, v.grid.q, v.grid.phX, v.grid.phY, v.grid.l - Tuning.CamRayBack, math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1))
+		-- the sun's map: the same lot seen along the sun (looking away from it, so depth grows away from the sun), its
+		-- window the lot's box as the sun sees it
+		local R = SG.sunRot or { CFrame.lookAt(Vector3.zero, -SUN_V):GetComponents() }
+		local q = Tuning.PixelSunMapQ
+		local u0, v0, u1, v1, dmin = math.huge, math.huge, -math.huge, -math.huge, math.huge
+		for _, wx in { ox + L.x0, ox + L.x1 } do
+			for _, wy in { Tuning.PixelMapLow, Tuning.PixelMapHigh } do
+				for _, wz in { L.z0, L.z1 } do
+					local u = (wx * R[4] + wy * R[7] + wz * R[10]) * q
+					local w = -(wx * R[5] + wy * R[8] + wz * R[11]) * q
+					local d = -(wx * R[6] + wy * R[9] + wz * R[12])
+					u0, v0, u1, v1, dmin = math.min(u0, u), math.min(v0, w), math.max(u1, u), math.max(v1, w), math.min(dmin, d)
+				end
+			end
+		end
+		SG.sunL0 = dmin - 8
+		SG.SunMap.setView(R, q, 0, 0, SG.sunL0, math.floor(u0), math.floor(v0), math.ceil(u1), math.ceil(v1))
+		SG.sunRot = R
 	end
-	local ms = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs elseif SG.Map.ready() then Tuning.PixelMapMs else Tuning.PixelMapBuildMs
+	local ms = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs elseif SG.Map.ready() and SG.SunMap.ready() then Tuning.PixelMapMs else Tuning.PixelMapBuildMs
 	local m0 = SG.clock()
-	if SG.Map.step(m0 + ms / 1000, SG.clock) then
+	local did = SG.Map.step(m0 + ms / 1000, SG.clock)
+	if SG.Map.ready() and SG.SunMap.step(m0 + ms / 1000, SG.clock) then
+		did = true
+	end
+	if did then
 		stats.perf.mapMs = (stats.perf.mapMs or 0) + (SG.clock() - m0) * 1000
 	end
 end
@@ -1826,6 +2351,9 @@ end
 
 local function startBake()
 	SG.unfin = nil -- (a bake casts every pixel again)
+	SG.fin, SG.finCoarse = nil, false
+	SG.pend = nil
+	table.clear(SG.refine)
 	local s = surf
 	if s == nil then
 		return
@@ -1973,6 +2501,9 @@ local function showWindow(s: Surf)
 		return
 	end
 	local px, py = CameraController.drawnPan()
+	if SG.vpAt == SG.frameNo and SG.vpView == s.view then
+		px, py = SG.vpX, SG.vpY -- (held off strips not cast yet: SG.viewPan)
+	end
 	local ox = math.clamp(px - s.cam.gx, 0, s.W - s.vw)
 	local oy = math.clamp(py - s.cam.gy, 0, s.H - s.vh)
 	if ox ~= s.ox or oy ~= s.oy then
@@ -1996,6 +2527,9 @@ end
 -- A layer for the camera's view: buffers, image and a fresh bake (or the kept street picture when its view comes back).
 local function buildSurf(v: CameraController.View)
 	SG.unfin = nil
+	SG.fin, SG.finCoarse = nil, false
+	SG.pend = nil
+	table.clear(SG.refine)
 	preReset() -- (another view: another grid)
 	refreshExclude()
 	lightStale = true
@@ -2082,6 +2616,11 @@ local function buildSurf(v: CameraController.View)
 	local m = marginOf(v)
 	local W0, H0 = math.ceil(v.fullX / K), math.ceil(v.fullY / K)
 	local W, H = W0 + 2 * m, H0 + 2 * m
+	if m > 0 then
+		-- (an even size at an even pan: a scroll's strips then cover whole 2x2 blocks of the global grid, SG.pendStep)
+		W += W % 2
+		H += H % 2
+	end
 	local _, im = ensureLayer()
 	local newImg = img
 	if newImg == nil or newImg.Size.X ~= W or newImg.Size.Y ~= H then
@@ -2119,7 +2658,12 @@ local function buildSurf(v: CameraController.View)
 		im.ImageTransparency = 1
 	end
 	local px, py = CameraController.pan()
-	local cam = layerCam(v, px - m, py - m, K)
+	local lgx, lgy = px - m, py - m
+	if m > 0 then
+		lgx -= lgx % 2
+		lgy -= lgy % 2
+	end
+	local cam = layerCam(v, lgx, lgy, K)
 	local n = W * H
 	local frame = Raster.newFrame(W, H)
 	local sColor, sDepth, sId = buffer.create(n * 4), buffer.create(n * 4), buffer.create(n * 2)
@@ -2843,7 +3387,16 @@ local function runFx(s: Surf, now: number): { Rect }
 	c.sColor, c.sId, c.sNormal, c.sAlbedo, c.sDepth, c.sWClass = s.sColor, s.sId, s.sNormal, s.sAlbedo, s.sDepth, s.sWClass
 	c.ppu = cam.s / cam.K
 	c.ver = staticVer
-	c.wait = SG.unfin
+	-- (the strips not finished, and those shown before they were whole, SG.release: the effects leave them alone)
+	local wait = SG.unfin
+	if #SG.refine > 0 then
+		local list = table.clone(wait or {})
+		for _, j in SG.refine do
+			table.insert(list, j.r)
+		end
+		wait = list
+	end
+	c.wait = wait
 	c.now = now
 	c.px, c.cap = fxCur, buffer.len(fxCur) // 4
 	Fx.reset(c)
@@ -3138,6 +3691,9 @@ function SG.same(d: Dyn, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?
 	if cfs == nil or szs == nil or gone == nil then
 		return false
 	end
+	local pf = stats.perf :: any
+	pf.sameCalls = (pf.sameCalls or 0) + 1
+	pf.sameParts = (pf.sameParts or 0) + #d.parts
 	for i, p in d.parts do
 		local part = p.part
 		if part.CFrame ~= cfs[i] or part.Size ~= szs[i] or (part.Parent == nil or part.Transparency >= 0.95) ~= gone[i] then
@@ -3157,7 +3713,6 @@ end
 -- scratch is wiped where it drew. Returns the layer rect its parts cover (x0 > x1: none).
 function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, number, number, number, number)
 	local iso, icam = SG.isoFor(s)
-	local M = SG.ISO_M
 	-- (drawn at the scratch's camera: a window M px larger all round, so a model standing past the layer's edge is
 	-- drawn whole; the shades read their pixel's global art px and world point from it)
 	local px0, py0, tc0 = panX, panY, texCam
@@ -3169,11 +3724,19 @@ function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, n
 		local part = p.part
 		cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
 	end
+	return SG.takePic(s, d, iso, ix0, iy0, ix1, iy1, ppu, s.cam.gx, s.cam.gy, d.gPosed, cfs, szs, gone, d.poseKey, SG.ver)
+end
+
+-- The picture of model d drawn into scratch frame f over its rect ix0 .. iy1 (the scratch's px; it stands at layer px
+-- M less, the layer's pan then gx0, gy0), taken out into a kept picture and the scratch wiped there: kept for the model
+-- (and for its pose, `key`) when it lies wholly on the scratch. Returns it and the layer rect it covers.
+function SG.takePic(s: Surf, d: Dyn, iso: Raster.Frame, ix0: number, iy0: number, ix1: number, iy1: number, ppu: number, gx0: number, gy0: number, anchor: Vector3?, cfs: { CFrame }?, szs: { Vector3 }?, gone: { boolean }?, key: string?, ver: number): (DynCache?, number, number, number, number)
+	local M = SG.ISO_M
 	local IW, IH = iso.W, iso.H
 	local cx0, cy0 = math.max(0, math.floor(ix0)), math.max(0, math.floor(iy0))
 	local cx1, cy1 = math.min(IW - 1, math.ceil(ix1)), math.min(IH - 1, math.ceil(iy1))
-	-- (the layer rect its parts cover)
-	local x0, y0, x1, y1 = ix0 - M, iy0 - M, ix1 - M, iy1 - M
+	-- (the layer rect its parts cover, at the layer's pan now)
+	local x0, y0, x1, y1 = ix0 - M + gx0 - s.cam.gx, iy0 - M + gy0 - s.cam.gy, ix1 - M + gx0 - s.cam.gx, iy1 - M + gy0 - s.cam.gy
 	if cx0 > cx1 or cy0 > cy1 then
 		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
 		return nil, x0, y0, x1, y1
@@ -3213,11 +3776,10 @@ function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, n
 	-- (whole: nothing of it fell past the scratch's edge)
 	local whole = ix0 >= 0 and iy0 >= 0 and ix1 <= IW - 1 and iy1 <= IH - 1
 	local pp = d.model.PrimaryPart or d.parts[1].part
-	local lx0, ly0 = cx0 - M, cy0 - M
-	local pic: DynCache = { gx = lx0 + s.cam.gx, gy = ly0 + s.cam.gy, w = cx1 - cx0 + 1, h = cy1 - cy0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = SG.ver, ppu = ppu, shp = if pp.Transparency < 0.95 then pp.Position else nil, anchor = d.gPosed }
+	local lx0, ly0 = cx0 - M + gx0 - s.cam.gx, cy0 - M + gy0 - s.cam.gy
+	local pic: DynCache = { gx = cx0 - M + gx0, gy = cy0 - M + gy0, w = cx1 - cx0 + 1, h = cy1 - cy0 + 1, n = n, px = px, cfs = cfs, szs = szs, gone = gone, ver = ver, ppu = ppu, shp = if pp.Transparency < 0.95 then pp.Position else nil, anchor = anchor }
 	if whole then
 		d.cache = pic
-		local key = d.poseKey
 		if key then
 			local poses, order = d.poses or {}, d.poseOrder or {}
 			d.poses, d.poseOrder = poses, order
@@ -3233,6 +3795,94 @@ function SG.drawPic(s: Surf, d: Dyn, ppu: number, texOn: boolean): (DynCache?, n
 		d.cache = { gx = 0, gy = 0, w = 0, h = 0, n = -1, px = SG.none, cfs = cfs, szs = szs, gone = gone, ver = -1, ppu = ppu }
 	end
 	return pic, lx0, ly0, lx0 + pic.w - 1, ly0 + pic.h - 1
+end
+
+-- A model too costly to draw within a tick's time (a big driftling's blended body: 10 to 20 ms in the stress walk),
+-- drawn over a few frames instead: its parts at once into a scratch of its own, as they stand now, its body a few ms a
+-- frame after (Raster.blendJob), then its picture taken (SG.jobStep). It shows its last picture meanwhile. The request
+-- of 2026-11-22, "ms at all times should not go above 20ms even at the highest stress tests".
+function SG.jobStart(s: Surf, d: Dyn, ppu: number, texOn: boolean)
+	local js0 = SG.clock()
+	local _, icam = SG.isoFor(s)
+	local f = SG.jobIso
+	if f == nil or f.W ~= (SG.iso :: Raster.Frame).W or f.H ~= (SG.iso :: Raster.Frame).H then
+		local src = SG.iso :: Raster.Frame
+		local n = src.W * src.H
+		local depth = buffer.create(n * 4)
+		for y = 0, src.H - 1 do
+			buffer.copy(depth, y * src.W * 4, SG.farRow :: buffer, 0, src.W * 4)
+		end
+		f = { W = src.W, H = src.H, color = buffer.create(n * 4), depth = depth, id = buffer.create(n * 2) }
+		SG.jobIso = f
+	end
+	local px0, py0, tc0 = panX, panY, texCam
+	panX, panY, texCam = icam.gx, icam.gy, icam
+	SG.jobMode, SG.jobBlend = true, nil
+	local ix0, iy0, ix1, iy1 = SG.drawModel(f :: Raster.Frame, d, icam, texOn)
+	SG.jobMode = false
+	panX, panY, texCam = px0, py0, tc0
+	local cfs, szs, gone = {}, {}, {}
+	for i, p in d.parts do
+		local part = p.part
+		cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
+	end
+	-- (the marks painted on, as they stood: the body's shading reads them)
+	local PS = table.move(SG.paints, 1, SG.paintN * PAINT_STRIDE, 1, {})
+	SG.job = { d = d, f = f, icam = icam, b = SG.jobBlend, ix0 = ix0, iy0 = iy0, ix1 = ix1, iy1 = iy1, gx0 = s.cam.gx, gy0 = s.cam.gy, ver = SG.ver, ppu = ppu, anchor = d.gPosed, cfs = cfs, szs = szs, gone = gone, key = d.poseKey, PS = PS, pn = SG.paintN, texPx = texPx, ms = 0 }
+	SG.jobBlend = nil
+	d.wantAt = nil
+	SG.job.ms = (SG.clock() - js0) * 1000
+end
+
+-- The draw spread over frames (SG.jobStart) drawn on until `deadline`; its picture taken when it is done (the model
+-- shows it from then on). True when there is none left.
+function SG.jobStep(s: Surf, deadline: number): boolean
+	local j = SG.job
+	if j == nil then
+		return true
+	end
+	local d = j.d
+	if dyns[d.model] ~= d or j.ppu ~= s.cam.s / s.cam.K then
+		SG.job = nil -- (the model went, or the view's scale changed: a fresh draw later)
+		return true
+	end
+	local b = j.b
+	local js0 = SG.clock()
+	if b and b.J then
+		local px0, py0, tc0, tp0 = panX, panY, texCam, texPx
+		local bP, bC, bQ, bT, PS0, pn0 = SG.blendP, SG.blendCf, SG.blendPaint, SG.blendTex, SG.paints, SG.paintN
+		panX, panY, texCam, texPx = j.icam.gx, j.icam.gy, j.icam, j.texPx
+		SG.blendP, SG.blendCf, SG.blendPaint, SG.blendTex, SG.blendLast = b.P, b.C, b.paint, b.texOn, 0
+		SG.paints, SG.paintN = j.PS, j.pn
+		local done = Raster.blendStep(b.J, deadline)
+		SG.paintOn = false
+		panX, panY, texCam, texPx = px0, py0, tc0, tp0
+		SG.blendP, SG.blendCf, SG.blendPaint, SG.blendTex, SG.paints, SG.paintN = bP, bC, bQ, bT, PS0, pn0
+		SG.blendLast = 0
+		j.ms += (SG.clock() - js0) * 1000
+		if not done then
+			return false
+		end
+		local J = b.J
+		if J.written >= 0 and J.X1 >= J.X0 then
+			j.ix0, j.iy0, j.ix1, j.iy1 = math.min(j.ix0, J.X0), math.min(j.iy0, J.Y0), math.max(j.ix1, J.X1), math.max(j.iy1, J.Y1)
+		end
+	end
+	SG.job = nil
+	SG.takePic(s, d, j.f, j.ix0, j.iy0, j.ix1, j.iy1, j.ppu, j.gx0, j.gy0, j.anchor, j.cfs, j.szs, j.gone, j.key, j.ver)
+	d.drawnAt = SG.clock()
+	-- (what the whole draw took, as a draw within a tick would have: the next draw of it and of its kind are planned by
+	-- it, and the first draws of kinds not drawn yet)
+	local took = j.ms + (SG.clock() - js0) * 1000
+	local nm = d.model.Name
+	if d.drawMs == nil and SG.drawByName[nm] == nil and #d.parts > 0 then
+		SG.firstPerPart = math.max(Tuning.PixelFirstPartMs, SG.firstPerPart * 0.7 + took / #d.parts * 0.3)
+	end
+	d.drawMs = if d.drawMs then d.drawMs * 0.5 + took * 0.5 else took
+	SG.drawByName[nm] = math.max(took, (SG.drawByName[nm] or took) * 0.8 + took * 0.2)
+	local pf = stats.perf :: any
+	pf.jobs = (pf.jobs or 0) + 1
+	return true
 end
 
 -- What every moving model shows this compose and the blob shadow under it (both composes work from it): a model on the
@@ -3285,6 +3935,8 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 		end
 		e.pic, e.x0, e.y0, e.x1, e.y1, e.dz, e.gx, e.gy = c, x0, y0, x1, y1, gz - (d.lead or 0), gx, gy
 	end
+	local pq0 = SG.clock()
+	local pqb = 0
 	for model, d in dyns do
 		local first = d.parts[1]
 		local culled = model.Parent == nil or first == nil
@@ -3325,7 +3977,9 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 		if culled then
 			continue
 		end
+		local pb = SG.clock()
 		local c, x0, y0, x1, y1 = SG.blitOk(s, d, fresh, ppu)
+		pqb += SG.clock() - pb
 		if c then
 			put(e, d, c, x0, y0, x1, y1)
 		elseif not SG.offPic(s, d, ppu) or not SG.same(d, (d.cache :: DynCache).cfs, (d.cache :: DynCache).szs, (d.cache :: DynCache).gone) then
@@ -3333,7 +3987,26 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 			table.insert(need, d)
 		end
 	end
+	do
+		local pfq = stats.perf :: any
+		pfq.planLoopMs = (pfq.planLoopMs or 0) + (SG.clock() - pq0) * 1000
+		pfq.planBlitOkMs = (pfq.planBlitOkMs or 0) + pqb * 1000
+	end
 	if #need > 1 then
+		-- (of the models with no picture, the one nearest the middle of the screen's window first: one coming in at the
+		-- margin past the screen waits, one on the screen does not)
+		local mid = SG.needMid
+		table.clear(mid)
+		local wcx = (if SG.vpX then (SG.vpX :: number) - cam.gx else s.m) + s.vw * 0.5
+		local wcy = (if SG.vpY then (SG.vpY :: number) - cam.gy else s.m) + s.vh * 0.5
+		for _, d in need do
+			local fp = d.parts[1]
+			if d.drawnAt == nil and fp then
+				local pp = fp.part.Position
+				local fx, fy = Raster.project(cam, pp.X, pp.Y, pp.Z)
+				mid[d] = math.abs(fx - wcx) / s.vw + math.abs(fy - wcy) / s.vh
+			end
+		end
 		table.sort(need, function(a: Dyn, b: Dyn): boolean
 			local ao, bo = a.own == true or a.rim == true, b.own == true or b.rim == true
 			if ao ~= bo then
@@ -3349,14 +4022,40 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 			if an ~= bn then
 				return an
 			end
+			local ma, mb = mid[a], mid[b]
+			if ma and mb then
+				return ma < mb
+			end
 			return (a.drawnAt or 0) < (b.drawnAt or 0)
 		end)
 	end
-	local budgetEnd = SG.clock() + Tuning.PixelDynMs / 1000
+	-- (within the tick's time and the frame's: a model is drawn only if what it took last time, or what one of its kind
+	-- took, still fits; a costlier one is drawn over a few frames, SG.jobStart)
+	local now0 = SG.clock()
+	local budgetEnd = math.min(now0 + Tuning.PixelDynMs / 1000, math.max(now0, SG.frameEnd - Tuning.PixelComposeMs / 1000))
 	local drawn = 0
 	for _, d in need do
 		local e = at[d]
-		if not SG.noBudget and (drawn >= Tuning.PixelMaxDyn or SG.clock() > budgetEnd) and not d.own and not d.rim then
+		local nm0 = d.model.Name
+		local estMs = math.max(d.drawMs or 0, SG.drawByName[nm0] or 0)
+		if d.drawMs == nil and SG.drawByName[nm0] == nil then
+			-- (never drawn, nor one of its kind: guessed from its parts, as the first draws of the others went. A
+			-- driftling's first draw blends its body, 10 to 30 ms in the stress walk)
+			estMs = math.max(SG.drawAvg, SG.firstPerPart * #d.parts)
+		end
+		local est = estMs / 1000
+		local t = SG.clock()
+		-- (one with no picture at all shows nothing till it is drawn: it may take the frame's time, not just the tick's)
+		local cap = if d.cache == nil then math.max(budgetEnd, SG.frameEnd - Tuning.PixelComposeMs / 1000) else budgetEnd
+		local fits = t + est <= cap and not (SG.job and SG.job.d == d)
+		if not d.wantAt then
+			d.wantAt = t
+		end
+		if not SG.noBudget and (drawn >= Tuning.PixelMaxDyn or not fits) and not d.own and not d.rim then
+			-- (too costly for the tick's time: drawn over a few frames, one model at a time; SG.jobStart)
+			if SG.job == nil and not SG.jobDone and estMs > Tuning.PixelDynMs * 0.5 then
+				SG.jobStart(s, d, ppu, texOn)
+			end
 			local c, x0, y0, x1, y1 = SG.blitOk(s, d, false, ppu)
 			if c then
 				put(e, d, c, x0, y0, x1, y1)
@@ -3365,6 +4064,16 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 				local k = d.cache
 				local why = if k == nil then "never drawn" elseif k.n < 0 then "not kept" elseif k.ver ~= SG.ver then "old picture" elseif k.ppu ~= ppu then "other scale" else "moved, last seen off the layer"
 				SG.skipWhy[why] = (SG.skipWhy[why] or 0) + 1
+				local fp = d.parts[1]
+				if k == nil and fp and SG.vpX then
+					-- (previews: one the screen's window shows, not just the margin past it)
+					local pp = fp.part.Position
+					local fx, fy = Raster.project(cam, pp.X, pp.Y, pp.Z)
+					local wx, wy = (SG.vpX :: number) - cam.gx, (SG.vpY :: number) - cam.gy
+					if fx >= wx and fy >= wy and fx < wx + s.vw and fy < wy + s.vh then
+						SG.skipWhy["never drawn, on screen"] = (SG.skipWhy["never drawn, on screen"] or 0) + 1
+					end
+				end
 			end
 			continue
 		end
@@ -3372,6 +4081,26 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 		local kd = SG.clock()
 		local pic, x0, y0, x1, y1 = SG.drawPic(s, d, ppu, texOn)
 		d.drawnAt = SG.clock()
+		d.wantAt = nil
+		-- (what it took: the next draw of it, and of a model not drawn yet, is planned by it)
+		local took = ((d.drawnAt :: number) - kd) * 1000
+		if took > 8 and SG.frameLog then
+			-- (previews: the costly draws, what they were)
+			local hd = SG.heavyDraws
+			local name = d.model.Name
+			hd[name] = hd[name] or { n = 0, ms = 0, parts = #d.parts, px = 0 }
+			hd[name].n += 1
+			hd[name].ms = math.max(hd[name].ms, took)
+			hd[name].px = math.max(hd[name].px, if pic then pic.n else 0)
+			hd[name].blend = math.max(hd[name].blend or 0, SG.blendMs)
+		end
+		local nm = d.model.Name
+		if d.drawMs == nil and SG.drawByName[nm] == nil and #d.parts > 0 then
+			SG.firstPerPart = math.max(Tuning.PixelFirstPartMs, SG.firstPerPart * 0.7 + took / #d.parts * 0.3)
+		end
+		d.drawMs = if d.drawMs then d.drawMs * 0.5 + took * 0.5 else took
+		SG.drawAvg += (took - SG.drawAvg) * 0.2
+		SG.drawByName[nm] = math.max(took, (SG.drawByName[nm] or took) * 0.8 + took * 0.2)
 		local pfp = stats.perf
 		local who = if d.own then "own" elseif d.rim then "rim" else "other"
 		pfp[who .. "Draws"] = (pfp[who .. "Draws"] or 0) + 1
@@ -3380,6 +4109,18 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 		if pic then
 			put(e, d, pic, x0, y0, x1, y1)
 		end
+	end
+	local ps0 = SG.clock()
+	-- (the draw spread over frames: on with what is left of the tick's draw time, and of the frame's)
+	SG.jobDone = false
+	if SG.job and not lite then
+		local kj = SG.clock()
+		local dl = math.max(budgetEnd, math.min(SG.frameEnd, kj + Tuning.PixelJobMs / 1000))
+		if SG.jobStep(s, math.max(kj + 0.0005, dl)) then
+			SG.jobDone = true
+		end
+		local pfj = stats.perf :: any
+		pfj.jobMs = (pfj.jobMs or 0) + (SG.clock() - kj) * 1000
 	end
 	for _, e in out do
 		local d = e.d
@@ -3392,6 +4133,19 @@ function SG.plan(s: Surf, fresh: boolean, ppu: number, texOn: boolean, lite: boo
 				e.sx, e.sy, e.srx, e.sry = cx + e.gx, cy + e.gy, rx, ry
 			end
 		end
+	end
+	local pfs = stats.perf :: any
+	pfs.planShadowMs = (pfs.planShadowMs or 0) + (SG.clock() - ps0) * 1000
+	pfs.planModels = (pfs.planModels or 0) + #out
+	if fresh and not lite then
+		-- (the looks at whether models changed kept to about Tuning.PixelSameMs a tick)
+		local ms = SG.sameT * 1000
+		if ms > Tuning.PixelSameMs then
+			SG.sameEvery = math.min(12, SG.sameEvery + 1)
+		elseif ms < Tuning.PixelSameMs * 0.4 then
+			SG.sameEvery = math.max(1, SG.sameEvery - 1)
+		end
+		SG.sameT = 0
 	end
 	return out
 end
@@ -3507,13 +4261,11 @@ function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, nu
 			posed = true
 			local cur = d.cache
 			if cur ~= pc and (cur == nil or cur.from ~= pc) then
-				local cfs, szs, gone = {}, {}, {}
-				for i, p in d.parts do
-					local part = p.part
-					cfs[i], szs[i], gone[i] = part.CFrame, part.Size, part.Parent == nil or part.Transparency >= 0.95
-				end
+				-- (the parts as they stand are not read: while posed, nothing compares them; once not, it is drawn
+				-- afresh, SG.same. Reading every part of every driftling whose pose changed was most of a tick's plan
+				-- in the stress walk)
 				local cc = table.clone(pc)
-				cc.cfs, cc.szs, cc.gone, cc.from = cfs, szs, gone, pc
+				cc.cfs, cc.szs, cc.gone, cc.from = nil, nil, nil, pc
 				d.cache = cc
 				-- (the poses used last are the ones kept: POSE_KEEP)
 				local order = d.poseOrder
@@ -3531,8 +4283,23 @@ function SG.blitOk(s: Surf, d: Dyn, fresh: boolean, ppu: number): (DynCache?, nu
 	if c == nil or c.n < 0 or c.ver ~= SG.ver or c.ppu ~= ppu or SG.off then
 		return nil, 0, 0, 0, 0
 	end
-	if not posed and (fresh or d.rim) and not SG.same(d, c.cfs, c.szs, c.gone) then
+	if not posed and (key or d.wantAt) and (fresh or d.rim) then
+		-- (posed in a pose it has no picture of yet, or already found changed and waiting for its draw: its parts have
+		-- moved, nothing to compare)
 		return nil, 0, 0, 0, 0
+	end
+	if not posed and (fresh or d.rim) then
+		-- (a crowd's models looked at a share a tick, the founders every tick: SG.sameEvery)
+		-- (and no more than Tuning.PixelSameMs of looks a tick: the rest keep their pictures till a later tick)
+		if d.rim or d.own or (SG.updSeq - (d.sameSeq or -1e9) >= SG.sameEvery and SG.sameT * 1000 < Tuning.PixelSameMs) then
+			d.sameSeq = SG.updSeq
+			local k0 = SG.clock()
+			local same = SG.same(d, c.cfs, c.szs, c.gone)
+			SG.sameT += SG.clock() - k0
+			if not same then
+				return nil, 0, 0, 0, 0
+			end
+		end
 	end
 	local x0, y0 = c.gx - s.cam.gx, c.gy - s.cam.gy
 	local x1, y1 = x0 + c.w - 1, y0 + c.h - 1
@@ -3673,6 +4440,7 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 		end
 	end
 	local blendOn = blendN > 1 and Raster.blendWorth(cam, blendSum / blendN)
+	SG.blendMs = 0
 	for _, p in d.parts do
 		local part = p.part
 		if part.Parent == nil or part.Transparency >= 0.95 then
@@ -3758,9 +4526,19 @@ function SG.drawModel(f: Raster.Frame, d: Dyn, cam: Raster.Cam, texOn: boolean):
 		for i = n + 1, #M do
 			M[i], P[i], C[i] = nil :: any, nil, nil :: any
 		end
-		if n > 0 then
+		if n > 0 and SG.jobMode then
+			-- (a draw spread over frames, SG.jobStart: the body set up to be drawn a few ms a frame, its members and
+			-- what shades them kept apart, since the next draw fills the same tables)
+			local JM, JP, JC, JQ = table.create(n), table.create(n), table.create(n), table.create(n)
+			for i = 1, n do
+				JM[i], JP[i], JC[i], JQ[i] = M[i], P[i], C[i], SG.blendPaint[i]
+			end
+			SG.jobBlend = { J = Raster.blendJob(f, cam, JM, n, k, SG.shadeMember :: Raster.BlendShade), P = JP, C = JC, paint = JQ, texOn = texOn }
+		elseif n > 0 then
 			SG.blendLast, SG.blendTex = 0, texOn
+			local kb0 = SG.clock()
 			local w, bx0, by0, bx1, by1 = Raster.drawBlend(f, cam, M, n, k, SG.shadeMember :: Raster.BlendShade)
+			SG.blendMs = (SG.clock() - kb0) * 1000
 			SG.paintOn = false
 			if w >= 0 and bx1 >= bx0 then
 				x0, y0, x1, y1 = math.min(x0, bx0), math.min(y0, by0), math.max(x1, bx1), math.max(y1, by1)
@@ -4069,6 +4847,95 @@ function SG.incStart(s: Surf)
 end
 
 -- The incremental compose of layer s (due: the moving models are all due, as compose's).
+-- The models that changed this tick (a picture moved, a new picture, gone, a blob shadow moved) moved within the tick's
+-- budget (Tuning.PixelComposeMs, worked out in pixels redone at the cost a pixel had lately): the founders always, then
+-- the others that have waited longest, the nearest the middle of the screen first; the rest show what they showed and
+-- where, as a lite frame leaves them, and wait for a later tick. The request of 2026-11-22, "ms at all times should not
+-- go above 20ms even at the highest stress tests": in the stress walk's crowd a tick redid up to 190,000 px, 200 ms.
+function SG.budgetPlan(s: Surf, plan: { PlanEntry })
+	local gx, gy = s.cam.gx, s.cam.gy
+	local cx, cy = s.ox + s.vw / 2, s.oy + s.vh / 2
+	SG.updSeq += 1
+	local seq = SG.updSeq
+	local function area(r: Rect?): number
+		if r == nil then
+			return 0
+		end
+		return math.max(0, r.x1 - r.x0 + 1) * math.max(0, r.y1 - r.y0 + 1)
+	end
+	local cands: { { e: PlanEntry, cost: number, age: number, dist: number } } = {}
+	local spent = 0
+	for _, e in plan do
+		local d = e.d
+		local pic = e.pic
+		local was = d.shR
+		local picSame = pic ~= nil and pic == d.shC and not d.rim and was ~= nil and was.x0 + 1 == e.x0 + gx and was.y0 + 1 == e.y0 + gy and d.shDz == e.dz
+		local picNone = pic == nil and was == nil
+		local shSame = (e.sx == nil and d.sR == nil) or (e.sx ~= nil and e.sx + gx == d.sx and e.sy + gy == d.sy and e.srx == d.srx and e.sry == d.sry)
+		if (picSame or picNone) and shSame then
+			continue
+		end
+		local cost = 0
+		if not (picSame or picNone) then
+			cost += area(was)
+			if pic then
+				cost += (e.x1 - e.x0 + 3) * (e.y1 - e.y0 + 3)
+			end
+		end
+		if not shSame then
+			cost += area(d.sR)
+			if e.sx then
+				local sx0, sy0, sx1, sy1 = SG.shadowRect(e.sx, e.sy, e.srx, e.sry)
+				cost += math.max(0, sx1 - sx0 + 1) * math.max(0, sy1 - sy0 + 1)
+			end
+		end
+		-- (the founders always; and one shown from a picture not kept, which cannot be shown as it was)
+		if d.own or d.rim or (was ~= nil and d.shC == nil) then
+			spent += cost
+			d.updAt = seq
+		else
+			local mx = if pic then (e.x0 + e.x1) / 2 elseif was then (was.x0 + was.x1) / 2 - gx else cx
+			local my = if pic then (e.y0 + e.y1) / 2 elseif was then (was.y0 + was.y1) / 2 - gy else cy
+			table.insert(cands, { e = e, cost = cost, age = seq - (d.updAt or -1e6), dist = math.abs(mx - cx) + math.abs(my - cy) })
+		end
+	end
+	if #cands == 0 then
+		return
+	end
+	table.sort(cands, function(a, b)
+		if a.age ~= b.age then
+			return a.age > b.age
+		end
+		return a.dist < b.dist
+	end)
+	local budget = Tuning.PixelComposeMs * 1000 / math.max(0.05, SG.usPerPx)
+	local held = 0
+	for _, c in cands do
+		local e, d = c.e, c.e.d
+		if spent + c.cost <= budget then
+			spent += c.cost
+			d.updAt = seq
+		else
+			-- (as it was: its picture where it showed it, its blob shadow where it lay)
+			held += 1
+			local r, pc = d.shR, d.shC
+			if r and pc then
+				e.pic, e.x0, e.y0, e.x1, e.y1, e.dz = pc, r.x0 + 1 - gx, r.y0 + 1 - gy, r.x1 - 1 - gx, r.y1 - 1 - gy, d.shDz or 0
+			else
+				e.pic = nil
+			end
+			local sx, sy, sr = d.sx, d.sy, d.sR
+			if sx and sy and sr then
+				e.sx, e.sy, e.srx, e.sry = sx - gx, sy - gy, d.srx or 0, d.sry or 0
+			else
+				e.sx = nil
+			end
+		end
+	end
+	local pf = stats.perf :: any
+	pf.heldModels = (pf.heldModels or 0) + held
+end
+
 function SG.incCompose(s: Surf, due: boolean?)
 	local W, H = s.W, s.H
 	local n = W * H
@@ -4146,6 +5013,10 @@ function SG.incCompose(s: Surf, due: boolean?)
 	local kp = SG.clock()
 	local plan = SG.plan(s, fresh, ppu, texOn, lite)
 	pf.planMs = (pf.planMs or 0) + (SG.clock() - kp) * 1000
+	if fresh and not lite and not SG.noBudget then
+		SG.budgetPlan(s, plan)
+	end
+	local kBud = SG.clock()
 	local chg: { PlanEntry } = {}
 	for _, e in plan do
 		local d = e.d
@@ -4329,6 +5200,7 @@ function SG.incCompose(s: Surf, due: boolean?)
 	end
 	pf.incPx += area
 	pf.incFrames += 1
+	local runArea = area
 	-- (strips finished a frame after their scroll go up as rects: SG.finishStrips)
 	local lateUp: { Rect } = if SG.panned then {} else strips
 	for _, r in lateUp do
@@ -4354,6 +5226,12 @@ function SG.incCompose(s: Surf, due: boolean?)
 		end
 	end
 	pf.uploadMs += (SG.clock() - k6) * 1000
+	if fresh and not lite and runArea >= 2000 then
+		-- (what a pixel redone cost this tick, for the next ticks' budget: SG.budgetPlan; the tiles redone only, not the
+		-- strips sent up late)
+		local us = (SG.clock() - kBud) * 1e6 / runArea
+		SG.usPerPx += (math.clamp(us, 0.3, 20) - SG.usPerPx) * 0.3
+	end
 	SG.panned, SG.upWhole, SG.touch = false, false, false
 	table.clear(strips)
 	return area
@@ -4727,6 +5605,285 @@ function SG.castStrips(s: Surf, pieces: { Rect }): number
 	return bakeRays - before
 end
 
+-- Cast the last scroll's pieces still to cast (SG.pend) until `deadline`, as SG.castStrips would: the anchors of all
+-- of them first, then the rest. True when none is left (SG.pend is nil then).
+function SG.pendStep(s: Surf, deadline: number): boolean
+	local P = SG.pend
+	if P == nil then
+		return true
+	end
+	local shadows = tierSpec(tier).shadows
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local W, H = s.W, s.H
+	-- (the anchors a pixel takes its face from may lie anywhere on the layer once every anchor of the pieces is cast,
+	-- unless a re-cast is still to come somewhere: SG.castStrips)
+	local whole = invCur == nil and #invQueue == 0
+	local n = 0
+	local pf = stats.perf :: any
+	local t0 = SG.clock()
+	if not Tuning.PixelCoarseLead and SG.vpLag > Tuning.PixelHoldMaxPx then
+		-- (the window that far behind the camera, with no coarse pass: what is left of the strips is cast in full now,
+		-- whatever it takes. Every pixel shown is a whole one; the camera lags no further)
+		deadline = math.huge
+	end
+	if Tuning.PixelCoarseLead and P.phase == 1 and not P.c4 and SG.vpLag > Tuning.PixelHoldMaxPx then
+		-- (the view this far behind the camera: the strips get one ray a 4x4 block first, each filling its block, shown
+		-- as soon as that is done and cast in full after, SG.release; the camera keeps up, the strip at its edge is
+		-- coarse for a moment)
+		P.phase, P.i, P.started, P.c4 = 0, 1, false, true
+		pf.coarse4 = (pf.coarse4 or 0) + 1
+	end
+	-- (twice that far behind: the coarse pass gets Tuning.PixelCoarseMs this frame at least; four times, all it takes,
+	-- so the camera lags no further. The rest waits for the frames after, SG.release)
+	local cdl = deadline
+	if SG.vpLag > 4 * Tuning.PixelHoldMaxPx then
+		cdl = math.huge
+	elseif SG.vpLag > 2 * Tuning.PixelHoldMaxPx then
+		cdl = math.max(deadline, t0 + Tuning.PixelCoarseMs / 1000)
+	end
+	while P.phase == 0 do
+		local q = P.pieces[P.i]
+		if q == nil then
+			P.phase, P.i, P.started = 2, 1, false
+			pf.pendMs = (pf.pendMs or 0) + (SG.clock() - t0) * 1000
+			return false
+		end
+		local x0, y0 = math.max(0, q.x0), math.max(0, q.y0)
+		local x1, y1 = math.min(W - 1, q.x1), math.min(H - 1, q.y1)
+		if not P.started then
+			P.started, P.x, P.y = true, x0, y0
+		end
+		while P.y <= y1 do
+			while P.x <= x1 do
+				local x, y = P.x, P.y
+				local kc = SG.clock()
+				local r0 = bakeRays
+				SG.castPx(s, x + gx0, y + gy0, math.min(x + 3, x1) + gx0, math.min(y + 3, y1) + gy0, false, shadows, 0, 0, W - 1, H - 1)
+				pf.coarseN = (pf.coarseN or 0) + 1
+				pf.coarseRays = (pf.coarseRays or 0) + (bakeRays - r0)
+				pf.coarseMs = (pf.coarseMs or 0) + (SG.clock() - kc) * 1000
+				P.x += 4
+				n += 1
+				if n % 4 == 0 and SG.clock() >= cdl then
+					pf.pendMs = (pf.pendMs or 0) + (SG.clock() - t0) * 1000
+					return false
+				end
+			end
+			P.x = x0
+			P.y += 4
+		end
+		P.i += 1
+		P.started = false
+	end
+	while P.phase >= 1 and P.phase <= 2 do
+		local q = P.pieces[P.i]
+		if q == nil then
+			P.phase += 1
+			P.i, P.started = 1, false
+			continue
+		end
+		local x0, y0 = math.max(0, q.x0), math.max(0, q.y0)
+		local x1, y1 = math.min(W - 1, q.x1), math.min(H - 1, q.y1)
+		local ax0, ay0, ax1, ay1 = x0, y0, x1, y1
+		if whole then
+			ax0, ay0, ax1, ay1 = 0, 0, W - 1, H - 1
+		end
+		if not P.started then
+			P.started, P.x, P.y = true, x0, y0
+		end
+		local want = P.phase == 1
+		local y = P.y
+		local x = P.x
+		while y <= y1 do
+			local gy = y + gy0
+			while x <= x1 do
+				local gx = x + gx0
+				if (gx % 2 == 0 and gy % 2 == 0) == want then
+					-- (an anchor fills its 2x2 block for now: the strip shows whole, a little coarse, should the view
+					-- need it before the rest is cast; SG.release)
+					if want then
+						SG.castPx(s, gx, gy, math.min(gx + 1, x1 + gx0), math.min(gy + 1, y1 + gy0), false, shadows, ax0, ay0, ax1, ay1)
+					else
+						SG.castPx(s, gx, gy, gx, gy, false, shadows, ax0, ay0, ax1, ay1)
+					end
+					n += 1
+					if n % 8 == 0 and SG.clock() >= deadline then
+						P.x, P.y = x + 1, y
+						if P.x > x1 then
+							P.x, P.y = x0, y + 1
+						end
+						pf.pendMs = (pf.pendMs or 0) + (SG.clock() - t0) * 1000
+						return false
+					end
+				end
+				x += 1
+			end
+			x = x0
+			y += 1
+		end
+		P.i += 1
+		P.started = false
+	end
+	SG.pend = nil
+	pf.pendMs = (pf.pendMs or 0) + (SG.clock() - t0) * 1000
+	return true
+end
+
+-- The last scroll's strips shown as they stand (SG.pend past its anchors: every 2x2 block filled from its anchor), when
+-- the view would have to wait for them: their shadow edges, ink and grade done, the screen free to show them; the rest
+-- of their pixels go into SG.refine, cast in the frames' spare time after (SG.refineStep), and the strips finished again
+-- then. A walk onto ground not cast yet needs more a frame than a frame has to spare in the densest town (the request
+-- of 2026-11-22, "ms at all times should not go above 20ms even at the highest stress tests").
+function SG.release(s: Surf)
+	local P = SG.pend
+	if P == nil or P.phase < 2 then
+		return
+	end
+	local W, H = s.W, s.H
+	-- (a coarser pass covered every piece: each starts again at its 2x2 anchors; else the pieces past the one going)
+	for i = if P.c4 then 1 else P.i, #P.pieces do
+		local q = P.pieces[i]
+		local r = { x0 = math.max(0, q.x0), y0 = math.max(0, q.y0), x1 = math.min(W - 1, q.x1), y1 = math.min(H - 1, q.y1) }
+		if r.x0 <= r.x1 and r.y0 <= r.y1 then
+			table.insert(SG.refine, { r = r, x = r.x0, y = r.y0, pass = if P.c4 then 1 else 2 })
+		end
+	end
+	SG.pend = nil
+	SG.finCoarse = true
+	SG.fin = nil
+	local pf = stats.perf :: any
+	pf.releases = (pf.releases or 0) + 1
+end
+
+-- Cast the rest of the strips shown before they were whole (SG.release) until `deadline`, each finished again once
+-- it is cast (its shadow edges, ink and grade, and the frame takes it back). True when none is left.
+function SG.refineStep(s: Surf, deadline: number): boolean
+	local Q = SG.refine
+	if #Q == 0 then
+		return true
+	end
+	local shadows = tierSpec(tier).shadows
+	local gx0, gy0 = s.cam.gx, s.cam.gy
+	local W, H = s.W, s.H
+	local pf = stats.perf :: any
+	local t0 = SG.clock()
+	local n = 0
+	while #Q > 0 do
+		local j = Q[1]
+		local r = j.r
+		local y, x = j.y, j.x
+		local p1 = j.pass == 1
+		while y <= r.y1 do
+			local gy = y + gy0
+			while x <= r.x1 do
+				local gx = x + gx0
+				local anchor = gx % 2 == 0 and gy % 2 == 0
+				if anchor == p1 then
+					if p1 then
+						SG.castPx(s, gx, gy, math.min(gx + 1, r.x1 + gx0), math.min(gy + 1, r.y1 + gy0), false, shadows, r.x0, r.y0, r.x1, r.y1)
+					else
+						SG.castPx(s, gx, gy, gx, gy, false, shadows, r.x0, r.y0, r.x1, r.y1)
+					end
+					n += 1
+					if n % 8 == 0 and SG.clock() >= deadline then
+						j.x, j.y = x + 1, y
+						if j.x > r.x1 then
+							j.x, j.y = r.x0, y + 1
+						end
+						pf.refineCastMs = (pf.refineCastMs or 0) + (SG.clock() - t0) * 1000
+						return false
+					end
+				end
+				x += 1
+			end
+			x = r.x0
+			y += 1
+		end
+		if p1 then
+			-- (its anchors cast: the rest of its pixels next)
+			j.pass, j.x, j.y = 2, r.x0, r.y0
+			continue
+		end
+		-- (cast: finished again, as SG.finishStrips finishes a strip)
+		if shadows then
+			refineShadows(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
+		end
+		SG.reoutline(s, r.x0, r.y0, r.x1, r.y1)
+		SG.waterFix(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
+		SG.rect(s, r.x0 - 3, r.y0 - 3, r.x1 + 3, r.y1 + 3)
+		table.insert(SG.strips, { x0 = math.max(0, r.x0 - 3), y0 = math.max(0, r.y0 - 3), x1 = math.min(W - 1, r.x1 + 3), y1 = math.min(H - 1, r.y1 + 3) })
+		table.remove(Q, 1)
+		if SG.clock() >= deadline then
+			break
+		end
+	end
+	pf.refineCastMs = (pf.refineCastMs or 0) + (SG.clock() - t0) * 1000
+	return #Q == 0
+end
+
+-- The pan the screen's window of layer s shows this frame: the camera's (CameraController.drawnPan), but held off the
+-- last scroll's strips while they are not finished (SG.pend, SG.unfin: 3 px clear of them, as far as finishing them
+-- changes the pixels beside them) and, once let go, catching up with the camera a little faster than it moves rather
+-- than in one jump. Worked out once a frame, before a scroll (showWindow takes it).
+function SG.viewPan(s: Surf): (number, number)
+	local rx, ry = CameraController.drawnPan()
+	local px, py = rx, ry
+	if s.m > 0 and SG.vpView == s.view and SG.vpAt >= 0 and SG.vpRawX ~= nil and SG.vpRawY ~= nil then
+		-- (catching up: the camera's own move this frame and a share of how far behind it the window is)
+		local lx, ly = SG.vpX, SG.vpY
+		local ax = math.abs(rx - (SG.vpRawX :: number)) + math.max(Tuning.PixelCatchUpPx, math.ceil(math.abs(rx - lx) * Tuning.PixelCatchUpShare))
+		local ay = math.abs(ry - (SG.vpRawY :: number)) + math.max(Tuning.PixelCatchUpPx, math.ceil(math.abs(ry - ly) * Tuning.PixelCatchUpShare))
+		px, py = math.clamp(px, lx - ax, lx + ax), math.clamp(py, ly - ay, ly + ay)
+	end
+	SG.vpRawX, SG.vpRawY = rx, ry
+	local list = SG.unfin
+	if s.m > 3 then
+		local gx, gy, W, H, vw, vh = s.cam.gx, s.cam.gy, s.W, s.H, s.vw, s.vh
+		-- (never the layer's outer 3 px, which the next scroll's strips would change: a scroll's strips then never come
+		-- in that close to the window, however far it moves)
+		px = math.clamp(px, gx + 3, gx + W - vw - 3)
+		py = math.clamp(py, gy + 3, gy + H - vh - 3)
+		local bx, by = px, py
+		local strips: { Rect } = list or {}
+		for _, r in strips do
+			if r.x1 - r.x0 < r.y1 - r.y0 then
+				-- (a strip down the layer's side)
+				if r.x0 > W // 2 then
+					px = math.min(px, gx + r.x0 - 3 - vw)
+				else
+					px = math.max(px, gx + r.x1 + 4)
+				end
+			else
+				if r.y0 > H // 2 then
+					py = math.min(py, gy + r.y0 - 3 - vh)
+				else
+					py = math.max(py, gy + r.y1 + 4)
+				end
+			end
+		end
+		px = math.clamp(px, gx, gx + W - vw)
+		py = math.clamp(py, gy, gy + H - vh)
+		-- (whether the strips held it this frame: SG.release lets them be shown)
+		SG.vpBlocked = px ~= bx or py ~= by
+	end
+	local _ = list
+	if px ~= rx or py ~= ry then
+		local pf = stats.perf :: any
+		pf.heldFrames = (pf.heldFrames or 0) + 1
+		pf.heldPx = math.max(pf.heldPx or 0, math.abs(px - rx), math.abs(py - ry))
+	end
+	SG.vpX, SG.vpY, SG.vpAt, SG.vpView = px, py, SG.frameNo, s.view
+	SG.vpLag = math.max(math.abs(px - rx), math.abs(py - ry))
+	if SG.vpLag > Tuning.PixelHoldMaxPx then
+		local pf = stats.perf :: any
+		pf.lagFrames = (pf.lagFrames or 0) + 1
+		if SG.vpLag > 4 * Tuning.PixelHoldMaxPx then
+			pf.lagFar = (pf.lagFar or 0) + 1
+		end
+	end
+	return px, py
+end
+
 -- Whether the pan cache works for the layer now: the island's own view (not a stage).
 function SG.tilesOk(s: Surf): boolean
 	return not s.view.stage and Tuning.PixelPanCacheTiles > 0
@@ -4743,6 +5900,17 @@ function SG.pendingOver(x0: number, y0: number, x1: number, y1: number): boolean
 			return true
 		end
 	end
+	-- (a strip shown before it was whole: SG.release; kept out of the pan cache till it is)
+	local s = surf
+	if s and #SG.refine > 0 then
+		local gx, gy = s.cam.gx, s.cam.gy
+		for _, j in SG.refine do
+			local q = j.r
+			if not (q.x1 + gx < x0 or q.x0 + gx > x1 or q.y1 + gy < y0 or q.y0 + gy > y1) then
+				return true
+			end
+		end
+	end
 	return false
 end
 
@@ -4751,38 +5919,80 @@ local function reoutline(s: Surf, x0: number, y0: number, x1: number, y1: number
 	Shading.outline(s.static, x0 - 1, y0 - 1, x1 + 1, y1 + 1, s.sShade)
 	contactPass(s, x0 - 1, y0 - 1, x1 + 1, y1 + 1)
 end
+SG.reoutline = reoutline
 
 -- The last scroll's strips (SG.unfin, layer rects) finished: their shadow edges on the pixel grid, the ink and contact
 -- shade over them and the old picture's pixels beside them, the water's frames and the grade; then queued for the
 -- next compose, which draws them and sends them up (`now`: the scroll's own frame, which queues them itself).
 function SG.finishStrips(s: Surf, now: boolean?)
-	local list = SG.unfin
-	SG.unfin = nil
-	if list == nil then
-		return
+	if SG.unfin and SG.pend then
+		-- (their pieces still to cast, all of them now: a whole compose, a jump, a check)
+		SG.pendStep(s, math.huge)
 	end
-	local t0 = SG.clock()
+	SG.finishStep(s, math.huge, now)
+end
+
+-- SG.finishStrips a band of rows at a time (FIN_ROWS) until `deadline`: the shadow edges of every strip first (not
+-- for strips shown from their anchors' blocks, SG.release: their rest is cast later and finished then), then the ink
+-- and the water's edges, then the grade, as one pass over all of them did. True when they are finished (SG.unfin
+-- nil). The request of 2026-11-22, "ms at all times should not go above 20ms even at the highest stress tests".
+function SG.finishStep(s: Surf, deadline: number, now: boolean?): boolean
+	local F = SG.fin
+	if F == nil or F.list ~= SG.unfin then
+		local list = SG.unfin
+		if list == nil then
+			SG.fin = nil
+			return true
+		end
+		F = { list = list, phase = if tierSpec(tier).shadows and not SG.finCoarse then 1 else 2, i = 1, y = nil }
+		SG.fin = F
+	end
+	local f = F :: { list: { Rect }, phase: number, i: number, y: number? }
+	local list = f.list
 	local pf = stats.perf :: any
-	if tierSpec(tier).shadows then
-		for _, r in list do
-			refineShadows(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
+	local t0 = SG.clock()
+	while f.phase <= 3 do
+		local r = list[f.i]
+		if r == nil then
+			f.phase += 1
+			f.i, f.y = 1, nil
+			continue
+		end
+		-- (the rows each phase covers: the shadow edges and the ink a pixel round, the grade three)
+		local pad = if f.phase == 3 then 3 else 1
+		local ya, yb = r.y0 - pad, r.y1 + pad
+		local y = f.y or ya
+		local ye = math.min(yb, y + FIN_ROWS - 1)
+		local p0 = SG.clock()
+		if f.phase == 1 then
+			refineShadows(s, r.x0 - 1, y, r.x1 + 1, ye)
+			pf.refineMs = (pf.refineMs or 0) + (SG.clock() - p0) * 1000
+		elseif f.phase == 2 then
+			reoutline(s, r.x0, math.max(y, r.y0), r.x1, math.min(ye, r.y1))
+			SG.waterFix(s, r.x0 - 1, y, r.x1 + 1, ye)
+			pf.inkMs += (SG.clock() - p0) * 1000
+		else
+			SG.rect(s, r.x0 - 3, y, r.x1 + 3, ye)
+			pf.rectMs = (pf.rectMs or 0) + (SG.clock() - p0) * 1000
+		end
+		if ye >= yb then
+			f.i += 1
+			f.y = nil
+		else
+			f.y = ye + 1
+		end
+		if SG.clock() >= deadline and f.phase <= 3 and not (f.phase == 3 and list[f.i] == nil) then
+			if not now then
+				pf.lateMs = (pf.lateMs or 0) + (SG.clock() - t0) * 1000
+			end
+			return false
 		end
 	end
-	local t1 = SG.clock()
-	for _, r in list do
-		reoutline(s, r.x0, r.y0, r.x1, r.y1)
-		SG.waterFix(s, r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1)
-	end
-	local t2 = SG.clock()
-	for _, r in list do
-		SG.rect(s, r.x0 - 3, r.y0 - 3, r.x1 + 3, r.y1 + 3)
-	end
-	local t3 = SG.clock()
-	pf.refineMs = (pf.refineMs or 0) + (t1 - t0) * 1000
-	pf.inkMs += (t2 - t1) * 1000
-	pf.rectMs = (pf.rectMs or 0) + (t3 - t2) * 1000
+	SG.fin = nil
+	SG.finCoarse = false
+	SG.unfin = nil
 	if not now then
-		pf.lateMs = (pf.lateMs or 0) + (t3 - t0) * 1000
+		pf.lateMs = (pf.lateMs or 0) + (SG.clock() - t0) * 1000
 		local W, H = s.W, s.H
 		for _, r in list do
 			table.insert(SG.strips, { x0 = math.max(0, r.x0 - 3), y0 = math.max(0, r.y0 - 3), x1 = math.min(W - 1, r.x1 + 3), y1 = math.min(H - 1, r.y1 + 3) })
@@ -4790,6 +6000,7 @@ function SG.finishStrips(s: Surf, now: boolean?)
 		-- (the static picture's version is the scroll's: what the effects read from it then is still good, but for
 		-- sColor in the strips, which they left alone till now: Fx.Ctx.wait)
 	end
+	return true
 end
 
 -- Whether a strip of the last scroll (SG.unfin) or the old pixels beside it fall in the screen's window of layer s.
@@ -4876,20 +6087,38 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 	local v = s.view
 	if math.abs(dx) >= W // 2 or math.abs(dy) >= H // 2 then
 		-- a jump (the view sent home from the far end of the street): bake again at the new pan
+		if s.m > 0 then
+			tx -= tx % 2
+			ty -= ty % 2
+		end
 		s.cam = layerCam(v, tx, ty, s.K)
 		s.ready = false -- (the picture on screen is of another place: no point keeping it alive)
 		startBake()
 		return
 	end
+	-- (composing incrementally with a margin: the strips' pieces the pan cache does not hold are cast over the next
+	-- frames, SG.pendStep, the view held off them till then, SG.viewPan)
+	local defer = not needFull and SG.live(s) and Tuning.PixelPanLate and s.m > 0 and not v.stage
 	-- the step this frame: the strips' rays within the budget (a strip pixel costs about 1.5 rays with its sun ray)
 	local budget = Tuning.PixelPanRays
 	local mx = math.max(1, math.floor(budget / (H * 1.5)))
 	local my = math.max(1, math.floor(budget / (W * 1.5)))
 	local sx, sy = math.clamp(dx, -mx, mx), math.clamp(dy, -my, my)
-	if (sx ~= dx or sy ~= dy) and SG.tilesOk(s) and SG.stripsHeld(s, dx, dy) then
+	if defer then
+		sx, sy = dx, dy
+	elseif (sx ~= dx or sy ~= dy) and SG.tilesOk(s) and SG.stripsHeld(s, dx, dy) then
 		-- (strips the pan cache holds whole are copied in, not cast: the whole step at once, the view put back in the
 		-- middle of its margin, so the next scroll comes no sooner than it must)
 		sx, sy = dx, dy
+	end
+	if s.m > 0 then
+		-- (by whole 2x2 blocks: the pan stays even, SG.pendStep)
+		if sx % 2 ~= 0 then
+			sx += if sx > 0 then 1 else -1
+		end
+		if sy % 2 ~= 0 then
+			sy += if sy > 0 then 1 else -1
+		end
 	end
 	-- (composing incrementally: the sticky pixels come off the frame before it shifts, as they are dropped below)
 	local inc = not needFull and SG.live(s)
@@ -4958,6 +6187,22 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 		end
 	end
 	s.cam = layerCam(v, cam.gx + sx, cam.gy + sy, s.K)
+	-- (strips shown before they were whole move with the picture, what is left of them on it: SG.refineStep)
+	if #SG.refine > 0 then
+		local kept = {}
+		for _, j in SG.refine do
+			local r = j.r
+			local q = { x0 = math.max(0, r.x0 - sx), y0 = math.max(0, r.y0 - sy), x1 = math.min(W - 1, r.x1 - sx), y1 = math.min(H - 1, r.y1 - sy) }
+			if q.x0 <= q.x1 and q.y0 <= q.y1 then
+				local jy, jx = math.max(q.y0, j.y - sy), j.x - sx
+				if jy ~= j.y - sy or jx < q.x0 or jx > q.x1 then
+					jx = q.x0 -- (cut by the layer's edge: the row it had got to, from its start)
+				end
+				table.insert(kept, { r = q, x = jx, y = jy, pass = j.pass })
+			end
+		end
+		SG.refine = kept
+	end
 	pf.shiftMs = (pf.shiftMs or 0) + (SG.clock() - q1) * 1000
 	local rays = 0
 	local strips: { Rect } = {}
@@ -4987,15 +6232,29 @@ local function scrollToward(s: Surf, tx: number, ty: number)
 			table.insert(pieces, r)
 		end
 	end
-	rays += SG.castStrips(s, pieces)
-	local c1 = SG.clock()
-	stats.perf.castMs += (c1 - c0) * 1000
-	-- the strips' shadow edges, ink, contact shade and grade: on the next frame while the strips lie in the margin past
+	-- the strips' shadow edges, ink, contact shade and grade: on a later frame while the strips lie in the margin past
 	-- the screen's edge (SG.finishStrips; a scroll frame did all of a strip's work at once, three times a frame's
 	-- spare time), else now
 	local late = inc and not needFull and SG.live(s) and Tuning.PixelPanLate
 	SG.unfin = strips
 	SG.unfinAt = SG.frameNo
+	if defer and late and #pieces > 0 then
+		-- (the request of 2026-11-22, "ms at all times should not go above 20ms even at the highest stress tests": a
+		-- scroll onto ground the look-ahead had not cast took 170 to 230 ms in one frame of the stress walk)
+		SG.pend = { pieces = pieces, phase = 1, i = 1, x = 0, y = 0, started = false }
+		do
+			local pfp = stats.perf :: any
+			pfp.pendPieces = (pfp.pendPieces or 0) + #pieces
+			for _, q in pieces do
+				pfp.pendPx = (pfp.pendPx or 0) + (q.x1 - q.x0 + 1) * (q.y1 - q.y0 + 1)
+			end
+		end
+		SG.pendStep(s, SG.castEnd)
+	else
+		rays += SG.castStrips(s, pieces)
+	end
+	local c1 = SG.clock()
+	stats.perf.castMs += (c1 - c0) * 1000
 	if not late then
 		SG.finishStrips(s, true)
 	end
@@ -5461,6 +6720,9 @@ function PC.step(s: Surf, deadline: number): boolean
 	local ps = job.ps
 	local saved = params
 	params = job.params
+	-- (the next tier's world, not the one on the maps: every pixel and its sun by its own rays, SG.sunAt)
+	local nsh = SG.noShare
+	SG.noShare = true
 	local r0 = bakeRays
 	while SG.clock() < deadline do
 		local c = job.cur
@@ -5528,6 +6790,7 @@ function PC.step(s: Surf, deadline: number): boolean
 			job.cur = nil
 		end
 	end
+	SG.noShare = nsh
 	params = saved
 	PC.stats.rays += bakeRays - r0
 	return true
@@ -5900,7 +7163,7 @@ function SG.aheadStep(s: Surf, deadline: number, ring: boolean?): boolean
 	-- (a tile the next scroll or two will want, Tuning.PixelAheadNearPx from the layer's edge, gets the frame's larger
 	-- budget: on ground not seen yet a walk needs more cast a frame than the plain budget gives)
 	local slow = deadline
-	local fast = math.max(deadline, t0 + Tuning.PixelAheadNearMs / 1000)
+	local fast = math.min(SG.castEnd, math.max(deadline, t0 + Tuning.PixelAheadNearMs / 1000))
 	local did = false
 	-- (a ring's tile half cast is the ring's to finish on its own turn; once the view moves, a tile ahead comes first)
 	local held = A.cur
@@ -6010,12 +7273,18 @@ local function frameStep(dt: number)
 	if not started or paused or tier == "off" then
 		return
 	end
+	local f0 = SG.clock()
+	SG.frameEnd = f0 + Tuning.PixelFrameMs / 1000
+	SG.castEnd = SG.frameEnd
+	SG.castSpent = 0
+	local pfs = stats.perf :: any
 	if rebakeAt >= 0 and os.clock() >= rebakeAt then
 		rebakeAt = -1
 		startBake()
 	end
 	refreshExclude()
 	SG.mapStep()
+	pfs.secHeadMs = (pfs.secHeadMs or 0) + (SG.clock() - f0) * 1000
 	if baking then
 		local budget = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs else Tuning.PixelBakeMsPerFrame + (if shown and not rush then 0 else 8)
 		bakeSome(SG.clock() + budget / 1000)
@@ -6032,26 +7301,59 @@ local function frameStep(dt: number)
 		-- (every frame a tick, two running: a frame rate at or under the tier's hz, with no lighter frames to wait for)
 		SG.tickRun = SG.tickNow and wasTick
 		SG.frameNo += 1
-		-- (the last scroll's strips finished, on a frame between two ticks, or two frames on whatever: SG.finishStrips)
-		if SG.unfin and (not SG.tickNow or SG.frameNo > SG.unfinAt + 1) then
-			SG.finishStrips(s)
-		end
-		-- (the picture scrolls only when the view nears its edge, re-centred under it; the view's window moves every
-		-- frame: showWindow)
-		local tx, ty = CameraController.drawnPan()
+		-- (what can wait gets the frame's time the compose and the rest are not likely to need: the request of
+		-- 2026-11-22, "ms at all times should not go above 20ms even at the highest stress tests")
+		local est = if SG.tickNow then SG.estTick else SG.estLite
+		SG.castEnd = f0 + math.max(Tuning.PixelMinCastMs, Tuning.PixelFrameMs - est) / 1000
+		-- (the picture scrolls only when the view nears its edge, re-centred under it, and not while the last scroll's
+		-- strips are still being cast; the view's window moves every frame, held off them: SG.viewPan, showWindow)
+		local tx, ty = SG.viewPan(s)
 		local m = s.m
 		local ox, oy = tx - s.cam.gx, ty - s.cam.gy
 		local edge = math.min(Tuning.PixelPanEdge, m)
 		local sc0 = SG.clock()
 		local before = stats.scrolls
-		if m == 0 or ox < edge or oy < edge or ox > s.W - s.vw - edge or oy > s.H - s.vh - edge then
+		if SG.pend == nil and (m == 0 or ox < edge or oy < edge or ox > s.W - s.vw - edge or oy > s.H - s.vh - edge) then
 			scrollToward(s, tx - m, ty - m)
 		end
 		showWindow(s)
-		-- (a strip the screen would show this frame is finished now, and one a frame old: the window may reach it next)
+		-- the last scroll's pieces still to cast, then its strips finished (SG.pendStep, SG.finishStrips): in the frame's
+		-- spare time, or now if the screen would show them
+		local c0 = SG.clock()
+		if SG.pend and stats.scrolls == before then
+			-- (past its anchors with the view waiting on it: shown as it stands, the rest cast after; SG.release)
+			-- (Tuning.PixelCoarseLead: shown from their anchors' blocks when the view waits on them, the rest cast after)
+			local P = SG.pend
+			local coarse = Tuning.PixelCoarseLead
+			if coarse and P and P.phase >= 2 and (SG.vpBlocked or P.c4) then
+				SG.release(s)
+			else
+				SG.pendStep(s, SG.castEnd)
+				P = SG.pend
+				if coarse and P and P.phase >= 2 and (SG.vpBlocked or P.c4) then
+					SG.release(s)
+				end
+			end
+		end
 		if SG.unfin and SG.unfinSeen(s) then
 			SG.finishStrips(s)
+		elseif SG.unfin and SG.pend == nil and SG.clock() < SG.castEnd then
+			SG.finishStep(s, SG.castEnd)
 		end
+		if #SG.refine > 0 and SG.pend == nil and SG.unfin == nil and SG.clock() < SG.castEnd then
+			SG.refineStep(s, SG.castEnd)
+		end
+		if #SG.refine > 0 then
+			-- (previews: how much of the layer still shows its coarse pass, and for how many frames)
+			local pfr = stats.perf :: any
+			local npx = 0
+			for _, j in SG.refine do
+				npx += (j.r.x1 - j.r.x0 + 1) * (j.r.y1 - j.r.y0 + 1)
+			end
+			pfr.refineFrames = (pfr.refineFrames or 0) + 1
+			pfr.refinePxMax = math.max(pfr.refinePxMax or 0, npx)
+		end
+		SG.castSpent += (SG.clock() - c0) * 1000
 		if stats.scrolls ~= before then
 			SG.panAt = os.clock()
 			stats.perf.panFrames += 1
@@ -6061,11 +7363,12 @@ local function frameStep(dt: number)
 			return -- a jump started a bake
 		end
 		local i0 = SG.clock()
+		pfs.secScrollMs = (pfs.secScrollMs or 0) + (i0 - sc0) * 1000
 		processInvalidation()
 		stats.perf.invMs += (SG.clock() - i0) * 1000
 		-- the frame's spare time (nothing else is waiting to be cast): while the view moves, the tiles past the edge it
 		-- moves toward (on a frame it did not scroll), else the next tier's picture, cast ahead
-		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and stats.scrolls == before then
+		if rebakeAt < 0 and invCur == nil and #invQueue == 0 and not s.view.stage and stats.scrolls == before and SG.pend == nil and #SG.refine == 0 and SG.clock() < SG.castEnd then
 			local p0 = SG.clock()
 			-- (moving: the margin on the side the view leaves goes into the pan cache now, so the scroll that takes it off
 			-- finds it kept and has nothing to save)
@@ -6081,22 +7384,27 @@ local function frameStep(dt: number)
 			if k > 0 then
 				SG.ringTurn = not SG.ringTurn
 			end
-			if Tuning.PixelAheadMs > 0 and SG.aheadStep(s, p0 + k * Tuning.PixelAheadMs / 1000) then
+			-- (moving, the look-ahead has all the frame's spare time: what it does not cast in time the view waits for)
+			local ce = SG.castEnd
+			local pa = SG.clock()
+			if Tuning.PixelAheadMs > 0 and SG.aheadStep(s, ce) then
 				stats.perf.aheadMs += (SG.clock() - p0) * 1000
 			elseif k == 0 then
 				-- (a tick's frame: nothing more)
-			elseif SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, p0 + k * Tuning.PixelRingMs / 1000, true) then
+			elseif SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, math.min(ce, p0 + k * Tuning.PixelRingMs / 1000), true) then
 				stats.perf.aheadMs += (SG.clock() - p0) * 1000
-			elseif Tuning.PixelPreCastMs > 0 and PC.step(s, p0 + k * Tuning.PixelPreCastMs / 1000) then
+			elseif Tuning.PixelPreCastMs > 0 and PC.step(s, math.min(ce, p0 + k * Tuning.PixelPreCastMs / 1000)) then
 				stats.perf.preMs += (SG.clock() - p0) * 1000
-			elseif not SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, p0 + k * Tuning.PixelRingMs / 1000, true) then
+			elseif not SG.ringTurn and Tuning.PixelRingMs > 0 and SG.aheadStep(s, math.min(ce, p0 + k * Tuning.PixelRingMs / 1000), true) then
 				stats.perf.aheadMs += (SG.clock() - p0) * 1000
 			end
+			SG.castSpent += (SG.clock() - pa) * 1000
 		end
 	elseif s then
 		-- (a re-bake behind the picture on screen: the view still moves within its margin)
 		showWindow(s)
 	end
+	local wv0 = SG.clock()
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
 	if s and tier ~= "low" then
 		waterClock += dt
@@ -6122,6 +7430,7 @@ local function frameStep(dt: number)
 			stats.perf.waterMs += (w1 - w0) * 1000
 		end
 	end
+	pfs.secWaterMs = (pfs.secWaterMs or 0) + (SG.clock() - wv0) * 1000
 	local hz = tierSpec(tier).hz
 	tickAcc += dt
 	SG.dynAcc += dt
@@ -6144,6 +7453,10 @@ local function watchStatic()
 		return
 	end
 	SG.Map.watch(plots)
+	SG.SunMap.watch(plots)
+	-- (each part's shape for SG.solve worked out as the map takes it in, within the map's time, not the first time a
+	-- ray needs it: a walk onto new ground spent 30 ms of one frame on that)
+	SG.Map.onAdd = SG.geomOf
 	-- A part came to or left a model lit as one smooth surface (the Tree of Life; `sm`, SmoothParts.changed has dropped
 	-- its balls already): the whole model's box is cast again once this frame, since every pixel of it was lit from the
 	-- balls there were (in the game the tree's parts arrive over several frames).
@@ -6213,6 +7526,11 @@ local function watchStatic()
 	plots.DescendantRemoving:Connect(function(d: Instance)
 		poke(d, SmoothParts.changed(d))
 		staticIds[d] = nil
+		if d:IsA("BasePart") then
+			-- (its shape as the rays met it, should it come back elsewhere: SG.geomOf, SG.facePlane)
+			SG.geom[d] = nil
+			SG.planes[d] = nil
+		end
 	end)
 end
 
@@ -6264,14 +7582,42 @@ function PixelRenderer.start()
 	applyTier(setting)
 	watchCharacters()
 	RunService.Heartbeat:Connect(function(dt: number)
+		local fl = SG.frameLog
+		local before = if fl then table.clone(stats.perf) else nil
+		local kb0 = if fl then gcinfo() else 0
 		local t0 = SG.clock()
 		frameStep(dt)
 		stats.perf.frames += 1
 		local ms = (SG.clock() - t0) * 1000
+		-- (what the frame took besides the casting that can wait: the next frames of its kind leave it that much)
+		local rest = math.clamp(ms - SG.castSpent, 0, Tuning.PixelFrameMs)
+		if SG.tickNow then
+			SG.estTick += (rest - SG.estTick) * 0.25
+		else
+			SG.estLite += (rest - SG.estLite) * 0.25
+		end
 		stats.perf.stepMs += ms
 		stats.perf.maxMs = math.max(stats.perf.maxMs, ms)
 		if ms > 25 then
 			stats.perf.slow += 1
+		end
+		if fl and before and ms > fl.over then
+			-- (previews: what a slow frame spent its time on, the counters it moved)
+			local parts: { { k: string, d: number } } = {}
+			for k, v in stats.perf :: { [string]: number } do
+				local d = v - ((before :: any)[k] or 0)
+				if d > 0.05 and k ~= "stepMs" and k ~= "maxMs" and k ~= "frames" then
+					table.insert(parts, { k = k, d = d })
+				end
+			end
+			table.sort(parts, function(a, b)
+				return a.d > b.d
+			end)
+			local words = {}
+			for _, p in parts do
+				table.insert(words, string.format("%s %.1f", p.k, p.d))
+			end
+			table.insert(fl.list, string.format("%.1f ms (memory %+d KB): %s", ms, gcinfo() - kb0, table.concat(words, ", ")))
 		end
 	end)
 	task.spawn(watchStatic)
@@ -6310,9 +7656,9 @@ end
 -- changed meanwhile), rays.
 -- Previews: the pixels written as sky with no ray and as shared from their anchors (SG.castPx), and the rays cast,
 -- since the last call, and the map's state (Pixel/RayMap).
-function PixelRenderer.debugShare(): { sky: number, shared: number, rays: number, map: { parts: number, chunks: number, queued: number, ready: boolean } }
-	local out = { sky = SG.skyN, shared = SG.sharedN, rays = bakeRays - SG.raysAt, map = SG.Map.debugState() }
-	SG.skyN, SG.sharedN, SG.raysAt = 0, 0, bakeRays
+function PixelRenderer.debugShare(): { sky: number, shared: number, solved: number, suns: number, rays: number, map: { parts: number, chunks: number, queued: number, ready: boolean }, sunMap: { parts: number, chunks: number, queued: number, ready: boolean } }
+	local out = { sky = SG.skyN, shared = SG.sharedN, solved = SG.solvedN, suns = SG.sunN, rays = bakeRays - SG.raysAt, map = SG.Map.debugState(), sunMap = SG.SunMap.debugState() }
+	SG.skyN, SG.sharedN, SG.solvedN, SG.sunN, SG.raysAt = 0, 0, 0, 0, bakeRays
 	return out
 end
 
@@ -6447,6 +7793,7 @@ function PixelRenderer.hideStatic(part: BasePart)
 		return
 	end
 	part.Transparency = 1
+	SG.geom[part] = nil -- (its Transparency as SG.geomOf kept it)
 	if surf == nil then
 		return
 	end
@@ -6914,10 +8261,12 @@ function PixelRenderer.debugCastCheck(full: boolean?, mask: boolean?): { off: nu
 	if s == nil or baking then
 		return out
 	end
-	-- (the last scroll's strips finished first, as the next frame would: SG.finishStrips)
+	-- (the last scroll's strips finished first, as the next frame would: SG.finishStrips; and any shown before they were
+	-- whole cast to the end, SG.refineStep)
 	if SG.unfin then
 		SG.finishStrips(s)
 	end
+	SG.refineStep(s, math.huge)
 	windRestore(s)
 	SG.windVoid = true
 	table.clear(SG.windPend)
@@ -7048,9 +8397,9 @@ end
 -- Previews: the whole layer cast again `reps` times each way, every pixel its own ray and with the map's answers
 -- (SG.castPx), alternately, the shadow edges left alone; the ms each way took on average, the rays each cast, and the
 -- pixels the map answered. The layer is put back as it was.
-function PixelRenderer.debugCastBench(reps: number): { plainMs: number, mapMs: number, plainRays: number, mapRays: number, sky: number, shared: number }
+function PixelRenderer.debugCastBench(reps: number): { plainMs: number, mapMs: number, plainRays: number, mapRays: number, sky: number, shared: number, rayMs: number, restMs: number, castCalls: number, split: string, probe: string, solved: number }
 	local s = surf
-	local out = { plainMs = 0, mapMs = 0, plainRays = 0, mapRays = 0, sky = 0, shared = 0 }
+	local out = { plainMs = 0, mapMs = 0, plainRays = 0, mapRays = 0, sky = 0, shared = 0, rayMs = 0, restMs = 0, castCalls = 0, split = "", probe = "", solved = 0 }
 	if s == nil or baking then
 		return out
 	end
@@ -7061,12 +8410,12 @@ function PixelRenderer.debugCastBench(reps: number): { plainMs: number, mapMs: n
 		saved[k] = buffer.create(buffer.len(sa[k]))
 		buffer.copy(saved[k], 0, sa[k], 0)
 	end
-	local rays0, sky0, shared0 = bakeRays, SG.skyN, SG.sharedN
+	local rays0, sky0, shared0, solved0 = bakeRays, SG.skyN, SG.sharedN, SG.solvedN
 	for _ = 1, reps do
 		for pass = 1, 2 do
 			SG.noShare = pass == 1
 			local r0 = bakeRays
-			local sk, sh = SG.skyN, SG.sharedN
+			local sk, sh, so = SG.skyN, SG.sharedN, SG.solvedN
 			local t0 = os.clock()
 			castRect(s, 0, 0, s.W - 1, s.H - 1, true)
 			local ms = (os.clock() - t0) * 1000
@@ -7078,11 +8427,91 @@ function PixelRenderer.debugCastBench(reps: number): { plainMs: number, mapMs: n
 				out.mapRays += (bakeRays - r0) / reps
 				out.sky += (SG.skyN - sk) / reps
 				out.shared += (SG.sharedN - sh) / reps
+				out.solved += (SG.solvedN - so) / reps
 			end
 		end
 	end
 	SG.noShare = false
-	bakeRays, SG.skyN, SG.sharedN = rays0, sky0, shared0
+	-- (the map's pass once more with the ray calls timed apart: what a pixel costs besides its rays)
+	do
+		local real = BakeCast.cast
+		local inRay = 0
+		local calls = 0
+		local realRay = BakeCast.sunVisible
+		;(BakeCast :: any).cast = function(...)
+			local t = os.clock()
+			local a, b, c, d, e, f, g = real(...)
+			inRay += os.clock() - t
+			calls += 1
+			return a, b, c, d, e, f, g
+		end
+		;(BakeCast :: any).sunVisible = function(...)
+			local t = os.clock()
+			local a = realRay(...)
+			inRay += os.clock() - t
+			return a
+		end
+		-- (and a few of the pixel's own steps timed apart)
+		local parts: { [string]: number } = {}
+		local saves: { [string]: any } = {}
+		local function wrap(tab: any, key: string, label: string)
+			local f = tab[key]
+			saves[label] = { tab, key, f }
+			parts[label] = 0
+			tab[key] = function(...)
+				local t = os.clock()
+				local a, b, c, d, e, f2, g = f(...)
+				parts[label] += os.clock() - t
+				return a, b, c, d, e, f2, g
+			end
+		end
+		wrap(SG, "shadeOf", "shade")
+		wrap(SG.Map, "at", "map")
+		wrap(SG, "shareAt", "share")
+		wrap(SG, "skyAt", "sky")
+		wrap(SmoothParts, "staticNormal", "smooth")
+		wrap(SG, "solve", "solve")
+		wrap(SG, "sunAt", "sunmap")
+		wrap(SG, "castPx", "px")
+		local t0 = os.clock()
+		castRect(s, 0, 0, s.W - 1, s.H - 1, true)
+		local all = os.clock() - t0
+		for _, v in saves do
+			v[1][v[2]] = v[3]
+		end
+		local words = {}
+		for k, v in parts do
+			table.insert(words, string.format("%s %.0f", k, v * 1000))
+		end
+		;(BakeCast :: any).cast = real
+		;(BakeCast :: any).sunVisible = realRay
+		out.rayMs = inRay * 1000
+		out.restMs = (all - inRay) * 1000
+		out.castCalls = calls
+		-- (then once more checked against the rays: every hit worked out without a ray cast as well, and what the rays
+		-- the maps could not answer met)
+		SG.probe = { cert = 0, agree = 0, off = 0, tried = 0, ex = {} }
+		castRect(s, 0, 0, s.W - 1, s.H - 1, true)
+		local pr = SG.probe :: any
+		SG.probe = nil
+		local whys = {}
+		for k, v in pr.why or {} do
+			table.insert(whys, k .. " " .. v)
+		end
+		local hl = {}
+		for k, v in pr.hits or {} do
+			table.insert(hl, { k, v })
+		end
+		table.sort(hl, function(a, b)
+			return a[2] > b[2]
+		end)
+		for _, e in hl do
+			table.insert(whys, "ray met " .. e[1] .. " " .. e[2])
+		end
+		out.split = table.concat(words, ", ")
+		out.probe = string.format("sun without a ray: %d, %d off; without a ray: %d of %d cast pixels, %d agree, %d off %s; %s", pr.sunN or 0, pr.sunOff or 0, pr.cert, pr.tried + pr.cert, pr.agree, pr.off, table.concat(pr.ex, " "), table.concat(whys, ", "))
+	end
+	bakeRays, SG.skyN, SG.sharedN, SG.solvedN = rays0, sky0, shared0, solved0
 	for _, k in names do
 		buffer.copy(sa[k], 0, saved[k], 0)
 	end
@@ -7208,6 +8637,26 @@ function PixelRenderer.debugIncCheck(): { off: number, checked: number, px: numb
 end
 
 -- Sims and previews: the clock the frame's budgets and timings read (nil: os.clock again).
+-- Previews: from now on every frame slower than `over` ms is written down with what it spent its time on (the perf
+-- counters it moved); returns the frames written down since the last call. nil stops it.
+function PixelRenderer.debugFrameLog(over: number?): { string }
+	local out = if SG.frameLog then SG.frameLog.list else {}
+	local rows: { { name: string, h: { n: number, ms: number, parts: number, px: number, blend: number? } } } = {}
+	for name, h in SG.heavyDraws do
+		table.insert(rows, { name = name, h = h })
+	end
+	table.sort(rows, function(a, b)
+		return a.h.ms > b.h.ms
+	end)
+	for i = 1, math.min(8, #rows) do
+		local h = rows[i].h
+		table.insert(out, string.format("0 ms: heavy draw %s: %d draws over 8 ms, the slowest %.1f ms (its blended body %.1f), %d parts, %d px", rows[i].name, h.n, h.ms, h.blend or 0, h.parts, h.px))
+	end
+	table.clear(SG.heavyDraws)
+	SG.frameLog = if over then { over = over, list = {} } else nil
+	return out
+end
+
 function PixelRenderer.debugClock(fn: (() -> number)?)
 	SG.clock = fn or os.clock
 end

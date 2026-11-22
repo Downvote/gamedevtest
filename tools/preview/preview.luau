@@ -991,6 +991,13 @@ function SCEN.stress(legs: number?)
 	-- the route: north up the middle, across to the west, back south along the west side, across east
 	local route = { { -2, 4 }, { -2, -180 }, { -26, -180 }, { -26, -30 }, { 24, -30 }, { 24, -120 } }
 	local lastMarks = nil
+	local lastPanX, lastPanY = nil, nil
+	do
+		local CCm = modOr(p, "Controllers.CameraController")
+		if CCm then
+			lastPanX, lastPanY = H.inClient(p, CCm.drawnPan)
+		end
+	end
 	local function report(label, frames, wall)
 		local st = H.inClient(p, PR.debugPerf)
 		lastMarks = (st.markBy or "") .. string.format("; %d models left out of a compose (no picture to show: %s)", st.skips or 0, st.skipWhy or "")
@@ -998,11 +1005,49 @@ function SCEN.stress(legs: number?)
 		local pf = math.max(1, st.panFrames)
 		log("stress %s: %d frames in %.1f s (%.1f ms a frame of everything); the pixel filter %.2f ms a frame, the slowest %.1f ms, %d over 25 ms; scroll %.2f ms a pan (cast %.2f), composes %.2f (copy %.2f, models %.2f, outlines %.2f, rims %.2f, effects %.2f, grading %.2f, uploads %.2f; %d uploads), water %.2f, wind %.2f; %d kept pictures used, %d models drawn; %d incremental composes (%d px each), %d whole",
 			label, frames, wall, wall * 1000 / math.max(1, frames), st.stepMs / f, st.maxMs or 0, st.slow or 0, st.scrollMs / pf, st.castMs / pf, st.composeMs / f, st.copyMs / f, st.dynMs / f, st.outlineMs / f, st.rimMs / f, st.fxMs / f, st.gradeMs / f, st.uploadMs / f, st.uploads, st.waterMs / f, st.windMs / f, st.hits, st.draws, st.incFrames or 0, (st.incPx or 0) // math.max(1, st.incFrames or 0), st.fullFrames or 0)
-		log("stress %s: the look-ahead %.2f ms a frame, re-casts %.2f, the map %.2f", label, (st.aheadMs or 0) / f, (st.invMs or 0) / f, (st.mapMs or 0) / f)
+		log("stress %s: the look-ahead %.2f ms a frame, re-casts %.2f, the map %.2f; strips cast after their scroll %.2f ms a frame, the view held off them %d frames (at most %d px behind the camera; %d frames more than PixelHoldMaxPx behind, %d four times that), %d shown before they were whole (the rest cast after, %.2f ms a frame)", label, (st.aheadMs or 0) / f, (st.invMs or 0) / f, (st.mapMs or 0) / f, (st.pendMs or 0) / f, st.heldFrames or 0, st.heldPx or 0, st.lagFrames or 0, st.lagFar or 0, st.releases or 0, (st.refineCastMs or 0) / f)
+		log("stress %s: the coarse passes cast %d blocks (%d rays) in %.1f ms; %d pieces queued by scrolls, %d px; strips shown before they were whole on %d frames (at most %d px of them)", label, st.coarseN or 0, st.coarseRays or 0, st.coarseMs or 0, st.pendPieces or 0, st.pendPx or 0, st.refineFrames or 0, st.refinePxMax or 0)
+		do
+			-- (how far the camera went, and the strips' pixels the scrolls copied from the pan cache or had to cast)
+			local CCm = modOr(p, "Controllers.CameraController")
+			local px, py = 0, 0
+			if CCm then
+				px, py = H.inClient(p, CCm.drawnPan)
+			end
+			local a = if PR.debugAhead then H.inClient(p, PR.debugAhead) else nil
+			local c = st.cache or {}
+			log("stress %s: the camera moved %d, %d art px; %d scrolls; the strips' pixels copied from the cache %d, cast %d; the look-ahead cast %d tiles (%d rays)", label, px - (lastPanX or px), py - (lastPanY or py), (H.inClient(p, PR.debugStatic) or {}).scrolls or 0, c.loaded or 0, c.missed or 0, a and a.tiles or 0, a and a.rays or 0)
+			lastPanX, lastPanY = px, py
+		end
+		if PR.debugFrameLog then
+			-- (the frames over 20 ms and what each spent its time on, the slowest first)
+			local list = H.inClient(p, PR.debugFrameLog, 20)
+			table.sort(list, function(a, b)
+				return (tonumber(string.match(a, "^[%d%.]+")) or 0) > (tonumber(string.match(b, "^[%d%.]+")) or 0)
+			end)
+			local slowN = 0
+			for _, line in list do
+				if string.match(line, "^0 ms: heavy") then
+					log("stress %s %s", label, string.sub(line, 7))
+				else
+					slowN += 1
+				end
+			end
+			log("stress %s: %d frames over 20 ms", label, slowN)
+			for i = 1, math.min(12, #list) do
+				if not string.match(list[i], "^0 ms: heavy") then
+					log("stress %s slow frame: %s", label, list[i])
+				end
+			end
+			local rs = E.raycastStats
+			if rs then
+				log("stress %s: the simulator's ray trees built %d times (%.0f ms)", label, rs.builds or 0, rs.buildMs or 0)
+			end
+		end
 		if PR.debugShare then
 			-- (the pixels the map of which parts reach where answered with no ray: Pixel/RayMap)
 			local sh = H.inClient(p, PR.debugShare)
-			log("stress %s: pixels with no ray: %d sky, %d from their anchors' face, against %d rays cast; the map %s, %d parts, %d chunks, %d queued", label, sh.sky, sh.shared, sh.rays, if sh.map.ready then "ready" else "not ready", sh.map.parts, sh.map.chunks, sh.map.queued)
+			log("stress %s: pixels with no ray: %d sky, %d from their anchors' face, %d worked out; %d sun rays worked out; against %d rays cast; the map %s, %d parts, %d chunks, %d queued; the sun's map %s, %d parts, %d chunks", label, sh.sky, sh.shared, sh.solved or 0, sh.suns or 0, sh.rays, if sh.map.ready then "ready" else "not ready", sh.map.parts, sh.map.chunks, sh.map.queued, if sh.sunMap and sh.sunMap.ready then "ready" else "not ready", sh.sunMap and sh.sunMap.parts or 0, sh.sunMap and sh.sunMap.chunks or 0)
 		end
 	end
 	local tally = incTally(p, PR, 20)
@@ -1031,6 +1076,9 @@ function SCEN.stress(legs: number?)
 		end
 	end
 	H.inClient(p, PR.debugPerf)
+	if PR.debugFrameLog then
+		H.inClient(p, PR.debugFrameLog, 20)
+	end
 	E.coTime = {}
 	local wall0 = realClock()
 	local frames = 0
@@ -1081,10 +1129,13 @@ function SCEN.stress(legs: number?)
 	if PR.debugClock then
 		H.inClient(p, PR.debugClock, nil)
 	end
+	if PR.debugFrameLog then
+		H.inClient(p, PR.debugFrameLog, nil)
+	end
 	return p
 end
 
--- "tabout": the window shrunk the way a minimised one can be (a title bar's strip, 1 x 1, 0 x 0), then out of
+-- "tabout"": the window shrunk the way a minimised one can be (a title bar's strip, 1 x 1, 0 x 0), then out of
 -- fullscreen to 1280 x 720, each held a while, then back; after each step the pixel layer's state (its size, baking, shown, the image's transparency) and how much of
 -- the island its picture shows (the user's report of 2026-11-21, "the island sometimes disappeared when the player
 -- tabs out")
@@ -1256,6 +1307,51 @@ end
 -- then back west over it, on the real clock at 60 frames a second; every frame's renderer split (debugPerf, read and
 -- cleared each frame), averaged over the frames whose picture scrolled and over the rest, the biggest first
 local scrollRimCheck = false
+-- castbench=<tier>: the showcase's town on an island of that tier (as scrollcost=<tier> stands in it), the whole layer
+-- cast again with and without the maps, the per-pixel steps timed apart, the hits worked out without a ray checked
+-- against the rays' own, and the layer against a fresh cast (PixelRenderer.debugCastBench, debugCastCheck).
+function SCEN.castbench(tier: number)
+	local Plot = H.sharedServer("Logic.Plot")
+	local Creatures = H.sharedServer("Data.Creatures")
+	local plan = require("./showcase")({ Plot = Plot, Buildings = H.sharedServer("Data.Buildings"), Street = H.sharedServer("Data.Street"), log = log })
+	local pals = {}
+	for k = 1, math.min(Plot.housingLimit(tier), 40) do
+		table.insert(pals, Creatures.list[(k * 7 - 1) % #Creatures.list + 1].id)
+	end
+	seedProfile(60 + tier, tier, { fill = plan, pals = pals, shells = 9e9 })
+	local p = join(60 + tier, "Wren")
+	settle(p, 90, 2)
+	E.run(3)
+	local ox = H.sharedServer("Data.Street").origin(H.session(p).plot)
+	p.Character:PivotTo(E.cf.new(ox - 20, 3, 24))
+	E.run(2)
+	settle(p, 60, 1)
+	E.run(1)
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	if PR == nil or PR.debugCastBench == nil then
+		return p
+	end
+	-- (the bench's timings on the real clock, as scrollcost's)
+	local realClock = os.clock
+	local off = E.SIM.lastClock - realClock() + 1
+	local sim0 = E.simClock
+	E.simClock = function()
+		local v = realClock() + off
+		E.SIM.lastClock = v
+		return v
+	end
+	local sh = H.inClient(p, PR.debugShare)
+	log("castbench: the map %s (%d parts), the sun's map %s (%d parts)", if sh.map.ready then "ready" else "not ready", sh.map.parts, if sh.sunMap and sh.sunMap.ready then "ready" else "not ready", sh.sunMap and sh.sunMap.parts or 0)
+	local b = H.inClient(p, PR.debugCastBench, 2)
+	log("castbench: the whole layer cast again: %.1f ms with a ray for every pixel (%d rays), %.1f ms with the maps (%d rays; %d px sky, %d px from their anchors, %d px worked out without a ray)", b.plainMs, b.plainRays, b.mapMs, b.mapRays, b.sky, b.shared, b.solved or 0)
+	log("castbench: a pass with the maps timed apart: %.1f ms in the ray calls (%d pixel rays), %.1f ms besides (%s)", b.rayMs or 0, b.castCalls or 0, b.restMs or 0, b.split or "")
+	log("castbench: checked against the rays: %s", b.probe or "")
+	local cc = H.inClient(p, PR.debugCastCheck)
+	log("castbench: the layer against a fresh cast: %d px off of %d (ids %d, sun %d, shade %d, ties %d) %s", cc.off, cc.checked, cc.ids, cc.lits, cc.shades, cc.ties or 0, cc.ex or "")
+	E.simClock = sim0
+	return p
+end
+
 function SCEN.scrollcost(tier: number?)
 	local p
 	if tier then
@@ -1362,12 +1458,12 @@ function SCEN.scrollcost(tier: number?)
 		if PR.debugShare then
 			-- (the pixels the map of which parts reach where answered with no ray: Pixel/RayMap; rays cast meanwhile)
 			local sh = H.inClient(p, PR.debugShare)
-			log("scrollcost %s: pixels with no ray: %d sky, %d from their anchors' face, against %d rays cast; the map %s, %d parts, %d chunks, %d queued", label, sh.sky, sh.shared, sh.rays, if sh.map.ready then "ready" else "not ready", sh.map.parts, sh.map.chunks, sh.map.queued)
+			log("scrollcost %s: pixels with no ray: %d sky, %d from their anchors' face, %d worked out; %d sun rays worked out; against %d rays cast; the map %s, %d parts, %d chunks, %d queued; the sun's map %s, %d parts, %d chunks", label, sh.sky, sh.shared, sh.solved or 0, sh.suns or 0, sh.rays, if sh.map.ready then "ready" else "not ready", sh.map.parts, sh.map.chunks, sh.map.queued, if sh.sunMap and sh.sunMap.ready then "ready" else "not ready", sh.sunMap and sh.sunMap.parts or 0, sh.sunMap and sh.sunMap.chunks or 0)
 		end
 		if PR.debugCastBench then
 			-- (the whole layer cast both ways, alternately, in the same state: every pixel its own ray, then with the map)
 			local b = H.inClient(p, PR.debugCastBench, 3)
-			log("scrollcost %s: the whole layer cast again: %.1f ms with a ray for every pixel (%d rays), %.1f ms with the map (%d rays; %d px sky, %d px from their anchors)", label, b.plainMs, b.plainRays, b.mapMs, b.mapRays, b.sky, b.shared)
+			log("scrollcost %s: the whole layer cast again: %.1f ms with a ray for every pixel (%d rays), %.1f ms with the map (%d rays; %d px sky, %d px from their anchors, %d px worked out without a ray); of a pass with the map %.1f ms in the ray calls (%d pixel rays), %.1f ms besides (%s)", label, b.plainMs, b.plainRays, b.mapMs, b.mapRays, b.sky, b.shared, b.solved or 0, b.rayMs or 0, b.castCalls or 0, b.restMs or 0, b.split or "")
 		end
 		if PR.debugCastCheck then
 			-- (the layer against every pixel's own ray)
@@ -6769,6 +6865,13 @@ for _, name in list do
 	if palswArg then
 		fn = function()
 			return palsScenario(palswArg, "world")
+		end
+	end
+	-- (castbench=<tier>: the whole layer cast again both ways on a decorated island of that tier, timed and checked)
+	local cbArg = string.match(name, "^castbench=(%d+)$")
+	if cbArg then
+		fn = function()
+			return SCEN.castbench(tonumber(cbArg) :: number)
 		end
 	end
 	-- (scrollcost=<tier>: the scroll timings walking across a decorated island of that tier)

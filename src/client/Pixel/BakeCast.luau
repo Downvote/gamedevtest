@@ -39,6 +39,10 @@ BakeCast.SHADOW_OFF = 0
 BakeCast.SHADOW_TEST = 1
 BakeCast.SHADOW_DEFER = 2
 
+-- The last hit cast() returned (its result and its exact normal), for a caller that tests the sun itself.
+BakeCast.lastRes = nil :: RaycastResult?
+BakeCast.lastN = Vector3.zero
+
 local MAX_HOPS = BakeCast.MAX_HOPS
 local CLEAR_MIN = BakeCast.CLEAR_MIN
 local INVISIBLE = BakeCast.INVISIBLE
@@ -167,6 +171,7 @@ function BakeCast.cast(
 	end
 	local r = res :: RaycastResult
 	local n = r.Normal
+	BakeCast.lastRes, BakeCast.lastN = r, n -- (for a caller testing the sun its own way: SHADOW_DEFER)
 	local ni = Shading.normalIndex(n.X, n.Y, n.Z)
 	local lit = 1
 	local face = false

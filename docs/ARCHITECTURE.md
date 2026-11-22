@@ -310,11 +310,11 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
-  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (14: art px of picture kept past each screen edge; 12 until 2026-11-21) and
-  `PixelPanEdge` (4: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21), `PixelPanLate`
+  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (24: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22) and
+  `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
   (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
   Pans), `PixelPanCacheTiles` (768: the pan cache's tiles at most, 0 off),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (8: ms a tick of
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelCatchUpPx` (1) and `PixelCatchUpShare` (0.2: the window catching up after the strips held it), `PixelHoldMaxPx` (24: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
   drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
@@ -1484,15 +1484,15 @@ layer px), `debugShadowCheck() -> { high, darkened, ground, shadows }` (the blob
 those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **The window** (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it smooth and lerp
-  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (14; 12 until 2026-11-21) all round (`marginOf`, on a
+  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (24; 12 until 2026-11-21, 14 until 2026-11-22) all round (`marginOf`, on a
   stage too, so the island's kept picture and a stage's are one size and the stash comes back; `layerCam(v, gx, gy,
   K)`: the grid camera of a layer whose top-left is global art px (gx, gy), the full size given half a pixel short of
   the whole count so `Raster.cam`'s ceil adds none). `Surf.m` is the margin, `vw`, `vh` the screen's size and `ox`,
   `oy` where the screen stands in the layer (`showWindow(s)`, every step: `CameraController.pan()` less the layer's
   top-left, clamped to the picture), shown through the image's `ImageRectOffset` / `ImageRectSize` (the label stays the
   screen's size at 0, 0; an Offset is whole units, a pixel 2.4 at 125%). The layer scrolls only once the window comes
-  within `Tuning.PixelPanEdge` (4; 2 until 2026-11-21: the step leaves a gap between the screen and the strips coming in, which can then wait a frame, Pans) of its edge, re-centred under it (`scrollToward(s, pan - m)`, at most
-  `PixelPanRays` a frame as before), so a walk shifts, composes and uploads the whole picture once every 3 to 4 frames,
+  within `Tuning.PixelPanEdge` (18; 2 until 2026-11-21, 4 until 2026-11-22: the step leaves a gap between the screen and the strips coming in, which they are cast in before the view reaches them, Pans; at 4 of 14 the view was on them a frame after the scroll) of its edge, re-centred under it (`scrollToward(s, pan - m)`, at most
+  `PixelPanRays` a frame as before), so a walk shifts, composes and uploads the whole picture once every 2 to 4 frames,
   not every frame; between, nothing but the window moves (and the moving models, composed incrementally). `project`
   gives screen px (`(layer px - ox) * K`), so `projectPixel` and the World canvas are unchanged; `screenRay` adds the
   window back, `nearScreen` tests the screen, not the layer; `debugStatic()` gives `px, py` as the pan the screen shows
@@ -1614,6 +1614,62 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   queued, ready } }` (since the last call) and `debugCastBench(reps) -> { plainMs, mapMs, plainRays, mapRays, sky,
   shared }` (the whole layer cast each way, alternately, the layer put back). The `scrollcost` preview logs both and
   the cast check after each leg; `scrollcost=<tier>` walks the showcase's town on an island of that tier.
+- **The solver and the sun's map** (the requests of 2026-11-22, "can you optimize further?" and "optimize it to the max,
+  ms at all times should not go above 20ms even at the highest stress tests"). `RayMap.new(marginFlat, marginRound)`
+  makes a map of its own; `RayMap.at` also returns how near the block's nearest part comes (`d1`); `map.onAdd(p)` is
+  called with each part the map takes in. `SG.Map` is the camera's (0.1, 0.5), `SG.SunMap` the same island seen along
+  the sun (`CFrame.lookAt(0, -sun)`, `Tuning.PixelSunMapQ` px a stud, margins 0.6 so a block covers every point in
+  it; its window the lot's box as the sun sees it; built after the camera's map in the same time a frame). Every part
+  has its shape worked out once (`SG.geomOf`: centre, axes, half sizes, kind 1 block, 2 ball, 3 cylinder along X,
+  4 wedge with its slope facing front and up, 0 not worked out; whether the rays meet it; its Transparency), built as
+  the camera's map takes it in and forgotten when it goes or is hidden. `SG.rayShape(g, origin, dir)` is where a ray
+  enters it (nil and false: a miss; nil and true: so near an edge, a rim or a silhouette that a ray's own rounding
+  could say otherwise). `SG.solve(s, gx, gy, p1, p2, near2, near3)` works a pixel's hit out without a ray when the
+  ray enters one of the block's two parts first, opaque, with the third part no nearer, or misses both with no
+  third (the sky); `castPx` tries it before `SG.shareAt` and hands the hit to `castSample(..., given = true)`, which
+  casts only its sun ray. `SG.sunAt(own, point, normal)` answers a sun ray from the sun's map: every point of the ray
+  falls in one block; the point's own part never shades its own face (a convex shape); a part nearer the sun than
+  the ray's start whose shape the ray enters within `BakeCast.SHADOW_RAY` shades it (0); none, with no third part
+  nearer, leaves it lit (1); nil leaves it to the ray. `castSample` tests the sun itself (`SHADOW_DEFER` to
+  `BakeCast.cast`, which now leaves its last result and exact normal in `BakeCast.lastRes`, `lastN`), the map first,
+  from the hit's own position. The next tier's pre-cast casts with `SG.noShare` set: its world is not the maps'.
+  `PixelRenderer.debugCastBench` also times a pass's ray calls apart (`rayMs`, `restMs`, `split`) and checks every hit
+  and sun worked out without a ray against the ray's own (`probe`); `debugShare` counts `solved` and `suns`.
+- **The frame's deadline** (the same request). `frameStep` sets `SG.frameEnd` (`Tuning.PixelFrameMs` on) and
+  `SG.castEnd`, what the casting that can wait may take: the frame's time less what the compose and the rest of a frame
+  of its kind took lately (`SG.estTick`, `SG.estLite`, from each frame's time less `SG.castSpent`), at least
+  `PixelMinCastMs`. A scroll on an island's layer (it has a margin and composes incrementally) shifts the picture by
+  whole 2x2 blocks (the layer's size and pan are even) and queues the pieces the pan cache does not hold
+  (`SG.pend`); `SG.pendStep(s, deadline)` casts them, the anchors first, each filling its 2x2 block, then the rest.
+  `SG.viewPan(s)` is the window's pan for the frame: the camera's (`CameraController.drawnPan`), never the layer's
+  outer 3 px, held 3 px clear of strips not finished, catching up after by its own move and `PixelCatchUpPx` or
+  `PixelCatchUpShare` of the gap; no scroll while pieces are queued. Once the window is more than `PixelHoldMaxPx`
+  behind the camera (`SG.vpLag`), what is left of the strips is cast in full at once, so every pixel shown is a whole
+  one and the window falls no further behind. With `Tuning.PixelCoarseLead` (off: in the densest walk the coarse
+  blocks stayed on screen for most of it, against the rule on pixel art), the strips are shown before they are whole
+  instead: when their anchors are cast and the view waits on them, `SG.release` shows them as they stand (finished
+  without their shadow edges) and the rest of their pixels go into `SG.refine`, cast after (`SG.refineStep`) and
+  finished again, the effects and the pan cache leaving them alone meanwhile (`Fx.Ctx.wait`, `SG.pendingOver`); past
+  `PixelHoldMaxPx` they get a coarse pass first (`pend.phase` 0, `pend.c4`: one pixel cast a 4x4 block, filling it,
+  released after, `SG.refine` casting them again from their 2x2 anchors, `pass` 1, to the rest, `pass` 2), within
+  the frame's deadline, at least `PixelCoarseMs` past twice `PixelHoldMaxPx` and all it takes past four times.
+  `SG.finishStep(s, deadline)` finishes strips a band of `FIN_ROWS` at a time (`SG.finishStrips` all at once where it
+  must). The look-ahead takes all of `castEnd`.
+- **The compose's budget** (the same request). `SG.budgetPlan` moves the models that changed on a tick within
+  `Tuning.PixelComposeMs` (in pixels redone, at `SG.usPerPx`, what a pixel cost lately): the founders always, then
+  those that waited longest (`Dyn.updAt`), the nearest the screen's middle first; the rest show what they showed where
+  they showed it. A model is drawn afresh only if what it took last time, or what one of its name took
+  (`SG.drawByName`; for a kind never drawn, its parts at `SG.firstPerPart`, which follows the first draws made from
+  `PixelFirstPartMs` up), fits the tick's `PixelDynMs` (a model with no picture at all: the frame's time, short of
+  `PixelComposeMs`); a costlier one is drawn over a few frames (`SG.jobStart`: its parts
+  at once into a scratch frame of its own, `SG.jobIso`, its blended body through `Raster.blendJob`; `SG.jobStep` on at
+  least `PixelJobMs` a frame, then `SG.takePic` takes its picture, and what it took in all goes into the estimates
+  as a draw's would), one at a time. `SG.blitOk` does not look at the
+  parts of a model already known to wait for a draw (`Dyn.wantAt`) or posed in a pose with no picture yet, and looks at
+  the rest a share a tick when looking takes more than `PixelSameMs` (`SG.sameEvery`, `Dyn.sameSeq`), and none past
+  `PixelSameMs` in one tick (they keep their pictures a tick longer). A pose's picture
+  standing for a model no longer reads every part (its `cfs`, `szs`, `gone` are nil).
+  `PixelRenderer.debugFrameLog(over)` writes down every frame slower than `over` ms with the perf counters it moved.
 - **The next tier, cast ahead** (`PC`, the request of 2026-11-20: "Is there a way to make island expansion seamless,
   with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?").
   The player's next island stands staged in the world (PlotService: `workspace.Staged.Plot_<i>`, collision groups

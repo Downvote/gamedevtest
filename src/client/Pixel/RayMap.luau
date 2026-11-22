@@ -24,29 +24,35 @@
 -- island at the default View. A part that comes adds itself to the blocks it reaches; one that goes leaves the chunks it reached
 -- to be worked out again from the parts still listed there (its outline worked out once more: a static part does not
 -- move), and the map is not ready meanwhile, so it answers nothing.
---   RayMap.watch(root)                   follow the parts under root (workspace.Plots) as they come and go
---   RayMap.setView(rot12, q, phX, phY, l0, x0, y0, x1, y1)  the grid (Raster.gridPoint's), the ray plane (the depth
+--   RayMap.new(marginFlat, marginRound)  a map of its own (the camera's, the sun's), with the API below
+--   map.watch(root)                      follow the parts under root (workspace.Plots) as they come and go
+--   map.setView(rot12, q, phX, phY, l0, x0, y0, x1, y1)  the grid (Raster.gridPoint's), the ray plane (the depth
 --                                        of a point is its distance along the view past l0) and the window (global art
 --                                        px, inclusive) to keep; a change starts the map again
---   RayMap.step(deadline, clock): boolean  work until clock() passes the deadline; true when anything was done
---   RayMap.ready(): boolean              whether every part is in for the current view
---   RayMap.at(gx, gy): (p1, p2, d2, d3, flat1, flat2)  for the block holding global px (gx, gy): its nearest part p1
+--   map.step(deadline, clock): boolean  work until clock() passes the deadline; true when anything was done
+--   map.ready(): boolean              whether every part is in for the current view
+--   map.at(gx, gy): (p1, p2, d2, d3, flat1, flat2, d1)  for the block holding global px (gx, gy): its nearest part p1
 --                                        (false when no part reaches it, the sky; nil when nothing can be said: outside
 --                                        the window, the map not ready), the next nearest p2 (nil: none), how near p2
 --                                        and the third come (studs; math.huge when there is none), and whether p1 and
 --                                        p2 have flat faces (a block or a wedge, not part of a model lit smooth:
---                                        Pixel/SmoothParts)
---   RayMap.debugState()                  parts, chunks, queued, ready
+--                                        Pixel/SmoothParts), and how near p1 comes
+--   map.debugState()                  parts, chunks, queued, ready
 local SmoothParts = require(script.Parent.SmoothParts)
 
 local RayMap = {}
 
+export type Map = {
+	onAdd: ((p: BasePart) -> any)?, -- (called with each part the map takes in)
+	watch: (r: Instance) -> (),
+	setView: (rot12: { number }, q: number, phX: number, phY: number, l0: number, x0: number, y0: number, x1: number, y1: number) -> (),
+	step: (deadline: number, clock: () -> number) -> boolean,
+	ready: () -> boolean,
+	at: (gx: number, gy: number) -> (BasePart | false | nil, BasePart?, number, number, boolean, boolean, number),
+	debugState: () -> { parts: number, chunks: number, queued: number, ready: boolean },
+}
+
 local CB = 32 -- blocks along a chunk's side (64 art px)
--- art px an outline grows by: a block's or a wedge's edge is where Roblox's ray meets it to a few thousandths of a
--- pixel; a round part's single-precision test can stray a hair past its edge (Pixel/BakeCast)
-local MARGIN_FLAT = 0.1
-local MARGIN_ROUND = 0.5
-local MARGIN = MARGIN_ROUND
 local NEAR_EPS = 0.02 -- studs taken off how near a part comes (the rays' rounding)
 local DQ = 32 -- depth steps a stud
 local NONE = 65535
@@ -60,22 +66,6 @@ type Chunk = {
 	parts: { BasePart }, -- the parts that reach the chunk
 	flat: { boolean }, -- whether each has flat faces
 }
-
-local chunks: { [number]: Chunk } = {}
-local chunkN = 0
-local dirty: { [number]: boolean } = {}
-local dirtyN = 0
-local partN = 0
-local addQ: { BasePart } = {}
-local addSet: { [BasePart]: boolean } = {}
-local remQ: { BasePart } = {}
-local remSet: { [BasePart]: boolean } = {}
-local addHead, remHead = 1, 1
-local root: Instance? = nil
-local rot: { number }? = nil
-local gq, gphX, gphY, gl0 = 1, 0, 0, 0
-local wx0, wy0, wx1, wy1 = 0, 0, -1, -1 -- the window in blocks (inclusive)
-local viewKey = ""
 
 -- The zonogon (the outline of a box's three axes added up) round centre (cx, cy) with the half axes (ax, ay), (bx, by),
 -- (ex, ey), into xs, ys: its six corners counter-clockwise.
@@ -138,345 +128,386 @@ local function slab(xs: { number }, ys: { number }, ya: number, yb: number): (nu
 	return xa, xb
 end
 
--- (the outline on the grid, x and y; the box against the screen's rows, depth and y)
-local hx: { number } = table.create(6, 0)
-local hy: { number } = table.create(6, 0)
-local dx: { number } = table.create(6, 0)
-local dy: { number } = table.create(6, 0)
+-- A map of its own: an outline grows by marginFlat art px for a block or a wedge and marginRound for any other shape
+-- (the camera's map: a block's or a wedge's edge is where Roblox's ray meets it to a few thousandths of a pixel, a round
+-- part's single-precision test can stray a hair past its edge, Pixel/BakeCast; the sun's map: half a block and more,
+-- since its rays start anywhere in a block, not at a pixel's centre).
+function RayMap.new(marginFlat: number, marginRound: number): Map
+	local MARGIN_FLAT, MARGIN_ROUND = marginFlat, marginRound
+	local MARGIN = MARGIN_ROUND
+	local M = {}
+	local chunks: { [number]: Chunk } = {}
+	local chunkN = 0
+	local dirty: { [number]: boolean } = {}
+	local dirtyN = 0
+	local partN = 0
+	local addQ: { BasePart } = {}
+	local addSet: { [BasePart]: boolean } = {}
+	local remQ: { BasePart } = {}
+	local remSet: { [BasePart]: boolean } = {}
+	local addHead, remHead = 1, 1
+	local root: Instance? = nil
+	local rot: { number }? = nil
+	local gq, gphX, gphY, gl0 = 1, 0, 0, 0
+	local wx0, wy0, wx1, wy1 = 0, 0, -1, -1 -- the window in blocks (inclusive)
+	local viewKey = ""
 
--- Part p's outline into hx, hy and its depth by row into dx (depth), dy (row), grown by `margin` (MARGIN, for rowOf);
--- the block rows r0 .. r1 it reaches in the window (r0 > r1: none).
-local function outline(p: BasePart, margin: number): (number, number)
-	MARGIN = margin
-	local R = rot :: { number }
-	local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
-	local size = p.Size
-	local a4, a7, a10 = R[4] * gq, R[7] * gq, R[10] * gq
-	local b5, b8, b11 = -R[5] * gq, -R[8] * gq, -R[11] * gq
-	local l6, l9, l12 = -R[6], -R[9], -R[12]
-	local cx = gphX + x * a4 + y * a7 + z * a10
-	local cy = gphY + x * b5 + y * b8 + z * b11
-	local cd = x * l6 + y * l9 + z * l12 - gl0
-	local sx, sy, sz = size.X / 2, size.Y / 2, size.Z / 2
-	-- the box's half axes: on the grid, and in depth
-	local ux, uy, ud = (r00 * a4 + r10 * a7 + r20 * a10) * sx, (r00 * b5 + r10 * b8 + r20 * b11) * sx, (r00 * l6 + r10 * l9 + r20 * l12) * sx
-	local vx, vy, vd = (r01 * a4 + r11 * a7 + r21 * a10) * sy, (r01 * b5 + r11 * b8 + r21 * b11) * sy, (r01 * l6 + r11 * l9 + r21 * l12) * sy
-	local wx, wy, wd = (r02 * a4 + r12 * a7 + r22 * a10) * sz, (r02 * b5 + r12 * b8 + r22 * b11) * sz, (r02 * l6 + r12 * l9 + r22 * l12) * sz
-	zono(hx, hy, cx, cy, ux, uy, vx, vy, wx, wy)
-	zono(dx, dy, cd, cy, ud, uy, vd, vy, wd, wy)
-	local ex = math.abs(ux) + math.abs(vx) + math.abs(wx)
-	local ey = math.abs(uy) + math.abs(vy) + math.abs(wy)
-	if math.floor((cx + ex + MARGIN - 0.5) / 2) < wx0 or math.ceil((cx - ex - MARGIN - 1.5) / 2) > wx1 then
-		return 1, 0
+	-- (the outline on the grid, x and y; the box against the screen's rows, depth and y)
+	local hx: { number } = table.create(6, 0)
+	local hy: { number } = table.create(6, 0)
+	local dx: { number } = table.create(6, 0)
+	local dy: { number } = table.create(6, 0)
+
+	-- Part p's outline into hx, hy and its depth by row into dx (depth), dy (row), grown by `margin` (MARGIN, for rowOf);
+	-- the block rows r0 .. r1 it reaches in the window (r0 > r1: none).
+	local function outline(p: BasePart, margin: number): (number, number)
+		MARGIN = margin
+		local R = rot :: { number }
+		local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
+		local size = p.Size
+		local a4, a7, a10 = R[4] * gq, R[7] * gq, R[10] * gq
+		local b5, b8, b11 = -R[5] * gq, -R[8] * gq, -R[11] * gq
+		local l6, l9, l12 = -R[6], -R[9], -R[12]
+		local cx = gphX + x * a4 + y * a7 + z * a10
+		local cy = gphY + x * b5 + y * b8 + z * b11
+		local cd = x * l6 + y * l9 + z * l12 - gl0
+		local sx, sy, sz = size.X / 2, size.Y / 2, size.Z / 2
+		-- the box's half axes: on the grid, and in depth
+		local ux, uy, ud = (r00 * a4 + r10 * a7 + r20 * a10) * sx, (r00 * b5 + r10 * b8 + r20 * b11) * sx, (r00 * l6 + r10 * l9 + r20 * l12) * sx
+		local vx, vy, vd = (r01 * a4 + r11 * a7 + r21 * a10) * sy, (r01 * b5 + r11 * b8 + r21 * b11) * sy, (r01 * l6 + r11 * l9 + r21 * l12) * sy
+		local wx, wy, wd = (r02 * a4 + r12 * a7 + r22 * a10) * sz, (r02 * b5 + r12 * b8 + r22 * b11) * sz, (r02 * l6 + r12 * l9 + r22 * l12) * sz
+		zono(hx, hy, cx, cy, ux, uy, vx, vy, wx, wy)
+		zono(dx, dy, cd, cy, ud, uy, vd, vy, wd, wy)
+		local ex = math.abs(ux) + math.abs(vx) + math.abs(wx)
+		local ey = math.abs(uy) + math.abs(vy) + math.abs(wy)
+		if math.floor((cx + ex + MARGIN - 0.5) / 2) < wx0 or math.ceil((cx - ex - MARGIN - 1.5) / 2) > wx1 then
+			return 1, 0
+		end
+		-- (block row r: centres at 2r + 0.5 and 2r + 1.5)
+		return math.max(wy0, math.ceil((cy - ey - MARGIN - 1.5) / 2)), math.min(wy1, math.floor((cy + ey + MARGIN - 0.5) / 2))
 	end
-	-- (block row r: centres at 2r + 0.5 and 2r + 1.5)
-	return math.max(wy0, math.ceil((cy - ey - MARGIN - 1.5) / 2)), math.min(wy1, math.floor((cy + ey + MARGIN - 0.5) / 2))
-end
 
--- The block columns the outline reaches in block row r (c0 > c1: none) and how near the box comes there (1/32 studs).
-local function rowOf(r: number): (number, number, number)
-	local ya, yb = 2 * r + 0.5 - MARGIN, 2 * r + 1.5 + MARGIN
-	local xa, xb = slab(hx, hy, ya, yb)
-	local c0 = math.max(wx0, math.ceil((xa - MARGIN - 1.5) / 2))
-	local c1 = math.min(wx1, math.floor((xb + MARGIN - 0.5) / 2))
-	if c0 > c1 then
-		return 1, 0, 0
+	-- The block columns the outline reaches in block row r (c0 > c1: none) and how near the box comes there (1/32 studs).
+	local function rowOf(r: number): (number, number, number)
+		local ya, yb = 2 * r + 0.5 - MARGIN, 2 * r + 1.5 + MARGIN
+		local xa, xb = slab(hx, hy, ya, yb)
+		local c0 = math.max(wx0, math.ceil((xa - MARGIN - 1.5) / 2))
+		local c1 = math.min(wx1, math.floor((xb + MARGIN - 0.5) / 2))
+		if c0 > c1 then
+			return 1, 0, 0
+		end
+		local dmin = slab(dx, dy, ya, yb)
+		return c0, c1, math.clamp(math.floor((dmin - NEAR_EPS) * DQ), 0, NONE - 1)
 	end
-	local dmin = slab(dx, dy, ya, yb)
-	return c0, c1, math.clamp(math.floor((dmin - NEAR_EPS) * DQ), 0, NONE - 1)
-end
 
-local function chunkAt(ck: number): Chunk
-	local c = chunks[ck]
-	if c then
-		return c
+	local function chunkAt(ck: number): Chunk
+		local c = chunks[ck]
+		if c then
+			return c
+		end
+		local d1, d2, d3 = buffer.create(CB * CB * 2), buffer.create(CB * CB * 2), buffer.create(CB * CB * 2)
+		buffer.fill(d1, 0, 255)
+		buffer.fill(d2, 0, 255)
+		buffer.fill(d3, 0, 255)
+		local nc: Chunk = { k = buffer.create(CB * CB * 2), k2 = buffer.create(CB * CB * 2), d1 = d1, d2 = d2, d3 = d3, parts = {}, flat = {} }
+		chunks[ck] = nc
+		chunkN += 1
+		return nc
 	end
-	local d1, d2, d3 = buffer.create(CB * CB * 2), buffer.create(CB * CB * 2), buffer.create(CB * CB * 2)
-	buffer.fill(d1, 0, 255)
-	buffer.fill(d2, 0, 255)
-	buffer.fill(d3, 0, 255)
-	local nc: Chunk = { k = buffer.create(CB * CB * 2), k2 = buffer.create(CB * CB * 2), d1 = d1, d2 = d2, d3 = d3, parts = {}, flat = {} }
-	chunks[ck] = nc
-	chunkN += 1
-	return nc
-end
 
--- Put the part at place k of chunk c into the chunk's blocks of row r, columns c0 .. c1 (the chunk at block (bx0, by0)).
-local function put(c: Chunk, k: number, near: number, r: number, c0: number, c1: number, bx0: number, by0: number)
-	local kb, kb2, b1, b2, b3 = c.k, c.k2, c.d1, c.d2, c.d3
-	local base = (r - by0) * CB - bx0
-	for col = c0, c1 do
-		local i = (base + col) * 2
-		local o1 = buffer.readu16(b1, i)
-		if near < o1 then
-			buffer.writeu16(b3, i, buffer.readu16(b2, i))
-			buffer.writeu16(b2, i, o1)
-			buffer.writeu16(kb2, i, buffer.readu16(kb, i))
-			buffer.writeu16(b1, i, near)
-			buffer.writeu16(kb, i, k)
-		else
-			local o2 = buffer.readu16(b2, i)
-			if near < o2 then
-				buffer.writeu16(b3, i, o2)
-				buffer.writeu16(b2, i, near)
-				buffer.writeu16(kb2, i, k)
-			elseif near < buffer.readu16(b3, i) then
-				buffer.writeu16(b3, i, near)
+	-- Put the part at place k of chunk c into the chunk's blocks of row r, columns c0 .. c1 (the chunk at block (bx0, by0)).
+	local function put(c: Chunk, k: number, near: number, r: number, c0: number, c1: number, bx0: number, by0: number)
+		local kb, kb2, b1, b2, b3 = c.k, c.k2, c.d1, c.d2, c.d3
+		local base = (r - by0) * CB - bx0
+		for col = c0, c1 do
+			local i = (base + col) * 2
+			local o1 = buffer.readu16(b1, i)
+			if near < o1 then
+				buffer.writeu16(b3, i, buffer.readu16(b2, i))
+				buffer.writeu16(b2, i, o1)
+				buffer.writeu16(kb2, i, buffer.readu16(kb, i))
+				buffer.writeu16(b1, i, near)
+				buffer.writeu16(kb, i, k)
+			else
+				local o2 = buffer.readu16(b2, i)
+				if near < o2 then
+					buffer.writeu16(b3, i, o2)
+					buffer.writeu16(b2, i, near)
+					buffer.writeu16(kb2, i, k)
+				elseif near < buffer.readu16(b3, i) then
+					buffer.writeu16(b3, i, near)
+				end
 			end
 		end
 	end
-end
 
--- (a block or a wedge: no two faces a ray can see share a normal index (Render/Shading.normalIndex), they stand at
--- least a right angle apart. Not a corner wedge: its two slopes can be nearly level and meet in a ridge.)
-local function isFlat(p: BasePart): boolean
-	local shaped = p:IsA("WedgePart") or (p:IsA("Part") and (p :: Part).Shape == Enum.PartType.Block)
-	return shaped and SmoothParts.model(p) == nil
-end
-
-local function counts(p: BasePart): boolean
-	local g = p.CollisionGroup
-	return g ~= "Bounds" and g ~= "StagedBounds"
-end
-
--- Add part p to every block it reaches (listed in each chunk it reaches).
-local function add(p: BasePart)
-	if not counts(p) then
-		return
+	-- (a block or a wedge: no two faces a ray can see share a normal index (Render/Shading.normalIndex), they stand at
+	-- least a right angle apart. Not a corner wedge: its two slopes can be nearly level and meet in a ridge.)
+	local function isFlat(p: BasePart): boolean
+		local shaped = p:IsA("WedgePart") or (p:IsA("Part") and (p :: Part).Shape == Enum.PartType.Block)
+		return shaped and SmoothParts.model(p) == nil
 	end
-	local flat = isFlat(p)
-	local r0, r1 = outline(p, if flat then MARGIN_FLAT else MARGIN_ROUND)
-	local placed: { [number]: number } = {} -- chunk -> the part's place in its list
-	for r = r0, r1 do
-		local c0, c1, near = rowOf(r)
-		local cy = r // CB
-		local col = c0
-		while col <= c1 do
-			local cx = col // CB
-			local ce = math.min(c1, cx * CB + CB - 1)
-			local ck = (cx + 32768) * 65536 + (cy + 32768)
-			local c = chunkAt(ck)
-			local k = placed[ck]
-			if k == nil then
-				table.insert(c.parts, p)
-				k = #c.parts
-				c.flat[k :: number] = flat
-				placed[ck] = k :: number
-			end
-			put(c, k :: number, near, r, col, ce, cx * CB, cy * CB)
-			col = ce + 1
+
+	local function counts(p: BasePart): boolean
+		local g = p.CollisionGroup
+		return g ~= "Bounds" and g ~= "StagedBounds"
+	end
+
+	-- Add part p to every block it reaches (listed in each chunk it reaches).
+	local function add(p: BasePart)
+		if not counts(p) then
+			return
 		end
-	end
-	if next(placed) then
-		partN += 1
-	end
-end
-
--- Take part p off the map: the chunks it was listed in are worked out again (RayMap.step).
-local function remove(p: BasePart)
-	if not counts(p) then
-		return
-	end
-	-- (looked for in every chunk the wider outline reaches: a part that left its model may no longer read as it did)
-	local r0, r1 = outline(p, MARGIN_ROUND)
-	local found = false
-	local seen: { [number]: boolean } = {}
-	for r = r0, r1 do
-		local c0, c1 = rowOf(r)
-		if c0 <= c1 then
+		local hook = (M :: any).onAdd
+		if hook then
+			hook(p)
+		end
+		local flat = isFlat(p)
+		local r0, r1 = outline(p, if flat then MARGIN_FLAT else MARGIN_ROUND)
+		local placed: { [number]: number } = {} -- chunk -> the part's place in its list
+		for r = r0, r1 do
+			local c0, c1, near = rowOf(r)
 			local cy = r // CB
-			for cx = c0 // CB, c1 // CB do
+			local col = c0
+			while col <= c1 do
+				local cx = col // CB
+				local ce = math.min(c1, cx * CB + CB - 1)
 				local ck = (cx + 32768) * 65536 + (cy + 32768)
-				if not seen[ck] then
-					seen[ck] = true
-					local c = chunks[ck]
-					if c then
-						local list, flats = c.parts, c.flat
-						for i = #list, 1, -1 do
-							if list[i] == p then
-								-- (the last one takes its place: the chunk is worked out again, so its blocks' places with it)
-								local n = #list
-								list[i], flats[i] = list[n], flats[n]
-								list[n] = nil :: any
-								flats[n] = nil :: any
-								found = true
-								if not dirty[ck] then
-									dirty[ck] = true
-									dirtyN += 1
+				local c = chunkAt(ck)
+				local k = placed[ck]
+				if k == nil then
+					table.insert(c.parts, p)
+					k = #c.parts
+					c.flat[k :: number] = flat
+					placed[ck] = k :: number
+				end
+				put(c, k :: number, near, r, col, ce, cx * CB, cy * CB)
+				col = ce + 1
+			end
+		end
+		if next(placed) then
+			partN += 1
+		end
+	end
+
+	-- Take part p off the map: the chunks it was listed in are worked out again (RayMap.step).
+	local function remove(p: BasePart)
+		if not counts(p) then
+			return
+		end
+		-- (looked for in every chunk the wider outline reaches: a part that left its model may no longer read as it did)
+		local r0, r1 = outline(p, MARGIN_ROUND)
+		local found = false
+		local seen: { [number]: boolean } = {}
+		for r = r0, r1 do
+			local c0, c1 = rowOf(r)
+			if c0 <= c1 then
+				local cy = r // CB
+				for cx = c0 // CB, c1 // CB do
+					local ck = (cx + 32768) * 65536 + (cy + 32768)
+					if not seen[ck] then
+						seen[ck] = true
+						local c = chunks[ck]
+						if c then
+							local list, flats = c.parts, c.flat
+							for i = #list, 1, -1 do
+								if list[i] == p then
+									-- (the last one takes its place: the chunk is worked out again, so its blocks' places with it)
+									local n = #list
+									list[i], flats[i] = list[n], flats[n]
+									list[n] = nil :: any
+									flats[n] = nil :: any
+									found = true
+									if not dirty[ck] then
+										dirty[ck] = true
+										dirtyN += 1
+									end
+									break
 								end
-								break
 							end
 						end
 					end
 				end
 			end
 		end
+		if found then
+			partN -= 1
+		end
 	end
-	if found then
-		partN -= 1
-	end
-end
 
--- Work chunk ck out again from the parts still listed in it (none: the chunk goes, all sky).
-local function redo(ck: number)
-	local c = chunks[ck]
-	if c == nil then
-		return
-	end
-	if #c.parts == 0 then
-		chunks[ck] = nil
-		chunkN -= 1
-		return
-	end
-	buffer.fill(c.k, 0, 0)
-	buffer.fill(c.k2, 0, 0)
-	buffer.fill(c.d1, 0, 255)
-	buffer.fill(c.d2, 0, 255)
-	buffer.fill(c.d3, 0, 255)
-	local cx, cy = ck // 65536 - 32768, ck % 65536 - 32768
-	local bx0, by0 = cx * CB, cy * CB
-	for k, p in c.parts do
-		local r0, r1 = outline(p, if c.flat[k] then MARGIN_FLAT else MARGIN_ROUND)
-		for r = math.max(r0, by0), math.min(r1, by0 + CB - 1) do
-			local c0, c1, near = rowOf(r)
-			c0, c1 = math.max(c0, bx0), math.min(c1, bx0 + CB - 1)
-			if c0 <= c1 then
-				put(c, k, near, r, c0, c1, bx0, by0)
+	-- Work chunk ck out again from the parts still listed in it (none: the chunk goes, all sky).
+	local function redo(ck: number)
+		local c = chunks[ck]
+		if c == nil then
+			return
+		end
+		if #c.parts == 0 then
+			chunks[ck] = nil
+			chunkN -= 1
+			return
+		end
+		buffer.fill(c.k, 0, 0)
+		buffer.fill(c.k2, 0, 0)
+		buffer.fill(c.d1, 0, 255)
+		buffer.fill(c.d2, 0, 255)
+		buffer.fill(c.d3, 0, 255)
+		local cx, cy = ck // 65536 - 32768, ck % 65536 - 32768
+		local bx0, by0 = cx * CB, cy * CB
+		for k, p in c.parts do
+			local r0, r1 = outline(p, if c.flat[k] then MARGIN_FLAT else MARGIN_ROUND)
+			for r = math.max(r0, by0), math.min(r1, by0 + CB - 1) do
+				local c0, c1, near = rowOf(r)
+				c0, c1 = math.max(c0, bx0), math.min(c1, bx0 + CB - 1)
+				if c0 <= c1 then
+					put(c, k, near, r, c0, c1, bx0, by0)
+				end
 			end
 		end
 	end
-end
 
--- Start the map again: every part under the root queued.
-local function restart()
-	table.clear(chunks)
-	chunkN = 0
-	table.clear(dirty)
-	dirtyN = 0
-	partN = 0
-	addQ, remQ = {}, {}
-	table.clear(addSet)
-	table.clear(remSet)
-	addHead, remHead = 1, 1
-	local r = root
-	if r then
-		for _, d in r:GetDescendants() do
-			if d:IsA("BasePart") then
+	-- Start the map again: every part under the root queued.
+	local function restart()
+		table.clear(chunks)
+		chunkN = 0
+		table.clear(dirty)
+		dirtyN = 0
+		partN = 0
+		addQ, remQ = {}, {}
+		table.clear(addSet)
+		table.clear(remSet)
+		addHead, remHead = 1, 1
+		local r = root
+		if r then
+			for _, d in r:GetDescendants() do
+				if d:IsA("BasePart") then
+					addSet[d] = true
+					table.insert(addQ, d)
+				end
+			end
+		end
+	end
+
+	function M.watch(r: Instance)
+		root = r
+		r.DescendantAdded:Connect(function(d: Instance)
+			if d:IsA("BasePart") and not addSet[d] then
 				addSet[d] = true
 				table.insert(addQ, d)
 			end
+		end)
+		r.DescendantRemoving:Connect(function(d: Instance)
+			if d:IsA("BasePart") and not remSet[d] then
+				remSet[d] = true
+				table.insert(remQ, d)
+			end
+		end)
+		if rot then
+			restart()
 		end
 	end
-end
 
-function RayMap.watch(r: Instance)
-	root = r
-	r.DescendantAdded:Connect(function(d: Instance)
-		if d:IsA("BasePart") and not addSet[d] then
-			addSet[d] = true
-			table.insert(addQ, d)
+	function M.setView(rot12: { number }, q: number, phX: number, phY: number, l0: number, x0: number, y0: number, x1: number, y1: number)
+		local bx0, by0 = math.floor(x0 / 2), math.floor(y0 / 2)
+		local bx1, by1 = math.floor(x1 / 2), math.floor(y1 / 2)
+		local key = string.format("%.6f|%.6f|%.6f|%.4f|%d|%d|%d|%d", q, phX, phY, l0, bx0, by0, bx1, by1)
+		if key == viewKey and rot then
+			-- (the same turn of the view, whatever table holds it: a map starts again only when it must)
+			local same = true
+			for i = 4, 12 do
+				if math.abs((rot :: { number })[i] - rot12[i]) > 1e-9 then
+					same = false
+					break
+				end
+			end
+			if same then
+				return
+			end
 		end
-	end)
-	r.DescendantRemoving:Connect(function(d: Instance)
-		if d:IsA("BasePart") and not remSet[d] then
-			remSet[d] = true
-			table.insert(remQ, d)
-		end
-	end)
-	if rot then
+		viewKey = key
+		rot = rot12
+		gq, gphX, gphY, gl0 = q, phX, phY, l0
+		wx0, wy0, wx1, wy1 = bx0, by0, bx1, by1
 		restart()
 	end
-end
 
-function RayMap.setView(rot12: { number }, q: number, phX: number, phY: number, l0: number, x0: number, y0: number, x1: number, y1: number)
-	local bx0, by0 = math.floor(x0 / 2), math.floor(y0 / 2)
-	local bx1, by1 = math.floor(x1 / 2), math.floor(y1 / 2)
-	local key = string.format("%.6f|%.6f|%.6f|%.4f|%d|%d|%d|%d", q, phX, phY, l0, bx0, by0, bx1, by1)
-	if key == viewKey and rot == rot12 then
-		return
-	end
-	viewKey = key
-	rot = rot12
-	gq, gphX, gphY, gl0 = q, phX, phY, l0
-	wx0, wy0, wx1, wy1 = bx0, by0, bx1, by1
-	restart()
-end
-
-function RayMap.step(deadline: number, clock: () -> number): boolean
-	if rot == nil or (remHead > #remQ and addHead > #addQ and dirtyN == 0) then
-		return false
-	end
-	local r = root
-	local n = 0
-	-- the parts that went first (one that went and came back is taken off, then put on again below)
-	while remHead <= #remQ do
-		n += 1
-		if n % 8 == 0 and clock() > deadline then
-			return true
+	function M.step(deadline: number, clock: () -> number): boolean
+		if rot == nil or (remHead > #remQ and addHead > #addQ and dirtyN == 0) then
+			return false
 		end
-		local p = remQ[remHead]
-		remQ[remHead] = nil :: any
-		remHead += 1
-		remSet[p] = nil
-		remove(p)
-	end
-	remQ, remHead = {}, 1
-	while addHead <= #addQ do
-		n += 1
-		if n % 8 == 0 and clock() > deadline then
-			return true
+		local r = root
+		local n = 0
+		-- the parts that went first (one that went and came back is taken off, then put on again below)
+		while remHead <= #remQ do
+			n += 1
+			if n % 8 == 0 and clock() > deadline then
+				return true
+			end
+			local p = remQ[remHead]
+			remQ[remHead] = nil :: any
+			remHead += 1
+			remSet[p] = nil
+			remove(p)
 		end
-		local p = addQ[addHead]
-		addQ[addHead] = nil :: any
-		addHead += 1
-		addSet[p] = nil
-		if r and p:IsDescendantOf(r) then
-			add(p)
+		remQ, remHead = {}, 1
+		while addHead <= #addQ do
+			n += 1
+			if n % 8 == 0 and clock() > deadline then
+				return true
+			end
+			local p = addQ[addHead]
+			addQ[addHead] = nil :: any
+			addHead += 1
+			addSet[p] = nil
+			if r and p:IsDescendantOf(r) then
+				add(p)
+			end
 		end
-	end
-	addQ, addHead = {}, 1
-	-- (the chunks the parts that went had reached, worked out again)
-	for ck in dirty do
-		if clock() > deadline then
-			return true
+		addQ, addHead = {}, 1
+		-- (the chunks the parts that went had reached, worked out again)
+		for ck in dirty do
+			if clock() > deadline then
+				return true
+			end
+			dirty[ck] = nil
+			dirtyN -= 1
+			redo(ck)
 		end
-		dirty[ck] = nil
-		dirtyN -= 1
-		redo(ck)
+		return true
 	end
-	return true
-end
 
-function RayMap.ready(): boolean
-	return rot ~= nil and root ~= nil and remHead > #remQ and addHead > #addQ and dirtyN == 0
-end
+	function M.ready(): boolean
+		return rot ~= nil and root ~= nil and remHead > #remQ and addHead > #addQ and dirtyN == 0
+	end
 
-function RayMap.at(gx: number, gy: number): (BasePart | false | nil, BasePart?, number, number, boolean, boolean)
-	-- (nothing is known before the root is watched: an empty map would call every block sky)
-	if rot == nil or root == nil or remHead <= #remQ or addHead <= #addQ or dirtyN > 0 then
-		return nil, nil, 0, 0, false, false
+	function M.at(gx: number, gy: number): (BasePart | false | nil, BasePart?, number, number, boolean, boolean, number)
+		-- (nothing is known before the root is watched: an empty map would call every block sky)
+		if rot == nil or root == nil or remHead <= #remQ or addHead <= #addQ or dirtyN > 0 then
+			return nil, nil, 0, 0, false, false, 0
+		end
+		local bx, by = gx // 2, gy // 2
+		if bx < wx0 or bx > wx1 or by < wy0 or by > wy1 then
+			return nil, nil, 0, 0, false, false, 0
+		end
+		local cx, cy = bx // CB, by // CB
+		local c = chunks[(cx + 32768) * 65536 + (cy + 32768)]
+		if c == nil then
+			return false, nil, 0, 0, false, false, 0
+		end
+		local i = ((by - cy * CB) * CB + bx - cx * CB) * 2
+		local k = buffer.readu16(c.k, i)
+		if k == 0 then
+			return false, nil, 0, 0, false, false, 0
+		end
+		local k2 = buffer.readu16(c.k2, i)
+		local d2, d3 = buffer.readu16(c.d2, i), buffer.readu16(c.d3, i)
+		return c.parts[k], if k2 == 0 then nil else c.parts[k2], if d2 == NONE then math.huge else d2 / DQ, if d3 == NONE then math.huge else d3 / DQ, c.flat[k], k2 ~= 0 and c.flat[k2], buffer.readu16(c.d1, i) / DQ
 	end
-	local bx, by = gx // 2, gy // 2
-	if bx < wx0 or bx > wx1 or by < wy0 or by > wy1 then
-		return nil, nil, 0, 0, false, false
-	end
-	local cx, cy = bx // CB, by // CB
-	local c = chunks[(cx + 32768) * 65536 + (cy + 32768)]
-	if c == nil then
-		return false, nil, 0, 0, false, false
-	end
-	local i = ((by - cy * CB) * CB + bx - cx * CB) * 2
-	local k = buffer.readu16(c.k, i)
-	if k == 0 then
-		return false, nil, 0, 0, false, false
-	end
-	local k2 = buffer.readu16(c.k2, i)
-	local d2, d3 = buffer.readu16(c.d2, i), buffer.readu16(c.d3, i)
-	return c.parts[k], if k2 == 0 then nil else c.parts[k2], if d2 == NONE then math.huge else d2 / DQ, if d3 == NONE then math.huge else d3 / DQ, c.flat[k], k2 ~= 0 and c.flat[k2]
-end
 
-function RayMap.debugState(): { parts: number, chunks: number, queued: number, ready: boolean }
-	return { parts = partN, chunks = chunkN, queued = (#addQ - addHead + 1) + (#remQ - remHead + 1) + dirtyN, ready = RayMap.ready() }
+	function M.debugState(): { parts: number, chunks: number, queued: number, ready: boolean }
+		return { parts = partN, chunks = chunkN, queued = (#addQ - addHead + 1) + (#remQ - remHead + 1) + dirtyN, ready = M.ready() }
+	end
+
+	return (M :: any) :: Map
 end
 
 return RayMap
