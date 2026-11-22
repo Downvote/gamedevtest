@@ -8,6 +8,7 @@
 -- Everything runs while the player is here, whatever they do.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Types = require(ReplicatedStorage.Shared.Types)
 local Tuning = require(ReplicatedStorage.Shared.Config.Tuning)
 local Buildings = require(ReplicatedStorage.Shared.Data.Buildings)
 local Island = require(ReplicatedStorage.Shared.Logic.Island)
@@ -67,6 +68,40 @@ local function questEgg(s: Session.S)
 	if e then
 		Session.markDirty(s)
 		Session.fx(s, { kind = "eggs", laid = Tree.view(s.profile), more = 0, turned = e.r })
+	end
+end
+
+-- Many eggs hatched at once (the bulk hatch, Auto Hatch: Logic/Tree.bulk): each counts as an egg hatched (the pass
+-- track's points), the tips move on, and the world's burst plays for the rarest of them (Fx "hatched").
+local function hatchedMany(s: Session.S, data: Tree.Bulk)
+	local best: any = nil
+	for _, x in data.list do
+		Store.addXp(s.profile, "egg")
+		if best == nil or (x.hr or x.r or 0) > (best.hr or best.r or 0) then
+			best = x
+		end
+	end
+	tips(s)
+	if best then
+		Session.fx(s, { kind = "hatched", data = best })
+	end
+end
+
+-- Auto Hatch (the AutoHatch pass; the request of 2026-11-22, "make an auto buy gamepass, which lets you auto buy eggs
+-- that appear above a rarity of your choosing"): a new lot's eggs at the player's floor or rarer hatch as they are
+-- laid, coins and huts allowing (Logic/Tree.autoIds, bulk). The client hears what hatched, or why none could (Fx
+-- "auto": the hatches in `list`, the coins paid, the eggs left for coins and for room, and why).
+local function autoHatch(s: Session.S, laid: { Types.Laid })
+	local ids = Tree.autoIds(s.profile, laid)
+	if #ids == 0 then
+		return
+	end
+	local ok, data = Tree.bulk(s.profile, ids, false, s.rng)
+	if ok then
+		hatchedMany(s, data)
+		Session.fx(s, { kind = "auto", list = data.list, cost = data.cost, short = data.short, room = data.room, why = data.why })
+	else
+		Session.fx(s, { kind = "auto", list = {}, cost = 0, short = if data == "money" then #ids else 0, room = if data == "full" or data == "no_hut" then #ids else 0, why = data })
 	end
 end
 
@@ -190,6 +225,7 @@ function IslandService.init()
 			Store.addXp(s.profile, "expand")
 			-- (a bigger island: the tree lays its extra eggs at once, in the weather now)
 			local laid = Tree.fill(s.profile, s.rng, Weather.at(WorldClock.now()))
+			autoHatch(s, laid)
 			PlotService.build(s)
 			if #laid > 0 then
 				Session.fx(s, { kind = "eggs", laid = Tree.view(s.profile), more = #laid })
@@ -215,6 +251,23 @@ function IslandService.init()
 			Session.fx(s, { kind = "hatched", data = data })
 		end
 		return ok, data
+	end)
+	-- many at once (the request of 2026-11-22: "make a bulk open eggs button, where you open all eggs at once in the
+	-- tree", "selecting as in: bulk buy over a certain rarity"): every egg of rarity `min` or rarer, the tree's for
+	-- their price or the bag's for nothing, the rarest first, coins and huts allowing (Logic/Tree.bulk)
+	Router.on("egg.bulk", function(s, a)
+		local p = s.profile
+		local bag = a.bag == true
+		local ids = Tree.atLeast((if bag then p.bag else p.clutch.list) :: any, a.min)
+		local ok, data = Tree.bulk(p, ids, bag, s.rng)
+		if ok then
+			hatchedMany(s, data)
+		end
+		return ok, data
+	end)
+	-- Auto Hatch's floor (a rarity, 0 off; the AutoHatch pass)
+	Router.on("egg.auto", function(s, a)
+		return Tree.setAuto(s.profile, a.r)
 	end)
 	Router.on("pal.house", function(s, a)
 		return Tree.house(s.profile, a.id, a.uid, a.swap)
@@ -401,6 +454,7 @@ function IslandService.step(dt: number)
 		-- the tree: a new lot of eggs when its time comes (the ones left go), in the weather now
 		local laid = Tree.step(p, dt, s.rng, wx)
 		if laid then
+			autoHatch(s, laid)
 			Session.markDirty(s)
 			Session.fx(s, { kind = "eggs", laid = Tree.view(p), more = 0 })
 		end

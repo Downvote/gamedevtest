@@ -1043,6 +1043,10 @@ function WorldView.start()
 		if msg.kind == "hatched" and type(msg.data) == "table" then
 			hatchedOne(msg.data)
 		end
+		-- (what Auto Hatch did with a new lot: a notice, Controllers/EggView)
+		if msg.kind == "auto" then
+			EggView.autoHatched(msg)
+		end
 	end)
 	-- taps on the world (a press let go within 8 px of where it began)
 	local downAt: Vector2? = nil

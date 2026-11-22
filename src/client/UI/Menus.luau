@@ -1017,10 +1017,158 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 	end
 end
 
+-- A row of the rarities' small eggs (the bulk hatch's and Auto Hatch's pick: the request of 2026-11-22), each a
+-- button 12 px wide: those at `floor` or rarer drawn whole, the commoner ones as silhouettes, a line under the ones
+-- picked.
+-- With `off`, an Off button first (floor 0). Returns the row's width.
+local function rarityRow(parent: Instance, x: number, y: number, floor: number, off: boolean, prefix: string, pick: (r: number) -> ()): number
+	local cx = x
+	if off then
+		local ow = math.max(26, UIKit.textWidth(Lang.t("Off")) + 10)
+		local ob = UIKit.button(parent, "Off", UDim2.fromOffset(ow, 11), UDim2.fromOffset(cx, y), function()
+			pick(0)
+		end, { name = prefix .. "0", color = if floor <= 0 then UIKit.color("button_ok") else UIKit.color("plate_light") })
+		ob.ZIndex = 4
+		cx += ow + 2
+	end
+	for r = 1, Traits.RMAX do
+		local b = Instance.new("TextButton")
+		b.Name = prefix .. r
+		b.Text = ""
+		b.BackgroundTransparency = 1
+		b.BorderSizePixel = 0
+		-- (on: a button with it off reads as disabled, UIKit's way; with no background it tints nothing)
+		b.AutoButtonColor = true
+		b.Size = UDim2.fromOffset(12, 13)
+		b.Position = UDim2.fromOffset(cx, y)
+		b.ZIndex = 4
+		b.Parent = parent
+		-- (a commoner one as its silhouette: the sprite may be an image or, without EditableImage, a frame of pixels,
+		-- so it is drawn dark rather than faded)
+		local on = floor >= 1 and r >= floor
+		PixelSprites.image(b, "mini_egg_" .. r .. (if on then "" else "_sil"), UDim2.fromOffset(0, 0), 5)
+		if on then
+			UIKit.rect(b, UDim2.fromOffset(if r < Traits.RMAX then 12 else 11, 1), UDim2.fromOffset(0, 12), UIKit.color("accent"), 5).Name = "Picked"
+		end
+		b.Activated:Connect(function()
+			Audio.play("click")
+			pick(r)
+		end)
+		cx += 12
+	end
+	return cx - x
+end
+
+------------------------------------------------------------------ Hatched: what a bulk hatch brought
+-- (EggView.hatchMany; the request of 2026-11-22: "make a bulk open eggs button, where you open all eggs at once in
+-- the tree") How many hatched and for how much, the eggs left (for coins, for room), then a card for each that came
+-- out, the rarest first: its portrait, name and rarity, "New!" for a kind never had, its mutations. The cards turn up
+-- one after another the first time (a rare one or a new kind with bits); the panel built again shows them all.
+local HATCHED_STEP = 0.09
+local function buildHatched(body: Frame, arg: any?)
+	local W, H = UIKit.bodyWidth(body), UIKit.bodyHeight(body)
+	local data: { [string]: any } = if type(arg) == "table" then arg else {}
+	local list: { any } = {}
+	for _, x in (if type(data.list) == "table" then data.list else {}) :: { any } do
+		if type(x) == "table" and type(x.sp) == "string" and Creatures.byId[x.sp] then
+			table.insert(list, x)
+		end
+	end
+	table.sort(list, function(a: any, b: any): boolean
+		local ra, rb = Creatures.byId[a.sp].rarity, Creatures.byId[b.sp].rarity
+		if ra ~= rb then
+			return ra > rb
+		end
+		if (a.new == true) ~= (b.new == true) then
+			return a.new == true
+		end
+		return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
+	end)
+	local n = #list
+	local cost = tonumber(data.cost) or 0
+	local head = if data.bag
+		then (if n == 1 then Lang.t("Hatched 1 egg from your bag.") else Lang.f("Hatched {1} eggs from your bag.", n))
+		else (if n == 1 then Lang.f("Hatched 1 egg for {1} coins.", Numbers.coins(cost)) else Lang.f("Hatched {1} eggs for {2} coins.", n, Numbers.coins(cost)))
+	UIKit.text(body, head, UDim2.fromOffset(W - 50, 12), UDim2.fromOffset(0, 0), { color = UIKit.color("text"), name = "Head" })
+	UIKit.button(body, "Back", UDim2.fromOffset(44, 12), UDim2.fromOffset(W - 44, 0), function()
+		UIKit.openPanel("tree")
+	end, { name = "Back", color = UIKit.color("plate_light") }).ZIndex = 4
+	-- the eggs left, and why
+	local top = 14
+	local room, short = tonumber(data.room) or 0, tonumber(data.short) or 0
+	if room > 0 then
+		UIKit.text(body, if room == 1 then "1 egg left: huts full." else Lang.f("{1} eggs left: huts full.", room), UDim2.fromOffset(W, 10), UDim2.fromOffset(0, top), { color = UIKit.color("orange"), name = "LeftRoom" })
+		top += 11
+	end
+	if short > 0 then
+		UIKit.text(body, if short == 1 then "1 egg left: not enough coins." else Lang.f("{1} eggs left: not enough coins.", short), UDim2.fromOffset(W, 10), UDim2.fromOffset(0, top), { color = UIKit.color("orange"), name = "LeftCoins" })
+		top += 11
+	end
+	local scroll = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
+	scroll.Name = "List"
+	local cols = if W >= 440 then 3 elseif W >= 300 then 2 else 1
+	local cw = math.floor((W - 6 - (cols - 1) * 3) / cols)
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(cw, 38)
+	grid.CellPadding = UDim2.fromOffset(3, 3)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = scroll
+	local v = StateClient.view()
+	local byId: { [number]: Types.Pal } = {}
+	for _, x in (if v then v.pals else {}) :: { Types.Pal } do
+		byId[x.id] = x
+	end
+	local first = data.shown ~= true
+	data.shown = true
+	for i, x in list do
+		local d = Creatures.byId[x.sp]
+		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		local f = UIKit.row(scroll, UDim2.fromOffset(cw, 38), nil, nil, 0.84)
+		f.Name = "Got_" .. tostring(x.id)
+		f.LayoutOrder = i
+		local muts: { string } = {}
+		for _, m in (if type(x.muts) == "table" then x.muts else {}) :: { any } do
+			if type(m) == "string" then
+				table.insert(muts, m)
+			end
+		end
+		local pal = byId[tonumber(x.id) or -1]
+		if pal then
+			PalTip.attach(f, pal)
+		end
+		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
+		local tw = cw - PX - 4
+		UIKit.text(f, d.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+		UIKit.text(f, rar.name, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { color = UIKit.color(rar.color), z = 4, name = "Rarity" })
+		if x.new == true then
+			UIKit.text(f, "New!", UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 11), { x = "right", color = UIKit.color("yellow"), z = 4, name = "New" })
+		end
+		mutLine(f, muts, PX, 23, tw)
+		if first then
+			-- (one after another: a pop each, a rare one or a new kind with bits of its colour)
+			f.Visible = false
+			task.delay(HATCHED_STEP * i, function()
+				if f.Parent == nil then
+					return
+				end
+				f.Visible = true
+				local big = d.rarity >= 3 or x.new == true
+				Audio.play(if d.rarity >= 5 then "rare" else "pop")
+				if big then
+					UIKit.burstOn(f, { rar.color, "white", "good" }, if d.rarity >= 5 then 16 else 8)
+				end
+			end)
+		end
+	end
+end
+
 local function clock(secs: number): string
 	local s = math.max(0, math.ceil(secs))
 	return string.format("%d:%02d", s // 60, s % 60)
 end
+
+-- the bulk hatch's lowest rarity (the egg row over the list; kept while the game runs, 1: every egg)
+local bulkFloor = 1
 
 local function buildTree(body: Frame, arg: any?)
 	local v = StateClient.view()
@@ -1085,13 +1233,40 @@ local function buildTree(body: Frame, arg: any?)
 		end
 		dy += qh + 2
 	end
+	-- Auto Hatch (the AutoHatch pass; the request of 2026-11-22, "make an auto buy gamepass, which lets you auto buy
+	-- eggs that appear above a rarity of your choosing"): without it, a button to buy it; with it, the rarity a new
+	-- egg needs to hatch by itself, picked on a row of the rarities' eggs (Off first)
+	if v.passes and v.passes.AutoHatch then
+		local floor = v.settings.auto or 0
+		local rar = Traits.RARITY[floor]
+		local words = if floor >= 1 and rar then Lang.f("Auto Hatch: {1} and up", Lang.t(rar.name)) else Lang.t("Auto Hatch: off")
+		-- (two lines when a language's words are wider than the column)
+		local wl = math.clamp(UIKit.lines(words, LW), 1, 2)
+		UIKit.text(col, Lang.keep(words), UDim2.fromOffset(LW, 10 * wl), UDim2.fromOffset(0, dy), { color = if floor >= 1 and rar then UIKit.color(rar.color) else UIKit.color("text_dim"), wrap = wl > 1, name = "AutoWords" })
+		rarityRow(col, 0, dy + 1 + 10 * wl, floor, true, "Auto_", function(r: number)
+			if r ~= floor then
+				ask("egg.auto", { r = r })
+			end
+		end)
+		dy += 17 + 10 * wl
+	else
+		local ab = UIKit.button(col, Lang.f("Auto Hatch {1}", StoreUI.robuxText("AutoHatch")), UDim2.fromOffset(LW, 12), UDim2.fromOffset(0, dy), function()
+			StoreUI.buy("AutoHatch")
+		end, { name = "TreeAuto", color = UIKit.color("button_warn") })
+		ab.ZIndex = 4
+		dy += 14
+	end
 	local housed = 0
 	for _, x in v.pals do
 		if x.home ~= 0 then
 			housed += 1
 		end
 	end
-	UIKit.text(col, string.format("%d eggs a lot. In huts %d/%d", Tree.lot(p), housed, v.nests), UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, dy + 1), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), name = "Room" })
+	-- (two lines when a language's words run wider than the column)
+	local roomText = string.format("%d eggs a lot. In huts %d/%d", Tree.lot(p), housed, v.nests)
+	local rl = math.clamp(UIKit.lines(roomText, LW), 1, 2)
+	UIKit.text(col, roomText, UDim2.fromOffset(LW, 10 * rl), UDim2.fromOffset(0, dy + 1), { color = if v.nests > 0 and housed >= v.nests then UIKit.color("orange") else UIKit.color("text"), wrap = rl > 1, name = "Room" })
+	dy += 10 * (rl - 1)
 	-- the odds now, rarity by rarity
 	UIKit.text(col, "Odds now", UDim2.fromOffset(LW, 10), UDim2.fromOffset(0, dy + 13), { color = UIKit.color("text_dim") })
 	local odds = Tree.odds(p)
@@ -1110,12 +1285,58 @@ local function buildTree(body: Frame, arg: any?)
 	-- the two that were here, the request of 2026-11-14: "Change the two green and yellow texts below the egg rarities
 	-- to ...")
 	if v.tier < #Tuning.TierCost then
-		UIKit.text(col, "Grow your island for rarer eggs and bigger lots.", UDim2.fromOffset(LW, 22), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true, name = "Grow" })
+		local growText = "Grow your island for rarer eggs and bigger lots."
+		UIKit.text(col, growText, UDim2.fromOffset(LW, 2 + 10 * math.max(2, UIKit.lines(growText, LW))), UDim2.fromOffset(0, y + 2), { color = UIKit.color("good"), wrap = true, name = "Grow" })
 	end
 	-- the eggs now, the rarest first: the bag's (bought, won or given: GAME_DESIGN 14, free to hatch) over the tree's
 	UIKit.text(body, "Under the tree", UDim2.fromOffset(RW, 12), UDim2.fromOffset(RX, 0), { color = UIKit.color("accent"), name = "Eggs" })
-	UIKit.text(body, if #v.clutch == 1 then "1 egg" else string.format("%d eggs", #v.clutch), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = UIKit.color("text_dim"), name = "EggCount" })
-	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 14), UDim2.fromOffset(RX, 14))
+	-- the bulk hatch (the request of 2026-11-22: "make a bulk open eggs button, where you open all eggs at once in the
+	-- tree", then "selecting as in: bulk buy over a certain rarity"): a tap on one of the rarities' eggs picks the
+	-- lowest it takes, and Hatch takes every egg under the tree of that rarity or rarer, the rarest first, as far as
+	-- the coins and huts go (EggView.hatchMany; the button says how many and what they cost now: Tree.bulkPlan)
+	local floorR = math.clamp(bulkFloor, 1, Traits.RMAX)
+	local picked = Tree.atLeast(v.clutch :: any, floorR)
+	local plain = floorR <= 1
+	local countWords = if plain then (if #v.clutch == 1 then Lang.t("1 egg") else Lang.f("{1} eggs", #v.clutch)) else Lang.f("{1} and up: {2}", Lang.t(Traits.RARITY[floorR].name), #picked)
+	UIKit.text(body, Lang.keep(countWords), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = if plain then UIKit.color("text_dim") else UIKit.color(Traits.RARITY[floorR].color), name = "EggCount" })
+	local rowW = rarityRow(body, RX, 14, floorR, false, "Bulk_", function(r: number)
+		if r ~= bulkFloor then
+			bulkFloor = r
+			UIKit.refreshPanel()
+		end
+	end)
+	local pp = asProfile(v)
+	pp.clutch = { list = v.clutch }
+	local plan = Tree.bulkPlan(pp, picked, false)
+	local bw = RW - rowW - 8
+	local bulkText = if plan.n > 0 then Lang.f("Hatch {1}: {2}", plan.n, Numbers.coins(plan.cost)) else Lang.t("Hatch all")
+	local hb = UIKit.button(body, bulkText, UDim2.fromOffset(bw, 12), UDim2.fromOffset(RX + rowW + 4, 14), function()
+		local now = StateClient.view()
+		if now == nil then
+			return
+		end
+		local np = asProfile(now)
+		np.clutch = { list = now.clutch }
+		local ids = Tree.atLeast(now.clutch :: any, math.clamp(bulkFloor, 1, Traits.RMAX))
+		local pl = Tree.bulkPlan(np, ids, false)
+		if pl.n > 0 then
+			EggView.hatchMany(bulkFloor, false)
+			return
+		end
+		Audio.play("deny")
+		local why = if #ids == 0 then "No eggs that rare under the tree." elseif pl.room > 0 then Words.errText(if now.nests > 0 then "full" else "no_hut") else Words.errText("money")
+		UIKit.notice(why, UIKit.color("bad"))
+	end, { name = "BulkHatch", color = if plan.n > 0 then UIKit.color("button_ok") else UIKit.color("plate_light") })
+	hb.ZIndex = 4
+	if plan.n > 0 then
+		local words = hb:FindFirstChild("Words")
+		if words and words:IsA("GuiObject") then
+			words.Position = UDim2.fromOffset(2, 0)
+			words.Size = UDim2.new(1, -16, 1, 0)
+		end
+		PixelSprites.image(hb, "mini_coin", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
+	end
+	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 30), UDim2.fromOffset(RX, 30))
 	list.Name = "List"
 	UIKit.vlist(list, 2)
 	local bag: { Types.Bagged } = table.clone(v.bag or {})
@@ -1130,6 +1351,13 @@ local function buildTree(body: Frame, arg: any?)
 		local hf = row(list, 1, 12)
 		hf.Name = "BagHead"
 		UIKit.text(hf, string.format("Your eggs: %d", #bag), UDim2.new(1, -8, 1, 0), UDim2.fromOffset(4, 1), { color = UIKit.color("good"), z = 4, name = "BagTitle" })
+		-- (every one at once, free: the bulk hatch of the bag's eggs)
+		if #bag >= 2 then
+			local aw = math.max(56, UIKit.buttonWidth(Lang.t("Hatch all"), 6))
+			UIKit.button(hf, "Hatch all", UDim2.fromOffset(aw, 10), UDim2.new(1, -aw - 3, 0, 1), function()
+				EggView.hatchMany(1, true)
+			end, { name = "BagHatchAll", color = UIKit.color("button_ok") }).ZIndex = 4
+		end
 		for k, e in bag do
 			local rar = Traits.RARITY[e.r] or Traits.RARITY[1]
 			local f = row(list, 1 + k, 26)
@@ -1301,6 +1529,8 @@ function Menus.init()
 	UIKit.registerPanel("pal", { title = "Driftling", icon = "pal", w = 320, h = 182, build = buildPal })
 	UIKit.registerPanel("hatch", { title = "Hatchery", icon = "nest", w = 320, h = 186, props = { "egg_2", "egg_5" }, build = buildHatch })
 	UIKit.registerPanel("tree", { title = "Tree of Life", icon = "tree", w = 380, h = 226, props = { "egg_1", "egg_3", "egg_6" }, build = buildTree })
+	-- ("Hatched@@panel": the panel's title, apart from the stats' "Hatched", a count in some languages: Locale/Lang)
+	UIKit.registerPanel("hatched", { title = "Hatched@@panel", icon = "egg", w = 380, h = 226, props = { "egg_2", "egg_4", "egg_7" }, build = buildHatched })
 	UIKit.registerPanel("index", { title = "Index", icon = "star", w = 320, h = 186, props = { "search", "star" }, build = buildIndex })
 	-- (Looks, with the founder's pieces and titles, is UI/StoreUI's since 2026-11-14)
 

@@ -9,8 +9,9 @@
 -- free".
 --   Passes (Profile.passes; Config/Monetization.GamePasses): DoubleIncome and VIP multiply the island's shells
 --   (Island.passMult), QuickTree lays the tree's eggs every 5 minutes (Tree.secs), FreeDecor makes decor, paths, water
---   and fences free (Plot.price), PremiumTrack opens the pass track's premium side. VIP's welcome gift comes the first
---   time it is owned (`setPass`), its daily gift once every UTC day (`vipDaily`).
+--   and fences free (Plot.price), PremiumTrack opens the pass track's premium side, AutoHatch hatches each new lot's
+--   eggs at the player's chosen rarity or rarer as they are laid (Tree.autoIds, Settings.auto; 2026-11-22). VIP's
+--   welcome gift comes the first time it is owned (`setPass`), its daily gift once every UTC day (`vipDaily`).
 --   Products (`product`): an egg of a rarity into the bag, a new set in the rotating shop, the starter pack (once), every
 --   Hatchery egg hatched now.
 --   The rotating shop (`shopNow`, `buy`): Tuning.ShopSize "shop" pieces of Data/Cosmetics every Tuning.ShopSecs, the same
@@ -43,7 +44,7 @@ type ErrCode = Types.ErrCode
 
 local Store = {}
 
-Store.PASSES = { "VIP", "DoubleIncome", "QuickTree", "FreeDecor", "PremiumTrack", "OfflinePass" }
+Store.PASSES = { "VIP", "DoubleIncome", "QuickTree", "FreeDecor", "PremiumTrack", "OfflinePass", "AutoHatch" }
 Store.PRODUCTS = { "EggUncommon", "EggRare", "EggEpic", "EggLegendary", "EggMythic", "EggCelestial", "RefreshShop", "StarterPack", "HatcheryNow", "RefreshEggs" }
 -- the egg products' rarities
 Store.EGG_R = { EggUncommon = 2, EggRare = 3, EggEpic = 4, EggLegendary = 5, EggMythic = 6, EggCelestial = 7 } :: { [string]: number }

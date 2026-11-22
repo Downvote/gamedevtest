@@ -1,5 +1,5 @@
 #!/bin/sh
-# The game passes' and developer products' icons (Config/Monetization: six passes, ten products): draws their subjects
+# The game passes' and developer products' icons (Config/Monetization: seven passes, ten products): draws their subjects
 # from the game's own models (the preview scenario "picons", tools/preview/product_icons.luau), lays them on their
 # badges with the words and symbols (tools/preview/product_icons.py) and writes the 512 x 512 PNGs to upload on the
 # Creator Dashboard into art/products/<key>.png. Run it again after changing a model an icon shows (an egg, the Tree of

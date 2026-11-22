@@ -1379,6 +1379,132 @@ do
 	checks("rarest")
 end
 
+------------------------------------------------------------------ 12b. many at once: the bulk hatch and Auto Hatch
+-- The requests (2026-11-22): "make a bulk open eggs button, where you open all eggs at once in the tree, or can select
+-- eggs to be bulk opened", "selecting as in: bulk buy over a certain rarity", "also, make an auto buy gamepass, which
+-- lets you auto buy eggs that appear above a rarity of your choosing". Refusals; from the tree's panel, the egg row's
+-- rare and up, Hatch: every egg of it or rarer hatched in one go, the rarest first, paid for, the rest left, the
+-- Hatched panel with a card for each; the bag's Hatch all (free); the huts' room stopping it; Auto Hatch locked
+-- without the pass, then with it a new lot's eggs at the floor or rarer hatching as they are laid (Fx auto, a notice),
+-- and off again.
+E.phase = "bulk"
+do
+	H.expect(rawErr(p, "egg.bulk", { min = 0, bag = false }) == "bad_payload", "bulk", "a rarity under the commonest refused", rawErr(p, "egg.bulk", { min = 0, bag = false }))
+	H.expect(rawErr(p, "egg.bulk", { min = 99, bag = false }) == "bad_payload", "bulk", "a rarity past the rarest refused")
+	H.expect(rawErr(p, "egg.bulk", { min = 1, bag = "yes" }) == "bad_payload", "bulk", "a bag that isn't true or false refused")
+	H.expect(rawErr(p, "egg.auto", { r = -1 }) == "bad_payload", "bulk", "a negative floor refused")
+	-- room for all of it, coins enough, a known lot: two commons, an uncommon, a rare and an epic
+	local nests = 0
+	while Tree.room(prof) < 12 and nests < 6 do
+		place("nest", 4 + nests * 3, 20)
+		nests += 1
+	end
+	prof.shells = 1e9
+	table.clear(prof.clutch.list)
+	local lot = {}
+	for _, r in { 1, 1, 2, 3, 4 } do
+		local e = { id = prof.clutch.next, r = r }
+		prof.clutch.next += 1
+		table.insert(prof.clutch.list, e)
+		table.insert(lot, e)
+	end
+	prof.clutch.left = 300
+	H.push(p, 0.6)
+	H.inClient(p, C.UIKit.openPanel, "tree")
+	E.run(0.4)
+	local hit = tap(p, "Bulk_3")
+	E.run(0.3)
+	local count = labelText(p, "EggCount") or ""
+	local bb = gui(p, "BulkHatch")
+	H.expect(hit and string.find(count, "Rare and up: 2", 1, true) ~= nil, "bulk", "the egg row's rare egg picks rare and up: two of them", count)
+	local want = Tree.cost(prof, 4) + Tree.cost(prof, 3)
+	H.expect(bb ~= nil and string.find(buttonText(bb), Numbers.coins(want), 1, true) ~= nil and string.find(buttonText(bb), "Hatch 2", 1, true) ~= nil, "bulk", "Hatch says two, for what they cost", buttonText(bb))
+	local ids0, shells0, taken0, f0, t0 = palIds(), prof.shells, prof.stats.taken, #W.fx, E.now()
+	tap(p, "BulkHatch")
+	E.run(2)
+	local got = {}
+	for _, x in prof.pals do
+		if not ids0[x.id] then
+			table.insert(got, x)
+		end
+	end
+	H.expect(#got == 2 and eggOf(prof, lot[5].id) == nil and eggOf(prof, lot[4].id) == nil, "bulk", "the epic and the rare hatched", string.format("%d new, %d eggs left", #got, #prof.clutch.list))
+	H.expect(eggOf(prof, lot[1].id) ~= nil and eggOf(prof, lot[2].id) ~= nil and eggOf(prof, lot[3].id) ~= nil, "bulk", "the commons and the uncommon stay")
+	H.expect(math.abs((shells0 - prof.shells) - want) <= earnSlack(E.now() - t0), "bulk", "paid what they cost", string.format("%.0f, want %d", shells0 - prof.shells, want))
+	H.expect(prof.stats.taken == taken0 + 2, "bulk", "each counts as an egg hatched", tostring(prof.stats.taken - taken0))
+	local okHome = true
+	for _, x in got do
+		okHome = okHome and x.home ~= 0 and workingOrNoPlace(x)
+	end
+	H.expect(okHome, "bulk", "both in a hut and at work")
+	H.expect(#fxSince(W, f0, "hatched") == 1, "bulk", "one burst on the island for them (Fx hatched, the rarest)", tostring(#fxSince(W, f0, "hatched")))
+	local cards = named(p, "Got_", true)
+	H.expect(H.currentPanel(p) == "hatched" and #cards == 2 and says(p, "Hatched 2 eggs for"), "bulk", "the Hatched panel: what they cost and a card for each", string.format("%s, %d cards", tostring(H.currentPanel(p)), #cards))
+	-- the bag's Hatch all: free
+	tap(p, "Back")
+	for _, r in { 2, 1, 3 } do
+		Tree.bagAdd(prof, r)
+	end
+	H.push(p, 0.6)
+	local bagHit = tap(p, "BagHatchAll")
+	E.run(2)
+	H.expect(bagHit and #prof.bag == 0 and H.currentPanel(p) == "hatched" and says(p, "Hatched 3 eggs from your bag."), "bulk", "the bag's Hatch all: every bag egg, for nothing", string.format("%d left, %s", #prof.bag, tostring(H.currentPanel(p))))
+	-- the huts' room stops it: the rest stay
+	local room = Tree.room(prof)
+	table.clear(prof.clutch.list)
+	for _ = 1, room + 2 do
+		table.insert(prof.clutch.list, { id = prof.clutch.next, r = 1 })
+		prof.clutch.next += 1
+	end
+	H.push(p, 0.3)
+	local res = H.req(p, "egg.bulk", { min = 1, bag = false })
+	E.run(0.3)
+	H.expect(res.ok and #res.data.list == room and res.data.room == 2 and res.data.why == "full" and #prof.clutch.list == 2 and Tree.room(prof) == 0, "bulk", "every hut full: the rest stay under the tree", res.ok and string.format("%d hatched, %d left (%s)", #res.data.list, res.data.room, tostring(res.data.why)) or tostring(res.err))
+	res = H.req(p, "egg.bulk", { min = 1, bag = false })
+	H.expect(not res.ok and res.err == "full", "bulk", "and none more once full", tostring(res.err))
+	-- Auto Hatch: locked without the pass
+	res = H.req(p, "egg.auto", { r = 2 })
+	H.expect(not res.ok and res.err == "locked" and (prof.settings.auto or 0) == 0, "auto", "the floor needs the pass", tostring(res.err))
+	H.inClient(p, C.UIKit.openPanel, "tree")
+	E.run(0.4)
+	H.expect(gui(p, "TreeAuto") ~= nil and named(p, "Auto_", true)[1] == nil, "auto", "the tree's panel offers the pass (no floor row without it)")
+	prof.passes.AutoHatch = true
+	-- room for a whole lot
+	for _, x in table.clone(prof.pals) do
+		if Tree.room(prof) >= Tree.lot(prof) + 1 then
+			break
+		end
+		H.req(p, "pal.sell", { id = x.id })
+	end
+	H.push(p, 0.4)
+	H.inClient(p, C.UIKit.openPanel, "tree")
+	E.run(0.4)
+	H.expect(gui(p, "TreeAuto") == nil and gui(p, "Auto_0") ~= nil, "auto", "with the pass, the floor row (Off first) in place of the offer")
+	tap(p, "Auto_1")
+	E.run(0.4)
+	H.expect(prof.settings.auto == 1, "auto", "a tap on the commonest egg: every new egg", tostring(prof.settings.auto))
+	local pals0, f1 = #prof.pals, #W.fx
+	prof.clutch.left = 0.05
+	local at = waitLot(5)
+	E.run(1)
+	local af = fxSince(W, f1, "auto")
+	H.expect(at ~= nil and #prof.clutch.list == 0 and #prof.pals == pals0 + Tree.lot(prof), "auto", "a new lot: every egg hatched as it was laid", string.format("%d left, %d new", #prof.clutch.list, #prof.pals - pals0))
+	H.expect(#af == 1 and type(af[1].msg.list) == "table" and #af[1].msg.list == Tree.lot(prof), "auto", "Fx auto with what hatched", tostring(#af))
+	H.expect(says(p, "Auto Hatch:"), "auto", "a notice says so")
+	-- off: the next lot stays
+	res = H.req(p, "egg.auto", { r = 0 })
+	H.expect(res.ok and prof.settings.auto == 0, "auto", "off again")
+	local f2 = #W.fx
+	prof.clutch.left = 0.05
+	waitLot(5)
+	E.run(0.5)
+	H.expect(#prof.clutch.list == Tree.lot(prof) and #fxSince(W, f2, "auto") == 0, "auto", "off: the lot stays under the tree", tostring(#prof.clutch.list))
+	prof.passes.AutoHatch = nil
+	H.inClient(p, C.UIKit.closePanel)
+	H.push(p, 0.3)
+	checks("bulk")
+end
+
 ------------------------------------------------------------------ 13. a neighbour: both islands' eggs on both clients, tags only on the own
 E.phase = "neighbour"
 local q = H.addPlayer({ userId = 9702, name = "Neighbour" })

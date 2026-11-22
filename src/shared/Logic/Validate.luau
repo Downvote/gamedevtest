@@ -60,6 +60,10 @@ local ACTIONS: { [string]: { [string]: string } } = {
 	["pal.house"] = { id = "int", uid = "int", swap = "int" },
 	["pal.sell"] = { id = "int" },
 	["egg.hatch"] = { id = "int", swap = "int" },
+	-- the bulk hatch (every egg of rarity `min` or rarer, the tree's or the bag's) and Auto Hatch's floor (0 off:
+	-- Logic/Tree.bulk, setAuto)
+	["egg.bulk"] = { min = "rarity", bag = "bool" },
+	["egg.auto"] = { r = "int" },
 	["breed.start"] = { uid = "int", a = "int", b = "int" },
 	["breed.hatch"] = { uid = "int" },
 	["founder.set"] = { skin = "small", hair = "small", style = "small", shirt = "small" },

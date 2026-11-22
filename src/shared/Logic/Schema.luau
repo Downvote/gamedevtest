@@ -38,7 +38,7 @@ local Schema = {}
 -- 22: the Tree of Life in the island's middle (no campfire); 23: the View slider's default on the seventh notch;
 -- 25: the tips in a new order (a hut, an egg, a workplace) and the questline opening on four huts; 26: Build mode's
 -- saved layouts (Profile.layouts)
-Schema.VERSION = 26
+Schema.VERSION = 27
 
 -- driftlings a save may hold at most: a bound on garbage, far past every hut's room on the biggest island
 local MAX_PALS = 5000
@@ -156,7 +156,7 @@ function Schema.default(now: number, seed: number): Profile
 		tut = 1,
 		quest = 1,
 		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
-		settings = { pixel = "high", music = "on", sfx = "on", zoom = Tuning.CamZoomDefault, screen = "auto", lang = "auto", text = "pixel" },
+		settings = { pixel = "high", music = "on", sfx = "on", zoom = Tuning.CamZoomDefault, screen = "auto", lang = "auto", text = "pixel", auto = 0 },
 		createdAt = now,
 		inv = {},
 		passes = {},
@@ -541,6 +541,11 @@ function Schema.migrate(raw: { [string]: any }): { [string]: any }
 	if v < 26 then
 		v = 26
 	end
+	-- 26 -> 27: Auto Hatch (the request of 2026-11-22, "make an auto buy gamepass, which lets you auto buy eggs that
+	-- appear above a rarity of your choosing"): Settings.auto, which reconcile fills in (off)
+	if v < 27 then
+		v = 27
+	end
 	raw.v = math.max(v, Schema.VERSION)
 	return raw
 end
@@ -779,6 +784,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			-- the language (2026-11-20): "auto" or a code the game has; the text: the pixel font or Roblox's own
 			lang = if type(settings.lang) == "string" and (settings.lang == "auto" or Lang.byCode[settings.lang] ~= nil) then settings.lang else "auto",
 			text = if settings.text == "smooth" then "smooth" else "pixel",
+			-- Auto Hatch's floor (2026-11-22): a rarity, 0 off (kept without the pass: it works again once owned)
+			auto = int(settings.auto, 0, 0, Traits.RMAX),
 		},
 		createdAt = num(r.createdAt, now),
 		passes = {},

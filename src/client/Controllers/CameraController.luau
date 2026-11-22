@@ -178,7 +178,10 @@ local function build(): View
 		-- the island at about 6 a stud where a desktop drew it at 11. A smaller screen now shows less of the island,
 		-- the founder in the middle of it. Then the slider (the same day: "make a view slider for zooming the camera
 		-- in and out, with 10 notches"): 5 a stud far out to 16 close in, 12 by default.
-		a = Raster.gridScale(Tuning.CamZoomNotches[zoom] or Tuning.CamZoomNotches[Tuning.CamZoomDefault], 1, false)
+		-- (a phone further out at every notch: Tuning.CamZoomPhone, the request of 2026-11-22, "the view of the game
+		-- should also be zoomed out more on mobile")
+		local notch = Tuning.CamZoomNotches[zoom] or Tuning.CamZoomNotches[Tuning.CamZoomDefault]
+		a = Raster.gridScale(notch * (if math.min(fx, fy) <= 500 then Tuning.CamZoomPhone else 1), 1, false)
 		local x, y = Raster.place(ROT12, fx, fy, bl, pad, pts, a * K * SQRT2)
 		if x ~= nil and y ~= nil then
 			sx, sy = x, y

@@ -2665,6 +2665,50 @@ local function panelScenario(name)
 				-- (the board's answer and the sheet built again with it)
 				E.run(1.2)
 			end
+		elseif name == "settings" and arg == "end" then
+			-- (panel=settings:end) the Settings list scrolled to its foot, where the View slider is (the request of
+			-- 2026-11-22: "the view setting is hidden in mobile and other devices, you cant scroll down to see it")
+			H.openPanel(p, "settings")
+			E.run(0.4)
+			local list = p.PlayerGui:FindFirstChild("Panel_settings", true)
+			list = list and list:FindFirstChild("List", true)
+			if list then
+				H.inClient(p, function()
+					local l = list :: any
+					l.CanvasPosition = E.v2(0, math.max(0, l.AbsoluteCanvasSize.Y - l.AbsoluteWindowSize.Y))
+				end)
+				E.run(0.3)
+			end
+			local slider = p.PlayerGui:FindFirstChild("ZoomSlider", true)
+			log("panel settings:end: the list %s, the View slider %s", if list then "found" else "missing", if slider and H.guiVisible(slider) then "visible" else "hidden")
+		elseif name == "tree" and arg == "auto" then
+			-- (panel=tree:auto) the Auto Hatch pass owned with its floor on rare, and the bulk hatch's row picked on
+			-- uncommon and up (the requests of 2026-11-22: "bulk buy over a certain rarity", "make an auto buy gamepass")
+			local prof = H.profile(p)
+			prof.passes.AutoHatch = true
+			prof.settings.auto = 3
+			H.push(p, 0.4)
+			H.openPanel(p, "tree")
+			E.run(0.4)
+			H.clickNamed(p, "Bulk_2", { wait = 0.4 })
+		elseif name == "hatched" then
+			-- (panel=hatched) a bulk hatch as a player does it: a Cozy Burrow for room, the tree's panel, Hatch on the
+			-- egg row (every egg), then the Hatched panel once its cards have all turned up
+			local prof = H.profile(p)
+			local PlotL = H.sharedServer("Logic.Plot")
+			local x, z, rot = PlotL.spot(prof.tier, prof.plot.placed, "burrow", 8, 4, 0)
+			if x then
+				PlotL.place(prof, "burrow", x, z, rot)
+			end
+			prof.shells = 1e6
+			prof.stats.taken = math.max(prof.stats.taken, 5)
+			H.push(p, 0.6)
+			H.openPanel(p, "tree")
+			E.run(0.4)
+			local before = #prof.clutch.list
+			H.clickNamed(p, "BulkHatch", { wait = 0.5 })
+			E.run(2.5)
+			log("panel hatched: %d eggs under the tree, %d after, %d driftlings, panel %s", before, #prof.clutch.list, #prof.pals, tostring(H.currentPanel(p)))
 		elseif name == "work" then
 			-- the work picker for the first driftling (Work on its card): every workplace with its speed there
 			H.openPanel(p, "pals", { pal = H.profile(p).pals[1].id })

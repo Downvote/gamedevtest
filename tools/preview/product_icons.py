@@ -478,6 +478,7 @@ ICONS = [
     ("FreeDecor", "round", "pink", "fountain", (0, -4), ("FREE", WHITE), None),
     ("PremiumTrack", "round", "purple", None, (0, 0), None, "ticket"),
     ("OfflinePass", "round", "sky_night", "sleeper", (2, -3), ("24H", PAL["yellow"]), "moon"),
+    ("AutoHatch", "round", "r_rare", "eggs3", (-1, -5), ("AUTO", WHITE), None),
     ("EggUncommon", "square", "r_uncommon", "egg2", (0, -1), None, None),
     ("EggRare", "square", "r_rare", "egg3", (0, -1), None, None),
     ("EggEpic", "square", "r_epic", "egg4", (0, -1), None, None),

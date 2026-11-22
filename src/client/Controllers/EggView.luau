@@ -252,6 +252,69 @@ function EggView.hatchBag(id: number, swap: number?)
 	end
 end
 
+-- Hatch many at once (egg.bulk; the request of 2026-11-22: "make a bulk open eggs button, where you open all eggs at
+-- once in the tree", then "selecting as in: bulk buy over a certain rarity"): every egg of rarity `min` or rarer under
+-- the tree (or in the bag, `bag`), the rarest first, as far as the coins and huts go (Logic/Tree.bulk). No hatch scene
+-- for each: the tree's eggs crack where they lie and the Hatched panel (UI/Menus) shows what came out of them all.
+function EggView.hatchMany(min: number, bag: boolean?)
+	local res = StateClient.request("egg.bulk", { min = math.clamp(math.floor(min), 1, Traits.RMAX), bag = bag == true })
+	if not res.ok then
+		Audio.play("deny")
+		UIKit.notice(Words.errText(res.err), UIKit.color("bad"))
+		return
+	end
+	local data: { [string]: any } = if type(res.data) == "table" then res.data else {}
+	local list: { any } = if type(data.list) == "table" then data.list else {}
+	if not bag then
+		for _, x in list do
+			local id = if type(x) == "table" then tonumber(x.egg) else nil
+			if id then
+				hatching[id] = os.clock()
+				local e = eggs[myPlot .. ":e" .. id]
+				local spot = if e then spotOf(myPlot, e.slot, e.n) else nil
+				if spot then
+					lastHatch[myPlot] = spot
+				end
+			end
+		end
+	end
+	Audio.play("crack_open")
+	UIKit.openPanel("hatched", { list = list, cost = tonumber(data.cost) or 0, short = tonumber(data.short) or 0, room = tonumber(data.room) or 0, why = data.why, bag = bag == true })
+end
+
+-- What Auto Hatch did with a new lot (Fx "auto"; the AutoHatch pass: "make an auto buy gamepass, which lets you auto
+-- buy eggs that appear above a rarity of your choosing"): a notice naming the rarest that hatched, or saying why none
+-- could. The open panel keeps its place (a notice, not a sheet: the player may be busy).
+function EggView.autoHatched(msg: { [string]: any })
+	local list: { any } = if type(msg.list) == "table" then msg.list else {}
+	if #list == 0 then
+		local text = if msg.why == "money" then "Auto Hatch: not enough coins." elseif msg.why == "full" or msg.why == "no_hut" then "Auto Hatch: huts full." else nil
+		if text then
+			UIKit.notice(text, UIKit.color("text_dim"), 4)
+		end
+		return
+	end
+	local best: any = nil
+	local fresh = false
+	for _, x in list do
+		if type(x) == "table" then
+			fresh = fresh or x.new == true
+			if best == nil or (tonumber(x.hr) or 0) > (tonumber(best.hr) or 0) then
+				best = x
+			end
+		end
+	end
+	local def = if best and type(best.sp) == "string" then Creatures.byId[best.sp] else nil
+	if def == nil then
+		return
+	end
+	local rar = Traits.RARITY[def.rarity] or Traits.RARITY[1]
+	local what = Lang.an("an {1} {2}", "a {1} {2}", rar.name, def.name)
+	local said = if #list == 1 then Lang.f("Auto Hatch: {1}.", what) else Lang.f("Auto Hatch: {1} eggs. The best was {2}.", #list, what)
+	UIKit.notice(Lang.keep((if fresh then Lang.t("New! ") else "") .. said), UIKit.color(rar.color), 5)
+	Audio.play(if def.rarity >= 5 then "rare" else "pop")
+end
+
 -- The own island's Hatchery `uid`: the point on the ground just in front of it (world), where its hatchling steps out.
 local function hatcheryFront(uid: number): Vector3?
 	local m = plotModel(myPlot)

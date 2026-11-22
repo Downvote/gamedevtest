@@ -517,6 +517,124 @@ return function()
 		T.eq(p.pals[#p.pals].home, burrow, "the burrow is comfier")
 	end)
 
+	T.it("a bulk hatch takes every egg of a rarity or rarer, the rarest first, as far as the coins and huts go", function()
+		-- (the request of 2026-11-22: "make a bulk open eggs button, where you open all eggs at once in the tree",
+		-- "selecting as in: bulk buy over a certain rarity")
+		local p = fresh()
+		p.stats.taken = 5
+		p.tier = 2
+		build(p, "burrow") -- (room for 8)
+		local rng = Util.newRng(21)
+		local c1, c2 = egg(p, 1), egg(p, 1)
+		local u = egg(p, 2)
+		local r = egg(p, 3)
+		T.deepEq(Tree.atLeast(p.clutch.list, 2), { r.id, u.id }, "uncommon and up, the rarest first")
+		T.eq(#Tree.atLeast(p.clutch.list, 1), 4, "every egg from the lowest")
+		T.eq(#Tree.atLeast(p.clutch.list, 4), 0, "none that rare")
+		-- the plan: two of them for their prices
+		local ids = Tree.atLeast(p.clutch.list, 2)
+		local plan = Tree.bulkPlan(p, ids, false)
+		T.eq(plan.n, 2)
+		T.eq(plan.cost, Tree.cost(p, 3) + Tree.cost(p, 2))
+		T.eq(plan.short + plan.room, 0)
+		local before = p.shells
+		local pals0 = #p.pals
+		local ok, data = Tree.bulk(p, ids, false, rng)
+		T.truthy(ok, tostring(data))
+		T.eq(#data.list, 2, "both hatched")
+		T.eq(data.list[1].egg, r.id, "the rare one first")
+		T.eq(data.list[2].egg, u.id)
+		T.eq(before - p.shells, data.cost, "paid what they cost")
+		T.eq(#p.pals, pals0 + 2)
+		T.eq(#p.clutch.list, 2, "the commons stay")
+		T.eq(p.clutch.list[1].id, c1.id)
+		T.eq(p.clutch.list[2].id, c2.id)
+		T.eq(select(2, Tree.bulk(p, {}, false, rng)), "not_found", "nothing to hatch")
+		T.eq(select(2, Tree.bulk(p, ids, false, rng)), "not_found", "those are gone")
+		-- the coins: one left for want of them, the cheaper ones still hatch
+		local e = egg(p, 3)
+		p.shells = Tree.cost(p, 1) * 2 + 1
+		plan = Tree.bulkPlan(p, Tree.atLeast(p.clutch.list, 1), false)
+		T.eq(plan.n, 2)
+		T.eq(plan.short, 1)
+		ok, data = Tree.bulk(p, Tree.atLeast(p.clutch.list, 1), false, rng)
+		T.truthy(ok, tostring(data))
+		T.eq(#data.list, 2, "the two commons")
+		T.eq(data.short, 1, "the rare one left")
+		T.eq(data.why, "money")
+		T.eq(p.clutch.list[1].id, e.id)
+		-- the huts: the rest stay once they are full
+		p.shells = 1e7
+		local free = Tree.room(p)
+		for _ = 1, free + 2 do
+			egg(p, 1)
+		end
+		plan = Tree.bulkPlan(p, Tree.atLeast(p.clutch.list, 1), false)
+		T.eq(plan.n, free)
+		T.eq(plan.room, 3)
+		ok, data = Tree.bulk(p, Tree.atLeast(p.clutch.list, 1), false, rng)
+		T.truthy(ok, tostring(data))
+		T.eq(#data.list, free)
+		T.eq(data.room, 3)
+		T.eq(data.why, "full")
+		T.eq(Tree.room(p), 0)
+		T.eq(select(2, Tree.bulk(p, Tree.atLeast(p.clutch.list, 1), false, rng)), "full", "every hut full: none")
+		T.eq(#p.clutch.list, 3, "nothing paid, nothing gone")
+	end)
+
+	T.it("a bulk hatch of the bag's eggs costs nothing", function()
+		local p = fresh()
+		p.stats.taken = 5
+		build(p, "nest")
+		build(p, "nest")
+		local rng = Util.newRng(5)
+		Tree.bagAdd(p, 1)
+		local b = Tree.bagAdd(p, 4) :: any
+		Tree.bagAdd(p, 2)
+		local before = p.shells
+		local ok, data = Tree.bulk(p, Tree.atLeast(p.bag, 2), true, rng)
+		T.truthy(ok, tostring(data))
+		T.eq(#data.list, 2)
+		T.eq(data.list[1].egg, b.id, "the epic first")
+		T.eq(data.list[1].bag, true)
+		T.eq(data.cost, 0)
+		T.eq(p.shells, before, "free")
+		T.eq(#p.bag, 1, "the common one stays")
+		T.eq(Tree.bulkPlan(p, Tree.atLeast(p.bag, 1), true).n, 1)
+	end)
+
+	T.it("Auto Hatch: with the pass, a new lot's eggs at the floor or rarer hatch by themselves", function()
+		-- (the request of 2026-11-22: "make an auto buy gamepass, which lets you auto buy eggs that appear above a
+		-- rarity of your choosing")
+		local p = fresh()
+		T.eq(p.settings.auto, 0, "off on a new island")
+		T.eq(select(2, Tree.setAuto(p, 3)), "locked", "the pass first")
+		T.truthy(Tree.setAuto(p, 0), "off is always allowed")
+		p.passes.AutoHatch = true
+		T.truthy(Tree.setAuto(p, 3))
+		T.eq(p.settings.auto, 3)
+		T.eq(select(2, Tree.setAuto(p, Traits.RMAX + 1)), "bad_payload")
+		T.eq(select(2, Tree.setAuto(p, 1.5)), "bad_payload")
+		local laid = { { id = 1, r = 1 }, { id = 2, r = 3 }, { id = 3, r = 5 }, { id = 4, r = 2 } }
+		T.deepEq(Tree.autoIds(p, laid :: any), { 3, 2 }, "the rare and the legendary, the rarest first")
+		p.passes.AutoHatch = nil
+		T.eq(#Tree.autoIds(p, laid :: any), 0, "the pass gone: none")
+		p.passes.AutoHatch = true
+		p.settings.auto = 0
+		T.eq(#Tree.autoIds(p, laid :: any), 0, "off: none")
+		-- an old save comes in with it off
+		local raw = Schema.default(0, 3) :: any
+		raw.settings.auto = nil
+		raw.v = 26
+		local back = Schema.reconcile(Schema.migrate(raw), 0, 3)
+		T.eq(back.settings.auto, 0)
+		raw = Schema.default(0, 3) :: any
+		raw.settings.auto = 4
+		T.eq(Schema.reconcile(raw, 0, 3).settings.auto, 4, "kept")
+		raw.settings.auto = 99
+		T.eq(Schema.reconcile(raw, 0, 3).settings.auto, Traits.RMAX, "clamped")
+	end)
+
 	T.it("a kind never had before hatches as new (the scene's \"New!\"); a second of it doesn't", function()
 		-- (the request of 2026-11-14: "there should a tip saying \"New!\" If the creature caught is new")
 		local p = fresh()

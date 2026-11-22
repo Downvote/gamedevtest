@@ -60,6 +60,9 @@ local PASSES: { Item } = {
 	{ key = "FreeDecor", name = "Free Decor", blurb = "Decor, paths, water and fences are free.", icon = "mini_decor", pass = true },
 	{ key = "PremiumTrack", name = "Premium Track", blurb = "Opens the premium track, every season.", icon = "mini_ticket", pass = true },
 	{ key = "OfflinePass", name = "Offline Pass", blurb = "Earn at full pace while away, up to 24 hours.", icon = "mini_moon", pass = true },
+	-- (the request of 2026-11-22: "make an auto buy gamepass, which lets you auto buy eggs that appear above a rarity of
+	-- your choosing"; the rarity is picked in the Tree of Life's panel)
+	{ key = "AutoHatch", name = "Auto Hatch", blurb = "New eggs at a rarity you pick or rarer hatch by themselves.", icon = "mini_egg", pass = true },
 }
 
 local PRODUCTS: { Item } = {
@@ -954,6 +957,7 @@ local PASS_THANKS: { [string]: string } = {
 	FreeDecor = "Thanks! Decor is free now.",
 	PremiumTrack = "Thanks! Premium track open.",
 	OfflinePass = "Thanks! You earn while away now, up to 24 hours.",
+	AutoHatch = "Thanks! Pick a rarity in the Tree of Life's panel.",
 }
 
 function StoreUI.init()

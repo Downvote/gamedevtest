@@ -686,6 +686,149 @@ function Tree.hatchBag(p: Profile, id: number, swap: number, rng: Rng): (boolean
 	return true, { id = x.id, sp = x.sp, muts = x.muts, egg = id, r = egg.r, hr = hr, cost = 0, sold = sold, swapped = if out then swap else 0, new = fresh, bag = true }
 end
 
+------------------------------------------------------------------ many at once: the bulk hatch and Auto Hatch
+-- The request (2026-11-22): "make a bulk open eggs button, where you open all eggs at once in the tree, or can select
+-- eggs to be bulk opened", then "selecting as in: bulk buy over a certain rarity" and "also, make an auto buy gamepass,
+-- which lets you auto buy eggs that appear above a rarity of your choosing". A bulk hatch takes every egg of a rarity
+-- or rarer (the tree's for their price, or the bag's for nothing), the rarest first, each hatched as Tree.hatch /
+-- hatchBag would with no swap: one the coins don't cover is left (`short`), and once every hut is full the rest stay
+-- (`room`). Auto Hatch (the AutoHatch game pass) does the same with each new lot the tree lays, for the eggs at the
+-- player's floor or rarer (Settings.auto; 0 is off).
+export type Bulk = { list: { any }, cost: number, short: number, room: number, why: ErrCode? }
+export type BulkPlan = { n: number, cost: number, short: number, room: number }
+type Held = { id: number, r: number }
+
+-- The ids of the eggs in `list` (the tree's or the bag's) of rarity `min` or rarer, the rarest first, then the first laid.
+function Tree.atLeast(list: { Held }, min: number): { number }
+	local pick: { Held } = {}
+	for _, e in list do
+		if e.r >= min then
+			table.insert(pick, e)
+		end
+	end
+	table.sort(pick, function(a: Held, b: Held): boolean
+		if a.r ~= b.r then
+			return a.r > b.r
+		end
+		return a.id < b.id
+	end)
+	local ids: { number } = table.create(#pick)
+	for i, e in pick do
+		ids[i] = e.id
+	end
+	return ids
+end
+
+-- The eggs `ids` found in the tree's lot (or the bag, `bag`), in the order a bulk hatch takes them.
+local function bulkOrder(p: Profile, ids: { number }, bag: boolean): { Held }
+	local byId: { [number]: Held } = {}
+	for _, e in (if bag then p.bag else p.clutch.list) :: { Held } do
+		byId[e.id] = e
+	end
+	local order: { Held } = {}
+	local seen: { [number]: boolean } = {}
+	for _, id in ids do
+		local e = byId[id]
+		if e and not seen[id] then
+			seen[id] = true
+			table.insert(order, e)
+		end
+	end
+	table.sort(order, function(a: Held, b: Held): boolean
+		if a.r ~= b.r then
+			return a.r > b.r
+		end
+		return a.id < b.id
+	end)
+	return order
+end
+
+-- What a bulk hatch of `ids` would do now (the panel's button): how many hatch, for how many coins, how many the
+-- coins leave and how many the huts' room leaves. The prices as they stand (a hatchling with a cost share can make
+-- the next one a little cheaper: Tree.bulk pays what each costs when it hatches).
+function Tree.bulkPlan(p: Profile, ids: { number }, bag: boolean): BulkPlan
+	local plan: BulkPlan = { n = 0, cost = 0, short = 0, room = 0 }
+	local free = Tree.room(p)
+	local coins = p.shells
+	for _, e in bulkOrder(p, ids, bag) do
+		if free <= 0 then
+			plan.room += 1
+		elseif bag then
+			plan.n += 1
+			free -= 1
+		else
+			local c = Tree.cost(p, e.r)
+			if c <= coins then
+				plan.n += 1
+				plan.cost += c
+				coins -= c
+				free -= 1
+			else
+				plan.short += 1
+			end
+		end
+	end
+	return plan
+end
+
+-- Hatch the eggs `ids` (the tree's for their price, or the bag's for nothing with `bag`), the rarest first, each as
+-- Tree.hatch / hatchBag with no swap. Returns (true, Bulk: each hatch's result in `list`, the coins paid, the eggs
+-- the coins left and the eggs left for want of room, with why the last stopped) when at least one hatched; else
+-- (false, why): not_found (none of them there), no_hut, full or money.
+function Tree.bulk(p: Profile, ids: { number }, bag: boolean, rng: Rng): (boolean, any)
+	local order = bulkOrder(p, ids, bag)
+	if #order == 0 then
+		return false, "not_found" :: ErrCode
+	end
+	local out: Bulk = { list = {}, cost = 0, short = 0, room = 0, why = nil }
+	for i, e in order do
+		if Tree.room(p) <= 0 then
+			out.room = #order - i + 1
+			out.why = if #Tree.huts(p) == 0 then "no_hut" else "full"
+			break
+		end
+		local ok, data
+		if bag then
+			ok, data = Tree.hatchBag(p, e.id, 0, rng)
+		else
+			ok, data = Tree.hatch(p, e.id, 0, rng)
+		end
+		if ok then
+			table.insert(out.list, data)
+			out.cost += data.cost
+		elseif data == "money" then
+			out.short += 1
+			out.why = out.why or "money"
+		end
+	end
+	if #out.list == 0 then
+		return false, (out.why or "not_found") :: ErrCode
+	end
+	return true, out
+end
+
+-- Auto Hatch's floor (Settings.auto): `r` a rarity, or 0 for off. locked without the AutoHatch pass (off is always
+-- allowed), bad_payload past the rarest.
+function Tree.setAuto(p: Profile, r: number): (boolean, any)
+	if r < 0 or r > Traits.RMAX or r ~= math.floor(r) then
+		return false, "bad_payload" :: ErrCode
+	end
+	if r > 0 and not (p.passes and p.passes.AutoHatch) then
+		return false, "locked" :: ErrCode
+	end
+	p.settings.auto = r
+	return true, { auto = r }
+end
+
+-- The eggs of a new lot (`laid`) Auto Hatch takes: those at the floor or rarer, with the pass owned and a floor set.
+function Tree.autoIds(p: Profile, laid: { Laid }): { number }
+	local floor = p.settings.auto or 0
+	if floor <= 0 or not (p.passes and p.passes.AutoHatch) then
+		return {}
+	end
+	return Tree.atLeast(laid :: any, floor)
+end
+
 -- A driftling sold (from a hut or with none): its price in shells; a hut's room goes to one waiting with no hut.
 function Tree.sell(p: Profile, id: number): (boolean, any)
 	for i, x in p.pals do

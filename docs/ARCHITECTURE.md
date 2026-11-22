@@ -35,6 +35,18 @@ read-only as the reference: nothing there was changed). What was copied, and how
 > Undo button, Select tool, layouts' bar, tool tooltips and keys (§10.7), the `mini_undo`, `mini_select` and
 > `mini_layouts` sprites; `tests/specs/Build.spec.luau`, `tools/sim/sim_build.luau`)
 
+> The requests (2026-11-22, GAME_DESIGN 6.3 quotes them): "make a bulk open eggs button, where you open all eggs at once
+> in the tree, or can select eggs to be bulk opened", "selecting as in: bulk buy over a certain rarity", "also, make an
+> auto buy gamepass, which lets you auto buy eggs that appear above a rarity of your choosing" (`Tree.atLeast`,
+> `bulkPlan`, `bulk`, `setAuto`, `autoIds` and the types `Tree.Bulk`, `Tree.BulkPlan`; `Settings.auto` (save version 27);
+> the actions `egg.bulk` and `egg.auto`, IslandService's `hatchedMany` and `autoHatch` after `Tree.step` and
+> `Tree.fill`, Fx "auto"; the `AutoHatch` pass in `Config/Monetization` (id 0 until made) and `Store.PASSES`;
+> `EggView.hatchMany` and `autoHatched`; `Menus`' egg rows (`rarityRow`), `BulkHatch`, `BagHatchAll`, the Auto Hatch row
+> and the "hatched" panel (§10.4); StoreUI's Auto Hatch item; `art/products/AutoHatch.png`; the `panel=tree:auto` and
+> `panel=hatched` previews; `sim_tree.luau`'s section 12b). Then "the view setting is hidden in mobile and other
+> devices, you cant scroll down to see it. the view of the game should also be zoomed out more on mobile" (the Settings
+> rows in a `List` that scrolls, §10.14; `Tuning.CamZoomPhone`, §8; the `panel=settings:end` preview).
+
 > The request (2026-11-13, GAME_DESIGN quotes it): "add a search button for the building ui." (`BuildUI`'s
 > `SearchButton` and `focusSearch`, the `mini_search` sprite: §10.7)
 
@@ -213,13 +225,13 @@ not a Pal id), r (its rarity, 1 .. 9 (`Traits.RMAX`): its look, `EggView.LOOK`),
 island now), ss? (the season it was laid in, a Data/Weather season id), wx? (the weather that touched it, a
 Data/Weather kind id with a mutation family), wt? (that touch's tier, 1 .. 4) }`; what hatches is rolled when it is
 hatched; ss, wx and wt are kept by `Schema.reconcile` only when known, wt only with wx (GAME_DESIGN 13)), `Clutch` (the tree's eggs, saved: `{ left (seconds till the
-next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, music?, sfx?, zoom?, screen?, lang?, text? }`: music and sfx "on" | "off"; lang "auto" or a
+next lot), list: { Laid }, next (the next egg's id) }`), `Settings` (`{ pixel, music?, sfx?, zoom?, screen?, lang?, text?, auto? }`: auto Auto Hatch's floor, a rarity or 0 for off (2026-11-22; reconcile clamps it to 0 .. RMAX); music and sfx "on" | "off"; lang "auto" or a
 `Lang.LIST` code, text "pixel" | "smooth" (2026-11-20, docs/LOCALIZATION.md: reconcile makes anything else "auto" and
 "pixel"); the Settings panel), `Stats`
 (`{ days, built, earned, taken (eggs hatched from the tree; the driftlings taken in off the tide and the ones the old
 tree grew before version 13), sold (driftlings sold), best (the rarest had), hatched (the Hatcheries' eggs hatched) }`),
 `Egg` (a Hatchery's: `{ uid (its Hatchery), a, b (the parents' ids), sp, muts, left (turns) }`, one a Hatchery),
-`Profile` (the save, version 26 (Build mode's saved layouts, 2026-11-21: `layouts` (`{ LayoutSave }`, always
+`Profile` (the save, version 27 (Auto Hatch, 2026-11-22: `Settings.auto`, which reconcile fills in as 0); 26 (Build mode's saved layouts, 2026-11-21: `layouts` (`{ LayoutSave }`, always
 `Tuning.LayoutSlots` of them: `LayoutSave { at (os.time when saved, 0 empty), tier (the island's then), n (its pieces,
 the tree apart), code (`Layout.pack`'s string, "" empty) }`); an older save gets every slot empty, `Layout.clean`
 cleans them on every load); 25 (the tips in a new order, 2026-11-21: `tut` 1 a hut, 2 an egg, 3 a workplace, 4 the last (they were 1 a camp, 2 a farm, 3 a hut, 4 an egg, 5 a shop, 6 the last: 1, 2, 3 -> 1; 4 -> 2; 5 -> 3; 6 -> 4), and the questline opening on four huts with Build another hut gone: a save on the questline (`tut` 0, or a quest past the first) keeps its quest, the first four one place later, the fifth on to the sixth); 24 (the leaderboards and friends, 2026-11-21: `social` (`Social`: `referredBy` (the inviter's user id, 0 for none), `refPaid` (the inviter's reward went out), `refPlay` (seconds played toward it, up to `ReferralMinPlaySec`), `invited` and `refDay` / `refToday` (the inviter's friends rewarded, in all and on that UTC day), `here` (Roblox friends on this server: never kept, 0 at every load, `Schema.social`)); an older save gets it fresh); 23 (the View slider's default moved to the seventh notch, 2026-11-20, "also, make the default view here": a save still on the sixth, the default every save wrote since 18, loses it and reconcile gives it the new one; `settings.zoom`); 20 (the rewards for coming back and playing, 2026-11-19: `rewards` (`RewardsSave`:
@@ -328,7 +340,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `ReferralStoreName` (`PI_Referral_v1`, never renamed), `ReferralMaxAgeSec` (86400: a save that young takes an
   invite), `ReferralMinPlaySec` (600), `ReferralDailyCap` (10), `FriendsBoostEach` (0.1), `FriendsBoostMax` (0.4).
   `Data/Rewards.REFERRAL` { invitee (a rare egg, 10 min of coins), inviter (an epic egg, 20 min, a 30 min Lucky Hour) }.
-- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14), `DevProducts` (RefreshEggs among them since 2026-11-14), `Group = { Id }` (the Roblox group for the group gift: 255554513; 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
+- `Config/Monetization.luau`: `GamePasses` (OfflinePass among them since 2026-11-14, AutoHatch since 2026-11-22 with id 0 until it is made), `DevProducts` (RefreshEggs among them since 2026-11-14), `Group = { Id }` (the Roblox group for the group gift: 255554513; 0 none), `Badges` (empty or 0), `Sounds` (the Creator Store
   library ids `Controllers/Audio` plays: Roblox's free licensed ProSoundEffects clips and APM Music stingers, none of
   Random Bakery's, each named in a comment; the weather's `RainLight` 9112852671, `RainHeavy` 9112858162, `WindGusts`
   9114057104 and `Thunder` 9120017047, measured with ffprobe) and `Music` (`{ day, night }`: lists of `{ id, gain }`, APM Music
@@ -833,7 +845,12 @@ Also, remove work building types. ..." (GAME_DESIGN, the top). What changed in t
   `palWork(p, pal)`, `palBoost(p, pal, comfort?, aura?)`; `output(p, isle?)`; `rates` (times 1 + isle.all and
   `timedMult`); `timedMult(p)` (1 + `TimedShells` while a Busy Day runs); `passMult`; `step` (the timed boosts run down);
   `freeJob(p)`; `arrange` (one list, the fastest driftlings to the best workplaces).
-- **`Logic/Tree`**: `lot(p)` (the tier's count and `isle.eggs`); `luck(p, tier?)` (the huts' luck and a Lucky Hour's
+- **`Logic/Tree`**: the bulk hatch and Auto Hatch (2026-11-22): `atLeast(list, min) -> { id }` (a lot's or the bag's
+  eggs of rarity `min` or rarer, the rarest first, then the first laid), `bulkPlan(p, ids, bag) -> BulkPlan { n, cost,
+  short, room }` (what a bulk hatch would do now: the Tree panel's button), `bulk(p, ids, bag, rng) -> (ok, Bulk |
+  ErrCode)` (each through `hatch` / `hatchBag` with no swap, the rarest first; one the coins don't cover is skipped,
+  `room(p)` reaching 0 stops it), `setAuto(p, r)` (Settings.auto; locked without `passes.AutoHatch`), `autoIds(p, laid)`
+  (the new eggs Auto Hatch takes: none without the pass or with the floor 0); `lot(p)` (the tier's count and `isle.eggs`); `luck(p, tier?)` (the huts' luck and a Lucky Hour's
   `TimedLuck`); `odds` (a rarity no open kind has weighs `EggEarly` of its weight); `roll(p, rng, rarity, season?,
   tier?)` (a kind not open yet with `FarKind`, or always when no open kind has that rarity); `rise` (`isle.skip` added to
   each `EggUp` step); `MAKE_ROOM` ranks "work"; no `lean`.
@@ -915,7 +932,9 @@ changed), `Fx` (RemoteEvent, S->C `{ kind = "tick", shells, dayFrac, clutchLeft 
 (`Tree.secs`), turnIn (seconds to the island's next turn: `TurnSeconds` - the session's `turnClock`) }` every second, `{ kind = "eggs", laid (`Tree.view`: every egg now, each with its cost), more (0: a
 new lot; n: the eggs added when the island grew), turned? (an egg of the lot turned into this rarity, or laid in it, for the
 quest on the go: `Tree.ensure`) }` when the tree lays or an egg turns (the session is marked dirty with it, so the whole
-view follows), `{ kind = "hatched", data }` (`egg.hatch`'s data) when an egg is hatched, `{ kind = "turn",
+view follows), `{ kind = "hatched", data }` (`egg.hatch`'s data) when an egg is hatched (once for a bulk hatch or
+Auto Hatch, the rarest), `{ kind = "auto", list, cost, short, room, why? }` when Auto Hatch took a new lot's eggs (after
+`Tree.step` or `Tree.fill`; `list` empty with `why` money, full or no_hut when none could hatch), `{ kind = "turn",
 ready? (the Hatchery eggs ready this turn, `{ uid, sp }`: Breed.turn) }` at each turn's end (`hatched` and `fresh` till
 2026-11-20, when eggs hatched by themselves), `{ kind = "day", day }` at each of the sea's days,
 `{ kind = "quest", data }` on a claim; no "tide" or "taken" since the tide went, and none of the old tree's "tree" or
@@ -976,6 +995,8 @@ payload) -> Response` (not ready -> `not_ready`; over `Tuning.RateLimitPerSec` -
 | `shop.buy` | `id` | `Store.buy` (a piece on sale in the player's rotating shop now, for shells; data `{ id, cost }`) | not_found (not on sale now), full (owned), money |
 | `track.claim` | `lvl prem` (1 .. 30, a boolean) | `Store.claim` (data `{ lvl, prem, given }`; Fx rewards) | locked (not reached, or no Premium Track pass), full (claimed), bad_payload |
 | `bag.hatch` | `id swap` | `Tree.hatchBag` (a bag egg, no shells; Fx hatched with `bag = true`) | not_found, no_hut, full, bad_payload |
+| `egg.bulk` | `min` (rarity), `bag` (bool) | every egg of rarity `min` or rarer under the tree (or in the bag) through `Tree.bulk` (2026-11-22, GAME_DESIGN 6.3): the rarest first, each as `egg.hatch` / `bag.hatch` with no swap; data `Tree.Bulk { list (each hatch's data), cost, short (left for coins), room (left for room), why? }`; each one counts for the pass track, the tips move on, one Fx hatched for the rarest | not_found (none of that rarity), no_hut, full, money (none hatched) |
+| `egg.auto` | `r` (int) | Auto Hatch's floor (`Tree.setAuto`: a rarity, 0 off) | locked (without the AutoHatch pass; 0 always allowed), bad_payload (past `RMAX`) |
 | `vip.daily` | - | `Store.vipDaily` (data `{ given }`; Fx rewards) | locked (no VIP), cooldown (claimed this UTC day) |
 | `reward.daily` | - | `Rewards.claimDaily` (data `{ given, streak, round, miles }`; Fx rewards from "daily") | cooldown |
 | `reward.play` | `i` (1 .. 8) | `Rewards.claimPlay` (a gift for playing whose minutes are in) | not_done, used, bad_payload |
@@ -1346,7 +1367,7 @@ Roblox camera shows the 3D world.
 ### 9.2 `CameraController`
 `View = { rot12, center, look, viewH, grid: Raster.Grid, key, fullX, fullY, K, tier, plot, room, box }`.
 Orthographic yaw 45° pitch 30°: floor edges step 2:1. A fixed box round the island's heart (`FRAME`, the same on every
-tier, shrunk about its middle by `Tuning.CamFrame`: 0.75, about 11 art px a stud on a desktop (a phone, the screen's short side 500 px or less, `Tuning.CamFramePhone`: 0.6, a step closer); it was 1 (8 px), then 0.7 (12 px)
+tier, shrunk about its middle by `Tuning.CamFrame`: 0.75, about 11 art px a stud on a desktop (a phone, the screen's short side 500 px or less, `Tuning.CamFramePhone`: 0.6, a step closer; since 2026-11-22 a phone draws the View slider's notch at `Tuning.CamZoomPhone` (0.75) of its art px a stud, `Raster.gridScale` picking the clean scale: "the view of the game should also be zoomed out more on mobile"); it was 1 (8 px), then 0.7 (12 px)
 after "zoom into the island more such that there isnt too much sea in the screen", then 0.95 (9 px) after "zoom out abit
 more. the whole island should still be visible", then 0.75 (the phone's 0.75 to 0.6) after "zoom in into the island
 more. it should fit like this, with the playable island as big as the bakery", all 2026-11-14) is placed on screen clear of the HUD's blocks (`setHudRects`, `Raster.place`; the screen's middle when it doesn't fit): that placement is the **home** pan (`view().grid.px/py`).
@@ -2514,6 +2535,13 @@ chip with its `mini_` icon, `Text` and, when both fit, `Sub` (its price or "Read
 after `Menus.init()`, then `FounderUI.init()` (10.18).
 
 ### 10.4 Menus
+The "hatched" panel (2026-11-22, GAME_DESIGN 6.3; title "Hatched", 380 x 226, `EggView.hatchMany` opens it with
+`egg.bulk`'s data and `bag`): `Head` ("Hatched 5 eggs for 1,600 coins." or "Hatched 3 eggs from your bag."), `Back` (to
+the tree), `LeftRoom` / `LeftCoins` ("2 eggs left: huts full.", "1 egg left: not enough coins.") when any were left,
+then a `List` grid (three columns from 440 UI px, two from 300, else one) of `Got_<id>` cards, the rarest first, a new
+kind first among equals: the portrait, `Name` and `Rarity` in its colour, `New` ("New!") for a kind never had, the
+mutations, `PalTip` on it. The first build shows them one after another (`HATCHED_STEP` 0.09 s apart, a pop each,
+"rare" from legendary up, `UIKit.burstOn` for a rare one or a new kind); the arg's `shown` makes a rebuild show them all.
 `UI/PalTip` (GAME_DESIGN 6, the request of 2026-11-15): `attach(target, pal)` on a row or button that shows one
 driftling (Menus' `Pal_<id>`, `SwapOut_<id>`, `Parent_<id>`, `Swap_<id>` rows and the Hatchery's `Slot_a/b_<uid>`):
 `MouseEnter` (not on a touch-only device) shows the tip at the pointer (`GetMouseLocation` less the Popup canvas's
@@ -2553,9 +2581,16 @@ a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DE
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
 "Odds now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
 yet" at 0) and, short of the last tier, `Grow` "Grow your island for rarer eggs and bigger lots."; on the right `Eggs` ("Under the
-tree") with `EggCount` ("6 eggs"), the `List`: first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
+tree") with `EggCount` ("6 eggs", or with a higher floor picked "Rare and up: 3" in its colour), under them the bulk hatch's
+row (2026-11-22): `rarityRow`, the nine `mini_egg_<r>` eggs as buttons `Bulk_<r>` (those under the floor drawn as their
+`_sil` silhouettes, a line under the picked ones; the floor kept in `bulkFloor` while the game runs, 1 at first) and
+`BulkHatch` ("Hatch 3: 1,600" with `PriceIcon` from `Tree.bulkPlan`; "Hatch all" in grey when none would hatch, its tap
+then saying why), sending `EggView.hatchMany(bulkFloor)`; on the left under the Quick Tree button, Auto Hatch:
+`TreeAuto` ("Auto Hatch R$ 149", `StoreUI.buy("AutoHatch")`) without the pass, with it `AutoWords` ("Auto Hatch: Rare and
+up" or "Auto Hatch: off") over a `rarityRow` with Off first (`Auto_0` .. `Auto_9`, each sending `egg.auto`); the `List` (from
+y 30): first the bag's eggs (GAME_DESIGN 14.2) when it holds any, `BagHead`
 ("Your eggs: 2") and a row each, the rarest first, `BagEgg_<id>` (its `egg_<rarity>`, `Name`, "Free to hatch",
-`BagHatch_<id>` sending `EggView.hatchBag`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
+`BagHatch_<id>` sending `EggView.hatchBag`; with two or more, `BagHatchAll` on the head row sending `EggView.hatchMany(1, true)`), then a row each of `EggView.best(v, #v.clutch)` (every egg, the rarest first), `Egg_<id>`: the `egg_<rarity>`
 sprite, "Rare egg" in its colour, "Hatches a rare creature" (`Hatches`; "an" before uncommon and epic) and `PanelHatch_<id>` (its cost
 and `PriceIcon`, sending `EggView.hatch`, or with fewer shells than its cost `StoreUI.eggInstead(r)`), or "No eggs
 left. More soon."; under them `StoreUI.eggRows`:
@@ -3102,6 +3137,9 @@ it with "Collected N shells." `WelcomeUI.step()` (Hud's heartbeat) opens it by i
 shut and the hatch scene isn't playing; it closes the card when the view has no report. `WelcomeUI.open()`.
 
 ### 10.14 Settings (`UI/SettingsUI`; GAME_DESIGN 9)
+Since 2026-11-22 the rows sit in a `List` (`UIKit.scroll`, the sheet's whole body, a `Foot` under the View slider) that
+scrolls when they run past the sheet's foot, a phone's or a short tablet's (the report: "the view setting is hidden in
+mobile and other devices, you cant scroll down to see it"); `UIKit.refreshPanel` keeps its place.
 The panel "settings" (the menu bar's `Menu_settings`, icon `mini_gear`, 236 wide, `heightFor`: taller when narrow and for the Language row's lines): `ROWS` Language
 (`settings.lang`, 2026-11-20: Auto and each `Lang.LIST` language by its own name, `raw` buttons, a `flow` row that
 wraps onto as many lines as the body needs; `own` like Screen), Text (`settings.text`: Pixel, Smooth, with the hint

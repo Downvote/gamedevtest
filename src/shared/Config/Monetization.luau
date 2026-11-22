@@ -13,6 +13,9 @@ local Monetization = {
 		FreeDecor = 2093795165, -- decor, paths, water and fences cost nothing
 		PremiumTrack = 2097202898, -- the pass track's premium side, this season and every one after
 		OfflinePass = 2095793183, -- the island earns for up to 24 hours while the player is away, at its full pace (not 3 at 30%)
+		-- each new lot's eggs at the player's chosen rarity or rarer hatch by themselves, coins and huts allowing
+		-- (Logic/Tree.autoIds; the request of 2026-11-22): 0 until it is created on the Creator Dashboard
+		AutoHatch = 0,
 	} :: { [string]: number },
 	-- the Roblox group (Community) whose members get the group gift once (a rare egg and shells) and 10% more shells
 	-- while they stay in it (Logic/Store.setGroup; MonetizationService checks at every join and on the Store's Claim).
@@ -40,6 +43,7 @@ local Monetization = {
 		FreeDecor = 249,
 		PremiumTrack = 249,
 		OfflinePass = 199,
+		AutoHatch = 149,
 		EggUncommon = 19,
 		EggRare = 29,
 		EggEpic = 49,

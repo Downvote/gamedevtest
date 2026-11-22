@@ -52,7 +52,9 @@
 #                   refusals (no hut, gone, malformed, a shell short, full), hatching from the card, a world tag, the
 #                   egg itself and the panel (wood, then a farm), the swap picker, new lots on the tree's clock (a
 #                   hatched-down lot, every egg left unhatched replaced), the eggs saved over a rejoin, the huts'
-#                   shares, expanding (more eggs at once, dearer, better), tapping the tree, a neighbour's eggs
+#                   shares, expanding (more eggs at once, dearer, better), tapping the tree, a neighbour's eggs, many at
+#                   once (the egg row and Hatch, the bag's Hatch all, the huts' room, Auto Hatch with and without the
+#                   pass)
 #   sim_social.luau the leaderboards and friends (GAME_DESIGN 16): the player list's leaderstats, Invite on the Top
 #                   sheet (the prompt and its LaunchData), friends joining from it (ReferredByPlayerId or the LaunchData;
 #                   once, never from yourself, never to an old save), friends here (the pace, the HUD's line, counted

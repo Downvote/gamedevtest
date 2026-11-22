@@ -2708,6 +2708,34 @@ new poses, which an image of its own would not save.
   and a gamepad's A tap too. One scene at a time. With the pixel filter off (the classic look) the egg floats the same
   way without the painted sky.
 
+### 6.3 Many eggs at once and Auto Hatch (`Logic/Tree.bulk`, the Tree panel, the Hatched panel)
+
+> The request (2026-11-22): "make a bulk open eggs button, where you open all eggs at once in the tree, or can select
+> eggs to be bulk opened", then "selecting as in: bulk buy over a certain rarity", and "also, make an auto buy
+> gamepass, which lets you auto buy eggs that appear above a rarity of your choosing".
+
+**Hatching many at once.** Over the egg list in the Tree of Life's panel sits a row of small eggs, one for each rarity.
+Tap one to pick the lowest rarity you want: the eggs from it up stay lit with a line under them, the commoner ones turn
+to silhouettes, and the corner says how many there are ("Rare and up: 3"; with the common egg picked it just counts
+the eggs). The Hatch button beside the row says how many will hatch and what they cost ("Hatch 3: 1,600"). One tap
+hatches all of them, the rarest first, each paid for and rolled exactly as a single hatch would be (it can still turn
+rarer, it brings its weather's mutation). If the coins run short, the eggs you can't afford are left and the cheaper
+ones still hatch. Once every hut is full, the rest stay under the tree: a bulk hatch never sells anyone to make room.
+The Hatch scene doesn't play for each egg. The eggs on the lawn crack where they lie and the Hatched panel shows what
+came out of them all: one card each, the rarest first, with its portrait, name, rarity, "New!" for a kind you never
+had, and its mutations. The cards turn up one after another with a pop, and a rare one or a new kind throws a few bits
+of its colour. Above them: how many hatched and what they cost, and how many eggs were left and why. Back returns to the
+tree. Your own eggs (the bag's, free to hatch) get a Hatch all button of their own when there are two or more.
+
+**Auto Hatch** is a game pass (149 Robux suggested). With it, the left side of the Tree panel shows "Auto Hatch: Rare
+and up" over the same row of eggs with Off at its front: pick the lowest rarity and every new egg the tree lays at
+that rarity or rarer hatches as soon as it is laid, coins and huts allowing, the rarest first. That covers every new
+lot, the extra eggs when the island grows, and a lot bought with New eggs now. The eggs already under the tree are
+left alone (the Hatch button is for those). A notice says what happened ("Auto Hatch: 3 eggs. The best was a rare
+Skyfox.", "New!" first when a new kind came), or why nothing did ("Auto Hatch: huts full.", "Auto Hatch: not enough
+coins."). Without the pass, the same spot holds a button to buy it. The rarity is saved with your settings; it stays
+set if the pass ever goes, and works again when it is back.
+
 ## 7. Expeditions and battles (gone)
 
 The request of 2026-11-12 quoted at the top of this file took them out: the wild places on the island (the Tide Pool,
@@ -3037,13 +3065,19 @@ big island's middle all at once, to 16, close enough to see a driftling's freckl
 than the last. A new player starts on the seventh, 11 a stud (the request of 2026-11-20, a screenshot with the knob
 on the seventh notch: "also, make the default view here"). The slider started on the eighth, 12, then moved to the
 sixth, 10 ("default view should be here", 2026-11-18); a save still on an old default goes to the new one, and a notch
-the player picked stays. The default's tick under the track is a pixel longer so
+the player picked stays. On a phone or a tablet the rows run on past the foot of the sheet, so they scroll, the View
+slider last (the report of 2026-11-22: "the view setting is hidden in mobile and other devices, you cant scroll down to
+see it"; a small arrow at the foot says there is more below). The default's tick under the track is a pixel longer so
 it's easy to find again. The knob moves at once; the island is drawn again
 at the new zoom a moment after the last notch, so dragging across several only redraws it once, and the old picture
 stays up while it does. A tap works at once and is kept with the profile. **The camera on a phone** draws the island at the
 same detail as on a desktop (§8, the camera: the View slider's notch, 11 art px a stud by default), so it shows a part of the island round
 the founder and follows them; before, it fitted a smaller box round the island's heart (`CamFramePhone` 0.6 against
 `CamFrame` 0.75: the request of 2026-11-14, "On mobile, zoom in to fit the island more"), at about half the detail.
+Since 2026-11-22 a phone draws every notch a quarter further out (`Tuning.CamZoomPhone` 0.75; the request: "the view of
+the game should also be zoomed out more on mobile"): at the default notch about 8 art px a stud, so a phone shows about
+as much of the island as a desktop does. The slider's notch is the same one on every device; only how far out it
+sits differs.
 
 > The request (2026-11-20): "like the bakery game, make translations for different languages, and an option to turn
 > off pixel text"
@@ -3817,7 +3851,8 @@ season's kinds in them.
 (Monetization, then Passes or Developer Products); all sixteen were made on 2026-11-21 (the dashboard calls Quick Tree
 "Faster Tree" and Finish Hatcheries "Speed Hatchery"). The Store shows each one's live price once Roblox gives it and
 `SuggestedRobux` (the dashboard's prices) meanwhile. An id of 0 is never sent to Roblox: an item without one shows its
-suggested price and says it isn't on sale yet.
+suggested price and says it isn't on sale yet. Auto Hatch (2026-11-22) is not made yet: its id is 0 until it is, so the Store and the Tree panel show its
+suggested price and say it is not on sale.
 
 **The passes** (`Profile.passes`, checked again at every join: `MonetizationService.join`; a pass bought in game works
 at once):
@@ -3827,6 +3862,7 @@ at once):
 | VIP | 199 | +25% shells (`VipIncome`), a welcome gift once (three hours of shells, two epic eggs, a legendary and a mythic egg, the six VIP pieces and the VIP title) and every UTC day a gift (20 minutes of shells and a rare egg) |
 | Double Income | 199 | every shell x2 (`DoubleIncome`; with VIP x2 x1.25) |
 | Quick Tree | 99 | the Tree of Life lays every 3 minutes, not 6 (`EggSecsPass`; 5 and 10 before 2026-11-17) |
+| Auto Hatch | 149 | each new egg at a rarity the player picks or rarer hatches by itself, coins and huts allowing (§6.3; 2026-11-22: "make an auto buy gamepass, which lets you auto buy eggs that appear above a rarity of your choosing"). Its id is 0 until it is made on the Creator Dashboard |
 | Free Decor | 249 | decor, paths, water and fences cost nothing (`Plot.price`); while it is owned they sell back for nothing too, so no free piece turns into shells |
 | Premium Track | 249 | the pass track's premium side, this season and every one after |
 | Offline Pass | 199 | the island earns for up to 24 hours while its player is away, at its full pace (§14.3) |

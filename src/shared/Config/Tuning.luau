@@ -341,6 +341,10 @@ local Tuning = {
 	-- "default view should be here").
 	CamZoomNotches = { 5, 6, 7, 8, 9, 10, 11, 12, 14, 16 },
 	CamZoomDefault = 7,
+	-- a phone (its screen's short side 500 px or less) draws each notch at this share of its art px a stud, a clean grid
+	-- scale (Raster.gridScale): the same notch, further out (the request of 2026-11-22, "the view of the game should
+	-- also be zoomed out more on mobile"). At the default notch a phone shows about as much of the island as a desktop.
+	CamZoomPhone = 0.75,
 	-- the Settings panel's Screen choices (Pixel/DisplayScale): the display's own scale, so an art pixel is a whole
 	-- number of the screen's pixels (the report of 2026-11-20, a tree drawn on a screen at 125%); 0 is Auto
 	ScreenScales = { auto = 0, ["100"] = 1, ["125"] = 1.25, ["150"] = 1.5, ["175"] = 1.75, ["200"] = 2 } :: { [string]: number },

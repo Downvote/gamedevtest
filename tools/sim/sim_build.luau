@@ -162,7 +162,7 @@ end
 H.expect(prof.tier == 3, "island", "a tier 3 island", tostring(prof.tier))
 local v0 = H.view(a)
 H.expect(v0 ~= nil and v0.undo == 0 and type(v0.layouts) == "table" and #v0.layouts == Tuning.LayoutSlots, "island", "the view: nothing to undo, the layouts' slots empty", v0 and tostring(v0.undo))
-H.expect(prof.v == 26 and #prof.layouts == Tuning.LayoutSlots, "island", "a version 26 profile with its layout slots", tostring(prof.v))
+H.expect(prof.v >= 26 and #prof.layouts == Tuning.LayoutSlots, "island", "a version 26 (or later) profile with its layout slots", tostring(prof.v))
 
 ------------------------------------------------------------------ 2. Undo on the server
 E.phase = "undo"

@@ -320,9 +320,14 @@ local function flowLayout(row: Row, w: number): ({ { x: number, y: number, w: nu
 	return out, line + 1
 end
 
-local function build(body: Frame, _arg: any?)
-	local bw = body:GetAttribute("W")
+local function build(sheet: Frame, _arg: any?)
+	local bw = sheet:GetAttribute("W")
 	local w = if type(bw) == "number" then bw else 228
+	-- (the rows in a list that scrolls: on a phone the sheet is the screen and the rows ran on past its foot with the
+	-- View slider last, out of reach; the request of 2026-11-22, "the view setting is hidden in mobile and other
+	-- devices, you cant scroll down to see it")
+	local body = UIKit.scroll(sheet, UDim2.fromOffset(w, UIKit.bodyHeight(sheet)), UDim2.new())
+	body.Name = "List"
 	local y = 4
 	for _, row in ROWS do
 		UIKit.text(body, row.label, UDim2.fromOffset(60, 12), UDim2.fromOffset(PAD, y + 2), { color = UIKit.color("text"), name = "Label_" .. row.k })
@@ -373,7 +378,14 @@ local function build(body: Frame, _arg: any?)
 			y += 8 + 10 * (n - 1)
 		end
 	end
-	viewRow(body, w, y)
+	viewRow(body :: any, w, y)
+	-- (room under the slider's ticks at the list's foot)
+	local foot = Instance.new("Frame")
+	foot.Name = "Foot"
+	foot.BackgroundTransparency = 1
+	foot.Size = UDim2.fromOffset(1, 12)
+	foot.Position = UDim2.fromOffset(0, y + (if narrow(w) then 30 else 16))
+	foot.Parent = body
 end
 
 -- The panel's height for its width: the rows as build lays them out, a hint wrapping and the View slider on a line of
