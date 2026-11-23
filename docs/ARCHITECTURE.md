@@ -333,7 +333,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   water tiles together: 80, 150, 240, 340, 460, 600, 750, 900, 1,050, 1,200, then 120 more a tier to 2,400),
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
-  `CamPitch` 30, `PixelTiers` (the moving models' `hz` 20 on high and medium and 15 on low since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics"; 30, 30, 20 before), `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
+  `CamPitch` 30, `PixelTiers` (the moving models' `hz` 20 on high and medium and 15 on low since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics"; 30, 30, 20 before; `shadows` and `water` false on every tier since the request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer", both true on medium and high before), `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamTrailSecs` (0.06: seconds of the founder's walk the view stands behind them), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanMargin` (40: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22, 24 until 2026-11-23) and
   `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
@@ -1805,6 +1805,20 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   walk its layer differs from a fresh cast in 11 of 280,704 pixels, all on a shadow's edge; a tier 5 town lists 637. Roblox's rays are native, so
   the game should cast it faster than the emulator; behind the card it waits 8 s at most, nearest the founder first,
   and casts the rest after.
+- **No sun shadows, sky in runs** (the request of 2026-11-23, "try removing more graphics and a deeper rework of the
+  renderer"). Every `Tuning.PixelTiers` entry has `shadows = false` and `water = false` (`PixelTierSpec` gained
+  `water`: the water's frames run only on a tier that has it; `SG.waterFix` still puts a cast rect's water at the
+  frame now, so the rivers keep their waves, standing). With no tier casting shadows, `SUN_ANY` (worked out once from
+  the tiers) is false and the sun's map is neither watched nor stepped (`SG.SunMap` stays empty). `RayMap.skyTo(gx,
+  gy, gx1) -> number` walks a row of the map from `gx` toward `gx1` and returns the last pixel whose block no part
+  reaches (a missing chunk counts as sky; `gx - 1` when the map is not ready or `gx` itself is not sky).
+  `SG.skyRow(s, y, x0, x1)` writes that run of a layer row as `SG.skyAt` writes one pixel (share, water class, wave,
+  id, albedo, `SKY_NORMAL`, lit 1, shade 0; the depths copied from a row kept for the purpose), adding to `SG.skyN`.
+  `SG.aheadPiece`, on its first pass over a piece on a see-through view (not a stage, not `SG.noShare`), first fills
+  each row's sky runs and marks them in `SG.aheadSkyMask` (a buffer the piece's size, `cc.sky` set), and the passes
+  after skip what it marked. The `prerender=12` preview: the whole level 12 island cast in 9.5 s of the emulator
+  (8024 ms casting) where it took 13.5 with shadows, its layer against a fresh cast 0 px off (12 before, all on a
+  shadow's edge).
 - **The next tier, cast ahead** (`PC`, the request of 2026-11-20: "Is there a way to make island expansion seamless,
   with no lag? Could you pre render max expansion floors so that expanding simply switches to that expansion level?").
   The player's next island stands staged in the world (PlotService: `workspace.Staged.Plot_<i>`, collision groups
@@ -2440,7 +2454,7 @@ twinkles"): its gold sparks and stars twinkle round it. `SIZE[r]` (1.25 .. 1.82)
 an egg lying still (risen, not sinking or cracking) sends one up: an uncommon a green 1 px leaf drifting up, a rare a
 `twinkle_1`/`twinkle_2` star blinking round it, an epic pink and white 1 px sparks rising, a legendary gold and white
 ones and now and then a `spark_1..3` star, a mythic pink and white sparks and `twinkle_p1..p3` stars, a celestial motes
-of every colour and `glint_1..3` glints; at most `SPARKS` (16; 140 until 2026-11-23, then 40; since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics" only the four rarest rarities spark, `EVERY` 0.5, 0.36, 0.3, 0.26 s) at once, none with the pixel filter off, each gone
+of every colour and `glint_1..3` glints; at most `SPARKS` (8 since the request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer"; 16 before, 140 until 2026-11-23, then 40; since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics" only the four rarest rarities spark, `EVERY` 0.5, 0.36, 0.3, 0.26 s) at once, none with the pixel filter off, each gone
 with its egg. Slot k of a lot of n lies on the
 lawn at `DecorModels.EGG_RING` from the tree's middle, spread evenly over the arc from `ARC0` (-62°) to `ARC1` (152°)
 (the south and east, the side the view looks at); a lot keeps its slots while it lasts (an egg's slot its place in
@@ -2496,10 +2510,10 @@ shows at the tuft's foot (an up-facing static pixel at its depth whose albedo is
 lawn's tones there (`Fx.tones` of the static colour, pulled toward it: `softTones`, `TUFT_K` 0.38 of each step
 kept, a flower's petals `FLOWER_K` 0.6; whole tones before 2026-11-14); stuck with `Fx.stickSprite` in the frame of the gust passing
 (`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share: `TIER_SCALE`
-0.25 / 0.4 / 0.5 for low, medium and high since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics", 0.5 / 0.75 / 1 before, scaling every life's numbers), the
+0.12 / 0.2 / 0.25 for low, medium and high since the request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer" (0.25 / 0.4 / 0.5 since the one before it, "optimize it even further. you can cut down even more on graphics", 0.5 / 0.75 / 1 before that), scaling every life's numbers, two birds an island at the least), the
 glints on the rivers and ponds (a few a second on random water pixels, by `sWClass`), the
 particles (`Fx.step`: drops, wisps, leaves), the birds and the butterflies, the fireflies last. Birds (`stepBird`;
-4 an island at high, 3 medium, 2 low, pips and wrens in turn, and a gull): away, then in (flown in from one side of
+2 an island (`max(2, 4 x TIER_SCALE)`), pips and wrens in turn, and a gull): away, then in (flown in from one side of
 the screen over 1.6 s, a gull over 2.4 s) to a perch picked on screen round its middle (an ellipse
 0.24 x 0.3 of the screen, a gull's 0.3 x 0.36: never under the HUD's cards), nobody within 3.5 studs (a gull 5) and no
 other bird on it (`pickPerch`: a rail, ridge or the sign 45 %, else a lawn cell; a gull a lawn cell
@@ -2524,7 +2538,7 @@ rad/s; waterwheel: `Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; gr
 -0.6) on its X, 0.7). Every piece with moving parts on an island near the view gets a moving copy once: its moving
 parts cloned (anchored, no collision or query) into a `Spin_<name>` model in `workspace.PixelDynamic`, registered as
 a moving model, the originals hidden (`PixelRenderer.hideStatic`) for good, each part kept as its offset from its hub
-(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 6 (40 until 2026-11-23, then 12 till the next request that day; posed every `POSE_SECS` 0.1, 0.05 before) on the screen (`PixelRenderer.nearScreen`, 24
+(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 3 (since the request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer"; 40 until 2026-11-23, then 12 till the next request that day, then 6; posed every `POSE_SECS` 0.1, 0.05 before) on the screen (`PixelRenderer.nearScreen`, 24
 art px) nearest the view's middle are `active` and move; a copy that stops being active is put back at rest (`hub *
 off`, its pose as built), and with reduced motion none move. (A first version dropped the copies past the cap and
 showed their parts again: on a full island every pan cast parts in and out of the picture, the renderer baked again
@@ -3522,8 +3536,7 @@ second one is ignored). A row's Visit and the HUD's Home both call it.
 The request: "optimize the game further, fix bugs, and polish everything fully". What the probes showed and what
 changed, module by module:
 - `EggView`: an egg's parts are moved with one `Workspace:BulkMoveTo` (`moveParts`, `moveCfs`), and only when the egg
-  moved (`cf`) or cracks; its lights and sparkles are stepped at 4 Hz (`fxT`; 12 until 2026-11-23, then 8), not every
-  frame, and an egg lying still between its rocks skips the frames till its lights' next step or its next rock
+  moved (`cf`) or cracks; its lights stand still (their clock held at 0, each egg at its own phase, since the request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer"; stepped at 4 Hz before, `fxT`, 12 until 2026-11-23, then 8), and an egg lying still between its rocks skips the frames till its next rock
   (`idleUntil`, a second at most: the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics"). A
   full ring of eggs took 2.5 ms a frame on the stress island; about 1 ms then. Since 2026-11-23 ("optimize the game
   much much more") an egg off the screen (`PixelRenderer.nearScreen`, 40 px) lying still is left as it was, not rocked

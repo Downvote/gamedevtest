@@ -64,7 +64,7 @@ type Egg = {
 	crack: number?, -- when it started hatching
 	cf: CFrame?, -- where its parts were last put (unchanged: they are left alone)
 	fxT: number?, -- the quarter of a second its lights were last put in
-	idleUntil: number?, -- lying still: nothing about it changes before this (its next rock or its lights' next step)
+	idleUntil: number?, -- lying still: nothing about it changes before this (its next rock)
 	moveParts: { BasePart }?, -- its parts and their places, moved in one call (Workspace:BulkMoveTo)
 	moveCfs: { CFrame }?,
 }
@@ -624,23 +624,23 @@ local function stepEgg(e: Egg, t: number)
 		end
 		workspace:BulkMoveTo(e.moveParts :: { BasePart }, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 	end
-	-- the rarity's lights: an epic or mythic egg's motes circle it, bobbing; a celestial egg's ring of lights orbits it,
+	-- the rarity's lights: an epic or mythic egg's motes stand round it; a celestial egg's ring of lights rings it,
 	-- tilted like a planet's ring. Hatching or sinking, they go out (under the lawn).
 	local s = SIZE[e.r] or 1
 	local quiet = e.crack ~= nil or e.sink ~= nil
-	-- (they move four times a second: in between the pixel filter shows the egg's kept picture, and they are left
-	-- where they are; twelve until the request of 2026-11-23, "optimize the game much much more", then eight, and four
-	-- since the next, "optimize it even further. you can cut down even more on graphics": each move draws the egg again)
+	-- (they stand still, each egg's at its own turn round it, since the request of 2026-11-23, "try removing more
+	-- graphics and a deeper rework of the renderer": each move drew the egg again. They circled twelve times a second
+	-- until the request of 2026-11-23, "optimize the game much much more", then eight, then four after "optimize it
+	-- even further. you can cut down even more on graphics")
 	local t0 = t
-	t = math.floor(t * 4) / 4
-	-- (lying still and not rocking: left alone till its lights' next step, or its next rock when it has none; a second
-	-- at most, so a spot that moved is caught up with)
+	t = 0
+	-- (lying still and not rocking: left alone till its next rock; a second at most, so a spot that moved is caught up
+	-- with)
 	if e.crack == nil and e.sink == nil and t0 >= e.born + RISE then
 		local cycle = (t0 + e.ph) % 7
 		if cycle >= 0.6 then
 			local nextRock = t0 + (7 - cycle)
-			local nextLight = if #e.fx > 0 then t + 0.25 else math.huge
-			e.idleUntil = math.min(nextRock, nextLight, t0 + 1)
+			e.idleUntil = math.min(nextRock, t0 + 1)
 		end
 	end
 	if not moved and e.fxT == t then
@@ -681,8 +681,9 @@ local sparks: { Spark } = {}
 -- (40 at once, each egg half as often, since the request of 2026-11-23, "optimize the game much much more. its ok to
 -- drop graphics where it most affects performance": 140 sparks were placed on the screen every frame. Since the next
 -- that day, "optimize it even further. you can cut down even more on graphics": only the four rarest rarities' eggs
--- spark, slower, 16 at once; the commoner ones show their rarity by their colour alone)
-local SPARKS = 16
+-- spark, slower, 16 at once; the commoner ones show their rarity by their colour alone. 8 at once since the request
+-- of 2026-11-23, "try removing more graphics and a deeper rework of the renderer")
+local SPARKS = 8
 local EVERY: { [number]: number } = { 0, 0, 0, 0, 0, 0.5, 0.36, 0.3, 0.26 } -- seconds between an egg's sparks, by rarity (0: none)
 
 local function newSpark(e: Egg, foot: Vector3, t: number)

@@ -37,6 +37,10 @@
 --                                        and the third come (studs; math.huge when there is none), and whether p1 and
 --                                        p2 have flat faces (a block or a wedge, not part of a model lit smooth:
 --                                        Pixel/SmoothParts), and how near p1 comes
+--   map.skyTo(gx, gy, gx1): number     the last global x in gx .. gx1 on row gy up to which every block is sky (gx - 1
+--                                        when gx's block is not, or nothing can be said): runs of sky filled at once, no
+--                                        pixel looked at one by one (the request of 2026-11-23, "a deeper rework of the
+--                                        renderer")
 --   map.debugState()                  parts, chunks, queued, ready
 local SmoothParts = require(script.Parent.SmoothParts)
 
@@ -49,6 +53,7 @@ export type Map = {
 	step: (deadline: number, clock: () -> number) -> boolean,
 	ready: () -> boolean,
 	at: (gx: number, gy: number) -> (BasePart | false | nil, BasePart?, number, number, boolean, boolean, number),
+	skyTo: (gx: number, gy: number, gx1: number) -> number,
 	debugState: () -> { parts: number, chunks: number, queued: number, ready: boolean },
 }
 
@@ -501,6 +506,36 @@ function RayMap.new(marginFlat: number, marginRound: number): Map
 		local k2 = buffer.readu16(c.k2, i)
 		local d2, d3 = buffer.readu16(c.d2, i), buffer.readu16(c.d3, i)
 		return c.parts[k], if k2 == 0 then nil else c.parts[k2], if d2 == NONE then math.huge else d2 / DQ, if d3 == NONE then math.huge else d3 / DQ, c.flat[k], k2 ~= 0 and c.flat[k2], buffer.readu16(c.d1, i) / DQ
+	end
+
+	function M.skyTo(gx: number, gy: number, gx1: number): number
+		if rot == nil or root == nil or remHead <= #remQ or addHead <= #addQ or dirtyN > 0 then
+			return gx - 1
+		end
+		local by = gy // 2
+		if by < wy0 or by > wy1 then
+			return gx - 1
+		end
+		local cy = by // CB
+		local x = gx
+		while x <= gx1 do
+			local bx = x // 2
+			if bx < wx0 or bx > wx1 then
+				break
+			end
+			local cx = bx // CB
+			local c = chunks[(cx + 32768) * 65536 + (cy + 32768)]
+			if c == nil then
+				-- (no part reaches this chunk at all: sky to its end, or to the window's, past which nothing is known)
+				x = math.min((cx + 1) * CB, wx1 + 1) * 2
+			else
+				if buffer.readu16(c.k, ((by - cy * CB) * CB + bx - cx * CB) * 2) ~= 0 then
+					break
+				end
+				x = (bx + 1) * 2
+			end
+		end
+		return math.min(x - 1, gx1)
 	end
 
 	function M.debugState(): { parts: number, chunks: number, queued: number, ready: boolean }

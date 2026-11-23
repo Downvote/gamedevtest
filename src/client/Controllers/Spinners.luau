@@ -36,8 +36,9 @@ local NEAR = 220 -- studs from the view's middle (along the street) an island is
 -- pieces moving at a time (each a model the pixel filter draws afresh every tick it moves): 12, posed 10 times a
 -- second, since the request of 2026-11-23, "optimize the game much much more. its ok to drop graphics where it most
 -- affects performance" (40, 20 times a second, before: on a dense island every turn was a picture drawn again); 6
--- since the next request that day, "optimize it even further. you can cut down even more on graphics"
-local MAX_MOVING = 6
+-- since the next request that day, "optimize it even further. you can cut down even more on graphics"; 3 since the
+-- request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer" (the nearest to the view)
+local MAX_MOVING = 3
 local SCREEN_PAD = 24 -- art px off the screen a piece may stand and still move
 local POSE_SECS = 0.1 -- the moving parts posed this often (posing all of 40 every frame took about 2 ms a frame on a
 -- full island, the stress test of 2026-11-19)

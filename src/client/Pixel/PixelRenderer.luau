@@ -324,6 +324,15 @@ local function tierSpec(t: string): Tuning.PixelTierSpec
 	return Tuning.PixelTiers[t] or Tuning.PixelTiers.high
 end
 
+-- whether any tier casts sun shadows: none since 2026-11-23 ("try removing more graphics"), so the sun's map (SG.SunMap)
+-- is neither watched nor built
+local SUN_ANY = false
+for _, spec in Tuning.PixelTiers do
+	if spec.shadows then
+		SUN_ANY = true
+	end
+end
+
 local function dynFolder(): Folder
 	local f = workspace:FindFirstChild("PixelDynamic")
 	if f and f:IsA("Folder") then
@@ -394,6 +403,7 @@ local SG = {
 	aNz = 0,
 	solvedN = 0,
 	skyN = 0,
+	aheadSkyMask = nil :: buffer?, -- (the cast ahead's runs of sky on its small layer, SG.aheadPiece: 1 where filled)
 	sharedN = 0,
 	raysAt = 0,
 	frameLog = nil :: { over: number, list: { string } }?, -- (previews: the slow frames' breakdowns, debugFrameLog)
@@ -994,6 +1004,38 @@ local function castSample(s: Surf, gx: number, gy: number, bx1: number, by1: num
 			end
 		end
 	end
+end
+
+-- Layer row y, pixels x0 .. x1, as the see-through sky (a view whose sky is clear: its shade 0), all at once: what
+-- SG.skyAt writes pixel by pixel, in a few fills a field (the request of 2026-11-23, "a deeper rework of the renderer":
+-- the cast ahead of a walk spent a quarter of its time writing sky one pixel at a time). Each pixel counts as its own.
+local farRow: buffer? = nil
+function SG.skyRow(s: Surf, y: number, x0: number, x1: number)
+	local n = x1 - x0 + 1
+	if n <= 0 then
+		return
+	end
+	local fr = farRow
+	if fr == nil or buffer.len(fr) < n * 4 then
+		local m = math.max(n, 256)
+		local b = buffer.create(m * 4)
+		for i = 0, m - 1 do
+			buffer.writef32(b, i * 4, FAR)
+		end
+		fr = b
+		farRow = b
+	end
+	local b0 = y * s.W + x0
+	buffer.fill(s.sShare, b0, 0, n)
+	buffer.fill(s.sWClass, b0, 0, n)
+	buffer.fill(s.sWave, b0, 0, n)
+	buffer.fill(s.sId, b0 * 2, 0, n * 2)
+	buffer.copy(s.sDepth, b0 * 4, fr :: buffer, 0, n * 4)
+	buffer.fill(s.sAlbedo, b0 * 4, 0, n * 4)
+	buffer.fill(s.sNormal, b0, BakeCast.SKY_NORMAL, n)
+	buffer.fill(s.sLit, b0, 1, n)
+	buffer.fill(s.sShade, b0 * 4, 0, n * 4)
+	SG.skyN += n
 end
 
 -- Global pixel (gx, gy) as the sky, filling its block up to (bx1, by1) as castSample would after a ray that met
@@ -1714,10 +1756,10 @@ function SG.mapStep()
 		SG.SunMap.setView(R, q, 0, 0, SG.sunL0, math.floor(u0), math.floor(v0), math.ceil(u1), math.ceil(v1))
 		SG.sunRot = R
 	end
-	local ms = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs elseif SG.Map.ready() and SG.SunMap.ready() then Tuning.PixelMapMs else Tuning.PixelMapBuildMs
+	local ms = if (PixelRenderer :: any)._hidden then Tuning.PixelHiddenMs elseif SG.Map.ready() and (not SUN_ANY or SG.SunMap.ready()) then Tuning.PixelMapMs else Tuning.PixelMapBuildMs
 	local m0 = SG.clock()
 	local did = SG.Map.step(m0 + ms / 1000, SG.clock)
-	if SG.Map.ready() and SG.SunMap.step(m0 + ms / 1000, SG.clock) then
+	if SUN_ANY and SG.Map.ready() and SG.SunMap.step(m0 + ms / 1000, SG.clock) then
 		did = true
 	end
 	if did then
@@ -7381,7 +7423,7 @@ SG.ahead = {
 	view = nil :: any,
 	-- (the piece being cast: its tile, phase and pixel, the cache's epoch when it began, the rect cast on the small
 	-- layer (the piece and PAD px round it, for the shadows' edges) and the rect kept)
-	cur = nil :: { tx: number, ty: number, phase: number, x: number, y: number, epoch: number, cx0: number, cy0: number, cx1: number, cy1: number, kx0: number, ky0: number, kx1: number, ky1: number, g1: number, g2: number, g3: number, g4: number, ring: boolean }?,
+	cur = nil :: { tx: number, ty: number, phase: number, x: number, y: number, epoch: number, cx0: number, cy0: number, cx1: number, cy1: number, kx0: number, ky0: number, kx1: number, ky1: number, g1: number, g2: number, g3: number, g4: number, ring: boolean, sky: boolean? }?,
 	lx = nil :: number?,
 	ly = nil :: number?,
 	dx = 0,
@@ -7550,18 +7592,51 @@ end
 function SG.aheadPiece(s: Surf, deadline: number): boolean
 	local A = SG.ahead
 	local ps = A.ps
-	local cc = A.cur :: { tx: number, ty: number, phase: number, x: number, y: number, epoch: number, cx0: number, cy0: number, cx1: number, cy1: number, kx0: number, ky0: number, kx1: number, ky1: number, g1: number, g2: number, g3: number, g4: number, ring: boolean }
+	local cc = A.cur :: { tx: number, ty: number, phase: number, x: number, y: number, epoch: number, cx0: number, cy0: number, cx1: number, cy1: number, kx0: number, ky0: number, kx1: number, ky1: number, g1: number, g2: number, g3: number, g4: number, ring: boolean, sky: boolean? }
 	local shadows = tierSpec(tier).shadows
 	local gx0, gy0 = ps.cam.gx, ps.cam.gy
 	local r0 = bakeRays
 	local n = 0
+	-- (first, the tile's runs of sky, filled a row at a time and marked so the passes below leave them: the request of
+	-- 2026-11-23, "a deeper rework of the renderer". Only a see-through sky, whose every pixel is the same)
+	local skyMask = SG.aheadSkyMask
+	if cc.phase == 1 and cc.sky == nil then
+		cc.sky = false
+		if ps.view.clear and not SG.noShare and not ps.view.stage then
+			local W = ps.W
+			if skyMask == nil or buffer.len(skyMask) < W * ps.H then
+				skyMask = buffer.create(W * ps.H)
+				SG.aheadSkyMask = skyMask
+			end
+			local mk = skyMask :: buffer
+			local runs = 0
+			for y = cc.cy0, cc.cy1 do
+				buffer.fill(mk, y * W + cc.cx0, 0, cc.cx1 - cc.cx0 + 1)
+				local x = cc.cx0
+				while x <= cc.cx1 do
+					local e = SG.Map.skyTo(x + gx0, y + gy0, cc.cx1 + gx0) - gx0
+					if e >= x then
+						SG.skyRow(ps, y, x, e)
+						buffer.fill(mk, y * W + x, 1, e - x + 1)
+						runs += 1
+						x = e + 1
+					else
+						x += 1
+					end
+				end
+			end
+			cc.sky = runs > 0
+		end
+	end
+	local useMask = cc.sky == true
+	local mk = skyMask
 	while cc.phase <= 2 do
 		n += 1
 		if n % 24 == 0 and SG.clock() >= deadline then
 			break
 		end
 		local gx, gy = cc.x + gx0, cc.y + gy0
-		if (gx % 2 == 0 and gy % 2 == 0) == (cc.phase == 1) then
+		if (gx % 2 == 0 and gy % 2 == 0) == (cc.phase == 1) and not (useMask and buffer.readu8(mk :: buffer, cc.y * ps.W + cc.x) == 1) then
 			SG.castPx(ps, gx, gy, gx, gy, false, shadows, cc.cx0, cc.cy0, cc.cx1, cc.cy1)
 		end
 		cc.x += 1
@@ -7959,11 +8034,13 @@ local function frameStep(dt: number)
 		showWindow(s)
 	end
 	local wv0 = SG.clock()
-	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
+	-- the water's frames (on a tier whose spec has water: none since the request of 2026-11-23, "try removing more
+	-- graphics and a deeper rework of the renderer"; the water keeps the frame SG.waterFix put it at): a changed frame
+	-- is copied and uploaded whole by the next compose
 	-- (a period that met no water on the layer: the slices rest for 2 s, then look again; the request of 2026-11-23,
 	-- "optimize the game much much more": every layer pixel was looked at six times a second, about 1.2 ms a frame, on
 	-- islands with no water at all)
-	if s and tier ~= "low" and os.clock() >= SG.waterRest then
+	if s and tier ~= "low" and tierSpec(tier).water and os.clock() >= SG.waterRest then
 		waterClock += dt
 		local w0 = SG.clock()
 		-- (the next frame's slices due by now: all of them by the period's end; SG.waterSlice)
@@ -8013,7 +8090,9 @@ local function watchStatic()
 		return
 	end
 	SG.Map.watch(plots)
-	SG.SunMap.watch(plots)
+	if SUN_ANY then
+		SG.SunMap.watch(plots)
+	end
 	-- (each part's shape for SG.solve worked out as the map takes it in, within the map's time, not the first time a
 	-- ray needs it: a walk onto new ground spent 30 ms of one frame on that)
 	SG.Map.onAdd = SG.geomOf

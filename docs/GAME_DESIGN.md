@@ -389,12 +389,14 @@ pieces, a snail's or a turtle's shell). The daily spin, the Lucky Shell for a wh
   camera: orthographic, yaw 45°, pitch 30°, the 2:1 pixel-art "isometric" grid, always centred on your founder. Everything is built from parts in code (no
   meshes, decals or uploaded images).
 - **Pixel filter:** the same pipeline as Random Bakery's: a raycast G-buffer baked progressively, three toon bands
-  from one sun, sun shadows, a palette LUT, a 1 px outline (each edge pixel a darker step of its own colour, §2),
+  from one sun, a palette LUT, a 1 px outline (each edge pixel a darker step of its own colour, §2),
   and the characters drawn analytically every tick on
-  top with the same projection. One pixel size K for the world, the UI and the text. Shadows keep the grid: the sun's
-  ray is cast once for each 2x2 pixels, and every pixel on a shadow's edge then casts its own, so a shadow's edge
-  steps one pixel at a time (the bug report, 2026-11-10: "some shadows appear to be blocky and have mixels, not
-  respecting the pixel grid").
+  top with the same projection. One pixel size K for the world, the UI and the text. The faces keep their lit and
+  shaded sides, but nothing casts a shadow on the ground since the request of 2026-11-23, "try removing more graphics
+  and a deeper rework of the renderer" (a sun ray for most pixels, a third of every cast; `PixelTiers`' `shadows`).
+  While they were on they kept the grid: the sun's ray was cast once for each 2x2 pixels, and every pixel on a
+  shadow's edge then cast its own, so a shadow's edge stepped one pixel at a time (the bug report, 2026-11-10: "some
+  shadows appear to be blocky and have mixels, not respecting the pixel grid").
 - **Moving things:** a driftling walking on the island slides across the picture a pixel at a time, every tick, and
   its pose changes as often as the frame's budget allows (the request of 2026-11-18: "make it such that overworld
   creatures move smoother". On a busy island its picture used to stand still for a fifth of a second, then jump 4 to
@@ -433,7 +435,7 @@ floor, it just looks noisy", 2026-11-14),
   streak of light where the sun hits it; window glass a darker pane with two streaks of reflection. The marks belong
   to the place on the island, not to the screen, so they never crawl when the view moves, and two marks never touch
   into a blob. A thing too small to carry its pattern stays plain. In a shadow the marks fade into the shade with the
-  rest of the face. The water keeps its own moving waves, and what moves (the driftlings, the eggs, the founders)
+  rest of the face. The water keeps its own waves, and what moves (the driftlings, the eggs, the founders)
   stays plain: a mark would slide over it as it walks. None of it costs a ray.
 
   > The request (2026-11-14): "make the noise textures across everything more less contrast with whatever material
@@ -1156,7 +1158,7 @@ a Stream with pebbles, a darker Deep River with current streaks, a Lily Pond, Sw
 sandy banks, a steaming Hot Spring and a Frozen Pond. A tile draws its bank only on the sides where the water ends and
 rounds the corner where two banks meet, so a river of many tiles reads as one body of water: the server works out each
 tile's neighbours (`PlotService.waterMasks`), and a tile is built again when water is dug or taken up next to it. The
-water moves the way the shallows do (§8). Water shares its limit with the paths (`PathPieces`), and each eraser takes
+water shows waves the way the shallows do (§8). Water shares its limit with the paths (`PathPieces`), and each eraser takes
 up only its own kind (Erase with a path picked leaves the water alone).
 
 What goes with water: a piece made to go **over** it (the bridges, the dock, the waterwheel, the little waterfall)
@@ -1952,11 +1954,13 @@ When the island grows into a new stage, the tree is built again at it.
 
   (The two last came with the request of 2026-11-20: "make more higher tier eggs, about 2 more tiers". The rarer
   eggs are a little bigger again: `EggModels.SIZE` 1.92 and 2.02, a celestial egg's 1.82.)
+  (Since the request of 2026-11-23, "try removing more graphics and a deeper rework of the renderer", the motes and
+  rings of lights stand still round the egg, each egg's at its own turn, and the sparks are 8 at most at once.)
 
   The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
   whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
   several a second off a legendary one; half as often since 2026-11-23), only over eggs lying still and at most 40 at
-  once (140 before). Since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics", only the four rarest rarities' eggs spark, at most 16 at once,
+  once (140 before). Since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics", only the four rarest rarities' eggs spark, at most 16 at once (8 since "try removing more graphics and a deeper rework of the renderer"),
   every quarter to half a second; the commoner ones show their rarity by their colour; the motes and the beam go
   out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_9`: the Tree panel, the store and
   the Hatchery; the Tree card has its own small ones, `mini_egg_1` .. `mini_egg_9`, 9 by 11 so each sits in its row: "the
@@ -2798,9 +2802,10 @@ text (the requests and how each was met) is in the history of this file, up to c
   smoke, seats, a flag and torches, until the request of 2026-11-20: "Remove the campfire in the middle and put the
   tree in the middle instead"). Your sign stands on the south rim with the island's name over it. There are no docks
   (2026-11-13) and no sea (2026-11-20): the island floats alone in the sky.
-- **The water moves:** the fishing pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) are
-  redrawn a few times a second by the pixel filter, crests catching the light. (The sea moved the same way until it
-  went on 2026-11-20.)
+- **The water:** the fishing pier's pond, the fountains and the rivers and ponds drawn on the island (§4.3) show
+  their waves and crests catching the light, standing still since the request of 2026-11-23, "try removing more
+  graphics and a deeper rework of the renderer" (`PixelTiers`' `water`). Until then the pixel filter redrew them a
+  few times a second. (The sea moved the same way until it went on 2026-11-20.)
 - **One bright day, no night** (the request of 2026-11-14: "remove the day night cycle, and make everything
   brighter"): the light no longer follows a clock. It is the same clear day all the time. It was a little brighter than
   the plain baked picture (`Controllers/DayLight`'s `BRIGHT` grade: the colours 3.5% lighter, 2.5% in the blue, the
@@ -3108,6 +3113,30 @@ text (the requests and how each was met) is in the history of this file, up to c
   stay. In the previews: the full Everdrift walked onto new ground 13.0 ms a frame before this, 11.8 now (the picture's
   own part 10.3 ms, 8.7 now), standing in it 5.1 ms, 4.9 now; the town of 68 driftlings 11.6 ms, 11.1 now; stopping a
   walk had no frame over 16.7 ms (4 before).
+
+  > The request (2026-11-23): "try removing more graphics and a deeper rework of the renderer"
+
+  Measured first, each cut on its own, on the level 12 town walked round after its loading card. What went:
+  - **Shadows on the ground.** Buildings, trees and decor no longer cast shadows. Their faces keep the lit and the
+    shaded side. A shadow took a ray toward the sun for most pixels, about a third of every cast: the whole level 12
+    island now casts in about 9 s of the preview where it took about 13. The sun's map that sped those rays up is no
+    longer built.
+  - **Moving water.** Rivers, ponds and fountains keep their waves and crests but stand still. Every change of the
+    water's frame sent the whole picture to the screen again.
+  - **Egg lights.** The motes and rings round the rarest eggs stand still (each egg's at its own turn), and their
+    sparks are 8 at most at once (16).
+  - **Less moving decor.** At most 3 pieces turn at once, the nearest to the view (6).
+  - **Fewer small lives.** Half as many tufts, butterflies, leaves, smoke and twinkles again, two birds an island.
+  On their own each cut saved 0.3 to 0.7 ms a frame; together about 1.5. In the renderer itself, a tile cast ahead of
+  the walk now fills its runs of open sky a row at a time from the ray map (`RayMap.skyTo`, `SG.skyRow`) instead of a
+  pixel at a time. Two bigger changes were tried and left out: a wider margin round the screen (64 px, so the picture
+  scrolls half as often) made the full Everdrift walk slower, 13.0 ms a frame against 10.3, with 63 frames over 25 ms;
+  and splitting the picture into tiles, so a scroll sends less of it to the screen, was not built, since the preview
+  cannot time what Roblox spends sending a picture to the screen.
+  In the previews (the frame's time for everything): the full Everdrift walked onto new ground 11.1 ms a frame before
+  this, 10.3 now (the pixel filter's own part 8.6 ms, 7.8 now), its second leg 13.5, 12.8 now; the level 12 town
+  walked round after its loading card 11.1 ms, 9.7 now (the renderer's step 8.7, 7.9 now), its picture against a
+  fresh cast 0 pixels off (12, all on a shadow's edge).
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are

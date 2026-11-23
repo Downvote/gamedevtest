@@ -1,18 +1,26 @@
 --!strict
 -- Every balance and timing number (docs/GAME_DESIGN.md quotes them; this file wins). Pure.
-export type PixelTierSpec = { h: number, hz: number, budgetMs: number, minFps: number, shadows: boolean }
+export type PixelTierSpec = { h: number, hz: number, budgetMs: number, minFps: number, shadows: boolean, water: boolean }
 
 -- The pixel scale K (whole screen px per art pixel) is the one pixel size of the world, the UI and the text (Random
 -- Bakery's rule): PixelScaleMin plus one for each PixelScaleSides entry that the screen's short side exceeds. A tier
 -- only ever makes K coarser: h = the most art px across the short side (K >= ceil(short side / h)); hz = dynamic
--- layer ticks per second; budgetMs / minFps = the watchdog; shadows = sun shadow rays in the static bake.
+-- layer ticks per second; budgetMs / minFps = the watchdog; shadows = sun shadow rays in the static bake; water = the
+-- rivers' and ponds' moving frames.
 -- (hz 20 on medium and high, 15 on low, since the request of 2026-11-23, "optimize it even further. you can cut down
 -- even more on graphics": the moving models change 20 times a second, a whole tick's compose one frame in three
 -- instead of one in two; it was 30, and 20 on low)
+-- (no sun shadows on any tier since the request of 2026-11-23, "try removing more graphics and a deeper rework of the
+-- renderer": the buildings' and trees' shadows on the ground were a sun ray for most pixels, a third of every cast; the
+-- whole level 12 island cast in 9.5 s of the emulator without them, 13.5 with. The faces keep their lit and shaded
+-- sides. They were on for medium and high)
+-- (no moving water on any tier since the same request: each of the water's frames changed pixels all over the picture,
+-- so the next compose sent the whole picture to the screen again, several times a second; the rivers and ponds keep
+-- their first frame, ripples and all. It was on for medium and high)
 local PixelTiers: { [string]: PixelTierSpec } = {
-	low = { h = 270, hz = 15, budgetMs = 6, minFps = 0, shadows = false },
-	medium = { h = 400, hz = 20, budgetMs = 8, minFps = 25, shadows = true },
-	high = { h = 540, hz = 20, budgetMs = 10, minFps = 40, shadows = true },
+	low = { h = 270, hz = 15, budgetMs = 6, minFps = 0, shadows = false, water = false },
+	medium = { h = 400, hz = 20, budgetMs = 8, minFps = 25, shadows = false, water = false },
+	high = { h = 540, hz = 20, budgetMs = 10, minFps = 40, shadows = false, water = false },
 }
 
 local Tuning = {

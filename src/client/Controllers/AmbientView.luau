@@ -18,8 +18,8 @@
 --   magic things (Sparkle);
 -- * glints of light now and then on the rivers and ponds laid on the islands. (The sea's glints and the fish jumping
 --   out of it went with the sea on 2026-11-20, when the islands took to the sky.)
--- Everything is culled to the screen (an island off it is let go after a while), scaled by the renderer's tier (low
--- half, medium three quarters), paused with the renderer (no tick, no drawing) and drawn on whole art pixels, the
+-- Everything is culled to the screen (an island off it is let go after a while), scaled by the renderer's tier
+-- (TIER_SCALE), paused with the renderer (no tick, no drawing) and drawn on whole art pixels, the
 -- creatures with their outline (UI/ArtData's "fx_" sprites, scripts/gen_art.py). A screen that shows the island
 -- small (a phone) gets the small sprites. While a stage has the view (the hatch scene) none of it shows. Reduced
 -- motion (Roblox's setting): no particles, flights or sway; the birds sit still.
@@ -44,8 +44,9 @@ local AmbientView = {}
 
 ------------------------------------------------------------------ constants
 -- (half what it was on every tier since the request of 2026-11-23, "optimize it even further. you can cut down even more
--- on graphics": low 0.5, medium 0.75, high 1 before)
-local TIER_SCALE: { [string]: number } = { low = 0.25, medium = 0.4, high = 0.5 }
+-- on graphics": low 0.5, medium 0.75, high 1 before; and half that again since the request of 2026-11-23, "try removing
+-- more graphics and a deeper rework of the renderer": low 0.25, medium 0.4, high 0.5 before)
+local TIER_SCALE: { [string]: number } = { low = 0.12, medium = 0.2, high = 0.25 }
 local BIG_PPU = 7 -- art px a stud (along the screen) from which the big sprites are drawn, else the small ones
 local NO_WAIT: { { x0: number, y0: number, x1: number, y1: number } } = {}
 local ISLE_EVERY = 0.5 -- s between looks at which islands the screen shows
@@ -606,7 +607,7 @@ local function newIsle(i: number, tier: number): Isle
 	I.gull.untilT = os.clock() + rand(8, 30)
 	buildLand(I)
 	scan(I)
-	local n = math.max(1, math.floor(4 * scale + 0.5))
+	local n = math.max(2, math.floor(4 * scale + 0.5)) -- (two birds at the least: a pair keeps the lawn alive)
 	for k = 1, n do
 		table.insert(I.birds, newBird(if k % 2 == 0 then "wren" else "pip", k))
 	end
