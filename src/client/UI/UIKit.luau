@@ -1231,6 +1231,91 @@ function UIKit.scroll(parent: Instance?, size: UDim2, pos: UDim2?): ScrollingFra
 	return s
 end
 
+-- A long list in a `UIKit.scroll` that makes only the rows near what shows (the request of 2026-11-23: "selecting based
+-- on rarity, selling and opening the driftlings tab is very laggy": 280 driftlings were 17,000 things made at once,
+-- and again at every change). `n` rows, `heightOf(i)` row i's height in UI px, `build(i)` makes row i in the list and
+-- returns it (or nil to leave a gap); the list puts each at its place, `gap` px apart, the canvas as tall as all of
+-- them. Rows within half a window above and a window and a half below what shows are made as the list scrolls; rows
+-- more than two windows off are dropped. `update` makes the rows for where the list is now; `clear` drops them all and
+-- stops following the scroll (before the list is filled again).
+export type LazyList = { update: () -> (), clear: () -> (), made: () -> number }
+function UIKit.lazyList(s: ScrollingFrame, n: number, heightOf: (i: number) -> number, build: (i: number) -> GuiObject?, gap: number?): LazyList
+	local g = gap or 2
+	local ys = table.create(n + 1, 0)
+	local y = 0
+	for i = 1, n do
+		ys[i] = y
+		y += heightOf(i) + g
+	end
+	ys[n + 1] = y
+	local total = math.max(0, y - g)
+	s.AutomaticCanvasSize = Enum.AutomaticSize.None
+	s.CanvasSize = UDim2.fromOffset(0, total)
+	local winH = math.max(20, s.Size.Y.Offset)
+	local made: { [number]: GuiObject | false } = {}
+	local count = 0
+	-- the first row whose foot is past `at`
+	local function rowAt(at: number): number
+		local lo, hi = 1, n
+		while lo < hi do
+			local mid = (lo + hi) // 2
+			if ys[mid + 1] <= at then
+				lo = mid + 1
+			else
+				hi = mid
+			end
+		end
+		return lo
+	end
+	local function update()
+		if s.Parent == nil or n == 0 then
+			return
+		end
+		-- (CanvasPosition is in screen px: UI px times UIKit.P(), as FounderUI and StoreUI read it)
+		local top = math.clamp(s.CanvasPosition.Y / UIKit.P(), 0, math.max(0, total - winH))
+		for i = rowAt(top - winH * 0.5), rowAt(top + winH * 1.5) do
+			if made[i] == nil then
+				local f = build(i)
+				if f then
+					f.Position = UDim2.new(f.Position.X.Scale, f.Position.X.Offset, 0, ys[i])
+					-- (its place in the list as a list layout would have it, for whoever reads the rows' order)
+					f.LayoutOrder = i
+					count += 1
+				end
+				made[i] = f or false
+			end
+		end
+		local keepA, keepB = rowAt(top - winH * 2), rowAt(top + winH * 3)
+		for i, f in made do
+			if i < keepA or i > keepB then
+				if f ~= false then
+					(f :: GuiObject):Destroy()
+					count -= 1
+				end
+				made[i] = nil
+			end
+		end
+	end
+	local conn = s:GetPropertyChangedSignal("CanvasPosition"):Connect(update)
+	update()
+	return {
+		update = update,
+		clear = function()
+			conn:Disconnect()
+			for _, f in made do
+				if f ~= false then
+					(f :: GuiObject):Destroy()
+				end
+			end
+			table.clear(made)
+			count = 0
+		end,
+		made = function(): number
+			return count
+		end,
+	}
+end
+
 -- A search box (Build mode's, the Hatchery's parent picker): a see-through TextBox ("Box") over the pixel font's copy
 -- of its words ("Query", "Search" while empty), a clear mark ("ClearSearch") while there are any. `onChange` gets the
 -- words in lower case, trimmed, whenever they change; `text` the words it starts with.

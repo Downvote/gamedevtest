@@ -87,8 +87,9 @@ local CULL = 48 -- art px past the layer's edge a dynamic model may stand and st
 local PICK_LEN = 2000
 local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
 -- the water's frames a second (4 since the request of 2026-11-23, "optimize the game much much more"; 6 before: each
--- frame sends the water's changed pixels up)
-local WATER_HZ = 4
+-- frame sends the water's changed pixels up; 2 since the next, "optimize it even further. you can cut down even more
+-- on graphics")
+local WATER_HZ = 2
 local WATER_SPEED = 2 -- phase units a frame (a crest every 64 units: about 10 studs)
 local WATER_CREST = 0xCDF7F0 -- a crest's light aqua (0xRRGGBB)
 local WATER_DEEP = 0x1C6272 -- (turquoise, like the sea: Data/Palette)

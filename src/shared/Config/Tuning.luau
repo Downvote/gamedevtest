@@ -6,10 +6,13 @@ export type PixelTierSpec = { h: number, hz: number, budgetMs: number, minFps: n
 -- Bakery's rule): PixelScaleMin plus one for each PixelScaleSides entry that the screen's short side exceeds. A tier
 -- only ever makes K coarser: h = the most art px across the short side (K >= ceil(short side / h)); hz = dynamic
 -- layer ticks per second; budgetMs / minFps = the watchdog; shadows = sun shadow rays in the static bake.
+-- (hz 20 on medium and high, 15 on low, since the request of 2026-11-23, "optimize it even further. you can cut down
+-- even more on graphics": the moving models change 20 times a second, a whole tick's compose one frame in three
+-- instead of one in two; it was 30, and 20 on low)
 local PixelTiers: { [string]: PixelTierSpec } = {
-	low = { h = 270, hz = 20, budgetMs = 6, minFps = 0, shadows = false },
-	medium = { h = 400, hz = 30, budgetMs = 8, minFps = 25, shadows = true },
-	high = { h = 540, hz = 30, budgetMs = 10, minFps = 40, shadows = true },
+	low = { h = 270, hz = 15, budgetMs = 6, minFps = 0, shadows = false },
+	medium = { h = 400, hz = 20, budgetMs = 8, minFps = 25, shadows = true },
+	high = { h = 540, hz = 20, budgetMs = 10, minFps = 40, shadows = true },
 }
 
 local Tuning = {
@@ -368,8 +371,9 @@ local Tuning = {
 	-- driftlings of one island out of their buildings at once, at most (walking to work, strolling, standing about):
 	-- the rest stay in (WorldView's decide; the request of 2026-11-23, "optimize the game much much more. its ok to drop
 	-- graphics where it most affects performance". On a full island hundreds were out: every one is drawn again each
-	-- time it moves, about 850 px a step with its shadow)
-	PalOutMax = 12,
+	-- time it moves, about 850 px a step with its shadow). 8 since the request of 2026-11-23, "optimize it even further.
+	-- you can cut down even more on graphics" (12 before)
+	PalOutMax = 8,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	-- seconds: the follow's smooth time (a critically damped spring, the request of 2026-11-18: "make the camera a smooth

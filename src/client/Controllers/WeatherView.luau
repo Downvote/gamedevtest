@@ -37,7 +37,9 @@ local ArtData = require(script.Parent.Parent.UI.ArtData)
 local WeatherView = {}
 
 ------------------------------------------------------------------ constants
-local TIER_SCALE: { [string]: number } = { low = 0.5, medium = 0.75, high = 1 }
+-- (half what it was on every tier since the request of 2026-11-23, "optimize it even further. you can cut down even more
+-- on graphics": low 0.5, medium 0.75, high 1 before)
+local TIER_SCALE: { [string]: number } = { low = 0.25, medium = 0.4, high = 0.5 }
 local LAWN_Y = Street.LAWN_Y
 local FADE_IN = 4 -- seconds a new spell's weather takes to fill the sky
 local GRADE_STEPS = 4 -- a change of light goes in this many steps ...

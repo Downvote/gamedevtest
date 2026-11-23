@@ -1956,7 +1956,8 @@ When the island grows into a new stage, the tree is built again at it.
   The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
   whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
   several a second off a legendary one; half as often since 2026-11-23), only over eggs lying still and at most 40 at
-  once (140 before); the motes and the beam go
+  once (140 before). Since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics", only the four rarest rarities' eggs spark, at most 16 at once,
+  every quarter to half a second; the commoner ones show their rarity by their colour; the motes and the beam go
   out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_9`: the Tree panel, the store and
   the Hatchery; the Tree card has its own small ones, `mini_egg_1` .. `mini_egg_9`, 9 by 11 so each sits in its row: "the
   egg icons seem to overlap each other and the bottom one exceeds the border. could you make egg sprite icons smaller?",
@@ -2873,9 +2874,10 @@ text (the requests and how each was met) is in the history of this file, up to c
 - **Decor that moves:** a decor piece's builder can mark parts that move (`Parts.move`): they spin (a merry-go-round,
   a big wheel, a lighthouse's lamp, a clock's hands), swing (a swing's seats, a hammock, a bell, wind chimes, a hanging
   lantern or bucket) or bob (a buoy, a boat, a duck decoy, floating lanterns), each piece a little out of step with
-  the next. At most 12 pieces move at a time, ten times a second, the ones on the screen nearest the middle of the
+  the next. At most 6 pieces move at a time, ten times a second, the ones on the screen nearest the middle of the
   view; the rest stand still in their resting pose until they are among them (40, twenty times a second, until the
-  request of 2026-11-23, "optimize the game much much more"). Flames throw up sparks that wink out (parts named Flame),
+  request of 2026-11-23, "optimize the game much much more", then 12 until the next that day, "optimize it even
+  further. you can cut down even more on graphics"). Flames throw up sparks that wink out (parts named Flame),
   fountains throw spray from their jets that falls back into the basin (Spray), and crystals, gems and magic things
   twinkle now and then (Sparkle), all drawn in the ambient layer with the smoke and steam. Reduced motion keeps them
   all still.
@@ -2977,8 +2979,8 @@ text (the requests and how each was met) is in the history of this file, up to c
   redraws only the patches where something moved. A driftling, egg, flame or turning sail far from the screen has
   no model at all until it comes near, and in a big crowd the moving things each change a little less often rather
   than the frame taking longer. No driftling ever blinks out in a crowd: each keeps its last picture until its turn
-  to be drawn again comes round. Campfire smoke and the lights round a rare egg move ten or twelve times a second,
-  like hand-drawn sprites.
+  to be drawn again comes round. Campfire smoke moves about ten times a second and the lights round a rare egg four
+  times (since 2026-11-23), like hand-drawn sprites.
 
   > The report (2026-11-22): "also, the camera is still choppy, it sometimes lags behind or stutters while moving."
 
@@ -3066,6 +3068,35 @@ text (the requests and how each was met) is in the history of this file, up to c
   walked over ground seen before 18.3 ms then, 9.9 now; the town of 68 driftlings 23.4 ms, about 15 now; the village
   walked round 15.0 ms, 13.2 now, and standing in it 9.2 ms, 7.9 now. A live client runs the game's scripts without compiling them, so its frames
   take longer than these; the previews run that way too (`PREVIEW_LUAU=-O2`) for the Everdrift walk: 15.5 ms a frame.
+
+  > The request (2026-11-23): "optimize it even further. you can cut down even more on graphics. also, selecting based
+  > on rarity, selling and opening the driftlings tab is very laggy"
+
+  The Driftlings tab made a row for every driftling at once, each with its picture, its words, its three buttons and
+  its tooltip: on a level 10 island with 280 driftlings that was 17,255 things in 575 ms in the preview, and the
+  whole tab was made again when you picked a rarity to sell and again when the sale came back. Now the list measures
+  every row but makes only the ones on the screen and a little either side, more as you scroll and the far ones let
+  go (`UIKit.lazyList`): about 535 things in 18 ms. Picking a rarity remakes only the sell row, and a sale remakes
+  the few rows showing, 11 ms where it was 485. The hut picker, the full-huts swap list and the Hatchery's parent
+  picker work the same way, and picking a rarity in the Tree of Life's panel remakes only its count, its row of eggs
+  and Hatch. A row's "where it lives" line takes two lines when the names are long ("Driftling Palace, working at the
+  Grand Bazaar" ran past its box).
+  More graphics went:
+  - **Moving models twenty times a second.** Driftlings, eggs and turning decor change 20 times a second (15 on the
+    low setting); it was 30 (20). Your founder still stays put on the screen as the view follows.
+  - **Fewer driftlings out.** At most 8 of an island's driftlings are out at once (12).
+  - **Less moving decor.** At most 6 pieces turn at once (12).
+  - **Fewer small lives and less weather.** Half as many birds, tufts, butterflies, leaves, smoke, sparks and twinkles,
+    and half as much rain, snow, petals, leaves and fog.
+  - **Egg sparks only on the rarest.** Only the four rarest rarities' eggs spark (every rarity from uncommon did), and
+    the lights round a rare egg move four times a second (eight). An egg lying still is not looked at again until
+    its lights move or it rocks.
+  - **Slower water.** The water moves twice a second (four).
+  In the previews: the full Everdrift walked onto new ground 14.3 ms a frame before this, 13.0 now, with no frame
+  over 20 ms (12 before) and its slowest frame 20 ms (27); standing in it 5.4 ms, 5.1 now; the pixel filter in the
+  town of 68 driftlings 15.5 ms a frame, 11.6 now. Run as a live client runs it (`PREVIEW_LUAU=-O2`), the Everdrift
+  walk takes 13.4 ms a frame (15.5). The frames of 60 to 100 ms the stress walk's second leg shows are the preview's
+  own checks, which compose the whole picture a second time on that leg.
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are
@@ -3089,7 +3120,9 @@ text (the requests and how each was met) is in the history of this file, up to c
 
 The models' shapes and textures are other work; this is the 2D part. Small things live on every island near the view,
 drawn as pixel-art sprites in the pixel layer itself (like Random Bakery's garden): they sit in the world, hide
-behind what stands in front of them and are drawn on whole art pixels like everything else.
+behind what stands in front of them and are drawn on whole art pixels like everything else. Since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics",
+there are half as many of each as there were (birds, tufts, butterflies, falling leaves, smoke, sparks, spray and
+twinkles alike).
 
 - **Birds:** little island birds of our own, a teal pip with a crest and a cream breast and a sandy wren with a coral
   breast and a cocked tail, fly in and alight on the lawn, a fence post, a roof's ridge or the island's sign, near the
@@ -3634,9 +3667,10 @@ reason.
   hatched still steps out of its egg and walks to its new building first. Only driftlings out and about cheer, show
   their name on hover and can be tapped. Most of an island's driftlings are indoors at any moment: in the `crowd`
   preview (a full town of 68) 19 to 26 have a model instead of 66, and the pixel filter's work a frame went from
-  34.6 ms to 24.2 (its slowest frame from 269 ms to 147). Since 2026-11-23 at most 12 of an island's driftlings are out
-  at once (`Tuning.PalOutMax`): with that many out, one inside stays in for another spell and one out walks home with
-  no stroll first (§8, the request "optimize the game much much more").
+  34.6 ms to 24.2 (its slowest frame from 269 ms to 147). Since 2026-11-23 at most 8 of an island's driftlings are out
+  at once (`Tuning.PalOutMax`; 12 at first that day): with that many out, one inside stays in for another spell and
+  one out walks home with no stroll first (§8, the requests "optimize the game much much more" and "optimize it even
+  further").
 - **The sky lives:** the sky runs through its own day and night, the sea of clouds drifts slowly below, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
   time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
   rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no
@@ -3955,7 +3989,9 @@ goes; there used to be some fifty faint streaks that looked like a broken pictur
 weather used to tint the bright day a little (`DayLight.setWeather`: rain and storms a touch cooler and greyer, snow
 and fog lighter, haze and leaves warmer); since 2026-11-23 the weather shows by what falls and drifts and by its
 sounds, with no tint (the request "optimize the game much much more": each change of weather graded the whole picture
-again, a step at a time). A new spell fades in over a few seconds. Sounds: a drizzle loop
+again, a step at a time). Since the next request that day, "optimize it even further. you can cut down even more on
+graphics", half as much falls and drifts as did (rain, snow, petals, leaves, motes, fog's clouds). A new spell fades in
+over a few seconds. Sounds: a drizzle loop
 in rain, a heavy rain loop in a storm, wind gusts on a breezy, blossom or leafy day, the thunder (Roblox's licensed
 library, chosen by listening to their length and loudness with ffprobe, not by title). Reduced motion keeps the light
 and drops the particles; the lower picture tiers get fewer of them.

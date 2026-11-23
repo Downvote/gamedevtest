@@ -322,7 +322,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `TideLuck`, `TideMutTier` or `HutTide`, and none of the old tree's `TreeSecs`, `TreeLuck`, `TreeMutLuck`,
   `TreeSpeedCost`, `TreeLuckCost`, `PenSafe`, `PenShown` or `TreeStages`), breeding (`BreedShells` (an egg's price by the
   child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the island's lean (`MutLean`, `MutLeanFloor`),
-  the founders' doze (`DozeSecs` 40), the share of a driftling's spells in its building that end in a stroll (`PalStrollShare` 0.25, WorldView), the most of an island's driftlings out of their buildings at once (`PalOutMax` 12, WorldView: the request of 2026-11-23, "optimize the game much much more"), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
+  the founders' doze (`DozeSecs` 40), the share of a driftling's spells in its building that end in a stroll (`PalStrollShare` 0.25, WorldView), the most of an island's driftlings out of their buildings at once (`PalOutMax` 8, WorldView: the request of 2026-11-23, "optimize the game much much more", 12 then, 8 since the next that day), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
   (`MaxPlots`, `PlotSpacing` (170 since 2026-11-20: the islands are whole and round from the start, so a channel of
   sea stays between two), `PlotPieces` (buildings and decor by tier: 36, 60, 90, 130, 180, 240, 300, 370, 450, 540,
   then 60 more a tier to 1,140), `HousingLimit` (the driftlings an island's huts may house together by its tier, however many huts: since 2026-11-19
@@ -333,7 +333,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   water tiles together: 80, 150, 240, 340, 460, 600, 750, 900, 1,050, 1,200, then 120 more a tier to 2,400),
   `FencePieces` (fence lengths: 40, 80, 130, 180, 240, 300, 370, 440, 520, 600, then 60 more a tier to 1,200),
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
-  `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
+  `CamPitch` 30, `PixelTiers` (the moving models' `hz` 20 on high and medium and 15 on low since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics"; 30, 30, 20 before), `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamTrailSecs` (0.06: seconds of the founder's walk the view stands behind them), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
   frame the founder walks), `PixelPanRays`, `PixelPanMargin` (40: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22, 24 until 2026-11-23) and
   `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
@@ -1942,7 +1942,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   pixels go on the base too (`SG.stickPut`: where it shows the static picture or the old sticky colour). On the
   village walking the pan preview's square a frame costs as before (about 22.5 ms) and standing a quarter less; on a
   full Everdrift (the `stress` preview) a frame's composing went from about 74 ms to under 30.
-- **The water and the wind, a slice at a time**: their frames come `WATER_HZ` (4; 6 until 2026-11-23) times a second (a period that meets no water on the layer rests the slices 2 s, `SG.waterRest`; a row a slice met no water in is passed over till the static picture changes or a scroll's strips are finished, `SG.waterRows`, `SG.waterRowsVer` against `staticVer`: the request of 2026-11-23, "optimize the game much much more"), and each used to be
+- **The water and the wind, a slice at a time**: their frames come `WATER_HZ` (2; 6 until 2026-11-23, then 4 till the next request that day) times a second (a period that meets no water on the layer rests the slices 2 s, `SG.waterRest`; a row a slice met no water in is passed over till the static picture changes or a scroll's strips are finished, `SG.waterRows`, `SG.waterRowsVer` against `staticVer`: the request of 2026-11-23, "optimize the game much much more"), and each used to be
   one pass over every pixel of the layer (about 20 to 30 ms for the water and 14 for the wind, a hitch six times a
   second). Now the next frame is worked out a slice at a time over the period before it (`SG.WATER_SLICES`, 8: every
   eighth row of the world's grid, so a pan in between moves no pixel into another slice; the slices due by the
@@ -1985,7 +1985,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   phase units a cycle, 3 a frame) run down the little waterfall's and the Spring Grotto's falls; the 2026-11-14
   request, "waterfalls having flowing water"; `waterColor`'s cache keyed `base * 32 + cls * 4 + tone`) marks its pixels in the bake
   (`sWClass`) with a wave phase from their ground position (`sWave`: bands across the water, bent by two sines);
-  `WATER_HZ` (4) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
+  `WATER_HZ` (2) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
   baked tone: crests a light blue (`WATER_CREST`), troughs darker (`mixShaded` mixes in the layer's packed format,
   `Shading.pack`: red in the low byte), the foam's white coming and going (`waterColor`, cached per class, tone
   and phase), and the whole image uploads (composing incrementally, each changed pixel goes straight onto the frame,
@@ -2239,7 +2239,10 @@ TextBox `Box` over the pixel font's `Query`, "Search" while empty, the clear mar
 `onChange(q)` with the words trimmed and in lower case whenever they change), `confetti(parent, n?,
 colors?)` (a burst of 1 px pieces and 1x2 sticks that fly, tumble and fade), panels
 (`registerPanel(name, { title, icon?, w, h, hFor?, props?, build })`, `hFor(w)` the height for the width the screen leaves it in place of `h` (Settings: its rows wrap on a narrow panel), the body that big with the awning on top (`SHEET_TOP` 25 UI px), within the screen less a few px; since 2026-11-19 ("Look at the bakery game and see its menu. Make a similarly polished and themed menu for different tabs") a **sheet** over a `sea_shade` veil (0.45 transparent): a "Frame" holding the "Glass" plate (black glass at `PANEL_ALPHA`), the "Head" (the awning: a "Band" clip with the `awning` plate, its "Stripe"s and "Fold"s, the "Hem" of `SCALLOP` 9 px scallops; the "Icon" `mini_<icon>`, the "Title" in cream with an ink outline, the "Status" line, the "Props" shelf with the def's `props` mini icons, the "Close" button (`awning_dark`, the `mini_close` sprite)) and the "Body"; `openPanel(name, arg)`, `openCount()` (openings so far: a panel takes its argument's tab once an opening), `closePanel`, `currentPanel`, `currentPanelFrame()` (the open panel's "Frame", nil when none: what the tips' arrow looks for in it, 10.21),
-`refreshPanel` (keeps the "List" scroll), `PanelChanged`, `bodyWidth`, `bodyHeight`). Screens (2026-11-19, "make mobile and tablet as responsive and catered to as possible ... Make menus fill the screen on mobile with currency showing and an exit button"): `phone()` (a short side of 500 screen px or less), `touch()` (touch and no mouse), `tablet()` (touch, not a phone); `TOUCH_MIN` 44 screen px: on a touch screen `button` gives a button smaller than that a see-through "Hit" TextButton child round it (its pad, ZIndex 4) that presses it too; `onHold(target, show, hide)` (a finger held `HOLD_SECS` 0.35: show, lifted: hide); `setWallet(get, changed)` (Main.client: the view's shells and `StateClient.Changed`). A sheet on a phone is the Modal canvas's whole size (no margin, square glass corners), on a tablet 1.3 times its design within the canvas less 24; on a touch screen the Modal root ignores the top bar's inset and keeps only the device's safe area (`IgnoreGuiInset` true, `ScreenInsets` DeviceSafeInsets; a desktop's CoreUISafeInsets, set again on `relayout`), so a phone's sheet reaches the screen's top under Roblox's buttons, and a sheet whose top is under them moves its icon and title right of them and its body below them (`coreButtons`: GuiService.TopbarInset's free part, or `CORE_W` 176 screen px into the safe area and the top bar's inset where it reads 0; the 2026-11-21 request "flush it upwards, such that it sits on the roblox icon"); `canvasOrigin` keeps a notched phone's left margin for any root but a ScreenInsets None one; on a touch screen the awning is `AWNING_TOUCH` 24 tall (the body starts 4 lower), its exit 20 x 20 (else 15) and a "Wallet" chip before it (`mini_coin` and the label named "Shells", `Numbers.short`, set again on every `changed`); a phone's awning has no props shelf. (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
+`refreshPanel` (keeps the "List" scroll), `lazyList(scroll, n, heightOf, build, gap?) -> { update, clear, made }` (a long
+list that makes only the rows near what shows: every row measured first and the canvas sized to them, the rows from
+half a window above to a window and a half below made as the list scrolls (`CanvasPosition` over `P()`), those two
+windows off dropped; the request of 2026-11-23, "selecting based on rarity, selling and opening the driftlings tab is very laggy": 280 driftlings were 17,255 things made at once, and again at every view; Menus' Driftlings list, hut picker, swap picker and parent picker), `PanelChanged`, `bodyWidth`, `bodyHeight`). Screens (2026-11-19, "make mobile and tablet as responsive and catered to as possible ... Make menus fill the screen on mobile with currency showing and an exit button"): `phone()` (a short side of 500 screen px or less), `touch()` (touch and no mouse), `tablet()` (touch, not a phone); `TOUCH_MIN` 44 screen px: on a touch screen `button` gives a button smaller than that a see-through "Hit" TextButton child round it (its pad, ZIndex 4) that presses it too; `onHold(target, show, hide)` (a finger held `HOLD_SECS` 0.35: show, lifted: hide); `setWallet(get, changed)` (Main.client: the view's shells and `StateClient.Changed`). A sheet on a phone is the Modal canvas's whole size (no margin, square glass corners), on a tablet 1.3 times its design within the canvas less 24; on a touch screen the Modal root ignores the top bar's inset and keeps only the device's safe area (`IgnoreGuiInset` true, `ScreenInsets` DeviceSafeInsets; a desktop's CoreUISafeInsets, set again on `relayout`), so a phone's sheet reaches the screen's top under Roblox's buttons, and a sheet whose top is under them moves its icon and title right of them and its body below them (`coreButtons`: GuiService.TopbarInset's free part, or `CORE_W` 176 screen px into the safe area and the top bar's inset where it reads 0; the 2026-11-21 request "flush it upwards, such that it sits on the roblox icon"); `canvasOrigin` keeps a notched phone's left margin for any root but a ScreenInsets None one; on a touch screen the awning is `AWNING_TOUCH` 24 tall (the body starts 4 lower), its exit 20 x 20 (else 15) and a "Wallet" chip before it (`mini_coin` and the label named "Shells", `Numbers.short`, set again on every `changed`); a phone's awning has no props shelf. (The sheets were cream paper for a few hours on 2026-11-19, the words recoloured while a panel built, "paper mode"; it went with "please make it such that the menu and ui remain in dark mode": the colouring stayed on while a button waited on the server and leaked into the HUD.) `tabs(parent, items { id, text, icon?, dot? }, picked, y, onPick, prefix?) -> height` (buttons `Tab_<id>`, the picked one `button` teal, the rest dark glass, a red "Dot", a second row when too wide), `TAB_H` 14, `heading(parent, text, y, icon?, right?) -> (label, note?, 12)` (`sheet_head` light teal, the `sheet_wave` sprite after it, a right-hand "Note"). `clear` keeps a child with the `Keep` attribute (a text box being typed in), `Resized` (fired once a frame whenever a root's canvas
 changes size: K or the viewport changed, or a root was laid out again on its own, as Roblox does after the camera's
 ViewportSize event and when the top bar's inset or a safe area settles; everything laid out from the canvas's size
 rebuilds on it, and the bottom pieces, the HUD's menu bar and tips and Build mode's tray, are anchored to the
@@ -2333,7 +2336,7 @@ dressed), so the pixel filter has nothing of it to draw, pose or slide, and no c
 are in the building?"). A spell inside (`spell`: 8 to 14 s, a nap 12 more) ends in `decide`: a stroll for
 `Tuning.PalStrollShare` (0.25) of them (`strollPoint`: a buildable cell off the Tree of Life where it stands), out at its
 door and back in after, else it stays in the same building; a new place (its work or hut changed) brings it out to walk
-there. One with nowhere to work naps in its hut and never strolls. With `Tuning.PalOutMax` (12) of its island's out
+there. One with nowhere to work naps in its hut and never strolls. With `Tuning.PalOutMax` (8; 12 until the second request of 2026-11-23) of its island's out
 already (`outOf[plot]`, counted every frame before the walkers step and kept up as they decide), one inside stays in
 for another spell and one out walks to its building, no stroll, and goes in (the request of 2026-11-23, "optimize the
 game much much more. its ok to drop graphics where it most affects performance": hundreds were out on a full island,
@@ -2428,7 +2431,7 @@ twinkles"): its gold sparks and stars twinkle round it. `SIZE[r]` (1.25 .. 1.82)
 an egg lying still (risen, not sinking or cracking) sends one up: an uncommon a green 1 px leaf drifting up, a rare a
 `twinkle_1`/`twinkle_2` star blinking round it, an epic pink and white 1 px sparks rising, a legendary gold and white
 ones and now and then a `spark_1..3` star, a mythic pink and white sparks and `twinkle_p1..p3` stars, a celestial motes
-of every colour and `glint_1..3` glints; at most `SPARKS` (40; 140 until 2026-11-23, each egg's `EVERY` half as often now) at once, none with the pixel filter off, each gone
+of every colour and `glint_1..3` glints; at most `SPARKS` (16; 140 until 2026-11-23, then 40; since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics" only the four rarest rarities spark, `EVERY` 0.5, 0.36, 0.3, 0.26 s) at once, none with the pixel filter off, each gone
 with its egg. Slot k of a lot of n lies on the
 lawn at `DecorModels.EGG_RING` from the tree's middle, spread evenly over the arc from `ARC0` (-62°) to `ARC1` (152°)
 (the south and east, the side the view looks at); a lot keeps its slots while it lasts (an egg's slot its place in
@@ -2483,7 +2486,8 @@ leaves, wisps, fireflies), then the tufts and flowers (`drawDecos`: once per `ve
 shows at the tuft's foot (an up-facing static pixel at its depth whose albedo is the grass or the dark grass) and the
 lawn's tones there (`Fx.tones` of the static colour, pulled toward it: `softTones`, `TUFT_K` 0.38 of each step
 kept, a flower's petals `FLOWER_K` 0.6; whole tones before 2026-11-14); stuck with `Fx.stickSprite` in the frame of the gust passing
-(`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share), the
+(`Fx.gust`, `Fx.swayFrame`) and stuck again only when that frame changes; a lower tier keeps a share: `TIER_SCALE`
+0.25 / 0.4 / 0.5 for low, medium and high since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics", 0.5 / 0.75 / 1 before, scaling every life's numbers), the
 glints on the rivers and ponds (a few a second on random water pixels, by `sWClass`), the
 particles (`Fx.step`: drops, wisps, leaves), the birds and the butterflies, the fireflies last. Birds (`stepBird`;
 4 an island at high, 3 medium, 2 low, pips and wrens in turn, and a gull): away, then in (flown in from one side of
@@ -2511,7 +2515,7 @@ rad/s; waterwheel: `Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; gr
 -0.6) on its X, 0.7). Every piece with moving parts on an island near the view gets a moving copy once: its moving
 parts cloned (anchored, no collision or query) into a `Spin_<name>` model in `workspace.PixelDynamic`, registered as
 a moving model, the originals hidden (`PixelRenderer.hideStatic`) for good, each part kept as its offset from its hub
-(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 12 (40 until 2026-11-23; posed every `POSE_SECS` 0.1, 0.05 before) on the screen (`PixelRenderer.nearScreen`, 24
+(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 6 (40 until 2026-11-23, then 12 till the next request that day; posed every `POSE_SECS` 0.1, 0.05 before) on the screen (`PixelRenderer.nearScreen`, 24
 art px) nearest the view's middle are `active` and move; a copy that stops being active is put back at rest (`hub *
 off`, its pose as built), and with reduced motion none move. (A first version dropped the copies past the cap and
 showed their parts again: on a full island every pan cast parts in and out of the picture, the renderer baked again
@@ -2667,14 +2671,18 @@ the Driftling Hut"), `Price` ("Sells for n shells", a neighbour's "Worth n shell
 `back = "pal"` both pickers' Back and a choice return to the card), `PalSell` (two taps; then the "pals" list); a
 neighbour's `ReadOnly` ("Lives on Bo's Isle."). "pals"
 (`OpenTree` ("Eggs") and, when a Hatchery stands, `OpenHatch` at the top, the hint beside them in up to three lines
-(`UIKit.lines`: "6 in huts, room for 8. Hatch more at the tree."); a row a driftling, every one,
+(`UIKit.lines`: "6 in huts, room for 8. Hatch more at the tree."); a row a driftling, every one (measured by
+`palPlan`, its words' lines kept in `lineMemo` by the words, the width, the language and the text style; made by
+`palRow` only near what shows, `UIKit.lazyList`; `Where` on two lines when one is too narrow),
 the hardest workers first (`Tree.better`) and those with no hut last, `Pal_<id>`: portrait, name in its rarity's
 colour, its rarity, passive and its effects, mutations (`Mut_<id>` each), where it lives and helps (`Where`; "No hut.
 Waiting for room." in orange); `Move_<id>` opens the hut picker (the same panel with `{ move = id }`: a
-row a hut with its room, `Move_<uid>`; a full hut lists its driftlings with `SwapWith_<id>`, sending `pal.house { id,
+row a hut with its room, `Move_<uid>`; a full hut lists its driftlings with `SwapWith_<id>` (the rows made only near
+what shows, `UIKit.lazyList`), sending `pal.house { id,
 uid, swap }`), `Help_<id>` the work picker (a driftling in a hut only): every workplace on the island whatever its knack, the fastest for this driftling first (`Tree.worthAt`), each `Spot_<uid>` with its name, who works there, its speed `Speed` ("x1.1", the fastest in the accent colour) and `Go_<uid>` ("Here", "Swap" when full, else "Go"), then `Rest` (`Go_0`), `Sell_<id>` (two
 taps, `Tree.price`); over the list (2026-11-22, "make a bulksell by rarity option for creatures"), with any
-driftling: `SellLead` ("Sell by rarity", where the row and a 90 px button still fit), a `rarityRow` with `only` (the
+driftling, in a frame of its own (`SellBar`, which a pick remakes alone, `fillBar`; a pick remade the whole sheet
+until the request of 2026-11-23, "selecting based on rarity, selling and opening the driftlings tab is very laggy"): `SellLead` ("Sell by rarity", where the row and a 90 px button still fit), a `rarityRow` with `only` (the
 picked rarity alone lit and underlined) and `whole` (the rarities the island has driftlings of drawn whole, the rest
 as silhouettes), `SellR_<r>`, the pick kept in `sellRarity` while the game runs (1 at first), and `SellRarity`: "Sell 4:
 28" (`Tree.rarityWorth`; two taps, sending `pal.sellAll { r }`, a notice "Sold 4 driftlings for 28 coins.") or "None to
@@ -2684,7 +2692,8 @@ a hut, then hatch an egg under the Tree of Life." with no hut)), "tree" (GAME_DE
 run down every Heartbeat from `StateClient.clutchLeft`), `Room` ("7 eggs a lot. In huts 6/8", orange when full),
 "Odds now" and the odds of each rarity (`Odds_<r>`, `Tree.odds`; "<0.1%" under a tenth of a percent, "not
 yet" at 0) and, short of the last tier, `Grow` "Grow your island for rarer eggs and bigger lots."; on the right `Eggs` ("Under the
-tree") with `EggCount` ("6 eggs", or with a higher floor picked "Rare and up: 3" in its colour), under them the bulk hatch's
+tree") with, in a frame of its own that a pick remakes alone (`BulkBar`, `fillBulk`; the whole sheet before the second
+request of 2026-11-23), `EggCount` ("6 eggs", or with a higher floor picked "Rare and up: 3" in its colour), under them the bulk hatch's
 row (2026-11-22): `rarityRow`, the nine `mini_egg_<r>` eggs as buttons `Bulk_<r>` (those under the floor drawn as their
 `_sil` silhouettes, a line under the picked ones; the floor kept in `bulkFloor` while the game runs, 1 at first) and
 `BulkHatch` ("Hatch 3: 1,600" with `PriceIcon` from `Tree.bulkPlan`; "Hatch all" in grey when none would hatch, its tap
@@ -2700,13 +2709,15 @@ left. More soon."; under them `StoreUI.eggRows`:
 `BuyHead` ("Buy an egg") and a row an egg product from Uncommon up, `BuyEgg_<key>` (its `egg_<r>`, "Rare Egg" in its
 colour, "Free to hatch" and `Buy_<key>`, its Robux, `StoreUI.buy`); with `{ hatch = id }`, every
 hut full, the swap picker: a hint naming the egg's rarity and cost ("Huts full. Pick one to sell for the rare egg
-(1,200 shells)."), `Back`, and a row a hut driftling, the weakest first, `SwapOut_<id>`:
+(1,200 shells)."), `Back`, and a row a hut driftling, the weakest first (made only near what shows,
+`UIKit.lazyList`), `SwapOut_<id>`:
 portrait, name, rarity, how fast it works, mutations, "Sells for n" and `SwapTake_<id>`, sending `egg.hatch { id,
 swap }`; with `{ hatch = id, bag = true }` the same for a bag egg ("... for the epic egg from your bag ...",
 `SwapTake_<id>` sending `EggView.hatchBag(id, swap)`); once a new lot has replaced the egg, "That egg is gone." and back to the tree
 panel), "hatch" (the `Hint`: "Breed two driftlings for an egg. Rarer parents tend to make rarer eggs. Legendary and up need both parents that rare.", the panel's whole width; a row a Hatchery `Hatch_<uid>`: its egg (`egg_<rarity>`,
 `EggName`, `EggLeft` ("Hatches in 3 min" from `StateClient.eggLeft`, or "Ready to hatch."), `EggBar`, its parents, a ready egg's `HatchNow_<uid>` (`EggView.hatchery(uid)`; with two or more ready, `HatchAll` "Hatch all (2)" beside the hint, sending `EggView.hatcheryAll()`: `breed.hatchAll`, then the "hatched" panel with `breed`, its head "Hatched 2 eggs from your Hatcheries." and Back to the Hatchery: 2026-11-22), `FinishNow` in the first warming egg's row: `StoreUI.buy("HatcheryNow")`) or the slots `Slot_a_<uid>` / `Slot_b_<uid>` (the
-picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>`; over the list the search box
+picker: the same panel with `{ hatch = uid, slot }`, a row `Parent_<id>`, `PickParent_<id>` (made only near what
+shows, `UIKit.lazyList`, cleared and made again on each search or order); over the list the search box
 `PalSearch` (`UIKit.searchBox`) and "Sort by" `Sort_rarity` / `Sort_muts`, the picked one teal (2026-11-19: "for
 hatchery, make a search function, and a sort by mutation rarity or creature rarity"): `parentList(v, other, q, sort)`
 keeps the driftlings whose kind, rarity, passive or mutation names hold the words and orders them, `rarity` by the
@@ -3376,7 +3387,8 @@ Pictures: `pixelPictures()` (`Snapshot.available()` and `PixelRenderer.tier()` n
 `WeatherView`: one effect layer of its own (`PixelRenderer.addFxLayer("weather", draw)`, Render/Fx, whole art
 pixels, depth-tested, no parts) for `Weather.at(StateClient.seaClock())`'s kind. Each kind's strength fades in and out
 over `FADE_IN` 4 s. `DENSITY` (spawns a second per 1000 layer px at full strength: rain 3.2, storm 5, snow 1.2, blossom
-0.45, leaves 0.4, haze 0.25, breezy 0.35; times 0.5 / 0.75 / 1 by the picture tier); rain and storm are streaks
+0.45, leaves 0.4, haze 0.25, breezy 0.35; times 0.25 / 0.4 / 0.5 by the picture tier, `TIER_SCALE`: half what it was,
+0.5 / 0.75 / 1, since the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics"); rain and storm are streaks
 (`MAX_STREAKS` 1600) of `RAIN_RGB` drawn back along their motion with `Fx.mix`, splashing as they land; a breezy
 day's wind comes as wisps (at most `MAX_WISPS` 7 at once, times the tier scale and the strength): a near-white
 `WISP_RGB` line 12 to 20 layer px long straight back from its head, a pixel lower over its back part, its ends faded
@@ -3499,7 +3511,9 @@ second one is ignored). A row's Visit and the HUD's Home both call it.
 The request: "optimize the game further, fix bugs, and polish everything fully". What the probes showed and what
 changed, module by module:
 - `EggView`: an egg's parts are moved with one `Workspace:BulkMoveTo` (`moveParts`, `moveCfs`), and only when the egg
-  moved (`cf`) or cracks; its lights and sparkles are stepped at 8 Hz (`fxT`; 12 until 2026-11-23), not every frame. A
+  moved (`cf`) or cracks; its lights and sparkles are stepped at 4 Hz (`fxT`; 12 until 2026-11-23, then 8), not every
+  frame, and an egg lying still between its rocks skips the frames till its lights' next step or its next rock
+  (`idleUntil`, a second at most: the request of 2026-11-23, "optimize it even further. you can cut down even more on graphics"). A
   full ring of eggs took 2.5 ms a frame on the stress island; about 1 ms then. Since 2026-11-23 ("optimize the game
   much much more") an egg off the screen (`PixelRenderer.nearScreen`, 40 px) lying still is left as it was, not rocked
   nor its lights moved, till it comes near the screen.

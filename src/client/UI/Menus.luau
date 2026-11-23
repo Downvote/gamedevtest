@@ -370,21 +370,26 @@ local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, 
 	local pick: Pick = breedPick[uid] or {}
 	local other = if slot == "a" then pick.b else pick.a
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top - 14), UDim2.fromOffset(0, top + 14))
-	UIKit.vlist(list, 2)
+	-- (the rows made only near what shows, UIKit.lazyList: every driftling on the island can be a parent)
+	local lazy: UIKit.LazyList? = nil
 	local function fill()
+		if lazy then
+			lazy.clear()
+			lazy = nil
+		end
 		for _, c in list:GetChildren() do
-			if c:IsA("GuiObject") then
+			if c:IsA("GuiObject") or c:IsA("UIListLayout") then
 				c:Destroy()
 			end
 		end
 		list.CanvasPosition = Vector2.zero
 		local shown = parentList(v, other, pickQuery, pickSort)
-		for n, x in shown do
+		local function parentRow(x: Types.Pal): GuiObject?
 			local d = Creatures.byId[x.sp]
 			if d == nil then
-				continue
+				return nil
 			end
-			local f = row(list, n, 38)
+			local f = row(list, 0, 38)
 			f.Name = "Parent_" .. x.id
 			PalTip.attach(f, x)
 			PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
@@ -403,8 +408,18 @@ local function buildParentPicker(body: Frame, v: Types.ClientView, uid: number, 
 				Audio.play("pop")
 				UIKit.openPanel("hatch")
 			end, { name = "PickParent_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
+			return f
 		end
-		if #shown == 0 then
+		if #shown > 0 then
+			lazy = UIKit.lazyList(list, #shown, function(): number
+				return 38
+			end, function(i: number): GuiObject?
+				return parentRow(shown[i])
+			end, 2)
+		else
+			list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			list.CanvasSize = UDim2.new()
+			UIKit.vlist(list, 2)
 			local f = row(list, 1, 24)
 			f.Name = "NoParent"
 			local words = if pickQuery ~= "" then "No match. Try a kind, rarity or mutation." else "No driftling to pick yet."
@@ -641,7 +656,9 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		UIKit.openPanel(back, backArg)
 	end, { name = "Back", color = UIKit.color("plate_light") })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
-	UIKit.vlist(list, 2)
+	-- (each hut and each driftling of a full one a row of the list, made only near what shows: UIKit.lazyList; with
+	-- every hut full that was every driftling on the island)
+	local rows: { { h: number, make: () -> GuiObject } } = {}
 	local order = 0
 	local function move(uid: number, swap: number)
 		local res = ask("pal.house", { id = id, uid = uid, swap = swap })
@@ -650,9 +667,8 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 			UIKit.openPanel(back, backArg)
 		end
 	end
-	local function place(uid: number, title: string, n: number, room: number, comfort: number)
-		order += 1
-		local f = row(list, order, 22)
+	local function hutRow(uid: number, title: string, n: number, room: number, comfort: number): GuiObject
+		local f = row(list, 0, 22)
 		f.Name = "Hut_" .. uid
 		PixelSprites.image(f, "mini_nest", UDim2.fromOffset(4, 5), 4)
 		UIKit.text(f, title, UDim2.new(1, -110, 0, 10), UDim2.fromOffset(18, 1), { color = UIKit.color("text"), z = 4 })
@@ -662,64 +678,100 @@ local function buildHutPicker(body: Frame, v: Types.ClientView, id: number, back
 		UIKit.button(f, if here then "Here now" elseif n >= room then "Full" else "Move here", UDim2.fromOffset(70, 14), UDim2.new(1, -74, 0, 4), function()
 			move(uid, 0)
 		end, { name = "Move_" .. uid, color = UIKit.color("button_ok"), enabled = not here and n < room }).ZIndex = 4
-		-- a full one: swap with any of its driftlings
-		if not here and n >= room then
-			for _, x in v.pals do
-				local d = Creatures.byId[x.sp]
-				if x.home == uid and d then
-					order += 1
-					local r = row(list, order, 36)
-					r.Name = "Swap_" .. x.id
-					PalTip.attach(r, x)
-					PixelSprites.image(r, "icon_" .. x.sp, UDim2.fromOffset(14, 2), 4)
-					local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
-					UIKit.text(r, Lang.f("{1}  {2}", d.name, Lang.t(workWord(x))), UDim2.new(1, -126, 0, 10), UDim2.fromOffset(50, 13), { color = UIKit.color(rar.color), z = 4 })
-					UIKit.button(r, "Swap", UDim2.fromOffset(50, 12), UDim2.new(1, -54, 0, 12), function()
-						move(uid, x.id)
-					end, { name = "SwapWith_" .. x.id, color = UIKit.color("plate") }).ZIndex = 4
-				end
+		return f
+	end
+	local function swapRow(uid: number, x: Types.Pal, d: any): GuiObject
+		local r = row(list, 0, 36)
+		r.Name = "Swap_" .. x.id
+		PalTip.attach(r, x)
+		PixelSprites.image(r, "icon_" .. x.sp, UDim2.fromOffset(14, 2), 4)
+		local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+		UIKit.text(r, Lang.f("{1}  {2}", d.name, Lang.t(workWord(x))), UDim2.new(1, -126, 0, 10), UDim2.fromOffset(50, 13), { color = UIKit.color(rar.color), z = 4 })
+		UIKit.button(r, "Swap", UDim2.fromOffset(50, 12), UDim2.new(1, -54, 0, 12), function()
+			move(uid, x.id)
+		end, { name = "SwapWith_" .. x.id, color = UIKit.color("plate") }).ZIndex = 4
+		return r
+	end
+	-- (the island's driftlings by hut, once)
+	local byHut: { [number]: { Types.Pal } } = {}
+	for _, x in v.pals do
+		if x.home ~= 0 then
+			local l = byHut[x.home]
+			if l == nil then
+				l = {}
+				byHut[x.home] = l
 			end
+			table.insert(l, x)
 		end
 	end
 	local p = asProfile(v)
 	for _, h in Tree.huts(p) do
-		place(h.uid, buildingName(v, h.uid) or "Hut", h.n, h.room, h.comfort)
+		local uid, title, n, room, comfort = h.uid, buildingName(v, h.uid) or "Hut", h.n, h.room, h.comfort
+		table.insert(rows, { h = 22, make = function(): GuiObject
+			return hutRow(uid, title, n, room, comfort)
+		end })
+		order += 1
+		-- a full one: swap with any of its driftlings
+		if me.home ~= uid and n >= room then
+			local inHut: { Types.Pal } = byHut[uid] or {}
+			for _, x in inHut do
+				local d = Creatures.byId[x.sp]
+				if d then
+					table.insert(rows, { h = 36, make = function(): GuiObject
+						return swapRow(uid, x, d)
+					end })
+				end
+			end
+		end
 	end
 	if order == 0 then
-		order += 1
-		local f = row(list, order, 22)
+		UIKit.vlist(list, 2)
+		local f = row(list, 1, 22)
 		UIKit.text(f, "No huts yet. Build one from the Huts tab.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		return
 	end
+	UIKit.lazyList(list, #rows, function(i: number): number
+		return rows[i].h
+	end, function(i: number): GuiObject?
+		return rows[i].make()
+	end, 2)
 end
 
 ------------------------------------------------------------------ Driftlings
 -- Every driftling, the hardest workers first (one with no hut, its hut cleared away, last). Each: its name in its
 -- rarity's colour, its rarity and how fast it works, its passive, its mutations, where it lives and works; Move (the
 -- hut picker), Work (where it works) and Sell (two taps).
-local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: number, W: number, back: string)
+-- (how many lines a row's words take, kept by the words, the width, the language and the text style: the Driftlings
+-- list measures every row before it makes any, UIKit.lazyList)
+local lineMemo: { [string]: number } = {}
+local lineMemoKey = ""
+local function linesOf(text: string, w: number): number
+	local key = Lang.code() .. (if UIKit.smooth() then "s" else "p")
+	if key ~= lineMemoKey then
+		table.clear(lineMemo)
+		lineMemoKey = key
+	end
+	local k = text .. "\0" .. w
+	local n = lineMemo[k]
+	if n == nil then
+		n = math.clamp(UIKit.lines(text, w), 1, 2)
+		lineMemo[k] = n
+	end
+	return n
+end
+
+-- What a driftling's row shows and how tall it is (measured before the row is made).
+type PalPlan = { d: any, h: number, pl: number, wl: number, passive: string, where: string, color: Color3 }
+local function palPlan(v: Types.ClientView, x: Types.Pal, W: number): PalPlan?
 	local d = Creatures.byId[x.sp]
 	if d == nil then
-		return
+		return nil
 	end
-	local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
 	local tw = W - 108
 	-- (its passive on two lines when one is too narrow, the row a line taller: "there is a few boxes where text
 	-- overflows. can you prevent this?", 2026-11-14)
 	local passive = Lang.f("{1}: {2}@@pair", Lang.t(d.passive.name), Lang.t(Traits.describe(d.passive.fx)))
-	local pl = math.clamp(UIKit.lines(passive, tw), 1, 2)
-	local dy = (pl - 1) * 10
-	-- (a touch screen's Move, Work and Sell taller, the row taller with them: GAME_DESIGN 2.1)
-	local touch = UIKit.touch()
-	local bh, bw = if touch then 14 else 12, if touch then 56 else 52
-	local f = row(list, order, math.max(44 + dy, if touch then 50 else 0))
-	f.Name = "Pal_" .. x.id
-	-- (hover or hold: what its numbers mean, the request of 2026-11-15)
-	PalTip.attach(f, x)
-	PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 6), 4)
-	UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
-	UIKit.text(f, Lang.f("{1}, works x{2}", Lang.t(rar.name), string.format("%.1f", Tree.worth(x))), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(PX + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4, name = "Rarity" })
-	UIKit.text(f, passive, UDim2.fromOffset(tw, 10 * pl), UDim2.fromOffset(PX, 11), { color = UIKit.color("accent"), z = 4, name = "Passive", wrap = pl > 1, y = "top" })
-	mutLine(f, x.muts or {}, PX, 21 + dy, tw)
+	local pl = linesOf(passive, tw)
 	local where: string
 	local color = UIKit.color("text_dim")
 	if x.home == 0 then
@@ -734,7 +786,34 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 			where = string.format("%s, resting", hut)
 		end
 	end
-	UIKit.text(f, where, UDim2.fromOffset(tw, 10), UDim2.fromOffset(PX, 31 + dy), { color = color, z = 4, name = "Where" })
+	-- (where it lives and works on two lines as well when the names are long: "Driftling Palace, working at the
+	-- Grand Bazaar" ran past its box)
+	local wl = linesOf(where, tw)
+	local dy = (pl - 1) * 10 + (wl - 1) * 10
+	-- (a touch screen's Move, Work and Sell taller, the row taller with them: GAME_DESIGN 2.1)
+	local h = math.max(44 + dy, if UIKit.touch() then 50 else 0)
+	return { d = d, h = h, pl = pl, wl = wl, passive = passive, where = where, color = color }
+end
+
+local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, plan: PalPlan, W: number, back: string): Frame
+	local d = plan.d
+	local rar = Traits.RARITY[d.rarity] or Traits.RARITY[1]
+	local tw = W - 108
+	local passive, pl = plan.passive, plan.pl
+	local dy = (pl - 1) * 10
+	local touch = UIKit.touch()
+	local bh, bw = if touch then 14 else 12, if touch then 56 else 52
+	local f = row(list, 0, plan.h)
+	f.Name = "Pal_" .. x.id
+	-- (hover or hold: what its numbers mean, the request of 2026-11-15)
+	PalTip.attach(f, x)
+	PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 6), 4)
+	UIKit.text(f, d.name, UDim2.fromOffset(90, 10), UDim2.fromOffset(PX, 1), { color = UIKit.color(rar.color), z = 4, name = "Name" })
+	UIKit.text(f, Lang.f("{1}, works x{2}", Lang.t(rar.name), string.format("%.1f", Tree.worth(x))), UDim2.fromOffset(math.max(10, tw - UIKit.textWidth(d.name) - 6), 10), UDim2.fromOffset(PX + UIKit.textWidth(d.name) + 6, 1), { color = UIKit.color("text"), z = 4, name = "Rarity" })
+	UIKit.text(f, passive, UDim2.fromOffset(tw, 10 * pl), UDim2.fromOffset(PX, 11), { color = UIKit.color("accent"), z = 4, name = "Passive", wrap = pl > 1, y = "top" })
+	mutLine(f, x.muts or {}, PX, 21 + dy, tw)
+	local where, color, wl = plan.where, plan.color, plan.wl
+	UIKit.text(f, where, UDim2.fromOffset(tw, 10 * wl), UDim2.fromOffset(PX, 31 + dy), { color = color, z = 4, name = "Where", wrap = wl > 1, y = "top" })
 	UIKit.button(f, "Move", UDim2.fromOffset(bw, bh), UDim2.new(1, -(bw + 3), 0, 2), function()
 		UIKit.openPanel("pals", { move = x.id, back = back })
 	end, { name = "Move_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
@@ -749,6 +828,7 @@ local function palRow(list: Instance, v: Types.ClientView, x: Types.Pal, order: 
 			UIKit.notice(string.format("Sold %s for %s coins.", d.name, Numbers.coins(got)), UIKit.color("good"))
 		end
 	end, "Sell_" .. x.id)
+	return f
 end
 
 -- A row of the rarities' small eggs (the bulk hatch's and Auto Hatch's pick: the request of 2026-11-22), each a
@@ -841,16 +921,16 @@ local function buildPals(body: Frame, arg: any?)
 	top = math.max(top, 16)
 	-- the bulk sell (the request of 2026-11-22: "make a bulksell by rarity option for creatures"): a tap on one of the
 	-- rarities' eggs picks it, and Sell (two taps) sells every driftling of that rarity (Logic/Tree.sellRarity; the
-	-- button says how many and what they bring: Tree.rarityWorth)
+	-- button says how many and what they bring: Tree.rarityWorth). The row sits in a frame of its own and a pick
+	-- remakes only that frame, not the list (it remade every row: "selecting based on rarity ... is very laggy").
 	if #v.pals > 0 then
-		local r = math.clamp(sellRarity, 1, Traits.RMAX)
-		local lead = Lang.t("Sell by rarity")
-		local lw = UIKit.textWidth(lead) + 6
-		local x0 = 0
-		if lw + 12 * Traits.RMAX + 4 + 90 <= W then
-			UIKit.text(body, lead, UDim2.fromOffset(lw, 13), UDim2.fromOffset(0, top), { color = UIKit.color("text_dim"), name = "SellLead" })
-			x0 = lw
-		end
+		local bar = Instance.new("Frame")
+		bar.Name = "SellBar"
+		bar.BackgroundTransparency = 1
+		bar.BorderSizePixel = 0
+		bar.Size = UDim2.fromOffset(W, 13)
+		bar.Position = UDim2.fromOffset(0, top)
+		bar.Parent = body
 		-- (the rarities the island has driftlings of drawn whole, the rest as silhouettes)
 		local have: { [number]: boolean } = {}
 		for _, x in v.pals do
@@ -859,40 +939,53 @@ local function buildPals(body: Frame, arg: any?)
 				have[d.rarity] = true
 			end
 		end
-		local rowW = rarityRow(body, x0, top, r, false, "SellR_", function(nr: number)
-			if nr ~= sellRarity then
-				sellRarity = nr
-				UIKit.refreshPanel()
+		local function fillBar()
+			UIKit.clear(bar)
+			local r = math.clamp(sellRarity, 1, Traits.RMAX)
+			local lead = Lang.t("Sell by rarity")
+			local lw = UIKit.textWidth(lead) + 6
+			local x0 = 0
+			if lw + 12 * Traits.RMAX + 4 + 90 <= W then
+				UIKit.text(bar, lead, UDim2.fromOffset(lw, 13), UDim2.fromOffset(0, 0), { color = UIKit.color("text_dim"), name = "SellLead" })
+				x0 = lw
 			end
-		end, true, function(k: number): boolean
-			return have[k] == true
-		end)
-		local n, worth = Tree.rarityWorth(asProfile(v), r)
-		local bx = x0 + rowW + 4
-		local sw = math.min(150, W - bx)
-		if n > 0 then
-			confirmButton(body, Lang.f("Sell {1}: {2}", n, Numbers.coins(worth)), UDim2.fromOffset(sw, 13), UDim2.fromOffset(bx, top), function()
-				local res = ask("pal.sellAll", { r = r })
-				if res.ok then
-					Audio.play("coins")
-					local data = if type(res.data) == "table" then res.data else {}
-					local got, sold = tonumber(data.shells) or 0, tonumber(data.sold) or 0
-					UIKit.notice(if sold == 1 then Lang.f("Sold 1 driftling for {1} coins.", Numbers.coins(got)) else Lang.f("Sold {1} driftlings for {2} coins.", sold, Numbers.coins(got)), UIKit.color("good"))
+			local rowW = rarityRow(bar, x0, 0, r, false, "SellR_", function(nr: number)
+				if nr ~= sellRarity then
+					sellRarity = nr
+					fillBar()
 				end
-			end, "SellRarity")
-		else
-			UIKit.button(body, "None to sell", UDim2.fromOffset(sw, 13), UDim2.fromOffset(bx, top), function()
-				Audio.play("deny")
-				UIKit.notice("No driftlings of that rarity.", UIKit.color("bad"))
-			end, { name = "SellRarity", color = UIKit.color("plate_light") }).ZIndex = 4
+			end, true, function(k: number): boolean
+				return have[k] == true
+			end)
+			local n, worth = Tree.rarityWorth(asProfile(v), r)
+			local bx = x0 + rowW + 4
+			local sw = math.min(150, W - bx)
+			if n > 0 then
+				confirmButton(bar, Lang.f("Sell {1}: {2}", n, Numbers.coins(worth)), UDim2.fromOffset(sw, 13), UDim2.fromOffset(bx, 0), function()
+					local res = ask("pal.sellAll", { r = r })
+					if res.ok then
+						Audio.play("coins")
+						local data = if type(res.data) == "table" then res.data else {}
+						local got, sold = tonumber(data.shells) or 0, tonumber(data.sold) or 0
+						UIKit.notice(if sold == 1 then Lang.f("Sold 1 driftling for {1} coins.", Numbers.coins(got)) else Lang.f("Sold {1} driftlings for {2} coins.", sold, Numbers.coins(got)), UIKit.color("good"))
+					end
+				end, "SellRarity")
+			else
+				UIKit.button(bar, "None to sell", UDim2.fromOffset(sw, 13), UDim2.fromOffset(bx, 0), function()
+					Audio.play("deny")
+					UIKit.notice("No driftlings of that rarity.", UIKit.color("bad"))
+				end, { name = "SellRarity", color = UIKit.color("plate_light") }).ZIndex = 4
+			end
 		end
+		fillBar()
 		top += 16
 	end
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
-	UIKit.vlist(list, 2)
 	if #v.pals == 0 then
+		UIKit.vlist(list, 2)
 		local f = row(list, 1, 24)
 		UIKit.text(f, if v.nests == 0 then "No driftlings yet. Build a hut, then hatch an egg at the tree." else "No driftlings yet. Tap the Tree of Life to hatch one.", UDim2.new(1, -10, 1, -4), UDim2.fromOffset(5, 2), { color = UIKit.color("text_dim"), z = 4, wrap = true })
+		return
 	end
 	local order: { Types.Pal } = table.clone(v.pals)
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
@@ -901,9 +994,18 @@ local function buildPals(body: Frame, arg: any?)
 		end
 		return Tree.better(a, b)
 	end)
+	-- (every row measured, only those near what shows made: UIKit.lazyList)
+	local plans: { PalPlan? } = table.create(#order)
 	for i, x in order do
-		palRow(list, v, x, i, W, "pals")
+		plans[i] = palPlan(v, x, W)
 	end
+	UIKit.lazyList(list, #order, function(i: number): number
+		local pl = plans[i]
+		return if pl then pl.h else 0
+	end, function(i: number): GuiObject?
+		local pl = plans[i]
+		return if pl then palRow(list, v, order[i], pl, W, "pals") else nil
+	end, 2)
 end
 
 ------------------------------------------------------------------ one driftling's details
@@ -1094,7 +1196,6 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 		UIKit.openPanel("tree")
 	end, { name = "Back", color = UIKit.color("plate_light") })
 	local list = UIKit.scroll(body, UDim2.fromOffset(W, H - top), UDim2.fromOffset(0, top))
-	UIKit.vlist(list, 2)
 	local order: { Types.Pal } = {}
 	for _, x in v.pals do
 		if x.home ~= 0 then
@@ -1104,12 +1205,13 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 	table.sort(order, function(a: Types.Pal, b: Types.Pal): boolean
 		return Tree.better(b, a)
 	end)
-	for i, x in order do
+	-- (every housed driftling: the rows made only near what shows, UIKit.lazyList)
+	local function swapOutRow(x: Types.Pal): GuiObject?
 		local d = Creatures.byId[x.sp]
 		if d == nil then
-			continue
+			return nil
 		end
-		local f = row(list, i, 38)
+		local f = row(list, 0, 38)
 		f.Name = "SwapOut_" .. x.id
 		PalTip.attach(f, x)
 		PixelSprites.image(f, "icon_" .. x.sp, UDim2.fromOffset(4, 3), 4)
@@ -1126,7 +1228,13 @@ local function buildSwap(body: Frame, v: Types.ClientView, id: number, bag: bool
 			end
 		end, { name = "SwapTake_" .. x.id, color = UIKit.color("button_ok") }).ZIndex = 4
 		UIKit.text(f, "Sells for " .. Numbers.coins(Tree.price(x)), UDim2.fromOffset(56, 10), UDim2.new(1, -59, 0, 19), { x = "center", color = UIKit.color("text_dim"), z = 4 })
+		return f
 	end
+	UIKit.lazyList(list, #order, function(): number
+		return 38
+	end, function(i: number): GuiObject?
+		return swapOutRow(order[i])
+	end, 2)
 end
 
 ------------------------------------------------------------------ Hatched: what a bulk hatch brought
@@ -1365,48 +1473,60 @@ local function buildTree(body: Frame, arg: any?)
 	-- tree", then "selecting as in: bulk buy over a certain rarity"): a tap on one of the rarities' eggs picks the
 	-- lowest it takes, and Hatch takes every egg under the tree of that rarity or rarer, the rarest first, as far as
 	-- the coins and huts go (EggView.hatchMany; the button says how many and what they cost now: Tree.bulkPlan)
-	local floorR = math.clamp(bulkFloor, 1, Traits.RMAX)
-	local picked = Tree.atLeast(v.clutch :: any, floorR)
-	local plain = floorR <= 1
-	local countWords = if plain then (if #v.clutch == 1 then Lang.t("1 egg") else Lang.f("{1} eggs", #v.clutch)) else Lang.f("{1} and up: {2}", Lang.t(Traits.RARITY[floorR].name), #picked)
-	UIKit.text(body, Lang.keep(countWords), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(RX, 0), { x = "right", color = if plain then UIKit.color("text_dim") else UIKit.color(Traits.RARITY[floorR].color), name = "EggCount" })
-	local rowW = rarityRow(body, RX, 14, floorR, false, "Bulk_", function(r: number)
-		if r ~= bulkFloor then
-			bulkFloor = r
-			UIKit.refreshPanel()
+	-- (the count, the egg row and Hatch in a frame of their own: a pick remakes only that frame, not the whole sheet)
+	local bulkBar = Instance.new("Frame")
+	bulkBar.Name = "BulkBar"
+	bulkBar.BackgroundTransparency = 1
+	bulkBar.BorderSizePixel = 0
+	bulkBar.Size = UDim2.fromOffset(RW, 27)
+	bulkBar.Position = UDim2.fromOffset(RX, 0)
+	bulkBar.Parent = body
+	local function fillBulk()
+		UIKit.clear(bulkBar)
+		local floorR = math.clamp(bulkFloor, 1, Traits.RMAX)
+		local picked = Tree.atLeast(v.clutch :: any, floorR)
+		local plain = floorR <= 1
+		local countWords = if plain then (if #v.clutch == 1 then Lang.t("1 egg") else Lang.f("{1} eggs", #v.clutch)) else Lang.f("{1} and up: {2}", Lang.t(Traits.RARITY[floorR].name), #picked)
+		UIKit.text(bulkBar, Lang.keep(countWords), UDim2.fromOffset(RW - 4, 12), UDim2.fromOffset(0, 0), { x = "right", color = if plain then UIKit.color("text_dim") else UIKit.color(Traits.RARITY[floorR].color), name = "EggCount" })
+		local rowW = rarityRow(bulkBar, 0, 14, floorR, false, "Bulk_", function(r: number)
+			if r ~= bulkFloor then
+				bulkFloor = r
+				fillBulk()
+			end
+		end)
+		local pp = asProfile(v)
+		pp.clutch = { list = v.clutch }
+		local plan = Tree.bulkPlan(pp, picked, false)
+		local bw = RW - rowW - 8
+		local bulkText = if plan.n > 0 then Lang.f("Hatch {1}: {2}", plan.n, Numbers.coins(plan.cost)) else Lang.t("Hatch all")
+		local hb = UIKit.button(bulkBar, bulkText, UDim2.fromOffset(bw, 12), UDim2.fromOffset(rowW + 4, 14), function()
+			local now = StateClient.view()
+			if now == nil then
+				return
+			end
+			local np = asProfile(now)
+			np.clutch = { list = now.clutch }
+			local ids = Tree.atLeast(now.clutch :: any, math.clamp(bulkFloor, 1, Traits.RMAX))
+			local pl = Tree.bulkPlan(np, ids, false)
+			if pl.n > 0 then
+				EggView.hatchMany(bulkFloor, false)
+				return
+			end
+			Audio.play("deny")
+			local why = if #ids == 0 then "No eggs that rare under the tree." elseif pl.room > 0 then Words.errText(if now.nests > 0 then "full" else "no_hut") else Words.errText("money")
+			UIKit.notice(why, UIKit.color("bad"))
+		end, { name = "BulkHatch", color = if plan.n > 0 then UIKit.color("button_ok") else UIKit.color("plate_light") })
+		hb.ZIndex = 4
+		if plan.n > 0 then
+			local words = hb:FindFirstChild("Words")
+			if words and words:IsA("GuiObject") then
+				words.Position = UDim2.fromOffset(2, 0)
+				words.Size = UDim2.new(1, -16, 1, 0)
+			end
+			PixelSprites.image(hb, "mini_coin", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
 		end
-	end)
-	local pp = asProfile(v)
-	pp.clutch = { list = v.clutch }
-	local plan = Tree.bulkPlan(pp, picked, false)
-	local bw = RW - rowW - 8
-	local bulkText = if plan.n > 0 then Lang.f("Hatch {1}: {2}", plan.n, Numbers.coins(plan.cost)) else Lang.t("Hatch all")
-	local hb = UIKit.button(body, bulkText, UDim2.fromOffset(bw, 12), UDim2.fromOffset(RX + rowW + 4, 14), function()
-		local now = StateClient.view()
-		if now == nil then
-			return
-		end
-		local np = asProfile(now)
-		np.clutch = { list = now.clutch }
-		local ids = Tree.atLeast(now.clutch :: any, math.clamp(bulkFloor, 1, Traits.RMAX))
-		local pl = Tree.bulkPlan(np, ids, false)
-		if pl.n > 0 then
-			EggView.hatchMany(bulkFloor, false)
-			return
-		end
-		Audio.play("deny")
-		local why = if #ids == 0 then "No eggs that rare under the tree." elseif pl.room > 0 then Words.errText(if now.nests > 0 then "full" else "no_hut") else Words.errText("money")
-		UIKit.notice(why, UIKit.color("bad"))
-	end, { name = "BulkHatch", color = if plan.n > 0 then UIKit.color("button_ok") else UIKit.color("plate_light") })
-	hb.ZIndex = 4
-	if plan.n > 0 then
-		local words = hb:FindFirstChild("Words")
-		if words and words:IsA("GuiObject") then
-			words.Position = UDim2.fromOffset(2, 0)
-			words.Size = UDim2.new(1, -16, 1, 0)
-		end
-		PixelSprites.image(hb, "mini_coin", UDim2.new(1, -13, 0, 0), 6).Name = "PriceIcon"
 	end
+	fillBulk()
 	local list = UIKit.scroll(body, UDim2.fromOffset(RW, H - 30), UDim2.fromOffset(RX, 30))
 	list.Name = "List"
 	UIKit.vlist(list, 2)

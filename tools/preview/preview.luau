@@ -881,6 +881,148 @@ end
 -- log says how many times a second a walker's picture moved (the median and the slowest tenth) and how far it jumped
 -- (art px: the median jump and the largest), with the frame's cost; frames crowd_000 .. crowd_011, the last twelve
 -- at 30 a second (`make_gif.py <outdir> crowd <device> 30`).
+-- The Driftlings tab on a full island (the request of 2026-11-23: "selecting based on rarity, selling and opening the
+-- driftlings tab is very laggy"): the tab opened, a rarity picked, a sell by rarity, each timed with the frames after
+-- it (the layout of what it made), how many rows and things it made, and a second with it open. `palslist=<tier>`.
+function SCEN.palslist(tierArg: number?)
+	local Creatures = H.sharedServer("Data.Creatures")
+	local Plot = H.sharedServer("Logic.Plot")
+	local tier = tierArg or 10
+	local pals = {}
+	for k = 1, Plot.housingLimit(tier) do
+		table.insert(pals, Creatures.list[(k * 7 - 1) % #Creatures.list + 1].id)
+	end
+	seedProfile(24, tier, { fill = fillMax, pals = pals, shells = 9e6 })
+	local p = join(24, "Pals")
+	settle(p, 60, 2)
+	E.run(2)
+	local realClock = os.clock
+	local UIKit = H.cmod(p, "UI.UIKit")
+	local prof = H.profile(p)
+	-- (every rebuild of the open panel counted and timed: a view arriving rebuilds it, Hud's refresh)
+	H.inClient(p, function()
+		local raw = UIKit.refreshPanel
+		local box = { n = 0, ms = 0 }
+		;(UIKit :: any).debugRefresh = box
+		UIKit.refreshPanel = function()
+			local t0 = realClock()
+			raw()
+			box.n += 1
+			box.ms += (realClock() - t0) * 1000
+		end
+	end)
+	local function count()
+		return H.inClient(p, function()
+			local canvas = UIKit.canvas("Modal")
+			local shade = canvas:FindFirstChild("Panel_pals")
+			if shade == nil then
+				return 0, 0
+			end
+			local rows = 0
+			local all = shade:GetDescendants()
+			for _, x in all do
+				if string.sub(x.Name, 1, 4) == "Pal_" then
+					rows += 1
+				end
+			end
+			return #all, rows
+		end)
+	end
+	local function frames(n)
+		local worst, sum = 0, 0
+		for _ = 1, n do
+			local f0 = realClock()
+			E.step(1 / 60)
+			local ms = (realClock() - f0) * 1000
+			sum += ms
+			worst = math.max(worst, ms)
+		end
+		return sum, worst
+	end
+	local function refreshes()
+		local b = H.inClient(p, function()
+			local box = (UIKit :: any).debugRefresh
+			local n, ms = box.n, box.ms
+			box.n, box.ms = 0, 0
+			return { n = n, ms = ms }
+		end)
+		return b.n, b.ms
+	end
+	frames(30)
+	refreshes()
+	log("palslist: tier %d, %d driftlings", prof.tier, #prof.pals)
+	-- the tab opened
+	local t0 = realClock()
+	H.inClient(p, function()
+		UIKit.openPanel("pals")
+	end)
+	local openMs = (realClock() - t0) * 1000
+	local after, worst = frames(3)
+	local nAll, nRows = count()
+	log("palslist open: %.1f ms to build, the 3 frames after %.1f ms (the slowest %.1f); %d things in the panel, %d rows", openMs, after, worst, nAll, nRows)
+	capture(p, "palslist_open")
+	-- a second with it open
+	E.coTime = {}
+	local sum, w2 = frames(60)
+	local ct = E.coTime or {}
+	log("palslist open a second: %.2f ms a frame (the slowest %.1f), gui layout %.2f ms a frame", sum / 60, w2, (ct["<gui layout>"] or 0) * 1000 / 60)
+	E.coTime = nil
+	-- a rarity picked (the sell row's egg)
+	t0 = realClock()
+	H.clickNamed(p, "SellR_2", { wait = 0 })
+	local pickMs = (realClock() - t0) * 1000
+	after, worst = frames(3)
+	local rn, rms = refreshes()
+	nAll, nRows = count()
+	log("palslist pick: %.1f ms, the 3 frames after %.1f ms (the slowest %.1f); %d panel rebuilds (%.1f ms); %d things, %d rows", pickMs, after, worst, rn, rms, nAll, nRows)
+	-- a sell by rarity (two taps), the view coming back
+	local n0 = #prof.pals
+	H.clickNamed(p, "SellRarity", { wait = 0 })
+	frames(2)
+	refreshes()
+	t0 = realClock()
+	H.clickNamed(p, "SellRarity", { wait = 0 })
+	local tapMs = (realClock() - t0) * 1000
+	local s1, sw = frames(30)
+	rn, rms = refreshes()
+	nAll, nRows = count()
+	log("palslist sell: %d sold; the tap %.1f ms, the 30 frames after %.1f ms (the slowest %.1f); %d panel rebuilds (%.1f ms); %d things, %d rows", n0 - #prof.pals, tapMs, s1, sw, rn, rms, nAll, nRows)
+	capture(p, "palslist_sold")
+	-- scrolled to the foot
+	t0 = realClock()
+	H.inClient(p, function()
+		local canvas = UIKit.canvas("Modal")
+		local list = canvas:FindFirstChild("List", true)
+		if list and list:IsA("ScrollingFrame") then
+			list.CanvasPosition = E.v2(0, math.max(0, list.AbsoluteCanvasSize.Y - list.AbsoluteWindowSize.Y))
+		end
+	end)
+	after, worst = frames(10)
+	nAll, nRows = count()
+	log("palslist scrolled to the foot: the 10 frames after %.1f ms (the slowest %.1f); %d things, %d rows", after, worst, nAll, nRows)
+	capture(p, "palslist_foot")
+	-- the Tree of Life's panel and its bulk hatch's rarity row
+	t0 = realClock()
+	H.inClient(p, function()
+		UIKit.openPanel("tree")
+	end)
+	openMs = (realClock() - t0) * 1000
+	after, worst = frames(3)
+	local nTree = H.inClient(p, function()
+		local shade = UIKit.canvas("Modal"):FindFirstChild("Panel_tree")
+		return if shade then #shade:GetDescendants() else 0
+	end)
+	refreshes()
+	log("palslist tree panel: %.1f ms to build, the 3 frames after %.1f ms (the slowest %.1f); %d things", openMs, after, worst, nTree)
+	t0 = realClock()
+	H.clickNamed(p, "Bulk_3", { wait = 0 })
+	pickMs = (realClock() - t0) * 1000
+	after, worst = frames(3)
+	rn, rms = refreshes()
+	log("palslist tree pick: %.1f ms, the 3 frames after %.1f ms (the slowest %.1f); %d panel rebuilds (%.1f ms)", pickMs, after, worst, rn, rms)
+	return p
+end
+
 function SCEN.crowd()
 	local Creatures = H.sharedServer("Data.Creatures")
 	local Plot = H.sharedServer("Logic.Plot")
@@ -7212,6 +7354,12 @@ for _, name in list do
 	-- (stress=<n>: the stress walk's first n legs only)
 	-- (stress=<n>[:slow]: the stress walk's first n legs only; `:slow` with every pixel cast 25 us slower, as a slower
 	-- machine casts)
+	local plTier = string.match(name, "^palslist=(%d+)$")
+	if plTier then
+		fn = function()
+			return SCEN.palslist(tonumber(plTier))
+		end
+	end
 	local stressLegs, stressSlow = string.match(name, "^stress=(%d)(:?s?l?o?w?)$")
 	if stressLegs then
 		fn = function()

@@ -43,7 +43,9 @@ local ArtData = require(script.Parent.Parent.UI.ArtData)
 local AmbientView = {}
 
 ------------------------------------------------------------------ constants
-local TIER_SCALE: { [string]: number } = { low = 0.5, medium = 0.75, high = 1 }
+-- (half what it was on every tier since the request of 2026-11-23, "optimize it even further. you can cut down even more
+-- on graphics": low 0.5, medium 0.75, high 1 before)
+local TIER_SCALE: { [string]: number } = { low = 0.25, medium = 0.4, high = 0.5 }
 local BIG_PPU = 7 -- art px a stud (along the screen) from which the big sprites are drawn, else the small ones
 local NO_WAIT: { { x0: number, y0: number, x1: number, y1: number } } = {}
 local ISLE_EVERY = 0.5 -- s between looks at which islands the screen shows

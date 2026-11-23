@@ -617,15 +617,40 @@ do
 	do
 		local MenusC = H.cmod(p, "UI.Menus")
 		local CreaturesC = H.sharedServer("Data.Creatures")
+		-- (the list makes only the rows near what shows, UIKit.lazyList: it is scrolled from top to foot a window at a
+		-- time and every row seen is taken, then put back at the top)
+		local UIKitC = H.cmod(p, "UI.UIKit")
 		local function listed(): { number }
 			local panel = p.PlayerGui:FindFirstChild("Panel_hatch", true)
 			local list = if panel then panel:FindFirstChild("List", true) else nil
 			local rows = {}
-			for _, c in if list then list:GetChildren() else {} do
-				local id = tonumber(string.match(c.Name, "^Parent_(%d+)$"))
-				if id then
-					table.insert(rows, { id = id, o = c.LayoutOrder })
+			local seen = {}
+			local function take()
+				for _, c in if list then list:GetChildren() else {} do
+					local id = tonumber(string.match(c.Name, "^Parent_(%d+)$"))
+					if id and not seen[id] then
+						seen[id] = true
+						table.insert(rows, { id = id, o = c.LayoutOrder })
+					end
 				end
+			end
+			take()
+			if list then
+				local win = math.max(20, list.Size.Y.Offset)
+				local total = list.CanvasSize.Y.Offset
+				local y = 0
+				while y + win < total do
+					y = math.min(y + win, total - win)
+					H.inClient(p, function()
+						list.CanvasPosition = E.v2(0, y * UIKitC.P())
+					end)
+					E.run(0.05)
+					take()
+				end
+				H.inClient(p, function()
+					list.CanvasPosition = E.v2(0, 0)
+				end)
+				E.run(0.05)
 			end
 			table.sort(rows, function(a, b)
 				return a.o < b.o
