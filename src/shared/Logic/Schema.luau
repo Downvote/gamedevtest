@@ -156,7 +156,7 @@ function Schema.default(now: number, seed: number): Profile
 		tut = 1,
 		quest = 1,
 		stats = { days = 0, built = 0, earned = 0, taken = 0, sold = 0, best = 0, hatched = 0 },
-		settings = { pixel = "high", music = "on", sfx = "on", pals = "on", zoom = Tuning.CamZoomDefault, lang = "auto", text = "pixel", auto = 0 },
+		settings = { pixel = "high", music = "on", sfx = "on", pals = "on", zoom = Tuning.CamZoomDefault, lang = "auto", text = "pixel", auto = 0, loading = "wait" },
 		createdAt = now,
 		inv = {},
 		passes = {},
@@ -788,6 +788,8 @@ function Schema.reconcile(raw: any, now: number, seed: number): Profile
 			text = if settings.text == "smooth" then "smooth" else "pixel",
 			-- Auto Hatch's floor (2026-11-22): a rarity, 0 off (kept without the pass: it works again once owned)
 			auto = int(settings.auto, 0, 0, Traits.RMAX),
+			-- the loading cards wait for the whole island or skip it (2026-11-23: "give an option to skip loading")
+			loading = if settings.loading == "skip" then "skip" else "wait",
 		},
 		createdAt = num(r.createdAt, now),
 		passes = {},

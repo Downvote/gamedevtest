@@ -69,7 +69,7 @@ export type Clutch = { left: number, list: { Laid }, next: number }
 -- "pixel" (the pixel font) or "smooth" (Roblox's own font for every word: the request of 2026-11-20, "an option to turn
 -- off pixel text")
 -- auto: Auto Hatch's floor (the AutoHatch pass; Logic/Tree.setAuto): the rarity a new egg needs to hatch by itself, 0 off
-export type Settings = { pixel: string, music: string?, sfx: string?, pals: string?, zoom: number?, lang: string?, text: string?, auto: number? }
+export type Settings = { pixel: string, music: string?, sfx: string?, pals: string?, zoom: number?, lang: string?, text: string?, auto: number?, loading: string? }
 
 -- days: island days lived; earned: shells made in all; taken: eggs hatched from the Tree of Life (and driftlings taken
 -- in before it laid eggs); sold: driftlings sold; best: the rarest driftling had (0 none yet, 1 .. 5); hatched: the

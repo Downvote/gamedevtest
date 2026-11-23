@@ -50,6 +50,11 @@
 --   LoadingCard.useLang(Lang, smooth?)  the game's words from now on (Main, once UIKit has set the player's language;
 --                                `smooth()`: every word smooth, UIKit.smooth)
 --   LoadingCard.reword()         every line again (a change of language or text style)
+--   LoadingCard.useSkip(auto)    `auto()`: whether Settings' Loading is on Skip (Main, once the view has come)
+--   LoadingCard.offerSkip()      a Skip button on the card from now until it finishes; returns a function saying
+--                                whether it has been tapped (true at once, and no button, when `auto()` says so). The
+--                                callers stop waiting on the rest of the island when it does (the request of
+--                                2026-11-23, "give an option to skip loading")
 --   LoadingCard.state()          for the sims: { up, phase, bar, finished, fading, painted, fallback, ticks, K,
 --                                size, title (its rect: { x0, y0, x1, y1 }, UI px), still (the island's picture: { name
 --                                ("big" | "small"), x0, y0, w, h }, nil until shown), moon ({ x, y, r }), mode
@@ -68,6 +73,7 @@ local AssetService = game:GetService("AssetService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
 
 local Art = require(script.Parent.LoadingArt)
 local PixelFont = require(script.Parent.PixelFont)
@@ -223,6 +229,11 @@ local S = {
 	paintKey = "", -- (the size paintBuf was painted at: a later cover of the same size paints nothing)
 	stills = {} :: { [string]: buffer }, -- the island's pictures, decoded once
 	stillShown = nil :: { name: string, x0: number, y0: number, w: number, h: number }?,
+	skipOn = false, -- the Skip button offered (LoadingCard.offerSkip) and not tapped yet
+	skipped = false, -- it was tapped
+	skipAuto = nil :: (() -> boolean)?, -- Settings' Loading on Skip (LoadingCard.useSkip)
+	skipBtn = nil :: GuiObject?,
+	skipRect = nil :: Rect?, -- where it sits (UI px), for the sims
 }
 
 ------------------------------------------------------------------ helpers
@@ -842,6 +853,83 @@ local function setTitle()
 	end
 end
 
+-- The Skip button (LoadingCard.offerSkip): a plank like the bar's frame (its outline 0.45 of the wood plus 0.3 of the
+-- ink, a light top and a dark foot) at the canvas's foot on the right, over the tip's row, its word in the player's
+-- language with a drop shadow. A tap skips the rest of the wait.
+local function setSkip()
+	local old = S.skipBtn
+	if old then
+		old:Destroy()
+	end
+	S.skipBtn, S.skipRect = nil, nil
+	local L, layer = S.L, S.layer
+	if L == nil or layer == nil or not S.skipOn or S.skipped or S.finished or S.waiting then
+		return
+	end
+	local text = words("Skip")
+	local smooth = S.fallback or isSmooth(text)
+	local content: Content? = nil
+	local iw, ih, ox, oy, blockW = 0, 0, 0, 0, 0
+	if smooth then
+		blockW = smoothWidth(text, SMOOTH_SIZE.small)
+	else
+		content, iw, ih, ox, oy, blockW = textImage(text, false, "shadow", C.text, C.ink, nil)
+	end
+	-- (on a touch screen at least 44 screen px tall, as UIKit's TOUCH_MIN: a finger's width)
+	local touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+	local bh = if touch then math.max(13, math.ceil(44 / S.K)) else 13
+	local bw = blockW + (if touch then 16 else 12)
+	local x, y = L.W - bw - 6, L.tipY - bh - 4
+	local b = Instance.new("TextButton")
+	b.Name = "Skip"
+	b.Text = ""
+	b.AutoButtonColor = false
+	b.BackgroundTransparency = 1
+	b.BorderSizePixel = 0
+	b.Size = UDim2.fromOffset(bw, bh)
+	b.Position = UDim2.fromOffset(x, y)
+	b.ZIndex = 905
+	b.Parent = layer
+	rect(b, 0, 0, bw, bh, C.bar_ink, 905, "SkipInk")
+	rect(b, 1, 1, bw - 2, bh - 2, C.frame, 906, "SkipFace")
+	rect(b, 1, 1, bw - 2, 1, C.frame_hi, 907, "SkipHi")
+	rect(b, 1, bh - 2, bw - 2, 1, C.frame_lo, 907, "SkipLo")
+	local bx = math.floor((bw - blockW) / 2)
+	if smooth then
+		local t = Instance.new("TextLabel")
+		t.Name = "Words"
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromOffset(bw, 8)
+		t.Position = UDim2.fromOffset(0, math.floor((bh - 8) / 2))
+		t.TextXAlignment = Enum.TextXAlignment.Center
+		local font = smoothFace()
+		if font then
+			t.FontFace = font
+		end
+		t.TextSize = SMOOTH_SIZE.small
+		t.TextColor3 = rgb(C.text)
+		t.TextStrokeColor3 = rgb(C.ink)
+		t.TextStrokeTransparency = SMOOTH_STROKE
+		t.Text = text
+		t.ZIndex = 908
+		t.Parent = b
+	elseif content then
+		local im = imageLabel(b, content, 908)
+		im.Name = "Words"
+		im.Size = UDim2.fromOffset(iw, ih)
+		im.Position = UDim2.fromOffset(bx + ox, math.floor((bh - 9) / 2) + oy)
+	end
+	b.Activated:Connect(function()
+		if S.skipOn and not S.skipped then
+			S.skipped = true
+			S.skipOn = false
+			setSkip()
+		end
+	end)
+	S.skipBtn = b
+	S.skipRect = { x0 = x, y0 = y, x1 = x + bw, y1 = y + bh }
+end
+
 -- Every line again in the language and style now on.
 local function reword()
 	if S.layer == nil then
@@ -851,6 +939,7 @@ local function reword()
 	setTitle()
 	setStatus()
 	setTip()
+	setSkip()
 end
 
 ------------------------------------------------------------------ the bank of cloud (the expansion's cover)
@@ -1102,6 +1191,7 @@ local function build()
 	end
 	setStatus()
 	setTip()
+	setSkip()
 	placeClip()
 end
 
@@ -1315,6 +1405,7 @@ function LoadingCard.cover(opts: CoverOpts?): boolean
 	S.bar, S.progress = 0, 0
 	S.painted, S.fallback = false, false
 	S.coverTitle, S.coverStatus = o.title, o.status
+	S.skipOn, S.skipped = false, false
 	S.cover = { state = "closing", t0 = os.clock(), base = 0, lo = nil, hi = nil, coveredAt = 0, onCovered = o.onCovered, onOpened = o.onOpened }
 	mount()
 	return S.up
@@ -1358,6 +1449,8 @@ function LoadingCard.finish()
 		return
 	end
 	S.finished = true
+	S.skipOn = false
+	setSkip()
 	if not S.up then
 		return
 	end
@@ -1396,6 +1489,36 @@ function LoadingCard.finish()
 	end)
 end
 
+-- Whether Settings' Loading is on Skip (Main hands it over once the view has come: the card's own code has no view).
+function LoadingCard.useSkip(auto: () -> boolean)
+	S.skipAuto = auto
+end
+
+-- The Skip button from now until the card finishes (the request of 2026-11-23, "give an option to skip loading"):
+-- offered as soon as the card is drawing the island (Main's join; a visit's and an expansion's cover once the server
+-- has said yes). The callers stop waiting for the rest of the island when it is tapped, but still wait for the first
+-- picture, so the card never opens on an empty sky. Returns a function saying whether it has been tapped: true at
+-- once, and no button, with Settings' Loading on Skip.
+function LoadingCard.offerSkip(): () -> boolean
+	local auto = S.skipAuto
+	if auto and auto() then
+		return function(): boolean
+			return true
+		end
+	end
+	if not S.up or S.finished then
+		return function(): boolean
+			return false
+		end
+	end
+	S.skipped = false
+	S.skipOn = true
+	setSkip()
+	return function(): boolean
+		return S.skipped
+	end
+end
+
 function LoadingCard.state(): { [string]: any }
 	local L = S.L
 	return {
@@ -1420,6 +1543,9 @@ function LoadingCard.state(): { [string]: any }
 		lang = if S.lang then (S.lang :: LangModule).code() else nil,
 		still = S.stillShown,
 		moon = if L then { x = L.moonX, y = L.moonY, r = L.moonR } else nil,
+		skip = S.skipBtn ~= nil, -- the Skip button showing
+		skipped = S.skipped,
+		skipRect = S.skipRect,
 	}
 end
 

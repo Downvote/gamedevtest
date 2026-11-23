@@ -217,6 +217,10 @@ return function()
 		T.eq(junk.lang, "auto", "an unknown language: auto")
 		T.eq(junk.text, "pixel", "junk text: the pixel font")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { music = 7 } }, 2000, 9) :: any).settings.music, "on", "a bad value: on")
+		-- the loading cards (2026-11-23, "give an option to skip loading"): wait by default, skip kept, junk back to wait
+		T.eq(p.settings.loading, "wait", "the loading cards wait by default")
+		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { loading = "skip" } }, 2000, 9) :: any).settings.loading, "skip", "skip kept")
+		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { loading = 4 } }, 2000, 9) :: any).settings.loading, "wait", "junk: wait")
 		-- the View slider's notch (2026-11-18): the default for a save from before it, kept when set, kept in range
 		T.eq(p.settings.zoom, Tuning.CamZoomDefault, "the View slider on its default notch")
 		T.eq((Schema.reconcile({ v = Schema.VERSION, settings = { zoom = 3 } }, 2000, 9) :: any).settings.zoom, 3, "a notch kept")

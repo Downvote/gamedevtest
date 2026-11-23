@@ -8486,10 +8486,15 @@ end
 -- Behind a loading card: the whole island's cast (PixelRenderer.prerender) waited on for Tuning.PixelIsleWaitSecs at most,
 -- `report(share)` told how far it has come every 20th of a second (the request of 2026-11-22: "could the whole player
 -- island be prerendered during the loading scene, such that walking around unrendered areas wont need to lag so
--- much?"). What it has not cast by then is cast after the card opens, nearest the founder first. Yields.
-function PixelRenderer.waitPrerender(report: (number) -> ())
+-- much?"). What it has not cast by then is cast after the card opens, nearest the founder first. `stop()` true ends the
+-- wait early (the card's Skip, LoadingCard.offerSkip: the request of 2026-11-23, "give an option to skip loading"; the
+-- rest is cast after the card opens all the same). Yields.
+function PixelRenderer.waitPrerender(report: (number) -> (), stop: (() -> boolean)?)
 	local t0 = os.clock()
 	while os.clock() - t0 < Tuning.PixelIsleWaitSecs do
+		if stop and stop() then
+			return
+		end
 		local done, share = PixelRenderer.prerender()
 		report(share)
 		if done then

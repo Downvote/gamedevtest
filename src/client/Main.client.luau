@@ -53,6 +53,11 @@ StateClient.Changed:Connect(SettingsUI.applyLanguage)
 -- (the loading card's words too, and again after a change)
 LoadingCard.useLang(Lang, UIKit.smooth)
 UIKit.LanguageChanged:Connect(LoadingCard.reword)
+-- (Settings' Loading on Skip: the cards leave as soon as the island's first picture is up, no Skip button to tap; the
+-- request of 2026-11-23, "give an option to skip loading")
+LoadingCard.useSkip(function(): boolean
+	return SettingsUI.value("loading") == "skip"
+end)
 -- the shells on every sheet's awning on a touch screen (the request of 2026-11-19: "Make menus fill the screen on
 -- mobile with currency showing and an exit button")
 UIKit.setWallet(function(): number?
@@ -79,6 +84,9 @@ LoadingCard.phase("picture")
 task.spawn(function()
 	local t0 = os.clock()
 	local shown = false
+	-- (Skip on the card from now: a tap ends the wait for the rest of the island, which is cast as the founder walks;
+	-- the card still waits for the first picture, so nobody lands on an empty sky)
+	local skipped = LoadingCard.offerSkip()
 	while true do
 		local done, progress = PixelRenderer.firstPicture()
 		LoadingCard.progress(0.7 * progress)
@@ -93,7 +101,7 @@ task.spawn(function()
 		PixelRenderer.setHidden(true)
 		PixelRenderer.waitPrerender(function(share: number)
 			LoadingCard.progress(0.7 + 0.3 * share)
-		end)
+		end, skipped)
 		PixelRenderer.setHidden(false)
 	end
 	LoadingCard.finish()

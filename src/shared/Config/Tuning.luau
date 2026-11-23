@@ -419,8 +419,9 @@ local Tuning = {
 	-- where the frame's compose would take it past this, but always gets PixelMinCastMs (the request of 2026-11-22, "ms at
 	-- all times should not go above 20ms even at the highest stress tests"). 16 until the request of 2026-11-23,
 	-- "optimize the game much much more": the work that can wait filled each frame up to it, and a live client's Luau
-	-- (not compiled to native code) takes longer over the rest of the frame
-	PixelFrameMs = 12,
+	-- (not compiled to native code) takes longer over the rest of the frame; 12 until the request of 2026-11-23,
+	-- "optimize even further" (more of the island is drawn during play since its loading card can be skipped)
+	PixelFrameMs = 9,
 	-- the colour grade over the picture (UI/DayLight: the bright day's touch of light and the weathers' tints): off since
 	-- the request of 2026-11-23, "optimize the game much much more. its ok to drop graphics where it most affects
 	-- performance" (every changed pixel went through it, 1 to 3 ms a frame on a busy island, and a weather's change

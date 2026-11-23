@@ -1528,6 +1528,9 @@ local function expandIsland(from: number)
 				return
 			end
 			LoadingCard.progress(0.35)
+			-- (Skip on the card from now: a tap ends the wait for the rest of the bigger island once its picture is up;
+			-- the request of 2026-11-23, "give an option to skip loading")
+			local skipped = LoadingCard.offerSkip()
 			local grown = if type(r.data) == "table" then tonumber(r.data.tier) or from + 1 else from + 1
 			-- the new land in the world (the server moves it onto the island and marks the island built)
 			local t0 = os.clock()
@@ -1543,10 +1546,10 @@ local function expandIsland(from: number)
 				LoadingCard.progress(0.6 + 0.15 * math.min(1, (os.clock() - t1) / 3))
 				task.wait(0.05)
 			end
-			-- then the rest of the bigger island (PixelRenderer.waitPrerender)
+			-- then the rest of the bigger island (PixelRenderer.waitPrerender), unless Skip was tapped
 			PixelRenderer.waitPrerender(function(share: number)
 				LoadingCard.progress(0.75 + 0.23 * share)
-			end)
+			end, skipped)
 			PixelRenderer.setHidden(false)
 			LoadingCard.finish()
 		end,

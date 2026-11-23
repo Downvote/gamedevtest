@@ -12,6 +12,9 @@
 --   Driftlings On / Off                 settings.pals: the islands' driftlings drawn or not (Controllers/WorldView; the
 --                                       request of 2026-11-22: "also, add an option to hide driftlings")
 --   Pixel art High / Medium / Low       settings.pixel: the pixel filter's detail (no Off: the user asked for none, 2026-11-14)
+--   Loading   Wait / Skip               settings.loading: whether the loading cards wait for the whole island to be
+--                                       drawn or leave as soon as the first picture is up (the request of 2026-11-23,
+--                                       "give an option to skip loading"; the cards' own Skip button does it once)
 --   (Screen, Auto / 100% .. 200%, went on 2026-11-22: "make the pixel scale always 100%, no need for that option
 --   anymore"; the game's pixel size is used as it is)
 --   View      - [ten notches] +         settings.zoom: the camera's zoom on the islands (the request of 2026-11-18: "make a
@@ -66,6 +69,12 @@ local ROWS: { Row } = {
 		opts = { { v = "high", text = "High" }, { v = "medium", text = "Medium" }, { v = "low", text = "Low" } },
 		hint = "Lower runs smoother on older phones.",
 	},
+	{
+		k = "loading",
+		label = "Loading",
+		opts = { { v = "wait", text = "Wait" }, { v = "skip", text = "Skip" } },
+		hint = "Skip lets you play sooner. The rest of the island is drawn as you walk.",
+	},
 }
 SettingsUI.ROWS = ROWS
 
@@ -90,6 +99,8 @@ function SettingsUI.value(k: string): string
 		return if type(saved) == "string" and (saved == "auto" or Lang.byCode[saved] ~= nil) then saved else "auto"
 	elseif k == "text" then
 		return if saved == "smooth" then "smooth" else "pixel"
+	elseif k == "loading" then
+		return if saved == "skip" then "skip" else "wait"
 	end
 	return if saved == "off" then "off" else "on"
 end

@@ -415,6 +415,11 @@ function IslandService.init()
 			-- pixel text"), kept with the profile
 			s.profile.settings.text = a.v
 			return true, nil
+		elseif a.k == "loading" and (a.v == "wait" or a.v == "skip") then
+			-- whether the loading cards wait for the whole island or leave once its first picture is up (the Settings
+			-- panel, 2026-11-23: "give an option to skip loading"), kept with the profile
+			s.profile.settings.loading = a.v
+			return true, nil
 		end
 		return false, "bad_payload"
 	end)

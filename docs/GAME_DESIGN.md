@@ -3097,6 +3097,17 @@ text (the requests and how each was met) is in the history of this file, up to c
   town of 68 driftlings 15.5 ms a frame, 11.6 now. Run as a live client runs it (`PREVIEW_LUAU=-O2`), the Everdrift
   walk takes 13.4 ms a frame (15.5). The frames of 60 to 100 ms the stress walk's second leg shows are the preview's
   own checks, which compose the whole picture a second time on that leg.
+
+  > The request (2026-11-23): "optimize even further. also, give an option to skip loading"
+
+  The loading cards got their Skip button and Settings its Loading row (§11, §9). With more of the island drawn during
+  play, the picture's work that can wait (the strips a walk brings in, the ground cast ahead of the walk, the rest of
+  the island, the next level's picture) now stops at 9 ms of each frame (12): it finishes a little later, and the view
+  waits on new ground a little more often, never more than 22 px behind your founder and never in jumps. Building
+  shadows were measured too: off, the ground cast ahead took about 30% fewer rays but the frame was no faster, so they
+  stay. In the previews: the full Everdrift walked onto new ground 13.0 ms a frame before this, 11.8 now (the picture's
+  own part 10.3 ms, 8.7 now), standing in it 5.1 ms, 4.9 now; the town of 68 driftlings 11.6 ms, 11.1 now; stopping a
+  walk had no frame over 16.7 ms (4 before).
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are
@@ -3193,7 +3204,9 @@ rain; `settings.sfx`), Driftlings On / Off ("Off hides them on the islands so th
 the request of 2026-11-22: "also, add an option to hide driftlings": with it Off no driftling on any island is drawn,
 not even the ones out for a stroll or just hatched; they keep going about their day unseen, so turning it back On
 shows each where it is; the hatch scene still shows every new one), Pixel art High / Medium / Low ("Lower runs smoother on older phones."; no Off: "No need
-for an option to turn off the pixel filter"), and View, a slider with ten notches that zooms the camera out and in
+for an option to turn off the pixel filter"), Loading Wait / Skip ("Skip lets you play sooner. The rest of the island is
+drawn as you walk."; `settings.loading`, the request of 2026-11-23: "give an option to skip loading": with Skip every
+loading card opens as soon as the first picture is up, §11), and View, a slider with ten notches that zooms the camera out and in
 (the request of 2026-11-18: "make a view slider for zooming the camera in and out, with 10 notches"; `settings.zoom`).
 Drag its knob, tap a notch, or tap the - and + at its ends. The notches run from 5 art px a stud, far enough out to see a
 big island's middle all at once, to 16, close enough to see a driftling's freckles; each is about the same step closer
@@ -3561,6 +3574,11 @@ reason.
   four-pointed ones, a faint band of the galaxy, the moon with its craters and a soft halo, far islets as silhouettes
   and a sea of clouds along the bottom in round billows, each layer lighter than the one behind it, with moonlight
   along their tops.
+- **Skip** (the request of 2026-11-23: "give an option to skip loading"). Once the card is drawing the island (when
+  you join, visit, go home or expand), a Skip button sits in its bottom right corner, a little plank like the bar's
+  frame, finger-sized on a touch screen. A tap ends the wait for the rest of the island: the card still waits for the
+  first picture of where you stand, so you never land on an empty sky, then opens, and the rest of the island is drawn
+  as you walk. Settings' Loading on Skip does it every time without the button (Wait by default).
 
 > The request (2026-11-20, earlier): "redo the loading screen. it should be the floating island now"
 

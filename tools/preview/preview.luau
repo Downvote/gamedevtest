@@ -3741,6 +3741,80 @@ function SCEN.visit()
 	return p
 end
 
+-- Skipping the loading card (the request of 2026-11-23, "give an option to skip loading"): a visit to a full level 8
+-- island waiting for the card, home again tapping Skip as soon as it shows, then Settings' Loading on Skip and the
+-- visit again (no button, the card opens once the first picture is up). Each trip's timings: when the card covered,
+-- when Skip showed and was tapped, when it opened and was gone, and how much of the island was cast by then.
+function SCEN.skipload()
+	local p = join(55, "Skipper")
+	seedProfile(56, 8, { fill = fillMax, pals = { "frondle", "gullfin", "mossbun", "clawdle" } })
+	join(56, "Host", { client = false })
+	settle(p)
+	E.run(1)
+	local LCm = nil
+	do
+		local ctx = E.clientCtx(p)
+		local inst = E.find("ReplicatedFirst.Loading.LoadingCard")
+		local e = ctx and inst and ctx.modules[inst]
+		LCm = e and e.value
+	end
+	local PR = modOr(p, "Pixel.PixelRenderer")
+	local function trip(label, click, tap)
+		local t0 = E.now()
+		H.clickNamed(p, click, { optional = true, wait = 0 })
+		local coveredAt, skipAt, tapAt, openAt, goneAt, shareAtOpen = -1, -1, -1, -1, -1, -1
+		local shot = false
+		for _ = 1, 1800 do
+			E.step(1 / 60)
+			local st = LCm and H.inClient(p, LCm.state)
+			if st then
+				if st.cover == "held" and coveredAt < 0 then
+					coveredAt = E.now() - t0
+				end
+				if st.skip and skipAt < 0 then
+					skipAt = E.now() - t0
+					if not shot then
+						shot = true
+						capture(p, label .. "_skip")
+					end
+				end
+				if tap and st.skip and tapAt < 0 and E.now() - t0 >= skipAt + 0.3 then
+					tapAt = E.now() - t0
+					H.clickNamed(p, "Skip", { optional = true, wait = 0 })
+				end
+				if st.cover == "opening" and openAt < 0 then
+					openAt = E.now() - t0
+					local _, share = H.inClient(p, PR.prerender)
+					shareAtOpen = share or -1
+				end
+				if openAt >= 0 and not st.up then
+					goneAt = E.now() - t0
+					break
+				end
+			end
+		end
+		log("skipload %s: covered at %.2f s, Skip shown at %.2f s, tapped at %.2f s, opened at %.2f s, gone at %.2f s; the island %d%% cast when it opened", label, coveredAt, skipAt, tapAt, openAt, goneAt, math.floor(shareAtOpen * 100 + 0.5))
+		settle(p, 30, 1)
+		E.run(3.2)
+	end
+	if H.clickNamed(p, "Visit", { optional = true }) then
+		E.run(0.5)
+		trip("wait", "Visit_2", false)
+		trip("tap", "Home", true)
+		local res = H.req(p, "settings.set", { k = "loading", v = "skip" })
+		log("skipload: settings.set loading skip: %s", tostring(res and res.ok))
+		E.run(0.5)
+		if H.clickNamed(p, "Visit", { optional = true }) then
+			E.run(0.5)
+			trip("setting", "Visit_2", false)
+		end
+	else
+		log("skipload: no Visit button")
+	end
+	capture(p, "skipload_end")
+	return p
+end
+
 -- Build mode: the tray (Wood tab), a piece picked with its ghost on a cell where it fits (cyan), then on the plaza
 -- (red), then a tip under way (the tray on its tab, its building pulsing, the tip over the tray), then the Huts tab with
 -- the island at its huts' limit (build_huts: "No room", 4/4), then a hut picked up and Replace (the bigger huts with

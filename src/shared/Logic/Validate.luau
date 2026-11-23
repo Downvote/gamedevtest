@@ -5,7 +5,7 @@
 --   "int"    a whole number in [0, 1e6] (a driftling or piece id; 0: none)
 --   "small"  a whole number in [1, 32] (a look index)
 --   "rarity" a whole number in [1, Traits.RMAX] (a driftling's rarity: 9)
---   "key"    a settings key ("pixel", "music", "sfx", "pals", "zoom", "lang", "text")
+--   "key"    a settings key ("pixel", "music", "sfx", "pals", "zoom", "lang", "text", "loading")
 --   "coord"  a whole number in [-240, 160] (a plot-local stud: the top tier's island reaches far north and south of
 --            its heart)
 --   "rot"    a quarter turn: 0, 90, 180 or 270
@@ -104,7 +104,7 @@ local ACTIONS: { [string]: { [string]: string } } = {
 }
 Validate.ACTIONS = ACTIONS
 
-local SETTINGS = { pixel = true, music = true, sfx = true, pals = true, zoom = true, lang = true, text = true }
+local SETTINGS = { pixel = true, music = true, sfx = true, pals = true, zoom = true, lang = true, text = true, loading = true }
 
 local function isInt(v: any, lo: number, hi: number): boolean
 	return type(v) == "number" and v == v and v == math.floor(v) and v >= lo and v <= hi

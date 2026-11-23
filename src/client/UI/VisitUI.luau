@@ -120,6 +120,9 @@ function VisitUI.travel(plot: number?)
 				return
 			end
 			LoadingCard.progress(0.3)
+			-- (Skip on the card from now: a tap ends the wait for the rest of the island once its picture is up; the
+			-- request of 2026-11-23, "give an option to skip loading")
+			local skipped = LoadingCard.offerSkip()
 			-- the founder over there, then the island's picture: a few frames for the view to jump and the filter to
 			-- start its bake, then until it has nothing left to draw
 			local t0 = os.clock()
@@ -134,10 +137,11 @@ function VisitUI.travel(plot: number?)
 				LoadingCard.progress(0.5 + 0.2 * math.min(1, (os.clock() - t1) / 3))
 				task.wait(0.05)
 			end
-			-- then the rest of the island, so a walk anywhere on it finds its picture cast (PixelRenderer.waitPrerender)
+			-- then the rest of the island, so a walk anywhere on it finds its picture cast (PixelRenderer.waitPrerender),
+			-- unless Skip was tapped
 			PixelRenderer.waitPrerender(function(share: number)
 				LoadingCard.progress(0.7 + 0.28 * share)
-			end)
+			end, skipped)
 			PixelRenderer.setHidden(false)
 			LoadingCard.finish()
 		end,
