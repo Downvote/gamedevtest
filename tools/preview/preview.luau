@@ -127,7 +127,9 @@ local function settle(p, maxSec, minSec)
 		local active = PR ~= nil and select(2, pcall(PR.isActive)) == true
 		local caught = true
 		if CC0 and CC0.pan and type(st) == "table" and st.px ~= nil then
-			local cx, cy = CC0.pan()
+			-- (the pan the window follows: the founder as drawn, CameraController.drawnPan, a pixel off the follow's
+			-- own pan at times)
+			local cx, cy = (CC0.drawnPan or CC0.pan)()
 			caught = st.px == cx and st.py == cy and (st.queued or 0) == 0
 		end
 		if not active then

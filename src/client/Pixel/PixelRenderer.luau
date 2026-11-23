@@ -86,7 +86,9 @@ local CULL = 48 -- art px past the layer's edge a dynamic model may stand and st
 -- shows. At most Rims.max (8) a tick: the own founder first, then the nearest to the layer's middle.
 local PICK_LEN = 2000
 local REBAKE_SHARE = 0.33 -- invalidated rects covering more of the layer than this re-bake it whole
-local WATER_HZ = 6 -- the water's frames a second
+-- the water's frames a second (4 since the request of 2026-11-23, "optimize the game much much more"; 6 before: each
+-- frame sends the water's changed pixels up)
+local WATER_HZ = 4
 local WATER_SPEED = 2 -- phase units a frame (a crest every 64 units: about 10 studs)
 local WATER_CREST = 0xCDF7F0 -- a crest's light aqua (0xRRGGBB)
 local WATER_DEEP = 0x1C6272 -- (turquoise, like the sea: Data/Palette)
@@ -268,6 +270,10 @@ local stickCol: buffer? = nil -- u32 a layer pixel: the colour stuck there (0: n
 local stickList: { number } = {} -- the pixels stuck (one unstuck stays listed until the list is rebuilt)
 local stickLive = 0
 local stickDirty: { number } = {} -- pixels stuck or unstuck since the last compose (their tiles go up)
+-- (how many pixels are stuck on each layer row, u16 a row: restoreRect passes over the rows with none; the request of
+-- 2026-11-23, "optimize the game much much more": the lawn's tufts keep some stuck nearly always, and every pixel put
+-- back looked for one)
+local stickRows: buffer? = nil
 
 -- The static picture changed: what was worked out from it is stale and the sticky pixels go. (Every caller uploads the
 -- whole picture next.)
@@ -285,6 +291,10 @@ local function staticChanged()
 	table.clear(stickList)
 	table.clear(stickDirty)
 	stickLive = 0
+	local sr = stickRows
+	if sr then
+		buffer.fill(sr, 0, 0)
+	end
 end
 local needFull = false -- the next compose copies the whole static layer and uploads the whole image
 -- invalidated rects in global art px, and the one being re-cast (its cursor: phase 1 anchors, phase 2 the rest)
@@ -430,6 +440,10 @@ local SG = {
 	vpFY = nil :: number?,
 	vpVX = 0,
 	vpVY = 0,
+	waterSeen = 0, -- (water pixels the water's slices met this period; none: SG.waterRest)
+	waterRows = nil :: buffer?, -- (a byte a layer row: 1 once a slice met no water in it; good while staticVer is waterRowsVer)
+	waterRowsVer = -1,
+	waterRest = 0, -- (os.clock() till which the water's slices rest: the last period met no water on the layer)
 	vpCX = 0, -- (the camera's speed last frame, art px a second)
 	vpCY = 0,
 	dt = 1 / 60, -- (this frame's length, seconds: frameStep)
@@ -519,6 +533,8 @@ local SG = {
 	bits = buffer.create(0),
 	tcols = 0,
 	trows = 0,
+	markY0 = math.huge, -- (the rows of tiles marked since tilesClear: SG.runs looks at those alone)
+	markY1 = -1,
 	dirty = {} :: { Rect },
 	base = nil :: { color: buffer, id: buffer }?,
 	incOn = nil :: Surf?,
@@ -3058,10 +3074,14 @@ local function restoreRect(s: Surf, r: Rect)
 		buffer.copy(f.depth, o * 4, s.sDepth, o * 4, w * 4)
 		buffer.copy(f.id, o * 2, s.sId, o * 2, w * 2)
 	end
-	-- (the sticky effect pixels over it again)
+	-- (the sticky effect pixels over it again, on the rows that have any)
 	local sc = stickCol
-	if stickLive > 0 and sc and buffer.len(sc) == W * s.H * 4 then
+	local sr = stickRows
+	if stickLive > 0 and sc and sr and buffer.len(sc) == W * s.H * 4 and buffer.len(sr) == s.H * 2 then
 		for y = y0, y1 do
+			if buffer.readu16(sr, y * 2) == 0 then
+				continue
+			end
 			local row = y * W
 			for x = x0, x1 do
 				local c = buffer.readu32(sc, (row + x) * 4)
@@ -3154,6 +3174,7 @@ function SG.waterSlice(s: Surf, j: number)
 		SG.waterAllNow = SG.waterAll
 		SG.waterAll = false
 		SG.waterPendN = 0
+		SG.waterSeen = 0
 	end
 	local W, H = s.W, s.H
 	local cls, wave, shade, color = s.sWClass, s.sWave, s.sShade, s.sColor
@@ -3162,12 +3183,25 @@ function SG.waterSlice(s: Surf, j: number)
 	local pend = SG.waterPend
 	local pn = SG.waterPendN
 	local gx0, gy0 = s.cam.gx, s.cam.gy
+	-- (the rows a slice met no water in are passed over till the static picture changes: the request of 2026-11-23,
+	-- "optimize the game much much more"; a village's ponds take a few rows, and every row was looked at)
+	local rows = SG.waterRows
+	if rows == nil or buffer.len(rows) ~= H or SG.waterRowsVer ~= staticVer then
+		rows = buffer.create(H)
+		SG.waterRows, SG.waterRowsVer = rows, staticVer
+	end
+	local rowsB = rows :: buffer
 	for y = (j - gy0) % S, H - 1, S do
+		if buffer.readu8(rowsB, y) == 1 then
+			continue
+		end
 		local row = y * W
+		local seen0 = SG.waterSeen
 		for x = 0, W - 1 do
 			local i = row + x
 			local c = buffer.readu8(cls, i)
 			if c ~= 0 then
+				SG.waterSeen += 1
 				local jj = c * 256 + buffer.readu8(wave, i) + 1
 				local t1 = now[jj]
 				if t1 >= 0 then
@@ -3185,6 +3219,9 @@ function SG.waterSlice(s: Surf, j: number)
 					end
 				end
 			end
+		end
+		if SG.waterSeen == seen0 then
+			buffer.writeu8(rowsB, y, 1)
 		end
 	end
 	SG.waterPendN = pn
@@ -3320,6 +3357,7 @@ local function fxBooks(s: Surf)
 		fxShown = buffer.create(n * 4)
 		fxTiles = buffer.create(((s.W + FX_TW - 1) // FX_TW) * ((s.H + FX_TH - 1) // FX_TH))
 		stickCol = buffer.create(n * 4)
+		stickRows = buffer.create(s.H * 2)
 		table.clear(stickList)
 		table.clear(stickDirty)
 		stickLive = 0
@@ -3355,6 +3393,11 @@ local function stickAt(i: number, c: number)
 	if old == 0 then
 		table.insert(stickList, i)
 		stickLive += 1
+		local sr = stickRows
+		local y = i // s.W
+		if sr and y * 2 < buffer.len(sr) then
+			buffer.writeu16(sr, y * 2, math.min(65535, buffer.readu16(sr, y * 2) + 1))
+		end
 	end
 	buffer.writeu32(sc, i * 4, c)
 	SG.stickPut(s, i, old, c)
@@ -3370,6 +3413,11 @@ local function unstickAt(i: number)
 	local old = buffer.readu32(sc, i * 4)
 	buffer.writeu32(sc, i * 4, 0)
 	stickLive -= 1
+	local sr = stickRows
+	local y = i // s.W
+	if sr and y * 2 < buffer.len(sr) then
+		buffer.writeu16(sr, y * 2, math.max(0, buffer.readu16(sr, y * 2) - 1))
+	end
 	SG.stickPut(s, i, old, buffer.readu32(s.sColor, i * 4))
 	table.insert(stickDirty, i)
 	-- (the list keeps unstuck pixels until it is twice what is stuck: then it is rebuilt)
@@ -4726,6 +4774,7 @@ function SG.tilesClear(s: Surf)
 	else
 		buffer.fill(SG.bits, 0, 0)
 	end
+	SG.markY0, SG.markY1 = math.huge, -1
 end
 
 -- Marks the tiles under a layer rect (inclusive) to draw again; returns how many of them were clean.
@@ -4736,6 +4785,10 @@ function SG.mark(x0: number, y0: number, x1: number, y1: number): number
 	local tx1, ty1 = math.min(cols - 1, x1 // T), math.min(SG.trows - 1, y1 // T)
 	local bits = SG.bits
 	local n = 0
+	-- (the rows of tiles marked, so SG.runs looks at those alone)
+	if ty0 <= ty1 and tx0 <= tx1 then
+		SG.markY0, SG.markY1 = math.min(SG.markY0, ty0), math.max(SG.markY1, ty1)
+	end
 	for ty = ty0, ty1 do
 		local o = ty * cols
 		for tx = tx0, tx1 do
@@ -4778,7 +4831,7 @@ function SG.runs(s: Surf): { Rect }
 	local W, H = s.W, s.H
 	local out: { Rect } = {}
 	local open: { [number]: Rect } = {}
-	for ty = 0, rows - 1 do
+	for ty = math.max(0, SG.markY0), math.min(rows - 1, SG.markY1) do
 		local now: { [number]: Rect } = {}
 		local o = ty * cols
 		local tx = 0
@@ -5104,13 +5157,15 @@ function SG.incCompose(s: Surf, due: boolean?)
 	end
 	tag = "sweep"
 	table.clear(SG.dirty)
-	-- (a band of the layer drawn again every compose, round and round: whatever a compose of a few tiles might leave
-	-- behind lasts a second or two at most)
+	-- (a band of the layer drawn again every tenth compose, round and round: whatever a compose of a few tiles might
+	-- leave behind lasts a few seconds at most. Every third until the request of 2026-11-23, "optimize the game much
+	-- much more": the band was as many pixels as all the rest a compose redid; the checks against whole composes find
+	-- none left behind)
 	local T = SG.TILE
 	if not lite then
 		SG.sweep += 1
-		if SG.sweep % 3 == 0 then
-			local row = (SG.sweep // 3) % math.max(1, SG.trows)
+		if SG.sweep % 10 == 0 then
+			local row = (SG.sweep // 10) % math.max(1, SG.trows)
 			mark(0, row * T, W - 1, row * T + T - 1)
 		end
 	end
@@ -6017,6 +6072,14 @@ function SG.windowAxis(f: number, u: number, cvp: number, cam: number, was: numb
 		nv = math.max(nv, -math.sqrt(2 * brake * math.max(0, f - wlo)))
 	end
 	local nf = f + nv * dt
+	-- (a step that reaches or passes the camera lands on it, locked, where it may be: stepping half a pixel a frame it
+	-- went over the half pixel either side of the camera and swung back and forth round it for good; the request of
+	-- 2026-11-23, "optimize the game much much more", found it)
+	if (cam - nf) * (cam - f) <= 0 or math.abs(cam - nf) < 0.5 then
+		if math.abs(cv) <= allow and cam >= wlo and cam <= whi and cam >= lo and cam <= hi then
+			return cam, 0, true
+		end
+	end
 	local top, bottom = math.min(hi, whi), math.max(lo, wlo)
 	if nf > top then
 		nf, nv = top, math.min(nv, 0)
@@ -6249,6 +6312,7 @@ function SG.finishStep(s: Surf, deadline: number, now: boolean?): boolean
 	SG.fin = nil
 	SG.finCoarse = false
 	SG.unfin = nil
+	SG.waterRowsVer = -1 -- (the strips' rows may hold water now: SG.waterSlice looks at every row again)
 	if not now then
 		pf.lateMs = (pf.lateMs or 0) + (SG.clock() - t0) * 1000
 		local W, H = s.W, s.H
@@ -7797,6 +7861,10 @@ local function frameStep(dt: number)
 		-- the last scroll's pieces still to cast, then its strips finished (SG.pendStep, SG.finishStrips): in the frame's
 		-- spare time, or now if the screen would show them
 		local c0 = SG.clock()
+		-- (the last scroll's strips always get Tuning.PixelMinCastMs of the frame, wherever it stands: with a compose
+		-- longer than the frame's share, the frame's cast time was gone before they were reached and the window waited
+		-- short of them for good; the request of 2026-11-23, "optimize the game much much more", found it)
+		local stripEnd = math.max(SG.castEnd, c0 + Tuning.PixelMinCastMs / 1000)
 		if SG.pend and stats.scrolls == before then
 			-- (past its anchors with the view waiting on it: shown as it stands, the rest cast after; SG.release)
 			-- (Tuning.PixelCoarseLead: shown from their anchors' blocks when the view waits on them, the rest cast after)
@@ -7805,7 +7873,7 @@ local function frameStep(dt: number)
 			if coarse and P and P.phase >= 2 and (SG.vpBlocked or P.c4) then
 				SG.release(s)
 			else
-				SG.pendStep(s, SG.castEnd)
+				SG.pendStep(s, stripEnd)
 				P = SG.pend
 				if coarse and P and P.phase >= 2 and (SG.vpBlocked or P.c4) then
 					SG.release(s)
@@ -7814,8 +7882,8 @@ local function frameStep(dt: number)
 		end
 		if SG.unfin and SG.unfinSeen(s) then
 			SG.finishStrips(s)
-		elseif SG.unfin and SG.pend == nil and SG.clock() < SG.castEnd then
-			SG.finishStep(s, SG.castEnd)
+		elseif SG.unfin and SG.pend == nil then
+			SG.finishStep(s, math.max(stripEnd, SG.clock() + 0.0002))
 		end
 		if #SG.refine > 0 and SG.pend == nil and SG.unfin == nil and SG.clock() < SG.castEnd then
 			SG.refineStep(s, SG.castEnd)
@@ -7891,7 +7959,10 @@ local function frameStep(dt: number)
 	end
 	local wv0 = SG.clock()
 	-- the water's frames (not on the low tier): a changed frame is copied and uploaded whole by the next compose
-	if s and tier ~= "low" then
+	-- (a period that met no water on the layer: the slices rest for 2 s, then look again; the request of 2026-11-23,
+	-- "optimize the game much much more": every layer pixel was looked at six times a second, about 1.2 ms a frame, on
+	-- islands with no water at all)
+	if s and tier ~= "low" and os.clock() >= SG.waterRest then
 		waterClock += dt
 		local w0 = SG.clock()
 		-- (the next frame's slices due by now: all of them by the period's end; SG.waterSlice)
@@ -7906,6 +7977,9 @@ local function frameStep(dt: number)
 			waterClock = 0
 			if SG.waterApply(s) and not SG.live(s) then
 				needFull = true
+			end
+			if SG.waterSeen == 0 then
+				SG.waterRest = os.clock() + 2
 			end
 			waterFrame += 1
 			SG.waterDone = 0

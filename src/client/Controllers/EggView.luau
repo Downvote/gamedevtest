@@ -586,6 +586,12 @@ local function stepEgg(e: Egg, t: number)
 		drop(e)
 		return
 	end
+	-- (off the screen, lying still: left as it was, not rocked nor its lights moved, till it comes near the screen
+	-- again; the request of 2026-11-23, "optimize the game much much more": every egg under every tree near the view
+	-- moved its parts and lights each frame)
+	if e.model and e.crack == nil and e.sink == nil and not PixelRenderer.nearScreen((at :: CFrame).Position, 40) then
+		return
+	end
 	dress(e)
 	local cf = at :: CFrame
 	-- (an egg lying still keeps its place frame after frame: its parts are put again only when it moved, rocks, rises,
@@ -615,9 +621,10 @@ local function stepEgg(e: Egg, t: number)
 	-- tilted like a planet's ring. Hatching or sinking, they go out (under the lawn).
 	local s = SIZE[e.r] or 1
 	local quiet = e.crack ~= nil or e.sink ~= nil
-	-- (they move twelve times a second: in between the pixel filter shows the egg's kept picture, and they are left
-	-- where they are)
-	t = math.floor(t * 12) / 12
+	-- (they move eight times a second: in between the pixel filter shows the egg's kept picture, and they are left
+	-- where they are; twelve until the request of 2026-11-23, "optimize the game much much more": each move draws the
+	-- egg again)
+	t = math.floor(t * 8) / 8
 	if not moved and e.fxT == t then
 		return
 	end
@@ -653,8 +660,10 @@ end
 -- eggs lying still (not rising, sinking or hatching), at most SPARKS at once.
 type Spark = { egg: string, at: Vector3, vel: Vector3, born: number, life: number, kind: string, gui: GuiObject, frames: { GuiObject }?, sway: number }
 local sparks: { Spark } = {}
-local SPARKS = 140
-local EVERY: { [number]: number } = { 0, 0.8, 0.42, 0.26, 0.14, 0.11, 0.08, 0.07, 0.06 } -- seconds between an egg's sparks, by rarity (0: none)
+-- (40 at once, each egg half as often, since the request of 2026-11-23, "optimize the game much much more. its ok to
+-- drop graphics where it most affects performance": 140 sparks were placed on the screen every frame)
+local SPARKS = 40
+local EVERY: { [number]: number } = { 0, 1.6, 0.84, 0.52, 0.28, 0.22, 0.16, 0.14, 0.12 } -- seconds between an egg's sparks, by rarity (0: none)
 
 local function newSpark(e: Egg, foot: Vector3, t: number)
 	if #sparks >= SPARKS then

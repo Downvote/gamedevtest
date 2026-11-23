@@ -365,6 +365,11 @@ local Tuning = {
 	-- you make it such that creatures working or in their houses arent rendered, as if they are in the building?"), so
 	-- the strolls are what shows of an island's driftlings. One with nowhere to work naps in its hut and never strolls
 	PalStrollShare = 0.25,
+	-- driftlings of one island out of their buildings at once, at most (walking to work, strolling, standing about):
+	-- the rest stay in (WorldView's decide; the request of 2026-11-23, "optimize the game much much more. its ok to drop
+	-- graphics where it most affects performance". On a full island hundreds were out: every one is drawn again each
+	-- time it moves, about 850 px a step with its shadow)
+	PalOutMax = 12,
 	CamRayBack = 500, -- studs: orthographic rays start this far behind the view centre (the street's far end still in front)
 	CamFollowBox = 0.22, -- the view follows the founder once they come within this share of the screen of an edge
 	-- seconds: the follow's smooth time (a critically damped spring, the request of 2026-11-18: "make the camera a smooth
@@ -408,9 +413,16 @@ local Tuning = {
 	PixelPanRays = 6000, -- rays a frame for the strips a pan uncovers when they cannot wait (a stage; a longer pan catches up over frames)
 	-- the filter's own share of a frame, ms: the work that can wait (a scroll's strips, the look-ahead, the pre-cast) stops
 	-- where the frame's compose would take it past this, but always gets PixelMinCastMs (the request of 2026-11-22, "ms at
-	-- all times should not go above 20ms even at the highest stress tests")
-	PixelFrameMs = 16,
-	PixelMinCastMs = 1,
+	-- all times should not go above 20ms even at the highest stress tests"). 16 until the request of 2026-11-23,
+	-- "optimize the game much much more": the work that can wait filled each frame up to it, and a live client's Luau
+	-- (not compiled to native code) takes longer over the rest of the frame
+	PixelFrameMs = 12,
+	-- the colour grade over the picture (UI/DayLight: the bright day's touch of light and the weathers' tints): off since
+	-- the request of 2026-11-23, "optimize the game much much more. its ok to drop graphics where it most affects
+	-- performance" (every changed pixel went through it, 1 to 3 ms a frame on a busy island, and a weather's change
+	-- graded the whole picture again in steps). The hatch scene's own light still holds a grade while it plays
+	PixelGrade = false,
+	PixelMinCastMs = 2,
 	-- the screen's window over ground not cast yet (PixelRenderer's SG.windowAxis; the report of 2026-11-22: "when moving
 	-- the player around and the camera follows, it stutters, moving a bit, stopping, then moving again. if its
 	-- neccessary, can you make it one smooth motion as the player moves instead, even if the camera moves slower
@@ -446,8 +458,10 @@ local Tuning = {
 	-- smooth and lerp to the player?"). The gap between the two is what a scroll's strips have to be cast in before the
 	-- view reaches them: at 4 px of 14 the view was on them a frame after the scroll, and the walk's strips, cast over a
 	-- few frames to keep each frame short, held it back (the request of 2026-11-22, "ms at all times should not go above
-	-- 20ms even at the highest stress tests")
-	PixelPanMargin = 24,
+	-- 20ms even at the highest stress tests"). 40 since the request of 2026-11-23, "optimize the game much much more"
+	-- (24 before): a scroll moves every buffer of the layer whatever its step, so a step of 22 px in place of 6 makes
+	-- about a quarter as many of them for a layer an eighth bigger
+	PixelPanMargin = 40,
 	PixelPanEdge = 18,
 	-- true: a scroll's strips get their shadow edges, ink and grade on the next frame, while they lie in the margin past
 	-- the screen's edge, and the margin the view leaves goes into the pan cache before the scroll (the request of
@@ -485,8 +499,10 @@ local Tuning = {
 	PixelAheadNearPx = 24,
 	-- ms a frame, standing with nothing else to cast (the next tier's picture done), spent casting the pan cache's tiles
 	-- all round the layer, PixelRingPx deep (the request of 2026-11-21, "reduce the frame speed close to the frame speed
-	-- while standing without scrolling": a walk then starts on ground already cast); 0: off
-	PixelRingMs = 2,
+	-- while standing without scrolling": a walk then starts on ground already cast); 0: off. Off since the request of
+	-- 2026-11-23, "optimize the game much much more": the island is cast whole behind the loading card now, and the ring
+	-- went on casting round it every frame while standing (2 to 4 ms a frame)
+	PixelRingMs = 0,
 	PixelRingPx = 96,
 	-- ms a frame the filter may spend on a bake or on re-casts while the screen is hidden (Build mode's expansion behind
 	-- the loading card: PixelRenderer.setHidden; nobody sees the game's frame rate then, so the new land is ready sooner)

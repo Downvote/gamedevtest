@@ -373,7 +373,9 @@ local function dress(w: Walker)
 		pooled -= 1
 	else
 		local nt = MicroModels.species(w.sig, "lite")
-		nt.model:SetAttribute("PixelShadow", 0.6)
+		-- (no blob shadow under it since the request of 2026-11-23, "optimize the game much much more. its ok to drop
+		-- graphics where it most affects performance": each one's shadow was drawn again wherever it went, as many
+		-- pixels again as the driftling's own picture)
 		nt.model:SetAttribute("PixelGroundY", Street.LAWN_Y)
 		t = nt
 	end
@@ -552,14 +554,26 @@ local function spell(w: Walker): number
 	return 8 + w.rng:next() * 6 + (if w.mood == "nap" then 12 else 0)
 end
 
+-- How many of each island's driftlings are out of their buildings (walking, strolling or standing about): counted
+-- every frame before they step, kept up as they decide (Tuning.PalOutMax).
+local outOf: { [number]: number } = {}
+
 -- Where a driftling heads next: the building it works at (in at its front), its hut for a nap when it has nowhere to
 -- work, or a stroll now and then (Tuning.PalStrollShare of its spells). One already inside the building it would go to
--- stays in; one just come into view starts inside it.
+-- stays in; one just come into view starts inside it. With Tuning.PalOutMax of its island's out already, one inside
+-- stays in for another spell (the request of 2026-11-23, "optimize the game much much more. its ok to drop graphics
+-- where it most affects performance": every one out is a picture drawn again each time it moves).
 local function decide(w: Walker, t: number)
 	local spots = spotsNow(w.plot)
 	local uid = if w.work ~= 0 and spots[w.work] then w.work else w.home
 	local s = spots[uid]
-	if s and (w.nextWork or w.work == 0 or w.fresh or w.rng:next() >= Tuning.PalStrollShare) then
+	-- (too many out: one inside stays in; one out walks to its building, no stroll, and goes in)
+	local full = (outOf[w.plot] or 0) >= Tuning.PalOutMax
+	if s and full and w.inside then
+		w.untilT = t + spell(w)
+		return
+	end
+	if s and (full or w.nextWork or w.work == 0 or w.fresh or w.rng:next() >= Tuning.PalStrollShare) then
 		w.action = WORK_ACTION[s.id] or "tend"
 		w.mood = if w.work == 0 then "nap" else palMoodOf(s.id)
 		w.nextWork = false
@@ -578,7 +592,13 @@ local function decide(w: Walker, t: number)
 		w.tx, w.tz = s.cx + side, s.cz + s.d / 2 + 0.4
 		w.goal = uid
 		w.state = "walk"
+		if w.inside then
+			outOf[w.plot] = (outOf[w.plot] or 0) + 1
+		end
 	else
+		if w.inside then
+			outOf[w.plot] = (outOf[w.plot] or 0) + 1
+		end
 		w.tx, w.tz = strollPoint(w.plot, w.rng)
 		w.state = "walk"
 		w.nextWork = true
@@ -1142,6 +1162,12 @@ function WorldView.start()
 		-- (Settings' Driftlings, a tap not answered yet included)
 		hidden = SettingsUI.value("pals") == "off"
 		local k0 = WorldView.clock()
+		table.clear(outOf)
+		for _, w in walkers do
+			if not w.inside then
+				outOf[w.plot] = (outOf[w.plot] or 0) + 1
+			end
+		end
 		for _, w in walkers do
 			stepWalker(w, t, dt)
 		end

@@ -322,7 +322,7 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `TideLuck`, `TideMutTier` or `HutTide`, and none of the old tree's `TreeSecs`, `TreeLuck`, `TreeMutLuck`,
   `TreeSpeedCost`, `TreeLuckCost`, `PenSafe`, `PenShown` or `TreeStages`), breeding (`BreedShells` (an egg's price by the
   child's rarity), `BreedTurns`, `BreedKeep`, `BreedTierUp`, `BreedNew`), the island's lean (`MutLean`, `MutLeanFloor`),
-  the founders' doze (`DozeSecs` 40), the share of a driftling's spells in its building that end in a stroll (`PalStrollShare` 0.25, WorldView), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
+  the founders' doze (`DozeSecs` 40), the share of a driftling's spells in its building that end in a stroll (`PalStrollShare` 0.25, WorldView), the most of an island's driftlings out of their buildings at once (`PalOutMax` 12, WorldView: the request of 2026-11-23, "optimize the game much much more"), the boost buildings' stacking (`BoostStack` 0.5), the server's step and rate limit, the sea
   (`MaxPlots`, `PlotSpacing` (170 since 2026-11-20: the islands are whole and round from the start, so a channel of
   sea stays between two), `PlotPieces` (buildings and decor by tier: 36, 60, 90, 130, 180, 240, 300, 370, 450, 540,
   then 60 more a tier to 1,140), `HousingLimit` (the driftlings an island's huts may house together by its tier, however many huts: since 2026-11-19
@@ -335,14 +335,14 @@ many as that tier's newest hut holds, 8, 10, 12, 16, 18 (tiers 6 to 10), 22, 26,
   `HomeCooldown`, `WalkSpeed`, `JumpHeight`; no `SwimSpeed` since the islands took to the sky), and the camera and pixel filter values (Random Bakery's `CamYaw` 45,
   `CamPitch` 30, `PixelTiers`, `PixelScaleMin` / `PixelScaleSides`; this game's `CamRayBack`, `PixelMaxRayDist`,
   `CamFollowBox`, `CamFollowSecs` (0.12: the follow's smooth time), `CamTrailSecs` (0.06: seconds of the founder's walk the view stands behind them), `CamFollowMinPx` (60: art px a second, its least speed short of the founder), `CamBuildPan`, `CamBuildRecenter` (0.12: the share of Build mode's drag given back each
-  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (24: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22) and
+  frame the founder walks), `PixelPanRays`, `PixelPanMargin` (40: art px of picture kept past each screen edge; 12 until 2026-11-21, 14 until 2026-11-22, 24 until 2026-11-23) and
   `PixelPanEdge` (18: the window's distance from the layer's edge that scrolls it; 2 until 2026-11-21, 4 until 2026-11-22), `PixelPanLate`
   (true: a scroll's strips are finished a frame or two later and the margin the view leaves is kept beforehand, 9.3
   Pans), `PixelPanCacheTiles` (2400: the pan cache's tiles at most, 0 off; 768 until 2026-11-22) and
   `PixelPanCacheTilesTouch` (1400: on a touch screen with no keyboard), `PixelIsleSpare` (48: tiles the whole island's
   cast leaves free), `PixelIsleMs` (4: its time a frame once nothing nearer has work), `PixelIsleWaitSecs` (8: how long
   a loading card waits on it at most),
-`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (2: standing, the time a frame for the ring round the layer, 0 off) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (16: the filter's own share of a frame) and `PixelMinCastMs` (1: what the casting that can wait always gets), `PixelWindowBrake` (1200: art px a second each second the window slows at most, and what stops it short of strips not cast yet), `PixelWindowAccel` (500: what its speed toward the camera grows at most), `PixelWindowCatch` (5: of the gap a second it closes), `PixelWindowMinPx` (30: art px a second it closes at least) and `PixelWindowCamEase` (0.3: of each frame's step the camera's speed it follows takes), `PixelLagMs` (8: ms more a frame for the strips while the window waits on them, all of it at `PixelHoldMaxPx` behind), `PixelHoldMaxPx` (48: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelMoveMs` (8: ms more for the models that moved, came or went), `PixelMoveMin` (24: of those on the screen, moved every tick past both) and `PixelMoveCapMs` (6: what those may take more again), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
+`PixelInvalidateRaysFrame`, `PixelInvalidateMs` (8: the re-casts' time a frame at most, besides their rays), `PixelPreCastMs` (2: the time a frame given to casting the next tier ahead, 0 off), `PixelAheadMs` (3: the look-ahead's time a frame, 0 off), `PixelAheadPx` (64: how far past the layer it looks), `PixelAheadNearMs` (8) and `PixelAheadNearPx` (24: the time a frame for a tile that near the layer's edge), `PixelRingMs` (0, off since 2026-11-23: the island is cast whole behind the loading card; 2 before: standing, the time a frame for the ring round the layer) and `PixelRingPx` (96: its depth; 9.3 The look-ahead), `PixelMapLow` (-90) and `PixelMapHigh` (80: studs, the heights the ray map's window spans), `PixelMapMs` (0.5) and `PixelMapBuildMs` (2: its time a frame once made and while it is being made; 9.3 The ray map), `PixelSunMapQ` (6: the sun's map's px a stud), `PixelFrameMs` (12, 16 until 2026-11-23: the filter's own share of a frame) and `PixelMinCastMs` (2, 1 until 2026-11-23: what the casting that can wait always gets, the last scroll's strips included), `PixelGrade` (false since 2026-11-23: the colour grade over the picture, UI/DayLight), `PixelWindowBrake` (1200: art px a second each second the window slows at most, and what stops it short of strips not cast yet), `PixelWindowAccel` (500: what its speed toward the camera grows at most), `PixelWindowCatch` (5: of the gap a second it closes), `PixelWindowMinPx` (30: art px a second it closes at least) and `PixelWindowCamEase` (0.3: of each frame's step the camera's speed it follows takes), `PixelLagMs` (8: ms more a frame for the strips while the window waits on them, all of it at `PixelHoldMaxPx` behind), `PixelHoldMaxPx` (48: art px the window may fall behind on ground not cast yet before the strips are cast in full at once), `PixelCoarseLead` (false: strips shown before they are whole) and `PixelCoarseMs` (6: what their coarse pass gets a frame at least past twice `PixelHoldMaxPx`), `PixelComposeMs` (4: ms a tick of moving the models that changed), `PixelMoveMs` (8: ms more for the models that moved, came or went), `PixelMoveMin` (24: of those on the screen, moved every tick past both) and `PixelMoveCapMs` (6: what those may take more again), `PixelJobMs` (3: ms a frame for a model drawn over a few frames), `PixelSameMs` (2: ms a tick of looking at whether models changed), `PixelFirstPartMs` (0.3: ms a part a model's first draw is guessed at, of a kind never drawn), `PixelMaxDyn` (80: models drawn afresh a tick at most), `PixelDynMs` (4: ms a tick of
   drawing models afresh), `PixelLiteFollow` (true: a frame between two ticks composes only the founder the view follows, 9.3), `PixelIncCompose` (1: the incremental compose, 9.3; 0: every pan composes whole)). (`GrowSecs`
   and `GrowArmSecs` went with the island's growth on the picture, 2026-11-19.)
   The seasons and the weather (GAME_DESIGN 13): `WeatherEpoch` (0: the sea's clock time the first spring starts),
@@ -1255,7 +1255,7 @@ or `along` since the tide went; `treeFrac` went with the old tree.)
 
 ### 8.2 `DayLight` (the light: one bright day; the sky's own day)
 The request of 2026-11-14, "remove the day night cycle, and make everything brighter": `start()` sets
-`PixelRenderer.setGrade(hold or BRIGHT)` every frame (with the filter off, `Lighting.ClockTime` 13.5), sets the
+`PixelRenderer.setGrade(hold or (Tuning.PixelGrade and (weather or BRIGHT)))` every frame (`PixelGrade` false since the request of 2026-11-23, "optimize the game much much more. its ok to drop graphics where it most affects performance": no grade over the island, only the hatch scene's hold) (with the filter off, `Lighting.ClockTime` 13.5), sets the
 crickets to `0.12 x night()` (the surf at 0 since the sea went on 2026-11-20; WeatherView keeps a soft wind) and plays
 the birds every `BIRDS_EVERY` 80 s while `night()` is under a half.
 The sky's day (the request of 2026-11-20: "polish the skybox more. it should be of the same quality as the ones in the
@@ -1545,7 +1545,7 @@ layer px), `debugShadowCheck() -> { high, darkened, ground, shadows }` (the blob
 those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
 `addFxLayer(name, draw) -> remove` and `fxStats()` (below).
 - **The window** (the request of 2026-11-21: "camera moving is extremely laggy still. could you make it smooth and lerp
-  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (24; 12 until 2026-11-21, 14 until 2026-11-22) all round (`marginOf`, on a
+  to the player?"): the layer is the screen's art px plus `Tuning.PixelPanMargin` (40; 12 until 2026-11-21, 14 until 2026-11-22, 24 until 2026-11-23: a scroll moves every buffer of the layer whatever its step, so a step of 22 px makes about a quarter as many as one of 6) all round (`marginOf`, on a
   stage too, so the island's kept picture and a stage's are one size and the stash comes back; `layerCam(v, gx, gy,
   K)`: the grid camera of a layer whose top-left is global art px (gx, gy), the full size given half a pixel short of
   the whole count so `Raster.cam`'s ceil adds none). `Surf.m` is the margin, `vw`, `vh` the screen's size and `ox`,
@@ -1739,6 +1739,12 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   `PixelHoldMaxPx` they get a coarse pass first (`pend.phase` 0, `pend.c4`: one pixel cast a 4x4 block, filling it,
   released after, `SG.refine` casting them again from their 2x2 anchors, `pass` 1, to the rest, `pass` 2), within
   the frame's deadline, at least `PixelCoarseMs` past twice `PixelHoldMaxPx` and all it takes past four times.
+  The last scroll's pieces (`SG.pendStep`) and its strips' finishing (`SG.finishStep`) get `PixelMinCastMs` (2) of
+  the frame at least, wherever the frame stands (`stripEnd`): with a compose longer than the frame's share the cast
+  time was gone before they were reached, the strips were never finished and the window waited short of them for good
+  (found on 2026-11-23 with `PixelFrameMs` 12). `SG.windowAxis` lands on the camera, locked, when a step reaches or
+  passes it (stepping half a pixel a frame the window went over the half pixel round the camera and swung round it
+  for good).
   `SG.finishStep(s, deadline)` finishes strips a band of `FIN_ROWS` at a time (`SG.finishStrips` all at once where it
   must). The look-ahead takes all of `castEnd`.
 - **The compose's budget** (the same request). `SG.budgetPlan` moves the models that changed on a tick within
@@ -1936,7 +1942,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   pixels go on the base too (`SG.stickPut`: where it shows the static picture or the old sticky colour). On the
   village walking the pan preview's square a frame costs as before (about 22.5 ms) and standing a quarter less; on a
   full Everdrift (the `stress` preview) a frame's composing went from about 74 ms to under 30.
-- **The water and the wind, a slice at a time**: their frames come `WATER_HZ` (6) times a second, and each used to be
+- **The water and the wind, a slice at a time**: their frames come `WATER_HZ` (4; 6 until 2026-11-23) times a second (a period that meets no water on the layer rests the slices 2 s, `SG.waterRest`; a row a slice met no water in is passed over till the static picture changes or a scroll's strips are finished, `SG.waterRows`, `SG.waterRowsVer` against `staticVer`: the request of 2026-11-23, "optimize the game much much more"), and each used to be
   one pass over every pixel of the layer (about 20 to 30 ms for the water and 14 for the wind, a hitch six times a
   second). Now the next frame is worked out a slice at a time over the period before it (`SG.WATER_SLICES`, 8: every
   eighth row of the world's grid, so a pan in between moves no pixel into another slice; the slices due by the
@@ -1979,7 +1985,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   phase units a cycle, 3 a frame) run down the little waterfall's and the Spring Grotto's falls; the 2026-11-14
   request, "waterfalls having flowing water"; `waterColor`'s cache keyed `base * 32 + cls * 4 + tone`) marks its pixels in the bake
   (`sWClass`) with a wave phase from their ground position (`sWave`: bands across the water, bent by two sines);
-  `WATER_HZ` (6) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
+  `WATER_HZ` (4) times a second, not on the low tier, every water pixel not under an ink line is shaded again from its
   baked tone: crests a light blue (`WATER_CREST`), troughs darker (`mixShaded` mixes in the layer's packed format,
   `Shading.pack`: red in the low byte), the foam's white coming and going (`waterColor`, cached per class, tone
   and phase), and the whole image uploads (composing incrementally, each changed pixel goes straight onto the frame,
@@ -2121,7 +2127,7 @@ those darkened, and the ground ones darkened), `Changed: Signal<PixelTier>`,
   They run inside `compose`: paused with the renderer, at its tier's rate, never in the classic style.
   `fxStats() -> { ms, bookMs, px, changed, rects, upPx, ticks, layers }` (the last tick's: the layers' ms, the books'
   ms, pixels written, changed, the rects and pixels uploaded).
-- **Blob shadows**: a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
+- **Blob shadows** (no model asks for one since 2026-11-23: the driftlings' went with the request "optimize the game much much more. its ok to drop graphics where it most affects performance"): a dynamic model with a `PixelShadow` attribute (radius, studs) shades the static pixels in an
   ellipse under its PrimaryPart on the ground at `PixelGroundY` as in the sun's shadow (the palette's own shadow tone;
   never an ink line or the sky), smaller the higher it is; none while its PrimaryPart is see-through or below its
   ground (a stage's thing put away under the floor); only on its ground: a static pixel whose surface (its ray's
@@ -2327,7 +2333,11 @@ dressed), so the pixel filter has nothing of it to draw, pose or slide, and no c
 are in the building?"). A spell inside (`spell`: 8 to 14 s, a nap 12 more) ends in `decide`: a stroll for
 `Tuning.PalStrollShare` (0.25) of them (`strollPoint`: a buildable cell off the Tree of Life where it stands), out at its
 door and back in after, else it stays in the same building; a new place (its work or hut changed) brings it out to walk
-there. One with nowhere to work naps in its hut and never strolls. A walker made with its island (`fresh`: not just
+there. One with nowhere to work naps in its hut and never strolls. With `Tuning.PalOutMax` (12) of its island's out
+already (`outOf[plot]`, counted every frame before the walkers step and kept up as they decide), one inside stays in
+for another spell and one out walks to its building, no stroll, and goes in (the request of 2026-11-23, "optimize the
+game much much more. its ok to drop graphics where it most affects performance": hundreds were out on a full island,
+each drawn again as it moved). No blob shadow under any (`PixelShadow` went the same day). A walker made with its island (`fresh`: not just
 hatched) starts inside its building part way through a spell, so arriving on an island shows no crowd walking in. Its
 mood (`palMoodOf`: `dip` at a pier or kelp farm, `peck` at the other farms, `push` at the wood and the boosts, `wave`
 at the shops, `nap` at a hut or the hatchery) is kept but not seen while it is inside. `cheer` passes the ones inside;
@@ -2350,7 +2360,7 @@ Hatchery's hatchling (Fx "turn" `hatched`) gets its name and pink bits over the 
 the own islanders cheer. Its Heartbeat runs `EggView.step` with the view's centre (world x).
 Only the walkers near the screen have a model (the stress test of 2026-11-17, a full Everdrift's 840 driftlings): one
 within `MODEL_NEAR` (24) art px of the layer (`PixelRenderer.nearScreen` of its foot) is dressed (`dress`: a model of
-its kind from `pool[sig]`, else `MicroModels.species(sig, "lite")` with `PixelShadow` 0.6 and `PixelGroundY` the
+its kind from `pool[sig]`, else `MicroModels.species(sig, "lite")` with `PixelGroundY` the
 lawn's, registered as a moving model) and one past `MODEL_FAR` (80) undressed (`undress`: unregistered, then parked at
 y -400 in the pool while it holds fewer than `POOL_MAX` (200), else destroyed; parked rather than unparented, so the
 scene's ray structures stay as they are). Since 2026-11-22 (the request: "driftlings appear and disappear in and out
@@ -2418,7 +2428,7 @@ twinkles"): its gold sparks and stars twinkle round it. `SIZE[r]` (1.25 .. 1.82)
 an egg lying still (risen, not sinking or cracking) sends one up: an uncommon a green 1 px leaf drifting up, a rare a
 `twinkle_1`/`twinkle_2` star blinking round it, an epic pink and white 1 px sparks rising, a legendary gold and white
 ones and now and then a `spark_1..3` star, a mythic pink and white sparks and `twinkle_p1..p3` stars, a celestial motes
-of every colour and `glint_1..3` glints; at most `SPARKS` (140) at once, none with the pixel filter off, each gone
+of every colour and `glint_1..3` glints; at most `SPARKS` (40; 140 until 2026-11-23, each egg's `EVERY` half as often now) at once, none with the pixel filter off, each gone
 with its egg. Slot k of a lot of n lies on the
 lawn at `DecorModels.EGG_RING` from the tree's middle, spread evenly over the arc from `ARC0` (-62°) to `ARC1` (152°)
 (the south and east, the side the view looks at); a lot keeps its slots while it lasts (an egg's slot its place in
@@ -2501,7 +2511,7 @@ rad/s; waterwheel: `Rim`, `Spoke`, `Paddle` round (0, 1.2, 0) on its Z, -0.7; gr
 -0.6) on its X, 0.7). Every piece with moving parts on an island near the view gets a moving copy once: its moving
 parts cloned (anchored, no collision or query) into a `Spin_<name>` model in `workspace.PixelDynamic`, registered as
 a moving model, the originals hidden (`PixelRenderer.hideStatic`) for good, each part kept as its offset from its hub
-(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 40 on the screen (`PixelRenderer.nearScreen`, 24
+(the model's `At` frame times the hub). Of those, the `MAX_MOVING` 12 (40 until 2026-11-23; posed every `POSE_SECS` 0.1, 0.05 before) on the screen (`PixelRenderer.nearScreen`, 24
 art px) nearest the view's middle are `active` and move; a copy that stops being active is put back at rest (`hub *
 off`, its pose as built), and with reduced motion none move. (A first version dropped the copies past the cap and
 showed their parts again: on a full island every pan cast parts in and out of the picture, the renderer baked again
@@ -3489,8 +3499,10 @@ second one is ignored). A row's Visit and the HUD's Home both call it.
 The request: "optimize the game further, fix bugs, and polish everything fully". What the probes showed and what
 changed, module by module:
 - `EggView`: an egg's parts are moved with one `Workspace:BulkMoveTo` (`moveParts`, `moveCfs`), and only when the egg
-  moved (`cf`) or cracks; its lights and sparkles are stepped at 12 Hz (`fxT`), not every frame. A full ring of eggs
-  took 2.5 ms a frame on the stress island; about 1 ms now.
+  moved (`cf`) or cracks; its lights and sparkles are stepped at 8 Hz (`fxT`; 12 until 2026-11-23), not every frame. A
+  full ring of eggs took 2.5 ms a frame on the stress island; about 1 ms then. Since 2026-11-23 ("optimize the game
+  much much more") an egg off the screen (`PixelRenderer.nearScreen`, 40 px) lying still is left as it was, not rocked
+  nor its lights moved, till it comes near the screen.
 - `StreetLife`: a boat or a bird is placed only while it is within `NEAR_PX` (64) art px of the screen
   (`PixelRenderer.nearScreen`); out of view it is parked once at `PARK` (y -400) and left there.
 - `AvatarView`: a founder's look is decoded once per attribute string (a weak-keyed `lookCache`), and the ground

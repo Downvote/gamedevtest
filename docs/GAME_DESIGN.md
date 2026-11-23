@@ -1955,7 +1955,8 @@ When the island grows into a new stage, the tree is built again at it.
 
   The glowing marks pool light on the lawn at night. The sparks are 1 px dots and small twinkle and spark sprites at
   whole pixels over the world, the rarer the egg the more often (from one every 0.8 s or so off an uncommon egg to
-  several a second off a legendary one), only over eggs lying still and at most 140 at once; the motes and the beam go
+  several a second off a legendary one; half as often since 2026-11-23), only over eggs lying still and at most 40 at
+  once (140 before); the motes and the beam go
   out under the lawn when the egg sinks or hatches. The egg icons (`egg_1` .. `egg_9`: the Tree panel, the store and
   the Hatchery; the Tree card has its own small ones, `mini_egg_1` .. `mini_egg_9`, 9 by 11 so each sits in its row: "the
   egg icons seem to overlap each other and the bottom one exceeds the border. could you make egg sprite icons smaller?",
@@ -2800,10 +2801,12 @@ text (the requests and how each was met) is in the history of this file, up to c
   redrawn a few times a second by the pixel filter, crests catching the light. (The sea moved the same way until it
   went on 2026-11-20.)
 - **One bright day, no night** (the request of 2026-11-14: "remove the day night cycle, and make everything
-  brighter"): the light no longer follows a clock. It is the same clear day all the time, a little brighter than the
-  plain baked picture (`Controllers/DayLight`'s `BRIGHT` grade: the colours 3.5% lighter, 2.5% in the blue, the shadows
-  lifted a touch; first 8% lighter, then toned down: "tone down the brightness abit, it should be around this
-  brightness level", with a picture of Random Bakery's bright snowy street), so there is no dawn, dusk, twilight or night, no lamp pools, no crickets
+  brighter"): the light no longer follows a clock. It is the same clear day all the time. It was a little brighter than
+  the plain baked picture (`Controllers/DayLight`'s `BRIGHT` grade: the colours 3.5% lighter, 2.5% in the blue, the
+  shadows lifted a touch; first 8% lighter, then toned down: "tone down the brightness abit, it should be around this
+  brightness level", with a picture of Random Bakery's bright snowy street); since 2026-11-23 the island shows as it is
+  baked, with no grade over it (`Tuning.PixelGrade`, the request "optimize the game much much more": every pixel that
+  changed went through the grade), so there is no dawn, dusk, twilight or night, no lamp pools, no crickets
   and no night music. The calendar still counts days (the HUD's "Day 12"). With the pixel filter off Roblox's own
   clock stays at early afternoon. (Before, from the request of 2026-11-10, "make an actual day night cycle, causing
   things to go dark and then bright as time goes on", the clock graded the picture through a rosy dawn, a golden
@@ -2870,8 +2873,9 @@ text (the requests and how each was met) is in the history of this file, up to c
 - **Decor that moves:** a decor piece's builder can mark parts that move (`Parts.move`): they spin (a merry-go-round,
   a big wheel, a lighthouse's lamp, a clock's hands), swing (a swing's seats, a hammock, a bell, wind chimes, a hanging
   lantern or bucket) or bob (a buoy, a boat, a duck decoy, floating lanterns), each piece a little out of step with
-  the next. At most 40 pieces move at a time, the ones on the screen nearest the middle of the view; the rest stand
-  still in their resting pose until they are among them. Flames throw up sparks that wink out (parts named Flame),
+  the next. At most 12 pieces move at a time, ten times a second, the ones on the screen nearest the middle of the
+  view; the rest stand still in their resting pose until they are among them (40, twenty times a second, until the
+  request of 2026-11-23, "optimize the game much much more"). Flames throw up sparks that wink out (parts named Flame),
   fountains throw spray from their jets that falls back into the basin (Spray), and crystals, gems and magic things
   twinkle now and then (Sparkle), all drawn in the ambient layer with the smoke and steam. Reduced motion keeps them
   all still.
@@ -3030,6 +3034,38 @@ text (the requests and how each was met) is in the history of this file, up to c
   step changing by 0.66 px a frame on average; now it crawls on none and jumps on none (0.62 px a frame, the camera's
   own 2 and 3 px steps by turns). Where the camera itself sets off fast it used to stop on the strips and then jump 8
   px; now it eases off and catches up over about a second.
+
+  > The request (2026-11-23): "optimize the game much much more. its ok to drop graphics where it most affects
+  > performance"
+
+  Measured first, on a full Everdrift walked end to end, a town of 68 driftlings and a village. The frame went mostly
+  on drawing again whatever moved (the driftlings out and about with their shadows, the turning decor, the eggs'
+  lights), on the colour grade over every changed pixel, on scrolling the picture, on casting ahead in spare time and
+  on the water. What went, where it cost the most:
+  - **The colour grade.** The island shows as it is baked: the bright day's 3.5% lift and the weathers' tints are gone
+    (the weather still shows by its rain, snow, petals and leaves, and by its sounds). The hatch scene keeps its own
+    light while it plays.
+  - **The driftlings' shadows.** The little dark ellipse under each driftling was drawn again wherever it went, as many
+    pixels again as the driftling.
+  - **Fewer driftlings out at once.** At most 12 of an island's driftlings are out of their buildings at a time; the
+    rest stay in till one goes back in (on a full island hundreds were out).
+  - **Fewer things turning.** At most 12 windmills, wheels and other moving decor turn at once, ten times a second (40,
+    twenty times a second, before). The rarer eggs' lights move eight times a second (twelve) and only on the screen,
+    and their sparks come half as often, 40 at most (140).
+  - **The water** moves four times a second (six), and only where there is water: a view with none rests the water's
+    work, and rows with no water are passed over.
+  What got cheaper without showing: the picture keeps 40 px past each edge of the screen (24), so it scrolls about a
+  quarter as often for the same walk; the filter's share of a frame is 12 ms (16); it no longer casts a ring round
+  the island while you stand still (the island is drawn whole behind the loading card now); a band of the picture
+  checked for stray pixels every tenth redraw (every third); rows of the lawn's tufts and of the redraw's tiles looked
+  at only where there are any. Two faults turned up on the way and are fixed: with the smaller share, the strips a
+  scroll brings in could wait for good and hold the view short of them (they now always get 2 ms a frame), and the
+  view could swing a pixel either side of the camera for good after catching up (it now lands on it).
+  In the previews (the frame's time for everything): the full Everdrift walked onto new ground 24.4 ms a frame before,
+  14.3 now, frames over 20 ms 228 then and 12 now (over 25 ms 113 and 3), its slowest frame 77 ms then and 27 now;
+  walked over ground seen before 18.3 ms then, 9.9 now; the town of 68 driftlings 23.4 ms, about 15 now; the village
+  walked round 15.0 ms, 13.2 now, and standing in it 9.2 ms, 7.9 now. A live client runs the game's scripts without compiling them, so its frames
+  take longer than these; the previews run that way too (`PREVIEW_LUAU=-O2`) for the Everdrift walk: 15.5 ms a frame.
 - Up to `MaxPlots` (6) islands float in a row in the sky, 170 studs apart; an unclaimed lot is a little empty islet
   with a sign. Flocks of white birds fly between them. **Visiting** (since 2026-11-20; from 2026-11-13 you swam
   between the islands, head and shoulders above the water): the HUD's Visit button, beside the top bar while you are
@@ -3598,7 +3634,9 @@ reason.
   hatched still steps out of its egg and walks to its new building first. Only driftlings out and about cheer, show
   their name on hover and can be tapped. Most of an island's driftlings are indoors at any moment: in the `crowd`
   preview (a full town of 68) 19 to 26 have a model instead of 66, and the pixel filter's work a frame went from
-  34.6 ms to 24.2 (its slowest frame from 269 ms to 147).
+  34.6 ms to 24.2 (its slowest frame from 269 ms to 147). Since 2026-11-23 at most 12 of an island's driftlings are out
+  at once (`Tuning.PalOutMax`): with that many out, one inside stays in for another spell and one out walks home with
+  no stroll first (§8, the request "optimize the game much much more").
 - **The sky lives:** the sky runs through its own day and night, the sea of clouds drifts slowly below, and flocks of white birds cross now and then (from either side, at their own height, weaving and gliding, a different crossing each
   time). (The sea rolled and its foam lapped the shores, its crests a light blue as asked on 2026-11-10, and sailboats
   rocked on its swell, until the islands took to the sky on 2026-11-20. No campfire flickers since 2026-11-20, and no
@@ -3914,8 +3952,10 @@ of the island", when it was mixed with the empty sky pixels as if they were blac
 leaves orange and red leaves, heat haze sends pale motes up off the ground, a breeze sends a few wisps of wind across
 (never more than seven at once: a near-white line with one small step in it, its ends fading, fading in and out as it
 goes; there used to be some fifty faint streaks that looked like a broken picture in a still frame) and leaves. Each
-weather tints the bright day a little (`DayLight.setWeather`) and keeps it bright: rain and storms a touch cooler and
-greyer, snow and fog lighter, haze and leaves warmer. A new spell fades in over a few seconds. Sounds: a drizzle loop
+weather used to tint the bright day a little (`DayLight.setWeather`: rain and storms a touch cooler and greyer, snow
+and fog lighter, haze and leaves warmer); since 2026-11-23 the weather shows by what falls and drifts and by its
+sounds, with no tint (the request "optimize the game much much more": each change of weather graded the whole picture
+again, a step at a time). A new spell fades in over a few seconds. Sounds: a drizzle loop
 in rain, a heavy rain loop in a storm, wind gusts on a breezy, blossom or leafy day, the thunder (Roblox's licensed
 library, chosen by listening to their length and loudness with ffprobe, not by title). Reduced motion keeps the light
 and drops the particles; the lower picture tiers get fewer of them.

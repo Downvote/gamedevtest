@@ -77,7 +77,11 @@ function DayLight.start()
 			end)
 			return
 		end
-		PixelRenderer.setGrade(held or weather or BRIGHT)
+		-- (no grade over the picture since the request of 2026-11-23, "optimize the game much much more. its ok to drop
+		-- graphics where it most affects performance": the bright day's touch of light and the weathers' tints went
+		-- through every pixel that changed, and each weather's step graded the whole picture again. The hatch scene's
+		-- held grade stays, for the moments it plays)
+		PixelRenderer.setGrade(held or (if Tuning.PixelGrade then weather or BRIGHT else nil))
 	end)
 end
 
